@@ -547,10 +547,9 @@ void mainTask(void* parameter) {
         button_1.update();
         button_2.update();
 
-        // ---- The knob held for 1.5 s toggles the SID player (start from the synth, stop back to
-        // it). A short knob press keeps its role in each mode: octave reset in the synth, mute in
-        // the player. The buttons act once a press has lasted PRESS_MS, so they never wait for a
-        // release.
+        // ---- The knob is the mode switch: a press starts the SID player from the synth; in the
+        // player a press mutes and a 1.5 s hold stops (back to the synth). The buttons act once a
+        // press has lasted PRESS_MS, so they never wait for a release.
         //
         // PRESS_MS is the debounce the SDK's button and encoder switch do not have: a press counts
         // once the pin has read pressed for that long. Contact bounce is over in a few ms; nothing a
@@ -622,14 +621,9 @@ void mainTask(void* parameter) {
         wifi.postSensorEventInt("knob_position", pos, "rotary_encoder_knob");
         }
 
-        if (knobShort) {
-        octave = 4;
-        needsRedraw = true;
+        if (knobShort) {                      // a knob press in the synth starts the SID player
         wifi.postButtonEvent("knob_press", 1);
-        gateVoice(2, NOTE_C5, 70);
-        renderVoices();
-        gateVoice(2, NOTE_E5, 100);
-        renderVoices();
+        if (tuneStart(tuneIndex, 0)) continue;   // the player draws its own screen next round
         }
 
         if (button_1.wasPressed()) {

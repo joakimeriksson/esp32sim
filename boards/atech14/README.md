@@ -81,7 +81,8 @@ titles and authors on screen are read from each file's PSID header at run time.
 
 | Control | Action |
 | --- | --- |
-| hold the **knob** 1.5 s | start the player / stop it and return to the synth |
+| **knob press** (in the synth) | start the player |
+| hold the **knob** 1.5 s | stop, back to the synth |
 | **button 1** | next tune |
 | **button 2** | next subtune (a one-subtune file restarts) |
 | **encoder** | volume, 5 % per detent; the LED ring is the dial, cyan |
