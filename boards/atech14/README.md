@@ -81,12 +81,12 @@ titles and authors on screen are read from each file's PSID header at run time.
 
 | Control | Action |
 | --- | --- |
-| hold **button 1** ~0.7 s | start the player / stop it and return to the synth |
+| hold the **knob** 1.5 s | start the player / stop it and return to the synth |
 | **button 1** | next tune |
 | **button 2** | next subtune (a one-subtune file restarts) |
 | **encoder** | volume, 5 % per detent; the LED ring is the dial, cyan |
 | **knob press** | mute / unmute (ring turns red; the tune keeps running underneath) |
-| serial JSON | `{"action":"play_sid","value":"0"}`, `{"action":"next_sid"}`, `{"action":"sid_subtune","value":"3"}` (empty = next), `{"action":"set_volume","value":"0.5"}`, `{"action":"mute","value":"1"}` (empty = toggle), `{"action":"stop_sid"}` |
+| serial JSON | `{"action":"play_sid","value":"0"}`, `{"action":"next_sid"}`, `{"action":"sid_subtune","value":"3"}` (empty = next), `{"action":"set_volume","value":"0.5"}`, `{"action":"mute","value":"1"}` (empty = toggle), `{"action":"stop_sid"}`; diagnostics: `{"action":"pin_probe","value":"9"}` samples a GPIO 2000× over 100 ms and reports the lows |
 
 The screen shows title and author from the PSID header, `tune/count  sub n/m`, and the volume bar
 (or a MUTE badge). The header reads SID PLAYER while a tune plays. Changes are posted as state events

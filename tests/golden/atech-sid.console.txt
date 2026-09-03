@@ -23,16 +23,16 @@ Initializing...
 ================ ATECH BOOT ================
   Boot count : 1
   Reset cause: POWERON (1)
-  Free heap  : 362664 bytes
-  Min heap   : 357444 bytes (lowest since boot)
+  Free heap  : 362648 bytes
+  Min heap   : 357428 bytes (lowest since boot)
   CPU freq   : 240 MHz
 ============================================
-[sid] 4 tunes embedded, C64 allocated on demand (free heap 348788)
+[sid] 4 tunes embedded, C64 allocated on demand (free heap 348772)
 ST7735 display initialized (160x80, double-buffered)
 [RotaryEncoder] Ring initialized on pin 8
 [Atech] Transport: USB-Serial
 Setup complete!
 FreeRTOS tasks started!
-[sid] C64 ready (free heap 37120)
+[sid] C64 ready (free heap 37104)
 [sid] playing "Commando" by Rob Hubbard (subtune 1/19)
 {"type":"event","payload":{"event_type":"state","key":"sid_tune","value":"1/4 1/19","source":"user"}}

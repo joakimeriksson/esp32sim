@@ -367,6 +367,18 @@ void handleMessage(const char* action, const char* value) {
     if (tunePlaying) jukeSetVolume(v); else speaker_1.setVolume(v);
     return;
   }
+  if (strcmp(action, "pin_probe") == 0) {                  // diagnostics: sample a GPIO 2000x over 100 ms, report the lows
+    int pin = atoi(value); if (pin < 0 || pin > 48) return;
+    int lows = 0, run = 0, longest = 0, runs = 0;
+    for (int i = 0; i < 2000; i++) {
+      bool low = digitalRead(pin) == LOW;
+      if (low) { lows++; if (++run > longest) longest = run; } else { if (run) runs++; run = 0; }
+      ets_delay_us(50);
+    }
+    if (run) runs++;
+    Serial.printf("[probe] gpio%d: %d/2000 low, %d low runs, longest %d samples (%d us)\n", pin, lows, runs, longest, longest * 50);
+    return;
+  }
   if (strcmp(action, "mute") == 0) {                       // "1", "0", or empty = toggle
     if (!tunePlaying) return;
     jukeSetMute(value && *value ? atoi(value) != 0 : !jukeMuted);
@@ -535,23 +547,42 @@ void mainTask(void* parameter) {
         button_1.update();
         button_2.update();
 
-        // ---- SID jukebox: hold button 1 for ~0.7 s to start or stop tune playback ----
-        static bool btn1Long = false;                       // this press has already acted as a long press
-        {
-          static uint32_t btn1DownMs = 0;
-          if (button_1.isPressed()) {
-            if (!btn1DownMs) btn1DownMs = millis();
-            else if (!btn1Long && millis() - btn1DownMs > 700) {
-              btn1Long = true;
-              if (tunePlaying) tuneStop(); else tuneStart(tuneIndex, 0);
-            }
-          } else { btn1DownMs = 0; }                       // btn1Long is cleared by whoever consumes the release
+        // ---- The knob held for 1.5 s toggles the SID player (start from the synth, stop back to
+        // it). A short knob press keeps its role in each mode: octave reset in the synth, mute in
+        // the player. The buttons act once a press has lasted PRESS_MS, so they never wait for a
+        // release.
+        //
+        // PRESS_MS is the debounce the SDK's button and encoder switch do not have: a press counts
+        // once the pin has read pressed for that long. Contact bounce is over in a few ms; nothing a
+        // finger does is that short. (The pins themselves are clean — pin_probe measured them.)
+        const uint32_t PRESS_MS = 40;
+        static uint32_t knobDownMs = 0;
+        static bool knobLong = false, knobShort = false;    // knobShort: a real press that ended before the hold time
+        knobShort = false;
+        if (rotary_encoder_1.isPressed()) {
+          if (!knobDownMs) knobDownMs = millis();
+          else if (!knobLong && millis() - knobDownMs > 1500) {
+            knobLong = true;
+            if (tunePlaying) tuneStop(); else tuneStart(tuneIndex, 0);
+          }
+        } else {
+          if (knobDownMs && !knobLong && millis() - knobDownMs >= PRESS_MS) knobShort = true;
+          knobDownMs = 0; knobLong = false;
         }
+        rotary_encoder_1.wasPressed();                       // the edge is handled above
+        // a button "fires" once its press has lasted PRESS_MS; released resets it
+        static uint32_t btn1DownMs = 0, btn2DownMs = 0;
+        static bool btn1Fired = false, btn2Fired = false;
+        auto fired = [&](ButtonModule& b, uint32_t& down, bool& done) -> bool {
+          if (b.isPressed()) { if (!down) down = millis(); if (!done && millis() - down >= PRESS_MS) { done = true; return true; } }
+          else { down = 0; done = false; }
+          return false;
+        };
+        bool btn1Fire = fired(button_1, btn1DownMs, btn1Fired), btn2Fire = fired(button_2, btn2DownMs, btn2Fired);
 
         // While a tune plays the board is a SID player, not a synth:
-        //   encoder      volume        knob press   mute / unmute
+        //   encoder      volume        knob press   mute / unmute       hold knob   stop
         //   button 1     next tune     button 2     next subtune
-        //   hold 1       stop (back to the synth)
         // Rendering paces this loop, so nothing else runs here.
         if (tunePlaying) {
           int32_t tpos = rotary_encoder_1.getPosition();
@@ -560,11 +591,11 @@ void mainTask(void* parameter) {
             lastEncoderPos = tpos;
             jukeSetVolume(jukeVol + JUKE_VOL_STEP * (float)delta);
           }
-          if (rotary_encoder_1.wasPressed()) jukeSetMute(!jukeMuted);
-          button_1.wasPressed();                                             // acted on at release
-          if (button_1.wasReleased()) { if (!btn1Long) tuneStart(tuneIndex + 1, 0); btn1Long = false; }
-          if (button_2.wasPressed()) tuneNextSubtune();
-          button_2.wasReleased();
+          if (knobShort) jukeSetMute(!jukeMuted);
+          if (btn1Fire) tuneStart(tuneIndex + 1, 0);
+          if (btn2Fire) tuneNextSubtune();
+          button_1.wasPressed(); button_1.wasReleased(); button_2.wasPressed(); button_2.wasReleased();   // edges handled above
+          if (!tunePlaying) continue;                        // stopped just now: let the synth redraw its screen
           if (needsRedraw && (millis() - lastFrameMs >= 30)) {
             lastFrameMs = millis();
             needsRedraw = false;
@@ -591,7 +622,7 @@ void mainTask(void* parameter) {
         wifi.postSensorEventInt("knob_position", pos, "rotary_encoder_knob");
         }
 
-        if (rotary_encoder_1.wasPressed()) {
+        if (knobShort) {
         octave = 4;
         needsRedraw = true;
         wifi.postButtonEvent("knob_press", 1);
@@ -609,7 +640,6 @@ void mainTask(void* parameter) {
         wifi.postStateEvent("note_triggered", noteStr);
         }
         if (button_1.wasReleased()) {
-        btn1Long = false;
         wifi.postButtonEvent("button_release", 0);
         }
 
