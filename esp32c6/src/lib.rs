@@ -9,6 +9,7 @@
 //! cache has its own register block.
 pub mod board;
 pub mod bus;
+pub mod net;
 pub mod periph;
 pub mod radio;
 pub mod soc;
