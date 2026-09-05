@@ -1,6 +1,6 @@
 {
  "board": "waveshare-c6-lcd147",
- "flash_mb": 2,
+ "flash_mb": 4,
  "seconds": 90,
  "stubs": [
   "bb_init=0"
@@ -20,7 +20,7 @@
     "app": "public/c6-rpl-server.bin"
    },
    "symbols": {
-    "bb_init": "0x42028fb6"
+    "bb_init": "0x4206246c"
    },
    "expect": "Received request",
    "min_rx": 3
@@ -34,11 +34,11 @@
     "app": "public/c6-rpl-client.bin"
    },
    "symbols": {
-    "bb_init": "0x42029176"
+    "bb_init": "0x42062648"
    },
    "expect": "Received response",
    "min_tx": 3
   }
  ],
- "_note": "An RPL/IPv6 network of two emulated ESP32-C6 motes in this tab: node 1 runs Contiki-NG's rpl-udp server and is the DAG root, node 2 the client. The client joins the DAG, then sends a UDP request every 10 s and gets a reply — 6LoWPAN, RPL Lite and CSMA end to end over the emulated 802.15.4 MAC, hardware ACKs included. Both images are github.com/joakimeriksson/contiki-ng-esp32 (-DCONTIKI_UDP_SERVER=ON for the root). bb_init is the PHY blob's baseband calibration; each image has its own address for it."
+ "_note": "An RPL/IPv6 network of two emulated ESP32-C6 motes in this tab, each with its LCD console and heartbeat LED: node 1 runs Contiki-NG's rpl-udp server and is the DAG root, node 2 the client. The client joins the DAG, then sends a UDP request every 10 s and gets a reply — 6LoWPAN, RPL Lite and CSMA end to end over the emulated 802.15.4 MAC, hardware ACKs included. Both images are contiki-ng-esp32 with -DCONTIKI_DISPLAY=ON (-DCONTIKI_UDP_SERVER=ON for the root); each has its own bb_init address."
 }
