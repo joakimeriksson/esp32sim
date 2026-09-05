@@ -82,7 +82,7 @@ async function runNetwork(name, m) {
     }
     for (const s of [].concat(node.stubs || m.stubs || [])) {
       const [sym, val] = s.split('=');
-      const name = (m.symbols || {})[sym] || sym;   // as the page: a symbols map resolves a stub without shipping the ELF
+      const name = ((node.symbols || m.symbols) || {})[sym] || sym;   // as the page: a symbols map resolves a stub without shipping the ELF; a node's own wins
       if (withBytes(enc.encode(name), (p, n) => w.esp32sim_net_stub(net, i, p, n, Number(val ?? 0) >>> 0)) !== 0) throw new Error(`node ${i}: stub ${sym}: ${logs.join(' | ')}`);
     }
   });

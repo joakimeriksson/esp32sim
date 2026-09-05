@@ -125,9 +125,16 @@ Two things a network needs that a single mote does not:
   This is visible in csim too — two `esp32sim-c6 --cooja` nodes running the same image transmit
   at 5.065 s, 10.065 s, 15.065 s together and never receive.
 
-`esp32c6/tests/net.rs` holds it to that with the Contiki-NG nullnet image: two motes, staggered,
+`esp32c6/tests/net.rs` (`external_two_motes_exchange_nullnet_broadcasts`, needing `CONTIKI_C6_DIR`) holds it to that with the Contiki-NG nullnet image: two motes, staggered,
 each hears all five of the other's broadcasts in 30 s, and the payload reaches Contiki's nullnet
 layer rather than only the PHY.
+
+With two different images it is a real IPv6 network: `contiki-ng-esp32` built with
+`-DCONTIKI_UDP_SERVER=ON` is the rpl-udp server and makes itself the DAG root; the ordinary build
+is the client. On one medium the client joins the DAG in about 25 s and then exchanges a UDP
+request and reply with the root every 10 s — 6LoWPAN, RPL Lite, CSMA and the hardware
+acknowledgements, end to end. `web/wasm/fw/c6-rpl-net.json` is that pair; under Node it runs at
+40x real time.
 
 ## In the browser
 
@@ -137,6 +144,7 @@ The C6 is in the WebAssembly build too — pick board `esp32c6` on the page, or 
     https://joakimeriksson.github.io/esp32sim/?fw=c6-energy-scan
     https://joakimeriksson.github.io/esp32sim/?fw=c6-contiki
     https://joakimeriksson.github.io/esp32sim/?fw=c6-contiki-net
+    https://joakimeriksson.github.io/esp32sim/?fw=c6-rpl-net
 
 The first is console-only; the second is the energy scanner on the Waveshare board at real time,
 with the panel, the WS2812 and a BOOT button on the page (its firmware is published under

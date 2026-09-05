@@ -29,7 +29,7 @@ jobs:
       - name: Build the wasm module
         run: tools/wasm-build.sh
       - name: Test the wasm module (the real build, under Node, through the page's manifests)
-        run: ESP32SIM_ROM_DIR=$PWD/roms node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net panel
+        run: ESP32SIM_ROM_DIR=$PWD/roms node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel
       - name: Worker pacing tests
         run: node tools/worker-pacing-test.mjs
       - name: Differential tests for generated WASM blocks

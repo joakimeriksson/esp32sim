@@ -77,6 +77,7 @@ the tab falls half a second behind. `Date.now()` is passed in for the emulated S
 | ESP32-C6 802.15.4 energy scanner | real time | the Waveshare ESP32-C6-LCD-1.47: LVGL spectrum on the ST7789 over SPI2+GDMA, WS2812, energy detect from the MAC model's moving 2.4 GHz picture; BOOT on the page — board `waveshare-c6-lcd147` |
 | ESP32-C6 Contiki-NG | real time | Contiki-NG as an unmodified IDF app: its own scheduler and 802.15.4 stack over the emulated MAC |
 | …two of them on one medium | real time | a manifest with a `nodes` array boots a network through `esp32sim_net_*` instead of `esp32sim_new`: several motes, one medium, no simulator behind them |
+| …an RPL/IPv6 network | real time | rpl-udp server (the DAG root) and client: the client joins, then UDP request and reply every 10 s over 6LoWPAN, RPL Lite, CSMA and hardware ACKs |
 
 The browser's Xtensa block scheduler can compile hot integer/branch/memory blocks into
 additional WASM modules. After 32 executions, an eligible block is installed in the emulator's
@@ -163,6 +164,10 @@ reason the Cooja front end keeps them in Rust: `Machine::run_until_cycle` stops 
 that starts a transmission and `SocBus::radio_receive` puts a frame on the air at its first
 preamble byte, so the exactness is already there and a native test can hold it to it
 (`esp32c6/tests/net.rs`). The worker only paces network time to the wall clock and relays.
+
+A node may carry its own `files` and `symbols`: an entry of a kind the node names replaces the
+shared one, so a root and a client — two images with two `bb_init` addresses — share one
+bootloader and partition table and differ only in `app`.
 
 `start_ms` is not cosmetic. Two identical images booted at the same instant are deterministic to
 the cycle, so their application timers never drift apart: every broadcast is sent while the other

@@ -26,7 +26,7 @@ fn load(net: &mut Network, i: usize, rom: &[u8], dir: &str) {
 /// means the whole path works: TX_START cuts the slice, the frame goes on the air at its first
 /// preamble byte, the receiver's address filter passes it and the application sees the payload.
 #[test] #[ignore = "needs the ESP32-C6 mask ROM ELF and CONTIKI_C6_DIR (a Contiki-NG nullnet build)"]
-fn two_motes_exchange_nullnet_broadcasts() {
+fn external_two_motes_exchange_nullnet_broadcasts() {
     let rom = std::fs::read(common::rom("esp32c6_rev0")).expect("rom elf");
     let dir = contiki_dir();
     let mut net = Network::new();

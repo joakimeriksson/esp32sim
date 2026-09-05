@@ -40,6 +40,11 @@
   "note": "two emulated C6 motes on one 802.15.4 medium, in this tab, with no simulator behind them: each hears the other's broadcasts. The second powers on 1.3 s later — two identical images booted together stay deterministic to the cycle and every frame collides"
  },
  {
+  "fw": "c6-rpl-net",
+  "title": "…an RPL/IPv6 network: root and client",
+  "note": "two emulated C6 motes in this tab: node 1 is Contiki-NG's rpl-udp server and the DAG root, node 2 the client — it joins the DAG, then sends a UDP request every 10 s and gets a reply. 6LoWPAN, RPL Lite and CSMA end to end over the emulated 802.15.4 MAC, hardware ACKs included"
+ },
+ {
   "fw": "atech",
   "title": "Atech 14-port Pocket Synth",
   "note": "Arduino firmware on the 14-port board: ST7735 display, WS2812 ring, encoder and buttons, SID-chip synth — the script plays it (enable audio)"
