@@ -5,6 +5,7 @@ pub mod core;
 pub mod decode;
 pub mod disasm;
 pub mod exec;
+pub mod operands;
 pub mod state;
 pub mod pie;
 pub mod pie_table;

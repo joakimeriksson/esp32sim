@@ -5,6 +5,34 @@ import hashlib
 import json
 import pathlib
 import statistics
+import re
+
+SCHEMA = json.loads(pathlib.Path(__file__).with_name('verdict-schema.json').read_text())
+
+
+def validate_verdict(line):
+    if not isinstance(line, str) or '\n' in line or '\r' in line:
+        raise ValueError('missing or incomplete verdict')
+    tokens = line.split()
+    if not tokens or tokens.pop(0) != SCHEMA['marker']:
+        raise ValueError('unexpected verdict marker')
+    allowed = set(SCHEMA['gates']) | set(SCHEMA['receipts'])
+    fields = {}
+    for token in tokens:
+        match = re.fullmatch(r'([a-z][a-z0-9_]*)=([a-z0-9]+)', token)
+        if not match:
+            raise ValueError(f'malformed field: {token}')
+        key, value = match.groups()
+        if key not in allowed or key in fields:
+            raise ValueError(f'unknown or duplicate field: {key}')
+        fields[key] = value
+    if fields.keys() != allowed:
+        raise ValueError('missing verdict fields')
+    for key, value in fields.items():
+        if value not in SCHEMA['receipts'].get(key, ['0', '1']):
+            raise ValueError(f'invalid value: {key}')
+    if any(fields[key] != '1' for key in SCHEMA['gates']):
+        raise ValueError('firmware correctness gate failed')
 
 # Intervals include all work between the preceding marker and this marker, including
 # setup and console delivery. They are not isolated function or guest-device timings.
@@ -27,6 +55,10 @@ def read_run(directory):
     result, version = capture['result'], capture['version']
     if not result['passed'] or result['status'] != 'completed':
         raise ValueError(f'{directory}: firmware did not complete successfully')
+    validate_verdict(result.get('verdict'))
+    validation = result.get('verdictValidation')
+    if validation is not None and validation.get('schema') != SCHEMA['version']:
+        raise ValueError(f'{directory}: unsupported verdict schema')
     if 'HeadlessChrome/' not in version['User-Agent']:
         raise ValueError(f'{directory}: expected a headless Chrome timing capture')
     events = json.loads((directory / 'events.json').read_text())
@@ -47,6 +79,10 @@ def read_run(directory):
             marker = line.split(' ', 1)[0].strip()
             if marker in markers:
                 times[marker] = event['wallMs'] / 1000
+    verdicts = [line.rstrip('\r') for line in serial.split('\n')[:-1]
+                if line.startswith(SCHEMA['marker'])]
+    if verdicts != [result['verdict']] or SCHEMA['marker'] in pending:
+        raise ValueError(f'{directory}: missing, duplicate or mismatched console verdict')
     intervals, previous = {}, 0
     for name, marker in MILESTONES:
         end = times.get(marker)
@@ -56,6 +92,8 @@ def read_run(directory):
         previous = end
     return {
         'directory': str(directory),
+        'verdictSchema': SCHEMA['version'],
+        'provenance': result.get('provenance'),
         'wallSeconds': result['wallSeconds'],
         'intervalSeconds': intervals,
         'instructions': result['instructions'],
@@ -72,6 +110,14 @@ def comparison(baseline, candidate):
     for field in ('instructions', 'consoleSha256', 'verdict', 'browser', 'v8'):
         if len({run[field] for run in runs}) != 1:
             raise ValueError(f'Unmatched {field}; inspect the runs before comparing performance')
+    # Legacy captures have no provenance. New captures must use identical guest
+    # inputs; WASM and JavaScript hashes are retained because those may vary.
+    if any(run.get('provenance') is not None for run in runs):
+        for name in ('rom', 'bootloader', 'ptable', 'app', 'elf'):
+            hashes = [(run.get('provenance') or {}).get('sha256', {}).get(f'asset/{name}')
+                      for run in runs]
+            if None in hashes or len(set(hashes)) != 1:
+                raise ValueError(f'Missing or unmatched firmware hash: {name}')
 
     def metric(get):
         before, after = [get(run) for run in baseline], [get(run) for run in candidate]

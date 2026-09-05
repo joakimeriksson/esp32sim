@@ -1,0 +1,293 @@
+{
+  "release_workspace": {
+    "passed": 186,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 7
+  },
+  "wasm_differential_cases": 38681,
+  "wasm_firmware_demos": [
+    "hello",
+    "c3-hello",
+    "c6-hello",
+    "c6-energy-scan",
+    "panel"
+  ],
+  "page": {
+    "visibleStrokeColumns": [
+      121,
+      121,
+      121
+    ],
+    "inputSamples": 158,
+    "workerReceived": 158,
+    "runEntered": 158,
+    "changedCanvasFrames": 113,
+    "framesDuringContacts": [
+      32,
+      36,
+      34
+    ]
+  },
+  "page_errors": [],
+  "endpoint": "Production page listeners, sampled sends, worker receipt, next run entry, and canvas submission. No controller-consumption or optical timestamps. Per-stroke pixel regions are observations, not sample-to-pixel causal matches.",
+  "omitted_raw_fields": [
+    "trace",
+    "frames",
+    "samples",
+    "strokeInputs",
+    "serial"
+  ],
+  "raw_record": "page-response-valid-drag/page-response.json",
+  "page_statistics": {
+    "visibleStrokeColumns": [
+      121,
+      121,
+      121
+    ],
+    "inputSamples": 158,
+    "workerReceived": 158,
+    "runEntered": 158,
+    "pageSamplingMs": {
+      "n": 158,
+      "p50": 7.39990234375,
+      "p95": 15.800048828125,
+      "p99": 16.5,
+      "max": 17
+    },
+    "pageToWorkerMs": {
+      "n": 158,
+      "p50": 0.5,
+      "p95": 7.199951171875,
+      "p99": 8.199951171875,
+      "max": 8.5
+    },
+    "workerToRunEntryMs": {
+      "n": 158,
+      "p50": 5,
+      "p95": 5.199951171875,
+      "p99": 5.2001953125,
+      "max": 5.39990234375
+    },
+    "inputRunDurationMs": {
+      "n": 158,
+      "p50": 7.89990234375,
+      "p95": 15.5,
+      "p99": 23.599853515625,
+      "max": 25.10009765625
+    },
+    "arrivalToRunEntryMs": {
+      "n": 158,
+      "p50": 13.5,
+      "p95": 24.599853515625,
+      "p99": 27.89990234375,
+      "max": 29.599853515625
+    },
+    "changedCanvasFrames": 113,
+    "framesDuringContacts": [
+      32,
+      36,
+      34
+    ],
+    "commitReports": 4,
+    "frameGapsIncludingIntentionalRestsMs": {
+      "n": 112,
+      "p50": 58.900146484375,
+      "p95": 390.5,
+      "p99": 1905.800048828125,
+      "max": 2048.60009765625
+    }
+  },
+  "source_build_hashes": {
+    "packaging_revision": "9eea9424f4f1f1a61c664b0f858dc4d967e2c8ca",
+    "revision_scope": "Packaging checkout; not an attestation that each earlier execution used this exact revision. Page source hashes and semantic source equivalence are checked independently.",
+    "semantic_ablation_baseline": "88e55de85a145bb82b38bd4df0715d14011ba243",
+    "page_recorded_provenance": {
+      "sha256": {
+        "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+        "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+        "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+        "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+        "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+        "asset/wasm": "4d9a4ed96d83ea8f9f1e2266d4b6f7ea2b73b028bcf1a3a37945543ab03be4ad",
+        "web/emu.js": "bace68478e94cc5c54f20e38eb028eec238e7b51fb2f6058e0c9204f896d8691",
+        "web/index.html": "38da04c1bb1911402b5ef45807109a2881009970a138d5a8aa2850c2f5e52b1c",
+        "web/touch-input.js": "1da1f1a89e5c0524f815d3abd41ca472cb00d99b9060781b12a0abc860297907",
+        "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+        "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+        "web/wasm/worker.js": "b696b0070ac0ffe843fb19adb48bd4e2c45ec01fd67846bfdec351491115eaad"
+      }
+    },
+    "page_recorded_browser": {
+      "Browser": "Chrome/152.0.7977.77",
+      "Protocol-Version": "1.3",
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/152.0.0.0 Safari/537.36",
+      "V8-Version": "15.2.124.19",
+      "WebKit-Version": "537.36 (@529d9a34b491745086b59458f58a5aae8292adaa)",
+      "webSocketDebuggerUrl": "ws://127.0.0.1:9239/devtools/browser/5e80aa17-7101-41d5-b1ab-21559700b6f7"
+    },
+    "source_files": {
+      "web/emu.js": {
+        "sha256": "bace68478e94cc5c54f20e38eb028eec238e7b51fb2f6058e0c9204f896d8691",
+        "matches_packaging_revision": true
+      },
+      "web/index.html": {
+        "sha256": "38da04c1bb1911402b5ef45807109a2881009970a138d5a8aa2850c2f5e52b1c",
+        "matches_packaging_revision": true
+      },
+      "web/touch-input.js": {
+        "sha256": "1da1f1a89e5c0524f815d3abd41ca472cb00d99b9060781b12a0abc860297907",
+        "matches_packaging_revision": true
+      },
+      "web/wasm/jit.mjs": {
+        "sha256": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+        "matches_packaging_revision": true
+      },
+      "web/wasm/pacing.mjs": {
+        "sha256": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+        "matches_packaging_revision": true
+      },
+      "web/wasm/worker.js": {
+        "sha256": "b696b0070ac0ffe843fb19adb48bd4e2c45ec01fd67846bfdec351491115eaad",
+        "matches_packaging_revision": true
+      },
+      "tools/browser-benchmark/capture-page-response.mjs": {
+        "sha256": "473f31c8396d7b2d1104a7ac64ca12c35bebde2d94997e12e5205f29fc5c2041",
+        "matches_packaging_revision": true
+      },
+      "tools/wasm-jit-test.sh": {
+        "sha256": "210bd13125bc4562eaecfd3dc5a2e621531b9eeaa8b99050394667e824234ecf",
+        "matches_packaging_revision": true
+      },
+      "tools/wasm-jit-test.mjs": {
+        "sha256": "ba7b01b10c04f5d21a5240662edfc08d42b7d0110dfee7753ce285af964dea97",
+        "matches_packaging_revision": true
+      },
+      "tools/wasm-test.mjs": {
+        "sha256": "59ba689f191e3395aa93de9fdee194d3c50e6023f9442e934c5ccc04a4203408",
+        "matches_packaging_revision": true
+      }
+    },
+    "retained_wasm_check": {
+      "sha256": "4d9a4ed96d83ea8f9f1e2266d4b6f7ea2b73b028bcf1a3a37945543ab03be4ad",
+      "matches_page_recorded_wasm": true
+    },
+    "capture_harness_matches": true
+  },
+  "semantic_ablation_runs": {
+    "baseline": {
+      "outcome": "ok",
+      "passed": 13,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 1,
+      "test_wall_seconds": 8.14,
+      "count_differences": {},
+      "log": "semantic-ablation/baseline.log"
+    },
+    "narrow-mmio-only": {
+      "outcome": "ok",
+      "passed": 13,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 1,
+      "test_wall_seconds": 8.27,
+      "count_differences": {},
+      "log": "semantic-ablation/narrow-mmio-only.log"
+    },
+    "bus-only": {
+      "outcome": "FAILED",
+      "passed": 9,
+      "failed": 4,
+      "ignored": 0,
+      "filtered": 1,
+      "test_wall_seconds": 8.32,
+      "count_differences": {
+        "atech-sid.insns": {
+          "original": 338480800,
+          "observed": 338491585
+        },
+        "atech-script1.insns": {
+          "original": 319602849,
+          "observed": 319625999
+        }
+      },
+      "log": "semantic-ablation/bus-only.log"
+    },
+    "bus-and-scheduler": {
+      "outcome": "FAILED",
+      "passed": 8,
+      "failed": 5,
+      "ignored": 0,
+      "filtered": 1,
+      "test_wall_seconds": 19.12,
+      "count_differences": {
+        "atech-sid.insns": {
+          "original": 338480800,
+          "observed": 338494620
+        },
+        "atech-script1.insns": {
+          "original": 319602849,
+          "observed": 319625267
+        },
+        "panel-sid.insns": {
+          "original": 396793342,
+          "observed": 396472575
+        }
+      },
+      "log": "semantic-ablation/bus-and-scheduler.log"
+    },
+    "operands-only": {
+      "outcome": "FAILED",
+      "passed": 10,
+      "failed": 3,
+      "ignored": 0,
+      "filtered": 1,
+      "test_wall_seconds": 8.35,
+      "count_differences": {
+        "hello-s3.insns": {
+          "original": 4296987,
+          "observed": 4295116
+        },
+        "panel-sid.insns": {
+          "original": 396793342,
+          "observed": 396786672
+        }
+      },
+      "log": "semantic-ablation/operands-only.log"
+    },
+    "bus-scheduler-operands": {
+      "outcome": "FAILED",
+      "passed": 6,
+      "failed": 7,
+      "ignored": 0,
+      "filtered": 1,
+      "test_wall_seconds": 19.12,
+      "count_differences": {
+        "hello-s3.insns": {
+          "original": 4296987,
+          "observed": 4295116
+        },
+        "atech-sid.insns": {
+          "original": 338480800,
+          "observed": 338494620
+        },
+        "atech-script1.insns": {
+          "original": 319602849,
+          "observed": 319625267
+        },
+        "panel-sid.insns": {
+          "original": 396793342,
+          "observed": 396469561
+        }
+      },
+      "log": "semantic-ablation/bus-scheduler-operands.log"
+    }
+  },
+  "archive": {
+    "url": "https://github.com/aliceisjustplaying/esp32sim/releases/download/browser-correctness-evidence-2026-09-05/correctness-evidence-2026-09-05.tar.gz",
+    "sha256": "8be2f682db99043f55ae80bcc0cb57ee446dec83fdba963f2e6f14499d5e88d1",
+    "bytes": 187428,
+    "redaction": "Local account names redacted; file hashes describe the distributed files."
+  }
+}

@@ -418,10 +418,11 @@ pub(super) fn generate(block: &Block) -> Vec<u8> {
             mask
         } else if !supported(bi.insn.op, block.fast) {
             u16::MAX
-        } else if float::supported(bi.insn.op) || matches!(bi.insn.op, crate::Op::Lsi | crate::Op::Ssi) {
-            mask | float::registers(&bi.insn)
         } else {
-            mask | (1 << bi.insn.r) | (1 << bi.insn.s) | (1 << bi.insn.t)
+            // Include destinations (also conditional ones), not just reads: entry may
+            // resume after an earlier write, and emitted selects read the old destination.
+            // ENTRY reloads this same whole-block mask after rotating the register window.
+            mask | bi.insn.gpr_effects().touched()
         }
     });
     let mut g = Gen(Vec::new(), 0, registers);

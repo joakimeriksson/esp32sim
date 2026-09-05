@@ -926,5 +926,6 @@ pub fn run_tests() -> u32 {
     scheduler();
     retention();
     hardware_loop_scheduler();
-    tests + floating_point() + floating_point_guard_proof() + 3 + hardware_loops() + window_masks() + terminal_helpers() + whole_block_guards() + entry_and_shifts()
+    crate::block::ownership_tests::compiled_helpers_follow_the_current_bus_type();
+    tests + floating_point() + floating_point_guard_proof() + 4 + hardware_loops() + window_masks() + terminal_helpers() + whole_block_guards() + entry_and_shifts()
 }

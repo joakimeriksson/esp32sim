@@ -55,11 +55,21 @@ pub fn extract(w: u32, p: &PieInsn) -> Ops {
     }
     o
 }
+/// Windowed AR operands from the extension's typed field descriptions.
+pub fn gpr_mask(w: u32, idx: usize) -> u16 {
+    let o = extract(w, &OPS[idx]);
+    let mut mask = 0;
+    for k in 0..o.n {
+        if matches!(o.r[k], Some(Role::As | Role::Ad | Role::Au | Role::Ax | Role::Ay | Role::At)) {
+            mask |= 1 << o.v[k];
+        }
+    }
+    mask
+}
+
 /// Highest AR index used (window-overflow check).
 pub fn max_ar(w: u32, idx: usize) -> u8 {
-    let p = &OPS[idx]; let o = extract(w, p); let mut m = 0;
-    for k in 0..o.n { if matches!(o.r[k], Some(Role::As | Role::Ad | Role::Au | Role::Ax | Role::Ay | Role::At)) { m = m.max(o.v[k] as u8); } }
-    m
+    crate::operands::GprEffects { unclassified: gpr_mask(w, idx), ..Default::default() }.max_ar()
 }
 
 pub fn format(w: u32, idx: usize) -> String {

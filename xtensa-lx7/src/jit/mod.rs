@@ -76,16 +76,17 @@ mod native {
             self.used += bytes;
             Some(off as u32)
         }
-        fn ptr(&self, off: u32) -> *const u8 {
-            // SAFETY: Callers supply offsets returned by `write`, which lie inside this mapping.
-            unsafe { self.base.add(off as usize) }
+        /// Copy the executable address without retaining a reference to this cache.
+        /// Calling it requires the published-code and lifetime guarantees of `run`.
+        pub fn entry_point(&self, off: u32) -> *const u8 {
+            self.base.wrapping_add(off as usize)
         }
     }
 
     // ------------------------------------------------------------------ helpers called from generated code
     /// Function pointers the generated code calls; field order is the offset table below.
     #[repr(C)]
-    pub struct Helpers { read8: usize, read16: usize, read32: usize, write8: usize, write16: usize, write32: usize, exec: usize, raise_mem: usize, overflow: usize }
+    pub struct Helpers { read8: *const (), read16: *const (), read32: *const (), write8: *const (), write16: *const (), write32: *const (), exec: *const (), raise_mem: *const (), overflow: *const () }
     const H_READ8: u32 = 0; const H_READ16: u32 = 8; const H_READ32: u32 = 16;
     const H_WRITE8: u32 = 24; const H_WRITE16: u32 = 32; const H_WRITE32: u32 = 40;
     const H_EXEC: u32 = 48; const H_RAISE_MEM: u32 = 56; const H_OVERFLOW: u32 = 64;
@@ -124,7 +125,9 @@ mod native {
     extern "C" fn h_exec<B: Bus>(cpu: *mut Cpu, bus: *mut B, insn: *const BlockInsn, pc: u32) -> u32 {
         // SAFETY: The CPU and bus pointers are the exclusive pointers supplied to `run`, and the
         // instruction points into the stable block arena for the duration of that call.
-        let (cpu, bus, i) = unsafe { (&mut *cpu, &mut *bus, &*insn) };
+        // Copy before borrowing Cpu: its owned arena must not remain shared through i.
+        let i = unsafe { *insn };
+        let (cpu, bus) = unsafe { (&mut *cpu, &mut *bus) };
         cpu.pc = pc;
         bus.note_pc(pc);
         match exec_insn(cpu, bus, &i.insn) { Ok(()) => (bus.block_break() as u32) << 1, Err(t) => { cpu.jit_trap = Some(t); 1 } }
@@ -146,14 +149,35 @@ mod native {
     }
 
     impl Helpers {
-        pub fn new<B: Bus>() -> Helpers {
+        pub const fn new<B: Bus>() -> Helpers {
             Helpers {
-                read8: (h_read8::<B> as *const ()).addr(), read16: (h_read16::<B> as *const ()).addr(), read32: (h_read32::<B> as *const ()).addr(),
-                write8: (h_write8::<B> as *const ()).addr(), write16: (h_write16::<B> as *const ()).addr(), write32: (h_write32::<B> as *const ()).addr(),
-                exec: (h_exec::<B> as *const ()).addr(), raise_mem: (h_raise_mem as *const ()).addr(), overflow: (h_overflow as *const ()).addr(),
+                read8: h_read8::<B> as *const (), read16: h_read16::<B> as *const (), read32: h_read32::<B> as *const (),
+                write8: h_write8::<B> as *const (), write16: h_write16::<B> as *const (), write32: h_write32::<B> as *const (),
+                exec: h_exec::<B> as *const (), raise_mem: h_raise_mem as *const (), overflow: h_overflow as *const (),
             }
         }
+
+        /// Promote the immutable table for this concrete Bus type outside any Cpu.
+        /// Pointer-valued fields allow constant evaluation without exposing addresses.
+        pub fn shared<B: Bus>() -> &'static Helpers {
+            &const { Helpers::new::<B>() }
+        }
     }
+
+    // The generated AArch64 loads use these byte offsets and pointer width directly.
+    const _: () = {
+        assert!(std::mem::size_of::<Helpers>() == 72);
+        assert!(std::mem::align_of::<Helpers>() == 8);
+        assert!(std::mem::offset_of!(Helpers, read8) == H_READ8 as usize);
+        assert!(std::mem::offset_of!(Helpers, read16) == H_READ16 as usize);
+        assert!(std::mem::offset_of!(Helpers, read32) == H_READ32 as usize);
+        assert!(std::mem::offset_of!(Helpers, write8) == H_WRITE8 as usize);
+        assert!(std::mem::offset_of!(Helpers, write16) == H_WRITE16 as usize);
+        assert!(std::mem::offset_of!(Helpers, write32) == H_WRITE32 as usize);
+        assert!(std::mem::offset_of!(Helpers, exec) == H_EXEC as usize);
+        assert!(std::mem::offset_of!(Helpers, raise_mem) == H_RAISE_MEM as usize);
+        assert!(std::mem::offset_of!(Helpers, overflow) == H_OVERFLOW as usize);
+    };
 
     // ------------------------------------------------------------------ the compiler
     const OFF_PC: u32 = std::mem::offset_of!(Cpu, pc) as u32;
@@ -489,16 +513,17 @@ mod native {
     /// Run compiled code. Returns `done | code << 16`; see the EXIT_* codes.
     ///
     /// # Safety
-    /// `code` must identify live code produced by `compile` in `cc`, and `entry` must be an
-    /// instruction offset recorded by that compilation. `h` must have been created by
+    /// `code` must be an address returned by `CodeCache::entry_point` for live code produced
+    /// by `compile`, and `entry` must be an instruction offset recorded by that compilation.
+    /// The owning cache must remain alive and cannot reset or overwrite the code until return. `h` must have been created by
     /// `Helpers::new::<B>()`. The backing `BlockInsn` slice passed to `compile` must remain alive
     /// and unmoved until `code` can no longer run because fallback paths embed pointers into it.
     /// Code compiled with `fast = true` requires `Some(fm)`; it must describe `bus`, including
     /// valid unmoved backing buffers for its TLB entries, and remain valid for this call.
-    pub unsafe fn run<B: Bus>(cc: &CodeCache, code: u32, cpu: &mut Cpu, bus: &mut B, h: &Helpers, budget: u32, entry: u32, fm: Option<FastMem>) -> u32 {
+    pub unsafe fn run<B: Bus>(code: *const u8, cpu: &mut Cpu, bus: &mut B, h: &Helpers, budget: u32, entry: u32, fm: Option<FastMem>) -> u32 {
         // SAFETY: The caller guarantees that `code` names a live compiled entry point in this
         // cache with the declared ABI and concrete bus type.
-        let f: extern "C" fn(*mut Cpu, *mut B, *const Helpers, u32, u32, *const crate::bus::TlbEntry, *mut u32) -> u32 = unsafe { std::mem::transmute(cc.ptr(code)) };
+        let f: extern "C" fn(*mut Cpu, *mut B, *const Helpers, u32, u32, *const crate::bus::TlbEntry, *mut u32) -> u32 = unsafe { std::mem::transmute(code) };
         let (tlb, pv) = match fm { Some(m) => (m.tlb, m.page_ver), None => (std::ptr::null(), std::ptr::null_mut()) };
         f(cpu, bus, h, budget, entry, tlb, pv)
     }
@@ -516,15 +541,15 @@ mod native {
     pub const NONE: u32 = u32::MAX;
     pub const MAX_BLOCK_CODE: usize = 0;
     pub struct CodeCache;
-    impl CodeCache { pub fn new(_: usize) -> Option<CodeCache> { None } pub fn remaining(&self) -> usize { 0 } pub fn used(&self) -> usize { 0 } pub fn reset(&mut self) {} }
+    impl CodeCache { pub fn entry_point(&self, _: u32) -> *const u8 { std::ptr::null() } pub fn new(_: usize) -> Option<CodeCache> { None } pub fn remaining(&self) -> usize { 0 } pub fn used(&self) -> usize { 0 } pub fn reset(&mut self) {} }
     pub struct Helpers;
-    impl Helpers { pub fn new<B: Bus>() -> Helpers { Helpers } }
+    impl Helpers { pub fn new<B: Bus>() -> Helpers { Helpers } pub fn shared<B: Bus>() -> &'static Helpers { &Helpers } }
     pub fn compile(_: &mut CodeCache, _: &mut [BlockInsn], _: u32, _: bool) -> Option<u32> { None }
     /// The non-native implementation does not execute code.
     ///
     /// # Safety
     /// This signature matches the native implementation; no additional requirements apply here.
-    pub unsafe fn run<B: Bus>(_: &CodeCache, _: u32, _: &mut Cpu, _: &mut B, _: &Helpers, _: u32, _: u32, _: Option<crate::bus::FastMem>) -> u32 { 0 }
+    pub unsafe fn run<B: Bus>(_: *const u8, _: &mut Cpu, _: &mut B, _: &Helpers, _: u32, _: u32, _: Option<crate::bus::FastMem>) -> u32 { 0 }
     pub const CODE_END: u32 = 0; pub const CODE_LEFT: u32 = 1; pub const CODE_TRAP: u32 = 2; pub const CODE_CUT: u32 = 3; pub const CODE_TRAP_PRE: u32 = 4;
 }
 

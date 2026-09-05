@@ -31,6 +31,12 @@ jobs:
       - name: Test the wasm module (the real build, under Node, through the page's manifests)
         run: ESP32SIM_ROM_DIR=$PWD/roms node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel
       - name: Worker pacing tests
-        run: node tools/worker-pacing-test.mjs
+        run: |
+          node tools/worker-pacing-test.mjs
+          node --test tools/touch-input-test.mjs
+      - name: Browser benchmark verdict tests
+        run: |
+          node --test tools/browser-benchmark/verdict.test.mjs
+          python3 -m unittest discover -s tools/browser-benchmark -p 'test_*.py'
       - name: Differential tests for generated WASM blocks
         run: tools/wasm-jit-test.sh

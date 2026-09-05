@@ -1,6 +1,7 @@
 //! Observers: analyses that watch a run without living in the scheduler. Each declares what it
 //! wants to see; the machine only pays for hooks somebody asked for, and only observers that
-//! need every instruction (`INSN`) force the run off the block/JIT path.
+//! need every instruction (`INSN`) force single-stepping. Exact trap attribution (`TRAP`)
+//! bounds fast-path callbacks to one-instruction fragments.
 use crate::soc::{Soc, Stop};
 use emu_core::Trap;
 use std::collections::BTreeMap;
@@ -13,7 +14,7 @@ impl Wants {
     pub const INSN: Wants = Wants(1);
     /// `on_block` after every block the fast path executed (full speed)
     pub const BLOCK: Wants = Wants(2);
-    /// `on_trap` for exceptions and taken interrupts
+    /// `on_trap` at the exact instruction PC; bounds fast-path runs to one instruction.
     pub const TRAP: Wants = Wants(4);
     /// `on_mmio` for every peripheral register access
     pub const MMIO: Wants = Wants(8);

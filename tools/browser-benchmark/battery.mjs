@@ -1,6 +1,8 @@
+import {validateVerdict, completedVerdict, optionalCounter} from './verdict.mjs';
 import {createJitHost} from '/web/wasm/jit.mjs';
 export async function runBattery(load, emit, jit = true, chain = false) {
   const enc = new TextEncoder(), dec = new TextDecoder();
+  const schema = await (await fetch(new URL('./verdict-schema.json', import.meta.url))).json();
   const started = performance.now();
   let w, serial = '', frames = 0;
   const logs = [];
@@ -39,8 +41,9 @@ export async function runBattery(load, emit, jit = true, chain = false) {
       if(/Guru Meditation|TG1WDT_SYS_RST|stack overflow|task_wdt/.test(serial)||logs.some(l=>/chip reset|panic/i.test(l))){status='firmware-failure';break;}
       if(performance.now()-lastReport>2000){lastReport=performance.now();emit({type:'progress',guestSeconds:w.esp32sim_cycles(emu)/hz,wallSeconds:(lastReport-executionStart)/1000,frames,jit:{...blockJit.stats},tail:serial.slice(-400)});await new Promise(r=>setTimeout(r,0));}
     }
-    const verdict=serial.match(/TINYDRAW_GATE1_AUTOMATED_DONE[^\r\n]*/)?.[0]??null;
-    const result={status,stopCode,verdict,passed:status==='completed'&&!/=0(?:\s|$)/.test(verdict),guestSeconds:w.esp32sim_cycles(emu)/hz,wallSeconds:(performance.now()-executionStart)/1000,setupSeconds:(executionStart-started)/1000,instructions:w.esp32sim_insns(emu),frames,chainedBackedges:w.esp32sim_chained_backedges?.(emu)??0,jit:{...blockJit.stats,instructions:w.esp32sim_block_jit_insns(emu)},logs};
+    const verdict=completedVerdict(serial, schema);
+    const verdictValidation=validateVerdict(verdict, schema);
+    const result={status,stopCode,verdict,verdictValidation,passed:status==='completed'&&verdictValidation.passed,guestSeconds:w.esp32sim_cycles(emu)/hz,wallSeconds:(performance.now()-executionStart)/1000,setupSeconds:(executionStart-started)/1000,instructions:w.esp32sim_insns(emu),frames,chainedBackedges:optionalCounter(w, 'esp32sim_chained_backedges', emu),jit:{...blockJit.stats,instructions:w.esp32sim_block_jit_insns(emu)},logs};
     w.esp32sim_profile_report?.(emu);emit({type:'result',...result});return result;
   }finally{w.esp32sim_delete(emu);}
 }

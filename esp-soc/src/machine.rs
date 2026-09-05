@@ -51,7 +51,7 @@ pub struct Realtime {
     log_insns: (u64, u64),
 }
 
-struct WebState { last_push_cycles: u64, audio_sent: usize, ring_updates: u64, grid_updates: Vec<u64>, px_pending: u64, px_sent: u64, cam_pushed: u64, cam_sent: bool }
+struct WebState { last_push_cycles: u64, audio_sent: usize, ring_updates: u64, grid_updates: Vec<u64>, px_pending: u64, px_sent: u64, px_deferred: bool, cam_pushed: u64, cam_sent: bool }
 
 pub struct Machine<S: Soc> {
     pub mac: [u8; 6],
@@ -170,7 +170,7 @@ impl<S: Soc> Machine<S> {
             exceptions: 0, interrupts: 0, irq_hist: vec![[0; 32]; S::CORES],
             script: Script { events: Vec::new(), pos: 0, log: true, knob_next: 0 }, max_cycles: u64::MAX,
             console: Console { all: Vec::new(), usb: Vec::new(), uart0: Vec::new(), mask: 3, prefix: false, capture: false },
-            web: None, ws: WebState { last_push_cycles: 0, audio_sent: 0, ring_updates: 0, grid_updates: Vec::new(), px_pending: 0, px_sent: 0, cam_pushed: u64::MAX, cam_sent: false },
+            web: None, ws: WebState { last_push_cycles: 0, audio_sent: 0, ring_updates: 0, grid_updates: Vec::new(), px_pending: 0, px_sent: 0, px_deferred: false, cam_pushed: u64::MAX, cam_sent: false },
             rt: Realtime { enabled: false, wall_start: None, last_check: 0, behind: 0.0, resyncs: 0, log: false, log_last: None, log_insns: (0, 0) },
             debug_rom: false, cost: None, model_ready_at: vec![0; S::CORES], model_stop: None, model_attach_error: None,
         }
@@ -362,6 +362,9 @@ impl<S: Soc> Machine<S> {
     #[cfg_attr(all(target_arch = "wasm32", feature = "wasm-cpu-profile"), inline(never))]
     #[cfg_attr(not(all(target_arch = "wasm32", feature = "wasm-cpu-profile")), inline)]
     fn step_blocks(&mut self, core: usize, budget: u32) -> (u32, Option<Stop>) {
+        // Core::run returns a trap without its faulting PC. One-instruction fragments make
+        // the entry PC exact while retaining callbacks for combined BLOCK/TRAP observers.
+        let budget = if self.probes.contains(Wants::TRAP) { budget.min(1) } else { budget };
         let cpu = &mut self.cores[core];
         let pc = cpu.pc();
         // stubs and probes are block boundaries, so testing them at block start is exact
@@ -485,9 +488,9 @@ impl<S: Soc> Machine<S> {
         self.probe_bloom = self.fn_probes.keys().fold(0, |m, &pc| m | pc_bit(pc));
         for c in &mut self.cores {
             c.set_boundaries(self.stub_bloom | self.probe_bloom);
-            c.set_block_observation(self.probes.contains(Wants::BLOCK));
+            c.set_block_observation(self.probes.contains(Wants::BLOCK | Wants::TRAP));
         }
-        // the fast path cannot honour per-instruction observers; those runs single-step
+        // Per-instruction observers need the slow hooks; trap observers use bounded fragments.
         let blocks = !self.probes.contains(Wants::INSN);
         let slow_path = self.probes.contains(Wants::NO_IDLE_SKIP);
         let trace = self.has_observer("trace");
@@ -496,6 +499,9 @@ impl<S: Soc> Machine<S> {
         let mut idle = [true; 4];
         loop {
             if n >= max_insns { self.drain_console(); return Stop::MaxInsns; }
+            self.apply_script_events();
+            self.refresh_irq();
+            if self.bus.cycles() >= self.max_cycles { self.drain_console(); return Stop::Halted; }
             for (i, state) in on.iter_mut().enumerate().take(S::CORES).skip(1) {
                 *state = match S::core_state(&self.bus, i) {
                     CoreState::Reset => { self.core_held[i] = true; false }
@@ -508,8 +514,10 @@ impl<S: Soc> Machine<S> {
             }
             for (i, state) in idle.iter_mut().enumerate().take(S::CORES) { *state = !on[i] || (self.cores[i].waiting() && !self.cores[i].irq_pending()); }
             if idle[..S::CORES].iter().all(|&x| x) && !slow_path {
-                // every core asleep: let time pass in larger steps until a device raises a line
-                let chunk = S::IDLE_CHUNK;
+                // Stop at every known source of new work, including core-local timers. Device
+                // deadlines alone do not include CCOMPARE or host-script actions.
+                let limit = S::IDLE_CHUNK.min(max_insns - n).min(self.max_cycles - self.bus.cycles());
+                let chunk = self.idle_budget(limit, &on);
                 for (i, &enabled) in on.iter().enumerate().take(S::CORES) { if enabled { self.cores[i].idle_advance(chunk as u32); } }
                 n += chunk;
                 self.after_round(chunk);
@@ -543,6 +551,20 @@ impl<S: Soc> Machine<S> {
             if self.bus.cycles() >= self.max_cycles { self.drain_console(); return Stop::Halted; }
             if n & 0xffff < QUANTUM { self.drain_console(); }
         }
+    }
+
+    /// Positive idle advance bounded by device work, enabled cores' wakeups and host actions.
+    /// Callers settle actions already due and check their own stop bound before using this.
+    fn idle_budget(&self, limit: u64, on: &[bool]) -> u64 {
+        let mut budget = limit.min(u32::MAX as u64 >> 1);
+        if let Some(delta) = self.bus.next_deadline() { budget = budget.min(delta.max(1)); }
+        for (core, &enabled) in self.cores.iter().zip(on) {
+            if enabled { if let Some(delta) = core.cycles_until_wake() { budget = budget.min(delta.max(1)); } }
+        }
+        if let Some((at, _)) = self.script.events.get(self.script.pos) {
+            budget = budget.min(at.saturating_sub(self.bus.cycles()).max(1));
+        }
+        budget
     }
 
     fn run_modeled(&mut self, max_insns: u64) -> Stop {
@@ -767,22 +789,27 @@ impl<S: Soc> Machine<S> {
         self.probe_bloom = self.fn_probes.keys().fold(0, |m, &pc| m | pc_bit(pc));
         for c in &mut self.cores {
             c.set_boundaries(self.stub_bloom | self.probe_bloom);
-            c.set_block_observation(self.probes.contains(Wants::BLOCK));
+            c.set_block_observation(self.probes.contains(Wants::BLOCK | Wants::TRAP));
         }
         let blocks = !self.probes.contains(Wants::INSN);
         let no_skip = self.probes.contains(Wants::NO_IDLE_SKIP);
         loop {
             let now = self.bus.cycles();
             if now >= target { return RunUntil::Reached; }
+            if self.apply_script_events() { self.drain_console(); return RunUntil::Stop(Stop::Halted); }
+            self.refresh_irq();
             let left = target - now;
-            let deadline = self.bus.next_deadline().unwrap_or(u64::MAX).max(1);
             let core = &self.cores[0];
             if core.waiting() && !core.irq_pending() && !no_skip {
-                let chunk = left.min(deadline).min(u32::MAX as u64 >> 1);
+                let chunk = self.idle_budget(left, &[true]);
                 self.cores[0].idle_advance(chunk as u32);
-                self.after_round(chunk);
+                if self.after_round(chunk) { self.drain_console(); return RunUntil::Stop(Stop::Halted); }
                 if self.bus.take_host_event() { return RunUntil::Yield; }
             } else {
+                let mut deadline = self.bus.next_deadline().unwrap_or(u64::MAX).max(1);
+                if let Some((at, _)) = self.script.events.get(self.script.pos) {
+                    deadline = deadline.min(at.saturating_sub(now).max(1));
+                }
                 let mut budget = left.min(QUANTUM).min(deadline) as u32;
                 let (mut used_total, mut yielded, mut stop) = (0u64, false, None);
                 while budget > 0 {
@@ -793,8 +820,9 @@ impl<S: Soc> Machine<S> {
                     if self.bus.sw_reset() { break; }
                     if self.bus.take_host_event() { yielded = true; break; }
                 }
-                self.after_round(used_total);
+                let script_stopped = self.after_round(used_total);
                 if let Some(s) = stop { self.drain_console(); return RunUntil::Stop(s); }
+                if script_stopped { self.drain_console(); return RunUntil::Stop(Stop::Halted); }
                 if yielded || self.bus.take_host_event() { return RunUntil::Yield; }
             }
             if self.bus.sw_reset() { self.drain_console(); return RunUntil::Stop(Stop::SwReset); }
@@ -807,7 +835,7 @@ impl<S: Soc> Machine<S> {
 
     /// Device time, interrupt lines, scripts, web, real-time pacing after a scheduling round.
     #[inline]
-    fn after_round(&mut self, cycles: u64) {
+    fn after_round(&mut self, cycles: u64) -> bool {
         // device models only change state when they run, so the lines are re-derived after a
         // flush or a register write and never on a fixed cadence
         let ticked = self.bus.tick(cycles as u32) != 0;
@@ -815,26 +843,46 @@ impl<S: Soc> Machine<S> {
             *self.bus.irq_dirty() = false;
             if self.bus.refresh_irq() { self.present_irqs(); }
         }
-        self.after_round_rest();
+        let script_stopped = self.after_round_rest();
         if self.probes.0 != 0 {
             self.deliver_events();
             if self.probes.contains(Wants::ROUND) { let cx = Ctx { symbols: &self.symbols, cycles: self.bus.cycles(), cpu_hz: S::CPU_HZ }; for o in &mut self.observers { if o.wants().contains(Wants::ROUND) { o.on_round(&cx); } } }
         }
+        script_stopped
     }
 
+    /// Keep the common empty/not-due case in the scheduling loop without inlining action
+    /// cloning, logging or device dispatch. Read the public script state at each boundary so
+    /// host edits between runs and events inserted by web input are observed immediately.
     #[inline]
-    fn after_round_rest(&mut self) {
+    fn apply_script_events(&mut self) -> bool {
+        if !self.script.events.get(self.script.pos).is_some_and(|(at, _)| *at <= self.bus.cycles()) {
+            return false;
+        }
+        self.apply_due_script_events()
+    }
+
+    /// Apply actions at the current boundary without advancing device time.
+    #[inline(never)]
+    fn apply_due_script_events(&mut self) -> bool {
+        let mut stopped = false;
         while self.script.pos < self.script.events.len() && self.script.events[self.script.pos].0 <= self.bus.cycles() {
             let (t, a) = self.script.events[self.script.pos].clone(); self.script.pos += 1;
             if self.script.log { eprintln!("[script] t={:.3}s {:?}", t as f64 / S::CPU_HZ as f64, a); }
             match a {
                 ScriptAction::Gpio(pin, level) => { self.bus.gpio_set_input(pin, level); *self.bus.irq_dirty() = true; }
                 ScriptAction::Serial(text) => self.bus.serial_input(text.as_bytes()),
-                ScriptAction::Stop => { self.max_cycles = 0; }
+                ScriptAction::Stop => { self.max_cycles = 0; stopped = true; }
                 ScriptAction::Touch(x, y, d) => { self.bus.touch_input(x, y, d); }
                 ScriptAction::Poke(a, v) => { let _ = self.bus.write32(a, v); }
             }
         }
+        stopped
+    }
+
+    #[inline]
+    fn after_round_rest(&mut self) -> bool {
+        let stopped = self.apply_script_events();
         if self.web.is_some() && self.bus.cycles().wrapping_sub(self.ws.last_push_cycles) >= S::CPU_HZ / 50 { self.ws.last_push_cycles = self.bus.cycles(); self.web_push(); self.web_poll_input(); }
         if self.rt.enabled && self.bus.cycles().wrapping_sub(self.rt.last_check) >= 1 << 16 {
             self.rt.last_check = self.bus.cycles();
@@ -848,6 +896,7 @@ impl<S: Soc> Machine<S> {
                 if wall > emulated + std::time::Duration::from_millis(500) { self.rt.resyncs += 1; self.rt.wall_start = Some(std::time::Instant::now() - emulated); }
             } else { self.rt.behind = 0.0; }
         }
+        stopped
     }
 
     // ------------------------------------------------------------------ web UI
@@ -870,8 +919,12 @@ impl<S: Soc> Machine<S> {
         self.drain_console();
         let board = self.bus.board_ref();
         let ver = board.display_version();
-        // a display drawn pixel by pixel is sent once the stream has been quiet for a push interval (no half-drawn frames)
-        let due = if board.display_quiet_push() { if ver != self.ws.px_pending { self.ws.px_pending = ver; false } else { ver != self.ws.px_sent } } else { ver != self.ws.px_sent };
+        // Prefer one quiet push interval for pixel streams, but never defer a changed frame
+        // twice: continuous drawing must remain visible. This is a UI snapshot, not scanout.
+        let changed = ver != self.ws.px_sent;
+        let due = changed && (!board.display_quiet_push() || ver == self.ws.px_pending || self.ws.px_deferred);
+        self.ws.px_pending = ver;
+        self.ws.px_deferred = changed && !due;
         if due {
             if let Some((w_, h_, px, _)) = board.display() {
                 self.ws.px_sent = ver;

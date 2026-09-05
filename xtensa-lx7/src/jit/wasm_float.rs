@@ -73,19 +73,6 @@ fn requires_coprocessor(op: crate::Op) -> bool {
     (supported(op) && !matches!(op, Movf | Movt | Bf | Bt)) || matches!(op, Lsi | Ssi)
 }
 
-// Floating and boolean register numbers are not windowed integer operands.
-// Avoid loading unrelated ARs at every dispatch into a scalar drawing block.
-pub(super) fn registers(i: &crate::Insn) -> u16 {
-    use crate::Op::*;
-    match i.op {
-        FloatS | UfloatS | Wfr | Lsi | Ssi => 1 << i.s,
-        RoundS | TruncS | FloorS | CeilS | UtruncS | Rfr => 1 << i.r,
-        MoveqzS | MovnezS | MovltzS | MovgezS => 1 << i.t,
-        Movf | Movt => (1 << i.r) | (1 << i.s),
-        _ => 0,
-    }
-}
-
 pub(super) fn guard(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
     // Keep the check at the instruction boundary: prefixes and budget cuts must
     // complete before a disabled-coprocessor exception is delivered.
