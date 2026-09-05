@@ -226,10 +226,31 @@ fn gpio_output_queue_orders_each_bank_and_ignores_disabled_and_nonexistent_pins(
     g.write(0x34, 1 << 16);
     g.write(0x14, (1 << 16) | (1 << 31));
     assert!(g.changes.is_empty());
-    // Preserve existing direction-write behavior: enabling an already-high output
-    // does not enqueue an edge; the subsequent output transition does.
+    // Enabling an already-high output drives the line high, which the board sees as a rising
+    // edge (see `gpio_enable_toggle_reports_the_edge`); the output transition is the falling one.
     g.write(0x30, 1 << 16);
-    assert!(g.changes.is_empty());
+    assert_eq!(g.changes, vec![(48, true)]);
+    g.changes.clear();
     g.write(0x18, (1 << 16) | (1 << 31));
     assert_eq!(g.changes, vec![(48, false)]);
+}
+
+/// A level produced by toggling the output *enable* is an edge the board must see: IDF 5.5's
+/// esp_lcd drives the LCD D/C line this way (level, enable, transfer, disable), and a model that
+/// only compared `out` never reported it — every byte reached the panel as a command.
+#[test]
+fn gpio_enable_toggle_reports_the_edge() {
+    let mut g = Gpio::new();
+    g.write(0x8, 1 << 15);                       // OUT_W1TS: level 1, driver off — nothing visible yet
+    assert!(g.changes.is_empty(), "a level with the driver disabled is not an edge");
+    g.write(0x24, 1 << 15);                      // ENABLE_W1TS: the driver comes on at level 1
+    assert_eq!(g.changes, vec![(15, true)], "enabling the driver with out=1 is a rising edge");
+    g.changes.clear();
+    g.write(0x28, 1 << 15);                      // ENABLE_W1TC: released
+    assert_eq!(g.changes, vec![(15, false)], "releasing the driver is a falling edge");
+    g.changes.clear();
+    g.write(0xc, 1 << 15); g.write(0x24, 1 << 15);   // level 0, then enable: visible 0 -> 0
+    assert!(g.changes.is_empty(), "enabling at level 0 after a release changes nothing visible");
+    g.write(0x8, 1 << 15);                       // out goes to 1 while enabled: the usual edge still works
+    assert_eq!(g.changes, vec![(15, true)]);
 }
