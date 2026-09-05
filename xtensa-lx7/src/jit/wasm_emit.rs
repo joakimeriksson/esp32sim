@@ -601,8 +601,8 @@ fn emit_instruction(
             g.ar(t);
             g.op(extend);
             g.op(0x7e); // i64.mul
-            g.c(32);
-            g.op(0xad);
+            g.op(0x42); // i64.const 32
+            g.op(32);
             g.op(if i.op == Mulsh { 0x87 } else { 0x88 }); // i64.shr_s/u
             g.op(0xa7); // i32.wrap_i64
             g.set_ar(r);
@@ -680,8 +680,9 @@ fn emit_instruction(
         Sra => {
             g.ar(t);
             g.cpu(SAR);
+            g.tee(TMP);
             g.c(31);
-            g.cpu(SAR);
+            g.get(TMP);
             g.c(32);
             g.op(0x49); // Clamp the unsigned count; WASM shifts otherwise wrap at 32.
             g.op(0x1b);
@@ -691,8 +692,8 @@ fn emit_instruction(
         Src => {
             g.ar(s);
             g.op(0xad); // i64.extend_i32_u
-            g.c(32);
-            g.op(0xad);
+            g.op(0x42); // i64.const 32
+            g.op(32);
             g.op(0x86); // i64.shl
             g.ar(t);
             g.op(0xad);
