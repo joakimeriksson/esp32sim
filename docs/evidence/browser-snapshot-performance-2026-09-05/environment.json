@@ -1,0 +1,21 @@
+{
+  "os": "ProductName:\t\tmacOS\nProductVersion:\t\t27.0\nBuildVersion:\t\t26A5425a",
+  "hardware": "Apple M1 Pro",
+  "cpuCount": "10",
+  "physicalMemoryBytes": "34359738368",
+  "rust": "rustc 1.98.0 (88d9e12ae 2026-08-18)\nbinary: rustc\ncommit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea\ncommit-date: 2026-08-18\nhost: aarch64-apple-darwin\nrelease: 1.98.0\nLLVM version: 22.1.8",
+  "node": "v24.16.0",
+  "python": "Python 3.14.7",
+  "wasmOpt": null,
+  "architecture": "arm64",
+  "correctnessSource": "a96fedf8",
+  "captureHarnessSource": "9eea9424",
+  "reviewedPrSource": "08458ad73325cc5b35dc4d2f7e4b47855fedc1e8",
+  "baselineWasmSha256": "4d9a4ed96d83ea8f9f1e2266d4b6f7ea2b73b028bcf1a3a37945543ab03be4ad",
+  "queueWasmSha256": "9fa86ec01f88d1841c8f24e3572c616bfa99cff554839d73f67fab1e351cff74",
+  "helperJsSha256": "e93ec7d9ac6d3766903fa00eaf0b8994e14d0e716ef370df76286b421bc505bc",
+  "runOrder": "queue-a1,b1,b2,a2,a3,b3 then helper-a1,b1,b2,a2,a3,b3",
+  "method": "Each run uses a fresh dedicated headless Chrome browser. No simultaneous builds or other emulator benchmarks. RSS sampled every two seconds across owned browser and descendant processes; shared memory may be double counted.",
+  "buildRustcPath": "/Users/REDACTED/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc",
+  "buildRustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)\nbinary: rustc\ncommit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea\ncommit-date: 2026-08-18\nhost: aarch64-apple-darwin\nrelease: 1.98.0\nLLVM version: 22.1.8"
+}

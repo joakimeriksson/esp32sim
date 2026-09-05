@@ -173,6 +173,32 @@ fn quiet_display_publication_remains_live_during_continuous_changes() {
     assert!(web.take_outbox().iter().any(|(kind, data)| *kind == 2 && data == &[1, 1, 0, 1, 0, 7, 0]));
 }
 
+#[test]
+fn queued_display_output_does_not_build_an_unused_socket_snapshot() {
+    use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+    struct Display(Arc<AtomicUsize>);
+    impl esp_soc::board::BoardModel for Display {
+        fn name(&self) -> &'static str { "counted-display" }
+        fn display_version(&self) -> u64 { 1 }
+        fn display(&self) -> Option<(u32, u32, Vec<u16>, u64)> {
+            self.0.fetch_add(1, Ordering::Relaxed);
+            Some((1, 1, vec![0x1234], 1))
+        }
+    }
+    let mut m = machine();
+    let calls = Arc::new(AtomicUsize::new(0));
+    m.bus.board = Box::new(Display(calls.clone()));
+    m.cores[0].waiting = true;
+    m.cores[0].ps = 0;
+    let web = esp_soc::web::WebServer::queued();
+    m.web = Some(web.clone());
+    m.run_until_cycle(4_800_000);
+    assert_eq!(calls.load(Ordering::Relaxed), 1, "only the live frame needs serialization");
+    assert!(web.take_outbox().iter().any(|(kind, data)| *kind == 2 && data == &[1, 1, 0, 1, 0, 0x34, 0x12]));
+    m.run_until_cycle(9_600_000);
+    assert_eq!(calls.load(Ordering::Relaxed), 1, "unchanged queued display needs no snapshot");
+}
+
 /// Core 1 sits in reset until SYSTEM_CORE_1_CONTROL_0 releases it, then runs from the reset vector.
 #[test]
 fn core1_runs_when_released() {

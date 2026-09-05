@@ -1,0 +1,502 @@
+{
+  "total": {
+    "baseline": [
+      122.35247500000149,
+      121.97405999999494,
+      124.58157499999552
+    ],
+    "candidate": [
+      120.3123049999997,
+      119.98605999999494,
+      120.84748499999941
+    ],
+    "baselineMedian": 122.35247500000149,
+    "candidateMedian": 120.3123049999997,
+    "lessWallTimePercent": 1.6674529877730437
+  },
+  "intervals": {
+    "boot_and_native_kernels": {
+      "baseline": [
+        23.251394999995828,
+        23.200939999997615,
+        23.032544999994336
+      ],
+      "candidate": [
+        23.23385000000149,
+        22.651014999993144,
+        22.991685000002384
+      ],
+      "baselineMedian": 23.200939999997615,
+      "candidateMedian": 22.991685000002384,
+      "lessWallTimePercent": 0.9019246633767963
+    },
+    "cold_render_and_initial_pan": {
+      "baseline": [
+        13.552470000006256,
+        13.966255000002683,
+        14.533300000004473
+      ],
+      "candidate": [
+        13.480839999996128,
+        13.507085000000892,
+        13.81849499999732
+      ],
+      "baselineMedian": 13.966255000002683,
+      "candidateMedian": 13.507085000000892,
+      "lessWallTimePercent": 3.28771027023137
+    },
+    "pan_sequences": {
+      "baseline": [
+        4.142659999996425,
+        4.150874999999999,
+        4.314964999996121
+      ],
+      "candidate": [
+        4.166020000003279,
+        4.039380000002687,
+        4.272700000002978
+      ],
+      "baselineMedian": 4.150874999999999,
+      "candidateMedian": 4.166020000003279,
+      "lessWallTimePercent": -0.3648628302051815
+    },
+    "cache_tour": {
+      "baseline": [
+        7.2244100000038785,
+        7.114169999994338,
+        7.379429999999708
+      ],
+      "candidate": [
+        7.10779999999702,
+        7.345725000001487,
+        7.418624999999999
+      ],
+      "baselineMedian": 7.2244100000038785,
+      "candidateMedian": 7.345725000001487,
+      "lessWallTimePercent": -1.6792374740296268
+    },
+    "mixed_drawing": {
+      "baseline": [
+        25.330234999999405,
+        25.019465000003578,
+        26.075995000004767
+      ],
+      "candidate": [
+        25.312590000003567,
+        25.024024999998517,
+        25.55826999999583
+      ],
+      "baselineMedian": 25.330234999999405,
+      "candidateMedian": 25.312590000003567,
+      "lessWallTimePercent": 0.06965983535422993
+    },
+    "hairlines": {
+      "baseline": [
+        20.329179999999695,
+        20.313329999998217,
+        20.190219999998803
+      ],
+      "candidate": [
+        19.25822499999404,
+        19.69115500000119,
+        19.59557500000298
+      ],
+      "baselineMedian": 20.313329999998217,
+      "candidateMedian": 19.59557500000298,
+      "lessWallTimePercent": 3.5334186959759872
+    },
+    "export": {
+      "baseline": [
+        13.358184999994933,
+        13.447700000002968,
+        13.684089999996132
+      ],
+      "candidate": [
+        13.042054999999706,
+        13.200350000001492,
+        12.886034999996426
+      ],
+      "baselineMedian": 13.447700000002968,
+      "candidateMedian": 13.042054999999706,
+      "lessWallTimePercent": 3.016463781934242
+    },
+    "history": {
+      "baseline": [
+        9.892460000000895,
+        9.5809600000009,
+        9.891304999999704
+      ],
+      "candidate": [
+        9.475425000004478,
+        9.357829999998202,
+        9.343660000003865
+      ],
+      "baselineMedian": 9.891304999999704,
+      "candidateMedian": 9.357829999998202,
+      "lessWallTimePercent": 5.393373270781943
+    },
+    "settling": {
+      "baseline": [
+        5.2710750000029805,
+        5.179894999995824,
+        5.478895000003277
+      ],
+      "candidate": [
+        5.235049999997017,
+        5.168935000002392,
+        4.961934999994938
+      ],
+      "baselineMedian": 5.2710750000029805,
+      "candidateMedian": 5.168935000002392,
+      "lessWallTimePercent": 1.9377451468728935
+    }
+  },
+  "runs": [
+    {
+      "name": "queue-a1",
+      "wallSeconds": 122.35247500000149,
+      "instructions": 9819885134,
+      "guestSeconds": 47.750049575,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "passed": true,
+      "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+      "jit": {
+        "compiled": 13625,
+        "failed": 0,
+        "released": 9720,
+        "compileMs": 1131.2650002539158,
+        "bytes": 88318226,
+        "liveBytes": 24092457,
+        "peakBytes": 31698131,
+        "peakModules": 5185,
+        "instructions": 8443206570
+      },
+      "peakSummedRssKiB": 1793456,
+      "provenance": {
+        "sha256": {
+          "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+          "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+          "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+          "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+          "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+          "asset/wasm": "4d9a4ed96d83ea8f9f1e2266d4b6f7ea2b73b028bcf1a3a37945543ab03be4ad",
+          "harness/battery-worker.mjs": "785f050152f8052188a050f6e5aec80cd45041eaa34f656a1eb7a6ad855d291b",
+          "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+          "harness/battery.mjs": "9eb7bba5ce9a43a9d0b5d67dde8b4ae4f13fd01ff9fc75e6d38e92a8743252c3",
+          "harness/capture-battery.mjs": "d4e3fe9c64bb9bd3e299f110f7326fb3dd719814601aae748d9cbe70de1423d6",
+          "harness/capture-cpu.mjs": "2a224056be6502fb5b7df1f1f63b29e75ba6946e1aa08768030de40f71ffd9cc",
+          "harness/capture-page-response.mjs": "473f31c8396d7b2d1104a7ac64ca12c35bebde2d94997e12e5205f29fc5c2041",
+          "harness/capture-response.mjs": "74a502f612e24170ba7c3fa329eed79bd3b78b01aab679f7fe67920643f3e4d6",
+          "harness/check-page-input.mjs": "95965d86aff8a799fe76602e49dd43df5c0bff8893693478271575353e561935",
+          "harness/response.html": "2ded61ce3ed5449f249f1db204305ca16d0447cfef628dbe1dbe13e33c3d2051",
+          "harness/response.mjs": "a96554a83c202f5d8eb3c612431e2a8e4ac3dee8b890e748042e063009d28552",
+          "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+          "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+          "harness/verdict.test.mjs": "fc77e45e65a7d5072723613833fb35d592b56f7590d80079201d4a2cfba006f4",
+          "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+          "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+          "web/wasm/worker.js": "b696b0070ac0ffe843fb19adb48bd4e2c45ec01fd67846bfdec351491115eaad"
+        }
+      },
+      "browser": "Chrome/152.0.7977.77",
+      "v8": "15.2.124.19",
+      "rawFiles": {
+        "result.json": "59458b5f77220d6d24dc44eb596d189df61f3ddf18dec4596bfb12780fd904ab",
+        "events.json": "3408ab13648923641f67f6ce782908771b155e0005a0ec6bb3f74817757315e5",
+        "memory.json": "f94ccc887e58932fb1dc2c63aa70baddf05d7eee53de27917f17f75f6e667719",
+        "capture.log": "e4ef5378bbc225e8caf92b8470d464e6ab6b0d73ce99b9c1bd4df134ece28858"
+      }
+    },
+    {
+      "name": "queue-b1",
+      "wallSeconds": 120.3123049999997,
+      "instructions": 9819885134,
+      "guestSeconds": 47.750049575,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "passed": true,
+      "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+      "jit": {
+        "compiled": 13625,
+        "failed": 0,
+        "released": 9720,
+        "compileMs": 1091.6249997466803,
+        "bytes": 88318226,
+        "liveBytes": 24092457,
+        "peakBytes": 31698131,
+        "peakModules": 5185,
+        "instructions": 8443206570
+      },
+      "peakSummedRssKiB": 1898400,
+      "provenance": {
+        "sha256": {
+          "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+          "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+          "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+          "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+          "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+          "asset/wasm": "9fa86ec01f88d1841c8f24e3572c616bfa99cff554839d73f67fab1e351cff74",
+          "harness/battery-worker.mjs": "785f050152f8052188a050f6e5aec80cd45041eaa34f656a1eb7a6ad855d291b",
+          "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+          "harness/battery.mjs": "9eb7bba5ce9a43a9d0b5d67dde8b4ae4f13fd01ff9fc75e6d38e92a8743252c3",
+          "harness/capture-battery.mjs": "d4e3fe9c64bb9bd3e299f110f7326fb3dd719814601aae748d9cbe70de1423d6",
+          "harness/capture-cpu.mjs": "2a224056be6502fb5b7df1f1f63b29e75ba6946e1aa08768030de40f71ffd9cc",
+          "harness/capture-page-response.mjs": "473f31c8396d7b2d1104a7ac64ca12c35bebde2d94997e12e5205f29fc5c2041",
+          "harness/capture-response.mjs": "74a502f612e24170ba7c3fa329eed79bd3b78b01aab679f7fe67920643f3e4d6",
+          "harness/check-page-input.mjs": "95965d86aff8a799fe76602e49dd43df5c0bff8893693478271575353e561935",
+          "harness/response.html": "2ded61ce3ed5449f249f1db204305ca16d0447cfef628dbe1dbe13e33c3d2051",
+          "harness/response.mjs": "a96554a83c202f5d8eb3c612431e2a8e4ac3dee8b890e748042e063009d28552",
+          "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+          "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+          "harness/verdict.test.mjs": "fc77e45e65a7d5072723613833fb35d592b56f7590d80079201d4a2cfba006f4",
+          "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+          "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+          "web/wasm/worker.js": "b696b0070ac0ffe843fb19adb48bd4e2c45ec01fd67846bfdec351491115eaad"
+        }
+      },
+      "browser": "Chrome/152.0.7977.77",
+      "v8": "15.2.124.19",
+      "rawFiles": {
+        "result.json": "40676198f073fa477acc37a722d563eba0ede93f8b622dd67a1420bfa67aadfb",
+        "events.json": "d91a62f5c5364b83b4356279a36ec4d13e1d68d46c42b85385b388cbaba4b4d3",
+        "memory.json": "6a1c17543f7f5129489203834e6ffe5cf104426feb5383ac298cc73555d8db36",
+        "capture.log": "7adbcbf6f1e08fdfafc95353777349d81f2d9963c453b36216e7a19a0250758d"
+      }
+    },
+    {
+      "name": "queue-b2",
+      "wallSeconds": 119.98605999999494,
+      "instructions": 9819885134,
+      "guestSeconds": 47.750049575,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "passed": true,
+      "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+      "jit": {
+        "compiled": 13625,
+        "failed": 0,
+        "released": 9720,
+        "compileMs": 1108.19499976933,
+        "bytes": 88318226,
+        "liveBytes": 24092457,
+        "peakBytes": 31698131,
+        "peakModules": 5185,
+        "instructions": 8443206570
+      },
+      "peakSummedRssKiB": 1944672,
+      "provenance": {
+        "sha256": {
+          "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+          "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+          "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+          "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+          "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+          "asset/wasm": "9fa86ec01f88d1841c8f24e3572c616bfa99cff554839d73f67fab1e351cff74",
+          "harness/battery-worker.mjs": "785f050152f8052188a050f6e5aec80cd45041eaa34f656a1eb7a6ad855d291b",
+          "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+          "harness/battery.mjs": "9eb7bba5ce9a43a9d0b5d67dde8b4ae4f13fd01ff9fc75e6d38e92a8743252c3",
+          "harness/capture-battery.mjs": "d4e3fe9c64bb9bd3e299f110f7326fb3dd719814601aae748d9cbe70de1423d6",
+          "harness/capture-cpu.mjs": "2a224056be6502fb5b7df1f1f63b29e75ba6946e1aa08768030de40f71ffd9cc",
+          "harness/capture-page-response.mjs": "473f31c8396d7b2d1104a7ac64ca12c35bebde2d94997e12e5205f29fc5c2041",
+          "harness/capture-response.mjs": "74a502f612e24170ba7c3fa329eed79bd3b78b01aab679f7fe67920643f3e4d6",
+          "harness/check-page-input.mjs": "95965d86aff8a799fe76602e49dd43df5c0bff8893693478271575353e561935",
+          "harness/response.html": "2ded61ce3ed5449f249f1db204305ca16d0447cfef628dbe1dbe13e33c3d2051",
+          "harness/response.mjs": "a96554a83c202f5d8eb3c612431e2a8e4ac3dee8b890e748042e063009d28552",
+          "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+          "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+          "harness/verdict.test.mjs": "fc77e45e65a7d5072723613833fb35d592b56f7590d80079201d4a2cfba006f4",
+          "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+          "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+          "web/wasm/worker.js": "b696b0070ac0ffe843fb19adb48bd4e2c45ec01fd67846bfdec351491115eaad"
+        }
+      },
+      "browser": "Chrome/152.0.7977.77",
+      "v8": "15.2.124.19",
+      "rawFiles": {
+        "result.json": "85fe5fed01f41a89d904f84ed87ff8d3cd2a3400e6f3bd934f19ce4842fc3235",
+        "events.json": "0534aa093ae96aa52ea26b87a14ee2bb6f99a5eb09e2a76f18d63e482bd7662b",
+        "memory.json": "e967b1954e374b82469024ff8e462e33ca56df1518be7c129f4524db43b19f48",
+        "capture.log": "f7d1074a6b9d1bee53a90acd16368edb9841a872d811a5a1c8e189532a3a89e4"
+      }
+    },
+    {
+      "name": "queue-a2",
+      "wallSeconds": 121.97405999999494,
+      "instructions": 9819885134,
+      "guestSeconds": 47.750049575,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "passed": true,
+      "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+      "jit": {
+        "compiled": 13625,
+        "failed": 0,
+        "released": 9720,
+        "compileMs": 1106.5100001469254,
+        "bytes": 88318226,
+        "liveBytes": 24092457,
+        "peakBytes": 31698131,
+        "peakModules": 5185,
+        "instructions": 8443206570
+      },
+      "peakSummedRssKiB": 1974928,
+      "provenance": {
+        "sha256": {
+          "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+          "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+          "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+          "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+          "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+          "asset/wasm": "4d9a4ed96d83ea8f9f1e2266d4b6f7ea2b73b028bcf1a3a37945543ab03be4ad",
+          "harness/battery-worker.mjs": "785f050152f8052188a050f6e5aec80cd45041eaa34f656a1eb7a6ad855d291b",
+          "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+          "harness/battery.mjs": "9eb7bba5ce9a43a9d0b5d67dde8b4ae4f13fd01ff9fc75e6d38e92a8743252c3",
+          "harness/capture-battery.mjs": "d4e3fe9c64bb9bd3e299f110f7326fb3dd719814601aae748d9cbe70de1423d6",
+          "harness/capture-cpu.mjs": "2a224056be6502fb5b7df1f1f63b29e75ba6946e1aa08768030de40f71ffd9cc",
+          "harness/capture-page-response.mjs": "473f31c8396d7b2d1104a7ac64ca12c35bebde2d94997e12e5205f29fc5c2041",
+          "harness/capture-response.mjs": "74a502f612e24170ba7c3fa329eed79bd3b78b01aab679f7fe67920643f3e4d6",
+          "harness/check-page-input.mjs": "95965d86aff8a799fe76602e49dd43df5c0bff8893693478271575353e561935",
+          "harness/response.html": "2ded61ce3ed5449f249f1db204305ca16d0447cfef628dbe1dbe13e33c3d2051",
+          "harness/response.mjs": "a96554a83c202f5d8eb3c612431e2a8e4ac3dee8b890e748042e063009d28552",
+          "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+          "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+          "harness/verdict.test.mjs": "fc77e45e65a7d5072723613833fb35d592b56f7590d80079201d4a2cfba006f4",
+          "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+          "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+          "web/wasm/worker.js": "b696b0070ac0ffe843fb19adb48bd4e2c45ec01fd67846bfdec351491115eaad"
+        }
+      },
+      "browser": "Chrome/152.0.7977.77",
+      "v8": "15.2.124.19",
+      "rawFiles": {
+        "result.json": "2ecd10f6491f0e64475105a5adcadc85407b7d02492bfb66887ae6ab4615e65d",
+        "events.json": "86e09575169de105585fc53d81f910a453203e901e67bbd2ca51c7c2d5c3e294",
+        "memory.json": "97c2992b06039e18185ae725ea3afb4923a71b5d99fd0e823cad667a1e3605b3",
+        "capture.log": "301f23a848a57cf6984f838680e1ba28523cdf1255aad6a1baad1af844671a5c"
+      }
+    },
+    {
+      "name": "queue-a3",
+      "wallSeconds": 124.58157499999552,
+      "instructions": 9819885134,
+      "guestSeconds": 47.750049575,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "passed": true,
+      "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+      "jit": {
+        "compiled": 13625,
+        "failed": 0,
+        "released": 9720,
+        "compileMs": 1138.9449995830655,
+        "bytes": 88318226,
+        "liveBytes": 24092457,
+        "peakBytes": 31698131,
+        "peakModules": 5185,
+        "instructions": 8443206570
+      },
+      "peakSummedRssKiB": 1974112,
+      "provenance": {
+        "sha256": {
+          "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+          "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+          "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+          "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+          "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+          "asset/wasm": "4d9a4ed96d83ea8f9f1e2266d4b6f7ea2b73b028bcf1a3a37945543ab03be4ad",
+          "harness/battery-worker.mjs": "785f050152f8052188a050f6e5aec80cd45041eaa34f656a1eb7a6ad855d291b",
+          "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+          "harness/battery.mjs": "9eb7bba5ce9a43a9d0b5d67dde8b4ae4f13fd01ff9fc75e6d38e92a8743252c3",
+          "harness/capture-battery.mjs": "d4e3fe9c64bb9bd3e299f110f7326fb3dd719814601aae748d9cbe70de1423d6",
+          "harness/capture-cpu.mjs": "2a224056be6502fb5b7df1f1f63b29e75ba6946e1aa08768030de40f71ffd9cc",
+          "harness/capture-page-response.mjs": "473f31c8396d7b2d1104a7ac64ca12c35bebde2d94997e12e5205f29fc5c2041",
+          "harness/capture-response.mjs": "74a502f612e24170ba7c3fa329eed79bd3b78b01aab679f7fe67920643f3e4d6",
+          "harness/check-page-input.mjs": "95965d86aff8a799fe76602e49dd43df5c0bff8893693478271575353e561935",
+          "harness/response.html": "2ded61ce3ed5449f249f1db204305ca16d0447cfef628dbe1dbe13e33c3d2051",
+          "harness/response.mjs": "a96554a83c202f5d8eb3c612431e2a8e4ac3dee8b890e748042e063009d28552",
+          "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+          "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+          "harness/verdict.test.mjs": "fc77e45e65a7d5072723613833fb35d592b56f7590d80079201d4a2cfba006f4",
+          "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+          "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+          "web/wasm/worker.js": "b696b0070ac0ffe843fb19adb48bd4e2c45ec01fd67846bfdec351491115eaad"
+        }
+      },
+      "browser": "Chrome/152.0.7977.77",
+      "v8": "15.2.124.19",
+      "rawFiles": {
+        "result.json": "ed121bdb1c859cc9219d1e1457e547d51718d798e0893044ef8eaa552f01fcf7",
+        "events.json": "d5f4d7552bcf4ef3a7cb3c4ba3bba8226212179a5f7abf35c15c6f758f78c86d",
+        "memory.json": "e236e6af0b61169cd637323f528cc729a92ff758a8218432eab85ffb52475fb3",
+        "capture.log": "35357efb8e6c6f3082b08d03ce83e374c239436be5cbb2dfa14261de3af45d0f"
+      }
+    },
+    {
+      "name": "queue-b3",
+      "wallSeconds": 120.84748499999941,
+      "instructions": 9819885134,
+      "guestSeconds": 47.750049575,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "passed": true,
+      "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+      "jit": {
+        "compiled": 13625,
+        "failed": 0,
+        "released": 9720,
+        "compileMs": 1139.7450004443526,
+        "bytes": 88318226,
+        "liveBytes": 24092457,
+        "peakBytes": 31698131,
+        "peakModules": 5185,
+        "instructions": 8443206570
+      },
+      "peakSummedRssKiB": 1940576,
+      "provenance": {
+        "sha256": {
+          "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+          "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+          "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+          "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+          "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+          "asset/wasm": "9fa86ec01f88d1841c8f24e3572c616bfa99cff554839d73f67fab1e351cff74",
+          "harness/battery-worker.mjs": "785f050152f8052188a050f6e5aec80cd45041eaa34f656a1eb7a6ad855d291b",
+          "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+          "harness/battery.mjs": "9eb7bba5ce9a43a9d0b5d67dde8b4ae4f13fd01ff9fc75e6d38e92a8743252c3",
+          "harness/capture-battery.mjs": "d4e3fe9c64bb9bd3e299f110f7326fb3dd719814601aae748d9cbe70de1423d6",
+          "harness/capture-cpu.mjs": "2a224056be6502fb5b7df1f1f63b29e75ba6946e1aa08768030de40f71ffd9cc",
+          "harness/capture-page-response.mjs": "473f31c8396d7b2d1104a7ac64ca12c35bebde2d94997e12e5205f29fc5c2041",
+          "harness/capture-response.mjs": "74a502f612e24170ba7c3fa329eed79bd3b78b01aab679f7fe67920643f3e4d6",
+          "harness/check-page-input.mjs": "95965d86aff8a799fe76602e49dd43df5c0bff8893693478271575353e561935",
+          "harness/response.html": "2ded61ce3ed5449f249f1db204305ca16d0447cfef628dbe1dbe13e33c3d2051",
+          "harness/response.mjs": "a96554a83c202f5d8eb3c612431e2a8e4ac3dee8b890e748042e063009d28552",
+          "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+          "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+          "harness/verdict.test.mjs": "fc77e45e65a7d5072723613833fb35d592b56f7590d80079201d4a2cfba006f4",
+          "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+          "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+          "web/wasm/worker.js": "b696b0070ac0ffe843fb19adb48bd4e2c45ec01fd67846bfdec351491115eaad"
+        }
+      },
+      "browser": "Chrome/152.0.7977.77",
+      "v8": "15.2.124.19",
+      "rawFiles": {
+        "result.json": "9f58e88f1546cf3536d3aabce5e83f9a4466874aaa3c3e5dbd6a377f435bdb7d",
+        "events.json": "81db535e5bdebb1a8d3196a1711227af80d1a8527823f7b48ecb8934a0e7b03b",
+        "memory.json": "1f32037b01b8934d62f3c4001bb247e70a8d184767949b89e764aa97da81de09",
+        "capture.log": "a59d04a84f875d34278aa2c7a7a96e225db74d377f683ad42585fd7773ef3601"
+      }
+    }
+  ],
+  "runOrder": [
+    "a1",
+    "b1",
+    "b2",
+    "a2",
+    "a3",
+    "b3"
+  ],
+  "timingScope": "Unpaced complete TinyDraw battery; separate fresh headless Chrome processes, no simultaneous emulator or build workload.",
+  "memoryScope": "Two-second samples of summed RSS for each dedicated browser and descendants; shared pages may be counted repeatedly. Not unique resident memory."
+}
