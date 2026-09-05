@@ -55,6 +55,62 @@ function dispatchJit(w, emu, mem, cache, disabled, cycles) {
   return false;
 }
 
+/// A network manifest (`"nodes": [...]`) boots several motes on one medium through the
+/// `esp32sim_net_*` ABI and checks each node's console and frame counters, the way the page does.
+async function runNetwork(name, m) {
+  const logs = [];
+  let w;
+  const blockJit = createJitHost(() => w);
+  const { instance } = await WebAssembly.instantiate(wasmBytes, { env: { ...blockJit.imports, host_log: (p, n) => logs.push(dec.decode(mem().subarray(p, p + n))) } });
+  w = instance.exports;
+  const mem = () => new Uint8Array(w.memory.buffer);
+  const withBytes = (bytes, f) => { const p = w.esp32sim_alloc(bytes.length); mem().set(bytes, p); try { return f(p, bytes.length); } finally { w.esp32sim_free(p, bytes.length); } };
+  const file = (rel) => readFileSync(rel.endsWith('_rom.elf') && !rel.includes('/') ? romPath(rel) : join(fwDir, rel));
+
+  const net = w.esp32sim_net_new(m.slice_ns || 0);
+  const kinds = { rom: 0, bootloader: 1, ptable: 2, app: 3, flash: 5 };
+  const text = m.nodes.map(() => '');
+  m.nodes.forEach((node, i) => {
+    const mac = (node.mac || `02:00:00:00:00:0${i + 1}`).split(':').map(h => parseInt(h, 16));
+    withBytes(new Uint8Array(mac), (mp) => withBytes(enc.encode(node.board || m.board || 'none'),
+      (bp, bn) => w.esp32sim_net_add(net, mp, node.flash_mb || m.flash_mb || 2, (node.start_ms || 0) * 1e6, node.x || 0, node.y || 0, bp, bn)));
+    for (const [k, v] of Object.entries({ ...(m.files || {}), ...(node.files || {}) })) {
+      for (const rel of [].concat(v)) {
+        const rc = withBytes(new Uint8Array(file(rel)), (p, n) => w.esp32sim_net_load(net, i, k === 'elf' ? 4 : kinds[k], p, n));
+        if (rc !== 0) throw new Error(`node ${i}: load ${k} ${rel} failed: ${logs.join(' | ')}`);
+      }
+    }
+    for (const s of [].concat(node.stubs || m.stubs || [])) {
+      const [sym, val] = s.split('=');
+      const name = (m.symbols || {})[sym] || sym;   // as the page: a symbols map resolves a stub without shipping the ELF
+      if (withBytes(enc.encode(name), (p, n) => w.esp32sim_net_stub(net, i, p, n, Number(val ?? 0) >>> 0)) !== 0) throw new Error(`node ${i}: stub ${sym}: ${logs.join(' | ')}`);
+    }
+  });
+  if (w.esp32sim_net_boot(net) !== 0) throw new Error(`boot failed: ${logs.join(' | ')}`);
+
+  const t0 = Date.now();
+  const until = (m.seconds || 30) * 1e9;
+  const stepNs = 20e6;
+  for (let t = stepNs; t <= until; t += stepNs) {
+    w.esp32sim_net_run(net, t);
+    m.nodes.forEach((_, i) => { const n = w.esp32sim_net_console_take(net, i); if (n) text[i] += dec.decode(mem().subarray(w.esp32sim_net_console_ptr(net), w.esp32sim_net_console_ptr(net) + n)); });
+  }
+  const stat = (i, k) => w.esp32sim_net_stat(net, i, k);
+  const problems = [];
+  if (logs.some(l => l.includes('panic'))) problems.push(`panicked: ${logs.find(l => l.includes('panic'))}`);
+  m.nodes.forEach((node, i) => {
+    const want = node.expect || m.expect;
+    if (want && !text[i].includes(want)) problems.push(`node ${i} console never showed ${JSON.stringify(want)} (${text[i].length} bytes)`);
+    if (node.min_tx !== undefined && stat(i, 0) < node.min_tx) problems.push(`node ${i} sent ${stat(i, 0)} frames, wanted ${node.min_tx}`);
+    if (node.min_rx !== undefined && stat(i, 1) < node.min_rx) problems.push(`node ${i} took ${stat(i, 1)} frames, wanted ${node.min_rx}`);
+  });
+  const wall = (Date.now() - t0) / 1000;
+  const per = m.nodes.map((_, i) => `n${i} tx ${stat(i, 0)}/rx ${stat(i, 1)}`).join(', ');
+  w.esp32sim_net_delete(net);
+  if (problems.length) { failures++; console.error(`FAIL ${name}: ${problems.join('; ')}\n  console tails:\n${text.map((t, i) => `  [${i}] ${t.slice(-260)}`).join('\n')}`); }
+  else console.log(`ok   ${name}: ${m.nodes.length} nodes, ${per}, ${(m.seconds || 30)} s simulated in ${wall.toFixed(1)} s wall (${((m.seconds || 30) / wall).toFixed(0)}x real time)`);
+}
+
 async function testJitHandoff() {
   let w;
   const blockJit = createJitHost(() => w);
@@ -80,6 +136,7 @@ async function testJitHandoff() {
 
 async function runManifest(name) {
   const m = JSON.parse(readFileSync(join(fwDir, `${name}.json`), 'utf8'));
+  if (m.nodes) return runNetwork(name, m);
   const logs = [];
   const blockJit = createJitHost(() => w);
   const { instance } = await WebAssembly.instantiate(wasmBytes, { env: { ...blockJit.imports, host_log: (p, n) => logs.push(dec.decode(mem().subarray(p, p + n))) } });

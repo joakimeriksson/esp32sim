@@ -21,6 +21,8 @@
     if (m.loaded !== undefined) { const r = pending.get('load' + m.loaded); pending.delete('load' + m.loaded); r && r(m.ok); }
     if (m.started !== undefined) { started = m.started; setStatus(started ? 'running in WebAssembly' : 'boot failed (see console)'); }
     if (m.stopped !== undefined) { started = false; setStatus('stopped: code ' + m.stopped); }
+    if (m.netText) { onmessage && onmessage(JSON.stringify({ t: 'serial', src: 'node' + m.netText.node, data: m.netText.data })); }
+    if (m.netStat) { onmessage && onmessage(JSON.stringify({ t: 'net', ...m.netStat })); }
     if (m.pace) { const el = document.getElementById('pace'); if (el) el.textContent = `${(m.pace.mips || 0).toFixed(1)} Minsn/s · ` + (m.pace.behind > 0.05 ? `⚠ ${m.pace.behind.toFixed(2)} s behind` : 'real time'); }
   };
   const queue = []; const flush = () => { while (ready && queue.length) worker.postMessage(...queue.shift()); };
@@ -86,6 +88,23 @@
     if (cfg.wifi) post({ op: 'wifi', spec: cfg.wifi });
     post({ op: 'start', appDirect: !!cfg.appDirect });
   }
+  // A network manifest boots several motes on one medium (esp32sim_net_*): the same files go to
+  // every node, each with its own MAC, position and power-on offset.
+  async function bootNet(cfg, files) {
+    setStatus('creating the network…');
+    const r = await ask('created', { op: 'net-create', nodes: cfg.nodes, board: cfg.board, flash_mb: cfg.flash_mb, slice_ns: cfg.slice_ns || 0 });
+    if (!r) { setStatus('could not create the network'); return; }
+    for (let i = 0; i < cfg.nodes.length; i++) {
+      for (const [kind, data] of files) {
+        const copy = data.slice(0);   // each node keeps its own image: the buffer is transferred
+        const good = await ask('load' + 'n' + i + ':' + KINDS[kind], { op: 'net-load', node: i, kind: KINDS[kind], data: copy }, [copy]);
+        if (!good) { setStatus(`node ${i}: failed to load ${kind}`); return; }
+      }
+      for (const st of [].concat(cfg.nodes[i].stubs || cfg.stubs || [])) { const [name, v] = st.split('='); post({ op: 'net-stub', node: i, name: (cfg.symbols || {})[name] || name, value: v ? parseInt(v, 0) : 0 }); }
+    }
+    post({ op: 'net-start' });
+  }
+
   $('fw_go').onclick = async () => {
     const files = [];
     for (const k of ['rom', 'bootloader', 'ptable', 'app', 'elf', 'script']) { const f = $('fw_' + k).files[0]; if (f) files.push([k, await readFile(f)]); }
@@ -106,7 +125,8 @@
       for (const [kind, url] of Object.entries(man.files || {})) for (const u of [].concat(url)) { const r = await fetch(`wasm/fw/${u}`, { cache: 'no-cache' }); if (!r.ok) { setStatus(`${u}: ${r.status}`); return; } files.push([kind, await r.arrayBuffer()]); }
       // flash_at: { "0x610000": "public/energydata.json" } — a data partition's contents
       for (const [off, u] of Object.entries(man.flash_at || {})) { const r = await fetch(`wasm/fw/${u}`, { cache: 'no-cache' }); if (!r.ok) { setStatus(`${u}: ${r.status}`); return; } files.push(['flash', await r.arrayBuffer(), parseInt(off, 16)]); }
-      const wait = () => ready ? boot({ board: man.board, flash_mb: man.flash_mb || 8, psram_mb: man.psram_mb || 2, wifi: man.wifi || '', stubs: man.stubs || [], symbols: man.symbols || {}, appDirect: !!man.app_direct }, files) : setTimeout(wait, 50);
+      const cfg = { board: man.board, flash_mb: man.flash_mb || 8, psram_mb: man.psram_mb || 2, wifi: man.wifi || '', stubs: man.stubs || [], symbols: man.symbols || {}, appDirect: !!man.app_direct, nodes: man.nodes, slice_ns: man.slice_ns };
+      const wait = () => ready ? (man.nodes ? bootNet(cfg, files) : boot(cfg, files)) : setTimeout(wait, 50);
       wait();
     })().catch((e) => setStatus('manifest: ' + e.message));
   }
