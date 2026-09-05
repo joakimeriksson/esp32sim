@@ -226,20 +226,30 @@ fn run_block_inner<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Opt
         }
         let entry = cpu.blocks.arena[k as usize].off;
         let fm = bus.fast_mem();
-        // Keep ownership outside Cpu while generated code and its helpers exclusively borrow
-        // the whole CPU. A shared reference fabricated through a raw pointer to cpu.blocks
-        // would still overlap that mutable borrow, even if generated code ignores the cache.
-        let cache = cpu.blocks.code.take().unwrap();
-        // Helpers are specialized for this invocation's B. Caching the first table in Cpu
-        // would call the wrong functions if the same CPU later runs with another Bus type.
-        let helpers = crate::jit::Helpers::new::<B>();
-        // SAFETY: `code` and `entry` came from this live cache, which remains owned locally
-        // throughout execution. Native fallback instructions remain in the unmoved arena;
-        // helpers copy them before borrowing Cpu. `fm` describes this exclusive bus borrow.
-        let r = unsafe {
-            crate::jit::run(&cache, code, cpu, bus, &helpers, limit, entry, fm)
+        #[cfg(not(target_arch = "wasm32"))]
+        let r = {
+            // Copy the executable pointer, ending the cache borrow before borrowing Cpu.
+            // Native execution needs no cache metadata while generated code is running.
+            let target = cpu.blocks.code.as_ref().unwrap().entry_point(code);
+            let helpers = crate::jit::Helpers::shared::<B>();
+            // SAFETY: `code` and `entry` identify published code in this CPU's live cache.
+            // Neither generated code nor its interpreter helpers reset or compile the cache.
+            // The arena stays unmoved, and fallback helpers copy instructions before borrowing
+            // Cpu. Helpers are static for B; `fm` describes this exclusive bus borrow.
+            unsafe { crate::jit::run(target, cpu, bus, helpers, limit, entry, fm) }
         };
-        cpu.blocks.code = Some(cache);
+        #[cfg(target_arch = "wasm32")]
+        let r = {
+            // WASM needs retained block metadata during execution, so move its owning cache
+            // outside Cpu before holding that shared reference alongside the exclusive CPU.
+            let cache = cpu.blocks.code.take().unwrap();
+            let helpers = crate::jit::Helpers::new::<B>();
+            // SAFETY: `code` and `entry` identify live code in this locally owned cache;
+            // helpers match B and `fm` describes this exclusive bus borrow.
+            let r = unsafe { crate::jit::run(&cache, code, cpu, bus, &helpers, limit, entry, fm) };
+            cpu.blocks.code = Some(cache);
+            r
+        };
         let (done, exit) = (r & 0xffff, r >> 16);
         cpu.blocks.jit_instructions += done as u64;
         cpu.insn_count += done as u64;
@@ -336,6 +346,19 @@ pub(crate) mod ownership_tests {
         if crate::jit::AVAILABLE {
             assert!(compiled > 0, "must exercise compiled helpers");
             assert_eq!(cpu.blocks.jit_instructions, compiled + 1);
+        }
+        // Repeated switches reuse the compiled block but must select each bus's helpers.
+        for _ in 0..4 {
+            cpu.pc = first.0.base;
+            assert_eq!(run_block(&mut cpu, &mut first, 1), (1, None));
+            assert_eq!(cpu.get_ar(3), 11);
+            cpu.pc = second.0.base;
+            assert_eq!(run_block(&mut cpu, &mut second, 1), (1, None));
+            assert_eq!(cpu.get_ar(3), 22);
+        }
+        if crate::jit::AVAILABLE {
+            assert_eq!(cpu.blocks.jit_instructions, compiled + 9);
+            assert!(cpu.blocks.code.is_some(), "execution must restore cache ownership");
         }
         // Execution must restore cache ownership for subsequent invalidation and reuse.
         cpu.blocks.flush();

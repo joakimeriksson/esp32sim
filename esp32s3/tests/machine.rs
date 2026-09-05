@@ -396,3 +396,32 @@ fn knob_input_preserves_pending_scripts_at_the_current_horizon() {
     m.run(u64::MAX);
     assert_eq!(m.script.pos, 2);
 }
+
+
+#[test]
+fn due_script_stop_precedes_execution_and_observes_edits_between_runs() {
+    for until in [false, true] {
+        let mut m = machine();
+        park(&mut m, 0, IRAM, &SPIN);
+        m.script.log = false;
+        // A future action must stay pending when the first run completes.
+        m.script.events = vec![(128, ScriptAction::Serial("later".into()))];
+        if until { m.run_until_cycle(64); } else { m.run(64); }
+        assert_eq!(m.bus.cycles, 64);
+        assert_eq!(m.script.pos, 0);
+        let insns = m.insns();
+        // Public host edits must take effect at the next entry boundary, even though the
+        // previous check found only a future event. Both due actions precede execution.
+        m.script.events.insert(0, (64, ScriptAction::Stop));
+        m.script.events.insert(0, (64, ScriptAction::Serial("now".into())));
+        if until {
+            assert!(matches!(m.run_until_cycle(128), esp_soc::RunUntil::Stop(Stop::Halted)));
+        } else {
+            assert!(matches!(m.run(64), Stop::Halted));
+        }
+        assert_eq!(m.bus.cycles, 64);
+        assert_eq!(m.insns(), insns);
+        assert_eq!(m.script.pos, 2);
+        assert_eq!(m.bus.periph.usb.rx.iter().copied().collect::<Vec<_>>(), b"now");
+    }
+}

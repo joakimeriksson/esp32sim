@@ -121,13 +121,13 @@ fn i2s_frame_rate_from_the_clock_registers() {
 // ------------------------------------------------------------------ the table
 /// A device that counts what it receives.
 #[derive(Default)]
-struct Probe { ticks: u64, deadline: Option<u64>, domain: Option<ClockDomain>, dbg: bool, last: (u32, u32), irq: u64 }
+struct Probe { ticks: u64, deadline: Option<u64>, domain: Option<ClockDomain>, dbg: bool, last: (u32, u32), irq: u64, tick_irq: Option<u64> }
 impl Device for Probe {
     fn read(&mut self, off: u32) -> u32 { 0xd0 | off }
     fn write(&mut self, off: u32, v: u32) -> WriteEffect { self.last = (off, v); WriteEffect::NONE }
     fn irq_sources(&self) -> u64 { self.irq }
     fn clock(&self) -> Option<ClockDomain> { self.domain }
-    fn tick(&mut self, n: u64) { self.ticks += n; }
+    fn tick(&mut self, n: u64) { self.ticks += n; if let Some(irq) = self.tick_irq { self.irq = irq; } }
     fn has_deadline(&self) -> bool { self.deadline.is_some() }
     fn next_deadline(&self) -> Option<u64> { self.deadline }
     fn debug(&mut self, on: bool) { self.dbg = on; }
@@ -188,4 +188,48 @@ fn table_sources_ticks_deadlines_and_debug() {
     Dispatch::debug(&mut c, "timg", true);
     assert!(c.b.dbg && !c.a.dbg, "TIMG0 and TIMG1 both reach b; UART0 untouched");
     Dispatch::debug(&mut c, "uart0", true); assert!(c.a.dbg);
+}
+
+#[test]
+fn table_tick_reports_both_irq_edges_without_losing_another_source() {
+    let mut c = chip();
+    c.a.tick_irq = Some(1);
+    assert!(Dispatch::tick(&mut c, 15), "rising source");
+    assert!(!Dispatch::tick(&mut c, 15), "unchanged active source");
+    c.a.tick_irq = Some(0);
+    c.b.tick_irq = Some(2);
+    assert!(Dispatch::tick(&mut c, 15), "one source falls while another rises");
+    assert_eq!(c.source_status()[0], 0);
+    assert_eq!(c.source_status()[1], 1 << 8);
+    c.b.tick_irq = Some(0);
+    assert!(Dispatch::tick(&mut c, 15), "falling last source");
+    assert!(!Dispatch::tick(&mut c, 15), "unchanged inactive sources");
+}
+
+#[test]
+fn gpio_output_queue_orders_each_bank_and_ignores_disabled_and_nonexistent_pins() {
+    let mut g = Gpio::new();
+    // Include pin 63 in the upper enable/output aliases; it is stored but has no edge.
+    g.write(0x24, (1 << 0) | (1 << 5) | (1 << 31));
+    g.write(0x30, (1 << 0) | (1 << 16) | (1 << 31));
+    g.write(0x08, u32::MAX);
+    g.write(0x14, u32::MAX);
+    g.write(0x08, u32::MAX); // Repeating the same levels does not append edges.
+    g.write(0x14, u32::MAX);
+    g.write(0x0c, u32::MAX);
+    g.write(0x18, u32::MAX);
+    assert_eq!(g.changes, vec![
+        (0, true), (5, true), (31, true), (32, true), (48, true),
+        (0, false), (5, false), (31, false), (32, false), (48, false),
+    ]);
+    g.changes.clear();
+    g.write(0x34, 1 << 16);
+    g.write(0x14, (1 << 16) | (1 << 31));
+    assert!(g.changes.is_empty());
+    // Preserve existing direction-write behavior: enabling an already-high output
+    // does not enqueue an edge; the subsequent output transition does.
+    g.write(0x30, 1 << 16);
+    assert!(g.changes.is_empty());
+    g.write(0x18, (1 << 16) | (1 << 31));
+    assert_eq!(g.changes, vec![(48, false)]);
 }
