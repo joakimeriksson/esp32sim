@@ -97,7 +97,7 @@ fn idle_cut_includes_each_enabled_cores_timer() {
 }
 
 #[test]
-fn trap_only_observer_reports_fault_after_resumed_hardware_loop() {
+fn precise_trap_observer_reports_fault_after_resumed_hardware_loop() {
     use esp_soc::observe::{Ctx, Observer, Wants};
     use std::sync::{Arc, Mutex};
     struct Traps {
@@ -107,7 +107,7 @@ fn trap_only_observer_reports_fault_after_resumed_hardware_loop() {
     }
     impl Observer<esp32s3::S3> for Traps {
         fn name(&self) -> &'static str { "precise-traps" }
-        fn wants(&self) -> Wants { if self.combined { Wants::TRAP | Wants::BLOCK } else { Wants::TRAP } }
+        fn wants(&self) -> Wants { if self.combined { Wants::TRAP_PC | Wants::BLOCK } else { Wants::TRAP_PC } }
         fn on_trap(&mut self, _: &Ctx, _: usize, _: &xtensa_lx7::Cpu, pc: u32, trap: &emu_core::Trap) {
             self.traps.lock().unwrap().push((pc, *trap));
         }
@@ -135,6 +135,38 @@ fn trap_only_observer_reports_fault_after_resumed_hardware_loop() {
         if combined {
             assert_eq!(*fragments.lock().unwrap(), [(IRAM + 2, 1), (IRAM, 1), (IRAM + 2, 1), (IRAM, 1), (IRAM + 2, 1)]);
         } else { assert!(fragments.lock().unwrap().is_empty()); }
+    }
+}
+
+#[test]
+fn ordinary_trap_observers_keep_block_execution_and_post_trap_state() {
+    use esp_soc::observe::{Ctx, Observer, Wants};
+    use std::sync::{Arc, Mutex};
+    struct Traps { seen: Arc<Mutex<Vec<(u32, u32)>>>, combined: bool }
+    impl Observer<esp32s3::S3> for Traps {
+        fn name(&self) -> &'static str { "ordinary-traps" }
+        fn wants(&self) -> Wants { if self.combined { Wants::TRAP | Wants::BLOCK } else { Wants::TRAP } }
+        fn on_trap(&mut self, _: &Ctx, _: usize, cpu: &xtensa_lx7::Cpu, pc: u32, _: &emu_core::Trap) {
+            self.seen.lock().unwrap().push((pc, cpu.epc[1]));
+        }
+    }
+    for until in [false, true] {
+        for combined in [false, true] {
+            let mut m = machine();
+            // Three addi.n a3,a3,-1 instructions, then quou a2,a4,a3 traps.
+            park(&mut m, 0, IRAM, &[0x0b, 0x33, 0x0b, 0x33, 0x0b, 0x33, 0x30, 0x24, 0xc2]);
+            m.cores[0].set_ar(3, 3);
+            m.cores[0].set_ar(4, 12);
+            m.dbg.stop_after_exceptions = 1;
+            let seen = Arc::new(Mutex::new(Vec::new()));
+            m.add_observer(Box::new(Traps { seen: seen.clone(), combined }));
+            if until { m.run_until_cycle(64); } else { m.run(64); }
+            let seen = seen.lock().unwrap();
+            assert_eq!(seen.len(), 1);
+            assert_eq!(seen[0].1, IRAM + 6);
+            assert!((IRAM..IRAM + 6).contains(&seen[0].0), "trap follows earlier instructions in the same run: {seen:?}");
+            assert_eq!(m.cores[0].blocks.observed, combined, "ordinary TRAP alone permits retained loops");
+        }
     }
 }
 

@@ -26,10 +26,14 @@ Binary frames (first byte = type):
 
 | Type | Payload |
 | --- | --- |
-| 1 | TFT frame: `w u16le, h u16le`, RGB565 pixels (160×80) — sent when the pixel stream has been quiet for one push interval |
+| 1 | TFT frame: `w u16le, h u16le`, RGB565 pixels (160×80) — quiet-push boards defer at most one push interval; other boards send when changed |
 | — | `{"t":"emu","msg":…}` — a line from the emulator itself (wasm build: stubs, chip resets, load errors), shown in the console |
 | 2 | audio: `[rate u32 le]` then int16le mono samples; the rate is what the firmware programmed the I2S clock to (44.1 kHz Atech, 24 kHz autopling, 22.05 kHz the panel's SID player) and can change between chunks |
 | 4 | camera preview: `w u16le, h u16le`, RGB888 (320×240) |
+
+On quiet-push boards, continuous redraws are published on every other push opportunity rather
+than waiting indefinitely for silence. This keeps drawing visible but can expose a partially
+updated frame. It is a publication policy, not a model of physical panel scanout.
 
 A late-joining tab gets a snapshot (console backlog, last frame, ring, preview) on connect.
 

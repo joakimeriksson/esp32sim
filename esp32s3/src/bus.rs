@@ -231,13 +231,12 @@ impl SocBus {
     #[inline]
     fn is_periph(addr: u32) -> bool { (PERIPH_BASE..PERIPH_END).contains(&addr) }
 
-    fn periph_read(&mut self, addr: u32, size: u32) -> u32 {
+    fn periph_read(&mut self, addr: u32) -> u32 {
         if (MMU_TABLE..MMU_TABLE + (MMU_ENTRIES as u32) * 4).contains(&addr) {
             return self.mmu[((addr - MMU_TABLE) >> 2) as usize];
         }
         self.flush_ticks();                                         // registers must show exact time
-        let w = self.periph.read32(addr & !3);
-        match size { 1 => (w >> ((addr & 3) * 8)) & 0xff, 2 => (w >> ((addr & 2) * 8)) & 0xffff, _ => w }
+        self.periph.read32(addr)
     }
     fn periph_write(&mut self, addr: u32, v: u32) {
         self.periph_write_inner(addr, v);
@@ -251,12 +250,11 @@ impl SocBus {
         }
         self.flush_ticks();
         let a = addr & !3;
-        let w = v;
-        if a == PERIPH_BASE + 0x24_000 && w & (1 << 24) != 0 {
+        if a == PERIPH_BASE + 0x24_000 && v & (1 << 24) != 0 {
             self.spi2_dma_fault = None;
         }
         let old_gpio_out = self.periph.gpio.out;
-        self.periph.write32(a, w);
+        self.periph.write32(a, v);
         self.complete_spi2_dma();
         self.deliver_spi2_transfer();
         // GPIO output writes usually only drive the board, but an enabled level
@@ -795,12 +793,12 @@ impl SocBus {
 
 impl Bus for SocBus {
     fn read8(&mut self, addr: u32) -> Result<u8, Fault> {
-        if Self::is_periph(addr) { return Ok(self.periph_read(addr, 1) as u8); }
+        if Self::is_periph(addr) { self.last_fault = Some((addr, false)); return Err(Fault::Prohibited); }
         let Some(e) = self.lookup(addr) else { self.last_fault = Some((addr, false)); return Err(Fault::Unmapped) };
         Ok(self.buf(e.src as u8)[e.off as usize + (addr - e.lo) as usize])
     }
     fn read16(&mut self, addr: u32) -> Result<u16, Fault> {
-        if Self::is_periph(addr) { return Ok(self.periph_read(addr, 2) as u16); }
+        if Self::is_periph(addr) { self.last_fault = Some((addr, false)); return Err(Fault::Prohibited); }
         match self.lookup(addr) {
             Some(e) if addr.wrapping_add(2) <= e.hi => { let o = e.off as usize + (addr - e.lo) as usize; Ok(u16::from_le_bytes(self.buf(e.src as u8)[o..o + 2].try_into().unwrap())) }
             Some(_) => Ok(u16::from_le_bytes([self.read8(addr)?, self.read8(addr + 1)?])),       // straddles a page
@@ -808,7 +806,10 @@ impl Bus for SocBus {
         }
     }
     fn read32(&mut self, addr: u32) -> Result<u32, Fault> {
-        if Self::is_periph(addr) { return Ok(self.periph_read(addr, 4)); }
+        if Self::is_periph(addr) {
+            if addr & 3 != 0 { self.last_fault = Some((addr, false)); return Err(Fault::Misaligned); }
+            return Ok(self.periph_read(addr));
+        }
         match self.lookup(addr) {
             Some(e) if addr.wrapping_add(4) <= e.hi => { let o = e.off as usize + (addr - e.lo) as usize; Ok(u32::from_le_bytes(self.buf(e.src as u8)[o..o + 4].try_into().unwrap())) }
             Some(_) => Ok(u32::from_le_bytes([self.read8(addr)?, self.read8(addr + 1)?, self.read8(addr + 2)?, self.read8(addr + 3)?])),
@@ -1297,6 +1298,33 @@ mod gp_spi_board_tests {
         assert_eq!(bus.periph.usb.int_raw, 4);
         bus.write32(USB + 0x10, 0xabcd).unwrap();
         assert_eq!(bus.periph.usb.int_ena, 0xabcd);
+    }
+
+    #[test]
+    fn unsupported_mmio_reads_do_not_pop_fifos_or_advance_time() {
+        const USB: u32 = 0x6003_8000;
+        let mut bus = SocBus::new(1024, 1024, [0; 6]);
+        bus.tick_budget = MAX_TICK_DEFER;
+        bus.periph.usb.host_input(&[0x11, 0x22]);
+        assert_eq!(Bus::tick(&mut bus, 37), 0);
+        bus.periph.misc.mmio_log = Some(Vec::new());
+        for lane in 0..4 {
+            assert_eq!(bus.read8(USB + lane), Err(Fault::Prohibited));
+            assert_eq!(bus.read16(USB + lane), Err(Fault::Prohibited));
+            assert_eq!(bus.read8(MMU_TABLE + lane), Err(Fault::Prohibited));
+        }
+        for lane in 1..4 {
+            assert_eq!(bus.read32(MMU_TABLE + lane), Err(Fault::Misaligned));
+            assert_eq!(bus.read32(USB + lane), Err(Fault::Misaligned));
+        }
+        assert_eq!(bus.last_fault, Some((USB + 3, false)));
+        assert_eq!(bus.tick_pending, 37);
+        assert!(!bus.irq_dirty);
+        assert!(bus.periph.misc.mmio_log.as_ref().unwrap().is_empty());
+        assert_eq!(bus.periph.usb.rx.iter().copied().collect::<Vec<_>>(), [0x11, 0x22]);
+        assert_eq!(bus.read32(USB), Ok(0x11));
+        assert_eq!(bus.periph.usb.rx.iter().copied().collect::<Vec<_>>(), [0x22]);
+        assert_eq!(bus.tick_pending, 0);
     }
 
     #[test]
