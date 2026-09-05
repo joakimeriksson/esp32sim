@@ -279,8 +279,8 @@ Things that cost real time to find out, recorded so they do not have to be found
   compiled out for wasm32, next to the `Instant::now()` rule above.
 - **Reuse the WebSocket protocol, not the WebSocket.** Giving `WebServer` a queue mode meant zero
   changes to `Machine`'s push/poll code and a ~10-line change to the page. The one trap: the
-  per-client "hello" snapshot (board name, console backlog) is built for new socket clients and
-  never delivered in queue mode — the page kept the Atech layout for the panel until the wasm
+  per-client "hello" snapshot (board name, console backlog) is built only for new socket
+  clients, not in queue mode — the page kept the Atech layout for the panel until the wasm
   boot sent the board announcement itself.
 - **No bindgen.** A dozen `extern "C"` functions plus `esp32sim_alloc`/`free` for buffers; the
   worker copies messages out of wasm memory (re-creating views after every call, since memory
