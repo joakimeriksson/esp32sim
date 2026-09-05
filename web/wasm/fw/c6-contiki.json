@@ -1,0 +1,16 @@
+{
+ "board": "waveshare-c6-lcd147",
+ "flash_mb": 4,
+ "psram_mb": 0,
+ "seconds": 12,
+ "stubs": ["bb_init=0"],
+ "symbols": {"bb_init": "0x4201dfea"},
+ "files": {
+  "rom": "esp32c6_rev0_rom.elf",
+  "bootloader": "public/c6-contiki-bootloader.bin",
+  "ptable": "public/c6-contiki-ptable.bin",
+  "app": "public/c6-contiki.bin"
+ },
+ "expect": "tx count 1",
+ "_note": "Contiki-NG on the ESP32-C6 (github.com/joakimeriksson/contiki-ng-esp32, -DCONTIKI_NULLNET=ON) as an unmodified IDF app: Contiki's own scheduler, CSMA and 802.15.4 stack over the emulated MAC, broadcasting every 5 s and blinking the WS2812 through the RMT. bb_init is the PHY blob's baseband calibration, as for the energy scanner."
+}
