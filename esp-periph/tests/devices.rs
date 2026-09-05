@@ -189,3 +189,23 @@ fn table_sources_ticks_deadlines_and_debug() {
     assert!(c.b.dbg && !c.a.dbg, "TIMG0 and TIMG1 both reach b; UART0 untouched");
     Dispatch::debug(&mut c, "uart0", true); assert!(c.a.dbg);
 }
+
+/// A level produced by toggling the output *enable* is an edge the board must see: IDF 5.5's
+/// esp_lcd drives the LCD D/C line this way (level, enable, transfer, disable), and a model that
+/// only compared `out` never reported it — every byte reached the panel as a command.
+#[test]
+fn gpio_enable_toggle_reports_the_edge() {
+    let mut g = Gpio::new();
+    g.write(0x8, 1 << 15);                       // OUT_W1TS: level 1, driver off — nothing visible yet
+    assert!(g.changes.is_empty(), "a level with the driver disabled is not an edge");
+    g.write(0x24, 1 << 15);                      // ENABLE_W1TS: the driver comes on at level 1
+    assert_eq!(g.changes, vec![(15, true)], "enabling the driver with out=1 is a rising edge");
+    g.changes.clear();
+    g.write(0x28, 1 << 15);                      // ENABLE_W1TC: released
+    assert_eq!(g.changes, vec![(15, false)], "releasing the driver is a falling edge");
+    g.changes.clear();
+    g.write(0xc, 1 << 15); g.write(0x24, 1 << 15);   // level 0, then enable: visible 0 -> 0
+    assert!(g.changes.is_empty(), "enabling at level 0 after a release changes nothing visible");
+    g.write(0x8, 1 << 15);                       // out goes to 1 while enabled: the usual edge still works
+    assert_eq!(g.changes, vec![(15, true)]);
+}
