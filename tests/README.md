@@ -27,7 +27,7 @@ silently: without a ROM they fail with the path they looked for.
 ```sh
 cargo test --release --workspace -- --include-ignored --skip external_      # ~15 s for the whole set
 UPDATE_GOLDENS=1 cargo test --release --workspace -- --include-ignored --skip external_   # after an intentional change
-tools/wasm-build.sh && node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan panel   # the wasm module, as the page runs it
+tools/wasm-build.sh && node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel   # the wasm module, as the page runs it
 ```
 
 Tests named `external_*` need inputs only a developer machine has (full objdump listings via

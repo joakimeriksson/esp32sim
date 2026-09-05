@@ -9,6 +9,7 @@ const traceNow = () => performance.timeOrigin + performance.now();
 // protocol (docs/web-ui.md) to the page as postMessage — text as strings, binary as ArrayBuffers.
 let CPU_HZ = 240e6;   // replaced from the module once an emulator exists: the C3 runs at 160 MHz
 let wasm = null, emu = 0, running = false, t0 = 0, resyncs = 0, lastStat = { wall: 0, insns: 0 };
+let net = 0, netNodes = 0, netT0 = 0;   // a network of motes: several emulators on one medium
 const enc = new TextEncoder(), dec = new TextDecoder();
 const mem = () => new Uint8Array(wasm.memory.buffer);
 function put(bytes) { const p = wasm.esp32sim_alloc(bytes.length); mem().set(bytes, p); return p; }
@@ -62,6 +63,38 @@ function loop() {
   setTimeout(loop, Math.max(0, Math.min(20, aheadMs)));
 }
 
+// A network runs on its own clock: network time in nanoseconds paced to the wall clock, with
+// each node's console and LED drained per turn. The medium and the stepping are in the module
+// (esp32c6::net) — this only says how far to run and relays what came out.
+function netLoop() {
+  if (!running) return;
+  const now = performance.now();
+  const targetNs = (now - netT0) * 1e6;
+  const curNs = wasm.esp32sim_net_now_ns(net);
+  if (targetNs - curNs > 5e8) { netT0 = now - curNs / 1e6; resyncs++; }   // hopelessly behind: skip
+  const turnStart = performance.now();
+  while (wasm.esp32sim_net_now_ns(net) < targetNs) {
+    wasm.esp32sim_net_run(net, Math.min(targetNs, wasm.esp32sim_net_now_ns(net) + 5e6));   // 5 ms of network time
+    if (performance.now() - turnStart >= 12) break;
+  }
+  const stats = [];
+  for (let i = 0; i < netNodes; i++) {
+    const len = wasm.esp32sim_net_console_take(net, i);
+    if (len) { const p = wasm.esp32sim_net_console_ptr(net); postMessage({ netText: { node: i, data: dec.decode(mem().subarray(p, p + len)) } }); }
+    stats.push({ tx: wasm.esp32sim_net_stat(net, i, 0), rx: wasm.esp32sim_net_stat(net, i, 1),
+                 dropped: wasm.esp32sim_net_stat(net, i, 2), ns: wasm.esp32sim_net_stat(net, i, 3),
+                 led: wasm.esp32sim_net_stat(net, i, 4), halted: wasm.esp32sim_net_stat(net, i, 6) !== 0 });
+  }
+  const wall = performance.now();
+  if (wall - lastStat.wall > 500) {
+    // `t` is the protocol's message type, so the network clock travels as `sec`
+    postMessage({ netStat: { sec: wasm.esp32sim_net_now_ns(net) / 1e9, nodes: stats, resyncs,
+                             behind: Math.max(0, (targetNs - wasm.esp32sim_net_now_ns(net)) / 1e9) } });
+    lastStat = { wall, insns: 0 };
+  }
+  setTimeout(netLoop, 5);
+}
+
 onmessage = async (ev) => {
   const m = ev.data;
   try {
@@ -80,6 +113,23 @@ onmessage = async (ev) => {
     else if (m.op === 'stub') { withBytes(enc.encode(m.name), (p, n) => wasm.esp32sim_stub(emu, p, n, m.value >>> 0)); }
     else if (m.op === 'wifi') { withBytes(enc.encode(m.spec), (p, n) => wasm.esp32sim_wifi(emu, p, n)); }
     else if (m.op === 'start') { const rc = wasm.esp32sim_boot(emu, m.appDirect ? 1 : 0); if (rc === 0) { running = true; t0 = performance.now(); loop(); } postMessage({ started: rc === 0 }); }
+    else if (m.op === 'net-create') {
+      running = false;
+      if (net) { wasm.esp32sim_net_delete(net); net = 0; }
+      if (emu) { wasm.esp32sim_delete(emu); emu = 0; }
+      net = wasm.esp32sim_net_new(m.slice_ns || 0);
+      netNodes = 0;
+      for (const node of m.nodes) {
+        const mac = (node.mac || '02:00:00:00:00:0' + (netNodes + 1)).split(':').map(h => parseInt(h, 16));
+        withBytes(new Uint8Array(mac), (mp) => withBytes(enc.encode(node.board || m.board || 'none'),
+          (bp, bn) => wasm.esp32sim_net_add(net, mp, node.flash_mb || m.flash_mb || 2, (node.start_ms || 0) * 1e6, node.x || 0, node.y || 0, bp, bn)));
+        netNodes++;
+      }
+      postMessage({ created: net !== 0, nodes: netNodes });
+    }
+    else if (m.op === 'net-load') { const rc = withBytes(new Uint8Array(m.data), (p, n) => wasm.esp32sim_net_load(net, m.node, m.kind, p, n)); postMessage({ loaded: 'n' + m.node + ':' + m.kind, ok: rc === 0 }); }
+    else if (m.op === 'net-stub') { withBytes(enc.encode(m.name), (p, n) => wasm.esp32sim_net_stub(net, m.node, p, n, m.value >>> 0)); }
+    else if (m.op === 'net-start') { const rc = wasm.esp32sim_net_boot(net); if (rc === 0) { running = true; netT0 = performance.now(); netLoop(); } postMessage({ started: rc === 0 }); }
     else if (m.op === 'stop') { running = false; }
     else if (m.op === 'text') {
       if (traceEnabled && m.touchTrace) {
