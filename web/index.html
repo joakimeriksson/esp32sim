@@ -172,7 +172,8 @@ function send(o) { linkSend(JSON.stringify(o)); }
 function drawFrame(buf) {
   const dv = new DataView(buf); const w = dv.getUint16(1, true), h = dv.getUint16(3, true);
   if (w > 160) {   // a panel, not the Atech TFT
-    const c = $('#lcd'); if (c.width !== w || c.height !== h) { c.width = w; c.height = h; const s = w <= 240 ? 2 : 1; c.style.width = (w * s) + 'px'; c.style.height = (h * s) + 'px'; }
+    const c = $('#lcd'); if (c.style.display === 'none') { c.style.display = ''; $('#lcdstat').textContent = 'ST7789 172×320 over SPI2 + GDMA'; }   // the first frame: the firmware drives it after all
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; const s = w <= 240 ? 2 : 1; c.style.width = (w * s) + 'px'; c.style.height = (h * s) + 'px'; }
     const ctx = c.getContext('2d'); const im = ctx.createImageData(w, h); const d = im.data;
     for (let i = 0; i < w * h; i++) { const p = dv.getUint16(5 + i * 2, true); d[i*4] = (p >> 11) * 255 / 31; d[i*4+1] = ((p >> 5) & 63) * 255 / 63; d[i*4+2] = (p & 31) * 255 / 31; d[i*4+3] = 255; }
     ctx.putImageData(im, 0, 0); return;
@@ -189,6 +190,16 @@ function drawFrame(buf) {
 // from 12 o'clock (firmware: rotary_encoder.h). Physical position p, CCW from 12 o'clock, is
 // chain index p/2 for even p and 6 + ((p+1)/2 mod 6) for odd p.
 function ringChainIndex(p) { return p % 2 === 0 ? p / 2 : 6 + (((p + 1) / 2) % 6); }
+// A single WS2812 as a dot: the hue at full strength, the brightness as the glow. Firmware often
+// runs these at a few percent (the IDF blink example's 16/255 is plainly visible on a board),
+// and painting that value literally is a dot nobody can see.
+function paintLed(el, r, g, b) {
+  const m = Math.max(r, g, b);
+  if (m === 0) { el.style.background = '#222'; el.style.boxShadow = 'none'; return; }
+  const k = 255 / m, glow = Math.min(1, 0.35 + m / 255);
+  el.style.background = `rgb(${r * k | 0},${g * k | 0},${b * k | 0})`;
+  el.style.boxShadow = `0 0 ${6 + 10 * glow}px ${2 * glow}px rgba(${r * k | 0},${g * k | 0},${b * k | 0},${glow.toFixed(2)})`;
+}
 function drawRing() {
   const c = ringC, cx = 120, cy = 120, R = 100; c.clearRect(0, 0, 240, 240);
   // The firmware runs the ring at 20% brightness (50/255); through the light guide that is a
@@ -237,7 +248,7 @@ function handleMessage(data) {
     const m = JSON.parse(data);
     if (m.t === 'serial') addSerial(m.src, m.data);
     else if (m.t === 'emu') addSerial('usb', m.msg + '\n');
-    else if (m.t === 'board') { document.body.classList.toggle('bare', m.name !== 'atech14'); if (m.name === 'atech14') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Atech 14‑port board'; } else if (m.name === 'esp32c3') { document.querySelector('h1').textContent = 'ESP32‑C3 emulator — RISC-V, console only'; } else if (m.name === 'esp32c6') { document.querySelector('h1').textContent = 'ESP32‑C6 emulator — RISC-V, console only'; } else if (m.name === 'waveshare-c6-lcd147') { document.querySelector('h1').textContent = 'ESP32‑C6 emulator — Waveshare ESP32‑C6‑LCD‑1.47'; $('#lcdpanel').style.display = ''; $('#lcdstat').textContent = 'ST7789 172×320 over SPI2 + GDMA'; $('#lcdextras').style.display = ''; } else if (m.name === 'none') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — bare module'; document.querySelector('.tabs button[data-src="uart0"]').click(); } if (m.name === 'waveshare-cam') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Waveshare ESP32‑S3‑CAM‑OV5640'; $('#campanel').style.display = ''; } if (m.name === 'waveshare-lcd4b') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Waveshare ESP32‑S3‑Touch‑LCD‑4B'; $('#lcdpanel').style.display = ''; } }
+    else if (m.t === 'board') { document.body.classList.toggle('bare', m.name !== 'atech14'); if (m.name === 'atech14') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Atech 14‑port board'; } else if (m.name === 'esp32c3') { document.querySelector('h1').textContent = 'ESP32‑C3 emulator — RISC-V, console only'; } else if (m.name === 'esp32c6') { document.querySelector('h1').textContent = 'ESP32‑C6 emulator — RISC-V, console only'; } else if (m.name === 'waveshare-c6-lcd147') { document.querySelector('h1').textContent = 'ESP32‑C6 emulator — Waveshare ESP32‑C6‑LCD‑1.47'; $('#lcdpanel').style.display = ''; $('#lcdstat').textContent = 'ST7789 172×320 over SPI2 + GDMA — nothing drawn yet: this firmware has not written the display'; $('#lcd').style.display = 'none'; $('#lcdextras').style.display = ''; } else if (m.name === 'none') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — bare module'; document.querySelector('.tabs button[data-src="uart0"]').click(); } if (m.name === 'waveshare-cam') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Waveshare ESP32‑S3‑CAM‑OV5640'; $('#campanel').style.display = ''; } if (m.name === 'waveshare-lcd4b') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Waveshare ESP32‑S3‑Touch‑LCD‑4B'; $('#lcdpanel').style.display = ''; } }
     if (m.t === 'board' && m.name === 'waveshare-amoled18-v2') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator, Waveshare ESP32‑S3‑Touch‑AMOLED‑1.8 V2'; $('#lcdstat').textContent = 'CO5300 368×448 over QSPI, click or drag to touch'; const lcd = $('#lcd'); lcd.style.width = '368px'; lcd.style.height = '448px'; $('#lcdpanel').style.display = ''; }
     else if (m.t === 'grid') { drawGrid(m.id, m.leds); }
     else if (m.t === 'net') {
@@ -250,11 +261,11 @@ function handleMessage(data) {
       if (row.children.length !== m.nodes.length) { row.innerHTML = m.nodes.map((_, i) => `<span class="motecard"><span class="led" id="netled${i}"></span><b>node ${i + 1}</b> <span class="st" id="netinfo${i}"></span></span>`).join(''); }
       m.nodes.forEach((n, i) => {
         const [r, g, b] = [(n.led >> 16) & 255, (n.led >> 8) & 255, n.led & 255];
-        const el = $('#netled' + i); el.style.background = `rgb(${r},${g},${b})`; el.style.boxShadow = r + g + b > 0 ? `0 0 10px rgb(${r},${g},${b})` : 'none';
+        paintLed($('#netled' + i), r, g, b);
         $('#netinfo' + i).textContent = `sent ${n.tx} · heard ${n.rx}` + (n.dropped ? ` · ${n.dropped} lost` : '') + (n.halted ? ' · halted' : '');
       });
     }
-    else if (m.t === 'ring') { ringLeds = m.leds; drawRing(); if (m.leds.length === 1) { const [r, g, b] = m.leds[0]; $('#lcdled').style.background = `rgb(${r},${g},${b})`; $('#lcdled').style.boxShadow = r + g + b > 0 ? `0 0 12px rgb(${r},${g},${b})` : 'none'; } }
+    else if (m.t === 'ring') { ringLeds = m.leds; drawRing(); if (m.leds.length === 1) { const [r, g, b] = m.leds[0]; paintLed($('#lcdled'), r, g, b); } }
     else if (m.t === 'stat') { $('#stat').textContent = `t = ${m.time.toFixed(2)} s · ${(m.insns/1e6).toFixed(1)} M insns · ${m.frames} frames` + (m.behind > 0 ? ` · ⚠ ${m.behind.toFixed(2)} s behind real time` : ' · real time') + (m.resyncs ? ` · ${m.resyncs} resync` : '') + (m.cam ? ` · ${m.cam} camera frames` : ''); $('#stat').style.color = m.behind > 0 ? '#f66' : ''; }
 }
 function connect() {
