@@ -953,7 +953,7 @@ impl<S: Soc> Machine<S> {
             w.send_text(&format!("{{\"t\":\"ring\",\"leds\":[{}]}}", leds.join(",")));
         } }
         // snapshot for late-joining clients: backlog, frame, ring
-        {
+        if w.needs_hello() {
             use crate::web::json_escape;
             let mut hello: Vec<Vec<u8>> = Vec::new();
             let mk = |s: &str| -> Vec<u8> { let mut f = vec![0x81u8]; let n = s.len(); if n < 126 { f.push(n as u8); } else if n < 65536 { f.push(126); f.extend_from_slice(&(n as u16).to_be_bytes()); } else { f.push(127); f.extend_from_slice(&(n as u64).to_be_bytes()); } f.extend_from_slice(s.as_bytes()); f };
