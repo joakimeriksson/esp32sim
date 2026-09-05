@@ -121,6 +121,7 @@
     </div>
   </section>
 </main>
+<script src="touch-input.js"></script>
 <script>
 const $ = s => document.querySelector(s);
 const con = $('#console'); let ws, view = 'usb', netInit = false; const lines = [];   // {src, text}
@@ -166,7 +167,7 @@ function addSerial(src, data) { data = data.replace(/\x1b\[[0-9;]*m/g, '');
   render();
 }
 let link = null;   // the transport: a WebSocket to a native emulator, or the wasm worker (emu.js)
-function linkSend(d) { if (link) link.send(d); }
+function linkSend(d, timing) { if (link) link.send(d, timing); }
 function send(o) { linkSend(JSON.stringify(o)); }
 
 function drawFrame(buf) {
@@ -296,14 +297,15 @@ $('#audioBtn').onclick = async () => { if (!audioCtx) audioCtx = new (window.Aud
 const presets = [['set_note C','{"action":"set_note","value":"0"}'],['set_note A','{"action":"set_note","value":"5"}'],['octave 5','{"action":"set_octave","value":"5"}'],['trigger_note','{"action":"trigger_note","value":""}'],['chord','{"action":"play_chord_voices","value":""}'],['play_note 880','{"action":"play_note","value":"{\\"frequency\\":880,\\"duration\\":300}"}'],['volume 1.0','{"action":"set_volume","value":"1.0"}'],['ring red','{"action":"set_ring_color","value":"{\\"r\\":255,\\"g\\":0,\\"b\\":40}"}']];
 presets.forEach(([n, l]) => { const b = document.createElement('button'); b.className = 'act'; b.textContent = n; b.onclick = () => { $('#line').value = l; $('#send').click(); }; $('#presets').appendChild(b); });
 drawRing(); connect();
-// ---- touch panel: mouse/pointer -> GT911 touch points
-{ const c = $('#lcd'); let down = false, last = 0;
-  const pos = (e) => { const r = c.getBoundingClientRect(); return { x: Math.max(0, Math.min(c.width - 1, Math.round((e.clientX - r.left) * c.width / r.width))), y: Math.max(0, Math.min(c.height - 1, Math.round((e.clientY - r.top) * c.height / r.height))) }; };
-  const send = (p, d) => linkSend(JSON.stringify({ t: 'touch', x: p.x, y: p.y, down: d ? 1 : 0 }));
-  c.addEventListener('pointerdown', (e) => { down = true; c.setPointerCapture(e.pointerId); send(pos(e), true); });
-  c.addEventListener('pointermove', (e) => { if (!down) return; const now = performance.now(); if (now - last < 40) return; last = now; send(pos(e), true); });
-  const up = (e) => { if (!down) return; down = false; send(pos(e), false); };
-  c.addEventListener('pointerup', up); c.addEventListener('pointercancel', up); }
+// ---- touch panel: pointer -> sampled controller contact
+const touchTrace = new URLSearchParams(location.search).has('touchTrace')
+  ? (window.__esp32simTouchTrace = []) : null;
+window.recordTouchTrace = (entry) => {
+  if (!touchTrace) return;
+  if (touchTrace.length >= 2048) touchTrace.shift();
+  touchTrace.push(entry);
+};
+installTouchInput($('#lcd'), linkSend, { trace: touchTrace ? window.recordTouchTrace : null });
 // ---- camera source (waveshare-cam): send RGBA frames as binary type 3
 const camCanvas = $('#camcanvas'), camCtx = camCanvas.getContext('2d'); let camStream = null, camTimer = null;
 function sendCamFrame() {

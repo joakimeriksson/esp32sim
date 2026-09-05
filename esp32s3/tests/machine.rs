@@ -34,6 +34,203 @@ fn idle_cores_skip_time() {
     assert!(m.cores[0].waiting());
 }
 
+#[test]
+fn idle_stops_at_requested_cycle_and_instruction_limits() {
+    for (max_cycles, max_insns, expected, halted) in [(1, u64::MAX, 1, true), (1000, 3, 3, false)] {
+        let mut m = machine();
+        m.cores[0].waiting = true;
+        m.cores[0].ps = 0;
+        m.max_cycles = max_cycles;
+        let stop = m.run(max_insns);
+        assert_eq!(matches!(stop, Stop::Halted), halted);
+        assert_eq!(m.bus.cycles, expected);
+    }
+}
+
+#[test]
+fn idle_scripts_fire_at_their_deadlines_in_both_entry_paths() {
+    for until in [false, true] {
+        let mut m = machine();
+        m.cores[0].waiting = true;
+        m.cores[0].ps = 0;
+        m.script.events = vec![(5, ScriptAction::Serial("A".into())), (7, ScriptAction::Stop)];
+        if until {
+            assert!(matches!(m.run_until_cycle(100), esp_soc::RunUntil::Stop(Stop::Halted)));
+        } else {
+            assert!(matches!(m.run(u64::MAX), Stop::Halted));
+        }
+        assert_eq!(m.bus.cycles, 7);
+        assert_eq!(m.script.pos, 2);
+        assert_eq!(m.bus.periph.usb.rx.iter().copied().collect::<Vec<_>>(), b"A");
+    }
+}
+
+#[test]
+fn idle_cut_includes_each_enabled_cores_timer() {
+    use esp_soc::observe::{Ctx, Observer, Wants};
+    use std::sync::{Arc, Mutex};
+    struct Rounds(Arc<Mutex<Vec<u64>>>);
+    impl Observer<esp32s3::S3> for Rounds {
+        fn name(&self) -> &'static str { "round-cuts" }
+        fn wants(&self) -> Wants { Wants::ROUND }
+        fn on_round(&mut self, cx: &Ctx) { self.0.lock().unwrap().push(cx.cycles); }
+    }
+    for (core, until) in [(0, false), (1, false), (0, true)] {
+        let mut m = machine();
+        if core == 1 {
+            park(&mut m, 0, IRAM, &SPIN);
+            esp_soc::SocBus::load_bytes(&mut m.bus, RESET, &SPIN).unwrap();
+            m.bus.write32(0x600c_0000, 0b010).unwrap();
+            m.run(64); // release and initialize core 1 before arming its timer
+        }
+        for c in &mut m.cores { c.waiting = true; c.ps = 0; }
+        let now = m.bus.cycles;
+        m.cores[core].intenable = 1 << xtensa_lx7::state::TIMER_INTERRUPT[0];
+        m.cores[core].ccompare[0] = m.cores[core].ccount.wrapping_add(3);
+        let rounds = Arc::new(Mutex::new(Vec::new()));
+        m.add_observer(Box::new(Rounds(rounds.clone())));
+        m.max_cycles = now + 9;
+        if until { m.run_until_cycle(now + 9); } else { m.run(u64::MAX); }
+        let cuts = rounds.lock().unwrap();
+        assert!(cuts.contains(&(now + 3)), "core {core}, until={until}, cuts={cuts:?}");
+    }
+}
+
+#[test]
+fn precise_trap_observer_reports_fault_after_resumed_hardware_loop() {
+    use esp_soc::observe::{Ctx, Observer, Wants};
+    use std::sync::{Arc, Mutex};
+    struct Traps {
+        traps: Arc<Mutex<Vec<(u32, emu_core::Trap)>>>,
+        fragments: Arc<Mutex<Vec<(u32, u32)>>>,
+        combined: bool,
+    }
+    impl Observer<esp32s3::S3> for Traps {
+        fn name(&self) -> &'static str { "precise-traps" }
+        fn wants(&self) -> Wants { if self.combined { Wants::TRAP_PC | Wants::BLOCK } else { Wants::TRAP_PC } }
+        fn on_trap(&mut self, _: &Ctx, _: usize, _: &xtensa_lx7::Cpu, pc: u32, trap: &emu_core::Trap) {
+            self.traps.lock().unwrap().push((pc, *trap));
+        }
+        fn on_block(&mut self, _: &Ctx, _: usize, pc: u32, used: u32) { self.fragments.lock().unwrap().push((pc, used)); }
+    }
+    for (until, combined) in [(false, false), (true, false), (false, true), (true, true)] {
+        let mut m = machine();
+        // Independently assembled: addi.n a3,a3,-1 ; quou a2,a4,a3.
+        park(&mut m, 0, IRAM, &[0x0b, 0x33, 0x30, 0x24, 0xc2]);
+        m.cores[0].pc = IRAM + 2;
+        m.cores[0].lbeg = IRAM;
+        m.cores[0].lend = IRAM + 5;
+        m.cores[0].lcount = 3;
+        m.cores[0].set_ar(3, 2);
+        m.cores[0].set_ar(4, 12);
+        m.dbg.stop_after_exceptions = 1;
+        let traps = Arc::new(Mutex::new(Vec::new()));
+        let fragments = Arc::new(Mutex::new(Vec::new()));
+        m.add_observer(Box::new(Traps { traps: traps.clone(), fragments: fragments.clone(), combined }));
+        if until {
+            assert!(matches!(m.run_until_cycle(64), esp_soc::RunUntil::Stop(Stop::Exceptions(1))));
+        } else { assert!(matches!(m.run(64), Stop::Exceptions(1))); }
+        assert_eq!(*traps.lock().unwrap(), [(IRAM + 2, emu_core::Trap::Exception(6))]);
+        assert_eq!(m.cores[0].get_ar(3), 0);
+        if combined {
+            assert_eq!(*fragments.lock().unwrap(), [(IRAM + 2, 1), (IRAM, 1), (IRAM + 2, 1), (IRAM, 1), (IRAM + 2, 1)]);
+        } else { assert!(fragments.lock().unwrap().is_empty()); }
+    }
+}
+
+#[test]
+fn ordinary_trap_observers_keep_block_execution_and_post_trap_state() {
+    use esp_soc::observe::{Ctx, Observer, Wants};
+    use std::sync::{Arc, Mutex};
+    struct Traps { seen: Arc<Mutex<Vec<(u32, u32)>>>, combined: bool }
+    impl Observer<esp32s3::S3> for Traps {
+        fn name(&self) -> &'static str { "ordinary-traps" }
+        fn wants(&self) -> Wants { if self.combined { Wants::TRAP | Wants::BLOCK } else { Wants::TRAP } }
+        fn on_trap(&mut self, _: &Ctx, _: usize, cpu: &xtensa_lx7::Cpu, pc: u32, _: &emu_core::Trap) {
+            self.seen.lock().unwrap().push((pc, cpu.epc[1]));
+        }
+    }
+    for until in [false, true] {
+        for combined in [false, true] {
+            let mut m = machine();
+            // Three addi.n a3,a3,-1 instructions, then quou a2,a4,a3 traps.
+            park(&mut m, 0, IRAM, &[0x0b, 0x33, 0x0b, 0x33, 0x0b, 0x33, 0x30, 0x24, 0xc2]);
+            m.cores[0].set_ar(3, 3);
+            m.cores[0].set_ar(4, 12);
+            m.dbg.stop_after_exceptions = 1;
+            let seen = Arc::new(Mutex::new(Vec::new()));
+            m.add_observer(Box::new(Traps { seen: seen.clone(), combined }));
+            if until { m.run_until_cycle(64); } else { m.run(64); }
+            let seen = seen.lock().unwrap();
+            assert_eq!(seen.len(), 1);
+            assert_eq!(seen[0].1, IRAM + 6);
+            assert!((IRAM..IRAM + 6).contains(&seen[0].0), "trap follows earlier instructions in the same run: {seen:?}");
+            assert_eq!(m.cores[0].blocks.observed, combined, "ordinary TRAP alone permits retained loops");
+        }
+    }
+}
+
+#[test]
+fn quiet_display_publication_remains_live_during_continuous_changes() {
+    use std::sync::{Arc, atomic::{AtomicU64, Ordering}};
+    struct Display(Arc<AtomicU64>);
+    impl esp_soc::board::BoardModel for Display {
+        fn name(&self) -> &'static str { "continuous-display" }
+        fn display_version(&self) -> u64 { self.0.load(Ordering::Relaxed) }
+        fn display_quiet_push(&self) -> bool { true }
+        fn display(&self) -> Option<(u32, u32, Vec<u16>, u64)> {
+            let version = self.display_version();
+            Some((1, 1, vec![version as u16], version))
+        }
+    }
+    let mut m = machine();
+    let version = Arc::new(AtomicU64::new(0));
+    m.bus.board = Box::new(Display(version.clone()));
+    m.cores[0].waiting = true;
+    m.cores[0].ps = 0;
+    let web = esp_soc::web::WebServer::queued();
+    m.web = Some(web.clone());
+    for push in 1..=6 {
+        version.store(push, Ordering::Relaxed);
+        m.run_until_cycle(push * 4_800_000);
+        let frames: Vec<_> = web.take_outbox().into_iter().filter(|(kind, data)| *kind == 2 && data[0] == 1).collect();
+        if push % 2 == 0 {
+            assert_eq!(frames, [(2, vec![1, 1, 0, 1, 0, push as u8, 0])]);
+        } else { assert!(frames.is_empty()); }
+    }
+    version.store(7, Ordering::Relaxed);
+    m.run_until_cycle(7 * 4_800_000);
+    web.take_outbox();
+    m.run_until_cycle(8 * 4_800_000); // a quiet interval publishes the pending version
+    assert!(web.take_outbox().iter().any(|(kind, data)| *kind == 2 && data == &[1, 1, 0, 1, 0, 7, 0]));
+}
+
+#[test]
+fn queued_display_output_does_not_build_an_unused_socket_snapshot() {
+    use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+    struct Display(Arc<AtomicUsize>);
+    impl esp_soc::board::BoardModel for Display {
+        fn name(&self) -> &'static str { "counted-display" }
+        fn display_version(&self) -> u64 { 1 }
+        fn display(&self) -> Option<(u32, u32, Vec<u16>, u64)> {
+            self.0.fetch_add(1, Ordering::Relaxed);
+            Some((1, 1, vec![0x1234], 1))
+        }
+    }
+    let mut m = machine();
+    let calls = Arc::new(AtomicUsize::new(0));
+    m.bus.board = Box::new(Display(calls.clone()));
+    m.cores[0].waiting = true;
+    m.cores[0].ps = 0;
+    let web = esp_soc::web::WebServer::queued();
+    m.web = Some(web.clone());
+    m.run_until_cycle(4_800_000);
+    assert_eq!(calls.load(Ordering::Relaxed), 1, "only the live frame needs serialization");
+    assert!(web.take_outbox().iter().any(|(kind, data)| *kind == 2 && data == &[1, 1, 0, 1, 0, 0x34, 0x12]));
+    m.run_until_cycle(9_600_000);
+    assert_eq!(calls.load(Ordering::Relaxed), 1, "unchanged queued display needs no snapshot");
+}
+
 /// Core 1 sits in reset until SYSTEM_CORE_1_CONTROL_0 releases it, then runs from the reset vector.
 #[test]
 fn core1_runs_when_released() {
@@ -256,4 +453,33 @@ fn knob_input_preserves_pending_scripts_at_the_current_horizon() {
     m.max_cycles = horizon + 64;
     m.run(u64::MAX);
     assert_eq!(m.script.pos, 2);
+}
+
+
+#[test]
+fn due_script_stop_precedes_execution_and_observes_edits_between_runs() {
+    for until in [false, true] {
+        let mut m = machine();
+        park(&mut m, 0, IRAM, &SPIN);
+        m.script.log = false;
+        // A future action must stay pending when the first run completes.
+        m.script.events = vec![(128, ScriptAction::Serial("later".into()))];
+        if until { m.run_until_cycle(64); } else { m.run(64); }
+        assert_eq!(m.bus.cycles, 64);
+        assert_eq!(m.script.pos, 0);
+        let insns = m.insns();
+        // Public host edits must take effect at the next entry boundary, even though the
+        // previous check found only a future event. Both due actions precede execution.
+        m.script.events.insert(0, (64, ScriptAction::Stop));
+        m.script.events.insert(0, (64, ScriptAction::Serial("now".into())));
+        if until {
+            assert!(matches!(m.run_until_cycle(128), esp_soc::RunUntil::Stop(Stop::Halted)));
+        } else {
+            assert!(matches!(m.run(64), Stop::Halted));
+        }
+        assert_eq!(m.bus.cycles, 64);
+        assert_eq!(m.insns(), insns);
+        assert_eq!(m.script.pos, 2);
+        assert_eq!(m.bus.periph.usb.rx.iter().copied().collect::<Vec<_>>(), b"now");
+    }
 }

@@ -23,6 +23,8 @@ pub(super) fn supported(op: crate::Op, fast: bool) -> bool {
             | Or
             | Xor
             | Mull
+            | Muluh
+            | Mulsh
             | Salt
             | Saltu
             | Addi
@@ -35,11 +37,14 @@ pub(super) fn supported(op: crate::Op, fast: bool) -> bool {
             | Subx4
             | Subx8
             | Neg
+            | Abs
             | Slli
             | Srli
             | Srai
             | Sll
             | Srl
+            | Sra
+            | Src
             | Entry
             | Extui
             | Sext
@@ -418,10 +423,11 @@ pub(super) fn generate(block: &Block) -> Vec<u8> {
             mask
         } else if !supported(bi.insn.op, block.fast) {
             u16::MAX
-        } else if float::supported(bi.insn.op) || matches!(bi.insn.op, crate::Op::Lsi | crate::Op::Ssi) {
-            mask | float::registers(&bi.insn)
         } else {
-            mask | (1 << bi.insn.r) | (1 << bi.insn.s) | (1 << bi.insn.t)
+            // Include destinations (also conditional ones), not just reads: entry may
+            // resume after an earlier write, and emitted selects read the old destination.
+            // ENTRY reloads this same whole-block mask after rotating the register window.
+            mask | bi.insn.gpr_effects().touched()
         }
     });
     let mut g = Gen(Vec::new(), 0, registers);
@@ -588,6 +594,19 @@ fn emit_instruction(
             });
             g.set_ar(r);
         }
+        Muluh | Mulsh => {
+            let extend = if i.op == Mulsh { 0xac } else { 0xad }; // i64.extend_i32_s/u
+            g.ar(s);
+            g.op(extend);
+            g.ar(t);
+            g.op(extend);
+            g.op(0x7e); // i64.mul
+            g.op(0x42); // i64.const 32
+            g.op(32);
+            g.op(if i.op == Mulsh { 0x87 } else { 0x88 }); // i64.shr_s/u
+            g.op(0xa7); // i32.wrap_i64
+            g.set_ar(r);
+        }
         Addi | AddiN | Addmi => {
             g.ar(s);
             g.c(imm);
@@ -614,6 +633,17 @@ fn emit_instruction(
             g.c(0);
             g.ar(t);
             g.op(0x6b);
+            g.set_ar(r);
+        }
+        Abs => {
+            g.c(0);
+            g.ar(t);
+            g.op(0x6b); // Wrapping negation preserves INT_MIN.
+            g.ar(t);
+            g.ar(t);
+            g.c(0);
+            g.op(0x48); // i32.lt_s
+            g.op(0x1b);
             g.set_ar(r);
         }
         Slli | Srli | Srai => {
@@ -645,6 +675,33 @@ fn emit_instruction(
             g.c(32);
             g.op(0x49); // Counts >= 32 produce zero, unlike WASM's masked shifts.
             g.op(0x1b);
+            g.set_ar(r);
+        }
+        Sra => {
+            g.ar(t);
+            g.cpu(SAR);
+            g.tee(TMP);
+            g.c(31);
+            g.get(TMP);
+            g.c(32);
+            g.op(0x49); // Clamp the unsigned count; WASM shifts otherwise wrap at 32.
+            g.op(0x1b);
+            g.op(0x75); // i32.shr_s
+            g.set_ar(r);
+        }
+        Src => {
+            g.ar(s);
+            g.op(0xad); // i64.extend_i32_u
+            g.op(0x42); // i64.const 32
+            g.op(32);
+            g.op(0x86); // i64.shl
+            g.ar(t);
+            g.op(0xad);
+            g.op(0x84); // i64.or
+            g.cpu(SAR);
+            g.op(0xad);
+            g.op(0x88); // i64.shr_u masks the count to six bits, as Xtensa does.
+            g.op(0xa7); // i32.wrap_i64
             g.set_ar(r);
         }
         Entry => {

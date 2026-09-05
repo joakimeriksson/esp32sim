@@ -1,0 +1,95 @@
+{
+  "main": {
+    "medianSeconds": {
+      "plain": 2.5573572704961407,
+      "irq-latency": 2.723800667001342,
+      "vcd": 3.3243849580030655
+    },
+    "observerTimeDividedByPlain": {
+      "irq-latency": 1.0650841391718844,
+      "vcd": 1.2999298128407837
+    },
+    "instructionCounts": {
+      "plain": [
+        [
+          12339151,
+          307263698
+        ]
+      ],
+      "irq-latency": [
+        [
+          12339151,
+          307263698
+        ]
+      ],
+      "vcd": [
+        [
+          12339151,
+          307263698
+        ]
+      ]
+    }
+  },
+  "reviewed": {
+    "medianSeconds": {
+      "plain": 2.559253854495182,
+      "irq-latency": 6.293973604493658,
+      "vcd": 6.785880957999325
+    },
+    "observerTimeDividedByPlain": {
+      "irq-latency": 2.4593002344955566,
+      "vcd": 2.6515075658009915
+    },
+    "instructionCounts": {
+      "plain": [
+        [
+          12340984,
+          307284283
+        ]
+      ],
+      "irq-latency": [
+        [
+          12340984,
+          307284283
+        ]
+      ],
+      "vcd": [
+        [
+          12340984,
+          307284283
+        ]
+      ]
+    }
+  },
+  "fixed": {
+    "medianSeconds": {
+      "plain": 2.5662335410015658,
+      "irq-latency": 2.7348976869980106,
+      "vcd": 3.2220033335033804
+    },
+    "observerTimeDividedByPlain": {
+      "irq-latency": 1.065724394643606,
+      "vcd": 1.2555378464291589
+    },
+    "instructionCounts": {
+      "plain": [
+        [
+          12340984,
+          307284283
+        ]
+      ],
+      "irq-latency": [
+        [
+          12340984,
+          307284283
+        ]
+      ],
+      "vcd": [
+        [
+          12340984,
+          307284283
+        ]
+      ]
+    }
+  }
+}

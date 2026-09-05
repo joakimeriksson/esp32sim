@@ -1,0 +1,146 @@
+{
+  "passed": true,
+  "captureExitCode": 0,
+  "completedAt": "2026-09-05T19:26:57.308025+00:00",
+  "sourceInputs": {
+    "base": "1d7608fdd2dd8e5fcc0be76fdf279cfcc46d35c8",
+    "patchBase": "335d0786333390cf40f50084b8ce7b151cf75089",
+    "patchSha256": "5dc1e3d58258d2cd099c54c550c1fd573ba3ea7ae663583243470542fc4d8c02"
+  },
+  "wasmSha256": "0001fbf1427dc2613e5d3a5a68defafefa8ff36ba09a7a197c8e8c47f7f57ab6",
+  "captureHarnessSha256": "473f31c8396d7b2d1104a7ac64ca12c35bebde2d94997e12e5205f29fc5c2041",
+  "allProvenanceHashesMatchFrozenSourceAndAssets": true,
+  "provenanceHashesChecked": 12,
+  "browser": "Chrome/152.0.7977.77",
+  "freshBrowser": true,
+  "resumedBeforeStrokes": false,
+  "firmwareReadyGate": true,
+  "pageErrors": [],
+  "summary": {
+    "visibleStrokeColumns": [
+      121,
+      121,
+      121
+    ],
+    "inputSamples": 158,
+    "workerReceived": 158,
+    "runEntered": 158,
+    "pageSamplingMs": {
+      "n": 158,
+      "p50": 7.2001953125,
+      "p95": 15.2001953125,
+      "p99": 16.7001953125,
+      "max": 16.7001953125
+    },
+    "pageToWorkerMs": {
+      "n": 158,
+      "p50": 0.30029296875,
+      "p95": 6.80029296875,
+      "p99": 8.2001953125,
+      "max": 12.10009765625
+    },
+    "workerToRunEntryMs": {
+      "n": 158,
+      "p50": 5,
+      "p95": 5.10009765625,
+      "p99": 5.199951171875,
+      "max": 5.199951171875
+    },
+    "inputRunDurationMs": {
+      "n": 158,
+      "p50": 7.60009765625,
+      "p95": 12,
+      "p99": 16.699951171875,
+      "max": 24
+    },
+    "arrivalToRunEntryMs": {
+      "n": 158,
+      "p50": 12.400146484375,
+      "p95": 24.10009765625,
+      "p99": 28.500244140625,
+      "max": 31.600341796875
+    },
+    "changedCanvasFrames": 146,
+    "changedFrameGapMs": {
+      "n": 145,
+      "p50": 40.300048828125,
+      "p95": 196.5,
+      "p99": 2035.39990234375,
+      "max": 2051.89990234375
+    },
+    "framesDuringContacts": [
+      42,
+      46,
+      44
+    ],
+    "commitReports": 4
+  },
+  "strokeInputs": [
+    {
+      "index": 0,
+      "samples": 52,
+      "minX": 80,
+      "maxX": 200,
+      "firstEvent": "pointerdown",
+      "lastEvent": "pointerup"
+    },
+    {
+      "index": 1,
+      "samples": 52,
+      "minX": 80,
+      "maxX": 200,
+      "firstEvent": "pointerdown",
+      "lastEvent": "pointerup"
+    },
+    {
+      "index": 2,
+      "samples": 52,
+      "minX": 80,
+      "maxX": 200,
+      "firstEvent": "pointerdown",
+      "lastEvent": "pointerup"
+    }
+  ],
+  "withinContactFrameGaps": [
+    {
+      "index": 0,
+      "contactWallMs": 2019.0,
+      "changedRegionFrames": 42,
+      "p50": 41.300048828125,
+      "p95": 66.599853515625,
+      "p99": 85.5,
+      "max": 85.5
+    },
+    {
+      "index": 1,
+      "contactWallMs": 2014.5,
+      "changedRegionFrames": 46,
+      "p50": 39.10009765625,
+      "p95": 64.5,
+      "p99": 81.60009765625,
+      "max": 81.60009765625
+    },
+    {
+      "index": 2,
+      "contactWallMs": 2013.300048828125,
+      "changedRegionFrames": 44,
+      "p50": 39.10009765625,
+      "p95": 75.900146484375,
+      "p99": 82.5,
+      "max": 82.5
+    }
+  ],
+  "screenshotInspected": "canvas-after.png: three complete horizontal blue strokes and quick-tap dot",
+  "cleanup": "Owned headless browser closed with CDP Browser.close; verified server PID67626 terminated.",
+  "endpointLimit": "Production page listeners, sampled sends, worker receipt, next run entry, and canvas submission. No controller-consumption or optical timestamps. Per-stroke pixel regions are observations, not sample-to-pixel causal matches.",
+  "artifacts": [
+    "page-response.json",
+    "within-contact-frame-gaps.json",
+    "capture.log",
+    "chrome.log",
+    "server.log",
+    "page-before.png",
+    "page-after.png",
+    "canvas-after.png"
+  ]
+}

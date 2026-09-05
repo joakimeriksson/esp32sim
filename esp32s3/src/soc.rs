@@ -118,8 +118,17 @@ impl esp_soc::SocBus for SocBus {
     fn console_take(&mut self) -> [Vec<u8>; 4] {
         [std::mem::take(&mut self.periph.usb.tx_out), std::mem::take(&mut self.periph.uart[0].tx_out), std::mem::take(&mut self.periph.uart[1].tx_out), std::mem::take(&mut self.periph.uart[2].tx_out)]
     }
-    fn serial_input(&mut self, data: &[u8]) { self.periph.usb.host_input(data); }
-    fn gpio_set_input(&mut self, pin: u8, level: bool) { self.periph.gpio.set_input(pin, level); if let Some(ev) = &mut self.gpio_events { ev.push((self.cycles, pin, level)); } }
+    fn serial_input(&mut self, data: &[u8]) {
+        let before = self.periph.usb.irq();
+        self.periph.usb.host_input(data);
+        self.irq_dirty |= before != self.periph.usb.irq();
+    }
+    fn gpio_set_input(&mut self, pin: u8, level: bool) {
+        let old_input = self.periph.gpio.input;
+        self.periph.gpio.set_input(pin, level);
+        self.irq_dirty |= old_input != self.periph.gpio.input;
+        if let Some(ev) = &mut self.gpio_events { ev.push((self.cycles, pin, level)); }
+    }
     fn set_flash_size(&mut self, bytes: usize) {
         self.flash = vec![0xff; bytes];
         let cap = bytes.trailing_zeros() as u8; self.periph.spi1.jedec[2] = cap; self.periph.spi0.jedec[2] = cap;

@@ -1,0 +1,51 @@
+{
+  "scenarios": {
+    "atech-script1": {
+      "medianSeconds": {
+        "main": 2.593971000002057,
+        "selected": 2.5908386455048458
+      },
+      "mainMedianDividedByCandidateMedian": 1.0012090118011192,
+      "medianPairedTimeChangePercent": -0.2758861031134985,
+      "pairedTimeChangePercentRange": [
+        -2.3437186576757862,
+        7.603960548885791
+      ],
+      "pairsBelowFivePercentSlower": 11,
+      "meetsPredeclaredRule": true
+    },
+    "sid-jukebox": {
+      "medianSeconds": {
+        "main": 2.412805333500728,
+        "selected": 2.4398530000034953
+      },
+      "mainMedianDividedByCandidateMedian": 0.9889142229049338,
+      "medianPairedTimeChangePercent": 0.6604761285182503,
+      "pairedTimeChangePercentRange": [
+        -1.0528945214674068,
+        9.429987840825603
+      ],
+      "pairsBelowFivePercentSlower": 11,
+      "meetsPredeclaredRule": true
+    },
+    "panel-sid": {
+      "medianSeconds": {
+        "main": 3.5520673124919995,
+        "selected": 3.5781043540046085
+      },
+      "mainMedianDividedByCandidateMedian": 0.9927232302536206,
+      "medianPairedTimeChangePercent": 0.5884210694558689,
+      "pairedTimeChangePercentRange": [
+        -2.317539714371575,
+        7.762604868826828
+      ],
+      "pairsBelowFivePercentSlower": 11,
+      "meetsPredeclaredRule": true
+    }
+  },
+  "acceptance": {
+    "maxCandidateMedianTimeOverMain": 1.02,
+    "minimumPairsBelowFivePercentSlower": 10,
+    "scope": "Practical predeclared material-regression check, not statistical or universal equivalence."
+  }
+}

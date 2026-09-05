@@ -1,6 +1,7 @@
 //! Observers: analyses that watch a run without living in the scheduler. Each declares what it
 //! wants to see; the machine only pays for hooks somebody asked for, and only observers that
-//! need every instruction (`INSN`) force the run off the block/JIT path.
+//! need every instruction (`INSN`) force single-stepping. Exact trap attribution (`TRAP_PC`)
+//! bounds fast-path callbacks to one-instruction fragments.
 use crate::soc::{Soc, Stop};
 use emu_core::Trap;
 use std::collections::BTreeMap;
@@ -13,7 +14,7 @@ impl Wants {
     pub const INSN: Wants = Wants(1);
     /// `on_block` after every block the fast path executed (full speed)
     pub const BLOCK: Wants = Wants(2);
-    /// `on_trap` for exceptions and taken interrupts
+    /// `on_trap` without fragmenting blocks; PC is the run-entry PC on the fast path.
     pub const TRAP: Wants = Wants(4);
     /// `on_mmio` for every peripheral register access
     pub const MMIO: Wants = Wants(8);
@@ -26,6 +27,9 @@ impl Wants {
     /// keep sleeping cores stepping instead of skipping their idle time (changes emulated
     /// timing: an idle core shows as a hot `waiti`; only for observers that count instructions)
     pub const NO_IDLE_SKIP: Wants = Wants(128);
+    /// `on_trap` at the exact instruction PC; bounds fast-path runs to one instruction.
+    /// Requests trap callbacks itself; combine with `BLOCK` to observe those fragments.
+    pub const TRAP_PC: Wants = Wants(256);
     pub fn contains(self, o: Wants) -> bool { self.0 & o.0 != 0 }
 }
 impl std::ops::BitOr for Wants { type Output = Wants; fn bitor(self, o: Wants) -> Wants { Wants(self.0 | o.0) } }
@@ -53,6 +57,8 @@ pub trait Observer<S: Soc> {
     fn after_insn(&mut self, _cx: &Ctx, _core: usize, _cpu: &S::Core, _bus: &mut S::Bus) -> Option<Stop> { None }
     /// The fast path ran `insns` instructions of the block starting at `pc`.
     fn on_block(&mut self, _cx: &Ctx, _core: usize, _pc: u32, _insns: u32) {}
+    /// CPU state is after trap delivery. PC is the run-entry PC unless `TRAP_PC`
+    /// (or the single-step path) provides exact instruction attribution.
     fn on_trap(&mut self, _cx: &Ctx, _core: usize, _cpu: &S::Core, _pc: u32, _trap: &Trap) {}
     fn on_irq_raised(&mut self, _cx: &Ctx, _core: usize, _line: u32) {}
     fn on_mmio(&mut self, _cx: &Ctx, _pc: u32, _addr: u32, _value: u32, _write: bool) {}

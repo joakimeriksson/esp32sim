@@ -1,6 +1,10 @@
 import { createJitHost } from './jit.mjs';
 import { createPacing } from './pacing.mjs';
 let pacing = createPacing();
+// Optional host-stage diagnostics. Run entry is not controller consumption;
+// framebuffer output is not physical panel scanout. Epoch times match the page.
+let traceEnabled = false, pendingInputTrace = [];
+const traceNow = () => performance.timeOrigin + performance.now();
 // esp32sim in a Web Worker: owns the wasm instance, paces it to wall time, and relays the UI
 // protocol (docs/web-ui.md) to the page as postMessage — text as strings, binary as ArrayBuffers.
 let CPU_HZ = 240e6;   // replaced from the module once an emulator exists: the C3 runs at 160 MHz
@@ -18,7 +22,13 @@ function drain() {
   for (let i = 0; i < n; i++) {
     const kind = wasm.esp32sim_out_kind(emu, i), p = wasm.esp32sim_out_ptr(emu, i), len = wasm.esp32sim_out_len(emu, i);
     if (kind === 1) postMessage({ text: dec.decode(mem().subarray(p, p + len)) });
-    else { const buf = new ArrayBuffer(len); new Uint8Array(buf).set(mem().subarray(p, p + len)); postMessage({ bin: buf }, [buf]); }
+    else {
+      const buf = new ArrayBuffer(len);
+      new Uint8Array(buf).set(mem().subarray(p, p + len));
+      const frameTrace = traceEnabled && new Uint8Array(buf)[0] === 1
+        ? { stage: 'worker-frame', atMs: traceNow(), cycles: wasm.esp32sim_cycles(emu) } : undefined;
+      postMessage({ bin: buf, frameTrace }, [buf]);
+    }
   }
 }
 
@@ -33,8 +43,11 @@ function loop() {
     const before = performance.now();
     const remaining = pacing.sliceCycles(target - cur, turnMs - (before - now), now);
     const previous = cur;
+    const inputTraceIds = pendingInputTrace;
+    if (inputTraceIds.length) { postMessage({ touchTrace: { stage: 'run-entry', ids: inputTraceIds, atMs: traceNow(), cycles: cur } }); pendingInputTrace = []; }
     const rc = wasm.esp32sim_run(emu, remaining, Date.now());
     cur = wasm.esp32sim_cycles(emu);
+    if (inputTraceIds.length) postMessage({ touchTrace: { stage: 'run-exit', ids: inputTraceIds, atMs: traceNow(), cycles: cur } });
     pacing.observe(cur - previous, performance.now() - before);
     drain();
     if (rc !== 0) { running = false; postMessage({ stopped: rc }); return; }
@@ -85,10 +98,11 @@ function netLoop() {
 onmessage = async (ev) => {
   const m = ev.data;
   try {
-    if (m.op === 'init') { const r = await WebAssembly.instantiate(m.wasm, imports); wasm = r.instance.exports;  postMessage({ ready: true }); }
+    if (m.op === 'init') { traceEnabled = !!m.touchTrace; const r = await WebAssembly.instantiate(m.wasm, imports); wasm = r.instance.exports;  postMessage({ ready: true }); }
     else if (m.op === 'create') {
       running = false;
       pacing = createPacing();
+      pendingInputTrace = [];
       if (emu) { wasm.esp32sim_delete(emu); emu = 0; }
       emu = withBytes(enc.encode(m.board), (p, n) => wasm.esp32sim_new(p, n, m.flash_mb | 0, m.psram_mb | 0));
       if (emu !== 0) wasm.esp32sim_set_jit(emu, m.jit === false ? 0 : 1);
@@ -117,7 +131,14 @@ onmessage = async (ev) => {
     else if (m.op === 'net-stub') { withBytes(enc.encode(m.name), (p, n) => wasm.esp32sim_net_stub(net, m.node, p, n, m.value >>> 0)); }
     else if (m.op === 'net-start') { const rc = wasm.esp32sim_net_boot(net); if (rc === 0) { running = true; netT0 = performance.now(); netLoop(); } postMessage({ started: rc === 0 }); }
     else if (m.op === 'stop') { running = false; }
-    else if (m.op === 'text') { pacing.input(performance.now()); withBytes(enc.encode(m.data), (p, n) => wasm.esp32sim_in_text(emu, p, n)); }
+    else if (m.op === 'text') {
+      if (traceEnabled && m.touchTrace) {
+        postMessage({ touchTrace: { stage: 'worker-receive', ...m.touchTrace, atMs: traceNow(), cycles: wasm.esp32sim_cycles(emu) } });
+        if (pendingInputTrace.length < 2048) pendingInputTrace.push(m.touchTrace.id);
+      }
+      pacing.input(performance.now());
+      withBytes(enc.encode(m.data), (p, n) => wasm.esp32sim_in_text(emu, p, n));
+    }
     else if (m.op === 'bin') { pacing.input(performance.now()); withBytes(new Uint8Array(m.data), (p, n) => wasm.esp32sim_in_bin(emu, p, n)); }
   } catch (err) { postMessage({ log: '[worker] ' + (err && err.stack || err) }); running = false; }
 };

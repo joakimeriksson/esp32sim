@@ -1,0 +1,371 @@
+{
+  "sourceInputs": {
+    "baselinePublishedRevision": "0a517293a66ef374932c42a727bc31229f34a019",
+    "candidatePatchSha256": "e8c95cb548028e1a7b4a605697a70e2e66dac7adb4f83f565882d1aac9b0da78",
+    "wasm": {
+      "baseline": "9fa86ec01f88d1841c8f24e3572c616bfa99cff554839d73f67fab1e351cff74",
+      "candidate": "6d9d982a40badb20d8538f21225c75d9f818b8f55600b05a4266f1b903ff27df"
+    },
+    "runOrder": [
+      "a1",
+      "b1",
+      "b2",
+      "a2",
+      "a3",
+      "b3"
+    ],
+    "baselineScope": "Queued-snapshot optimization from PR49; no helper-table candidate.",
+    "method": "Fresh dedicated headless Chrome for each run. The task runs no other emulator/build during serial measurement."
+  },
+  "decision": {
+    "retained": false,
+    "reason": "Median wall time decreased, but candidate was slower in two of three paired comparisons and observed ranges overlap; no repeatable gain established.",
+    "total": {
+      "baseline": [
+        118.47542000000179,
+        122.85653500000387,
+        123.5729849999994
+      ],
+      "candidate": [
+        119.71460999999941,
+        123.90189500000328,
+        119.408625
+      ],
+      "baselineMedian": 122.85653500000387,
+      "candidateMedian": 119.71460999999941,
+      "lessWallTimePercent": 2.557393467107272
+    },
+    "pairedCandidateMoreWallPercent": [
+      1.0459469145562839,
+      0.8508786284745717,
+      -3.3699598662275787
+    ],
+    "sourceFileSha256": {
+      "esp-periph/src/gpio.rs": "1bef9f252f1a64e3bb2dd5e02611ad911d0eaac12dd07a6b41035d4740692444",
+      "esp32s3/src/bus.rs": "c390f7fc372f2498257cf1730786c287e601abf4f753953f48e5551d43734aee",
+      "esp32s3/tests/machine.rs": "c39885525d85f62398731493604fcbd438c8887b8c87c351d56d6b0675da640a",
+      "esp-periph/tests/gpio_irq.rs": "74db1c598c1c81b6b8c04485eb35c90ad8efd19f16730c5f1a336218611dcb3d"
+    }
+  },
+  "testTotals": {
+    "passed": 190,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 7
+  },
+  "firmwareDemosPassed": [
+    "hello",
+    "c3-hello",
+    "c6-hello",
+    "c6-energy-scan",
+    "panel"
+  ],
+  "runs": [
+    {
+      "run": "a1",
+      "browser": "Chrome/152.0.7977.77",
+      "wallSeconds": 118.47542000000179,
+      "instructions": 9819885134,
+      "jit": {
+        "compiled": 13625,
+        "failed": 0,
+        "released": 9720,
+        "compileMs": 1092.3349996954203,
+        "bytes": 88318226,
+        "liveBytes": 24092457,
+        "peakBytes": 31698131,
+        "peakModules": 5185,
+        "instructions": 8443206570
+      },
+      "passed": true,
+      "verdictValidation": {
+        "schema": "tinydraw-gate1-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "guestSeconds": 47.750049575
+    },
+    {
+      "run": "b1",
+      "browser": "Chrome/152.0.7977.77",
+      "wallSeconds": 119.71460999999941,
+      "instructions": 9819885134,
+      "jit": {
+        "compiled": 13625,
+        "failed": 0,
+        "released": 9720,
+        "compileMs": 1114.1650000065565,
+        "bytes": 88318226,
+        "liveBytes": 24092457,
+        "peakBytes": 31698131,
+        "peakModules": 5185,
+        "instructions": 8443206570
+      },
+      "passed": true,
+      "verdictValidation": {
+        "schema": "tinydraw-gate1-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "guestSeconds": 47.750049575
+    },
+    {
+      "run": "b2",
+      "browser": "Chrome/152.0.7977.77",
+      "wallSeconds": 123.90189500000328,
+      "instructions": 9819885134,
+      "jit": {
+        "compiled": 13625,
+        "failed": 0,
+        "released": 9720,
+        "compileMs": 1184.4299996346235,
+        "bytes": 88318226,
+        "liveBytes": 24092457,
+        "peakBytes": 31698131,
+        "peakModules": 5185,
+        "instructions": 8443206570
+      },
+      "passed": true,
+      "verdictValidation": {
+        "schema": "tinydraw-gate1-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "guestSeconds": 47.750049575
+    },
+    {
+      "run": "a2",
+      "browser": "Chrome/152.0.7977.77",
+      "wallSeconds": 122.85653500000387,
+      "instructions": 9819885134,
+      "jit": {
+        "compiled": 13625,
+        "failed": 0,
+        "released": 9720,
+        "compileMs": 1205.5999998152256,
+        "bytes": 88318226,
+        "liveBytes": 24092457,
+        "peakBytes": 31698131,
+        "peakModules": 5185,
+        "instructions": 8443206570
+      },
+      "passed": true,
+      "verdictValidation": {
+        "schema": "tinydraw-gate1-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "guestSeconds": 47.750049575
+    },
+    {
+      "run": "a3",
+      "browser": "Chrome/152.0.7977.77",
+      "wallSeconds": 123.5729849999994,
+      "instructions": 9819885134,
+      "jit": {
+        "compiled": 13625,
+        "failed": 0,
+        "released": 9720,
+        "compileMs": 1169.109999768436,
+        "bytes": 88318226,
+        "liveBytes": 24092457,
+        "peakBytes": 31698131,
+        "peakModules": 5185,
+        "instructions": 8443206570
+      },
+      "passed": true,
+      "verdictValidation": {
+        "schema": "tinydraw-gate1-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "guestSeconds": 47.750049575
+    },
+    {
+      "run": "b3",
+      "browser": "Chrome/152.0.7977.77",
+      "wallSeconds": 119.408625,
+      "instructions": 9819885134,
+      "jit": {
+        "compiled": 13625,
+        "failed": 0,
+        "released": 9720,
+        "compileMs": 1111.7350005060434,
+        "bytes": 88318226,
+        "liveBytes": 24092457,
+        "peakBytes": 31698131,
+        "peakModules": 5185,
+        "instructions": 8443206570
+      },
+      "passed": true,
+      "verdictValidation": {
+        "schema": "tinydraw-gate1-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "guestSeconds": 47.750049575
+    }
+  ],
+  "omitted": "Raw event arrays, memory samples and full logs remain in archive; compact results retain per-run totals/intervals/provenance.",
+  "artifactUrl": "ARTIFACT_URL",
+  "artifactSha256": "ARTIFACT_SHA256",
+  "intervals": {
+    "boot_and_native_kernels": {
+      "baseline": [
+        22.776089999996124,
+        23.663865000002087,
+        23.43947500000149
+      ],
+      "candidate": [
+        22.509634999997914,
+        23.460380000002683,
+        23.04342499999702
+      ],
+      "baselineMedian": 23.43947500000149,
+      "candidateMedian": 23.04342499999702,
+      "lessWallTimePercent": 1.6896709504135465
+    },
+    "cold_render_and_initial_pan": {
+      "baseline": [
+        13.619800000004474,
+        13.843695000000299,
+        14.477530000001192
+      ],
+      "candidate": [
+        13.641935000002384,
+        13.965789999999107,
+        13.49310499999672
+      ],
+      "baselineMedian": 13.843695000000299,
+      "candidateMedian": 13.641935000002384,
+      "lessWallTimePercent": 1.457414368041987
+    },
+    "pan_sequences": {
+      "baseline": [
+        4.044674999997021,
+        4.118804999999703,
+        4.258585000000892
+      ],
+      "candidate": [
+        4.0968649999946365,
+        4.241304999999699,
+        4.097450000002979
+      ],
+      "baselineMedian": 4.118804999999703,
+      "candidateMedian": 4.097450000002979,
+      "lessWallTimePercent": 0.5184756257391565
+    },
+    "cache_tour": {
+      "baseline": [
+        6.93289000000059,
+        7.164359999999398,
+        7.40288999999315
+      ],
+      "candidate": [
+        7.043060000002384,
+        7.366225000001492,
+        7.008600000001493
+      ],
+      "baselineMedian": 7.164359999999398,
+      "candidateMedian": 7.043060000002384,
+      "lessWallTimePercent": 1.6931030824389626
+    },
+    "mixed_drawing": {
+      "baseline": [
+        24.8793200000003,
+        25.37652499999851,
+        26.16096000000089
+      ],
+      "candidate": [
+        25.07400999999792,
+        26.913549999997016,
+        24.9650399999991
+      ],
+      "baselineMedian": 25.37652499999851,
+      "candidateMedian": 25.07400999999792,
+      "lessWallTimePercent": 1.192105696113266
+    },
+    "hairlines": {
+      "baseline": [
+        19.11336500000209,
+        20.096954999998218,
+        20.093600000001487
+      ],
+      "candidate": [
+        19.51046000000089,
+        19.771965000003576,
+        18.856380000002687
+      ],
+      "baselineMedian": 20.093600000001487,
+      "candidateMedian": 19.51046000000089,
+      "lessWallTimePercent": 2.9021180873539554
+    },
+    "export": {
+      "baseline": [
+        13.043195000000296,
+        13.656615000002091,
+        13.059625000000011
+      ],
+      "candidate": [
+        12.998760000005362,
+        13.340884999997911,
+        13.450119999997312
+      ],
+      "baselineMedian": 13.059625000000011,
+      "candidateMedian": 13.340884999997911,
+      "lessWallTimePercent": -2.153660614281794
+    },
+    "history": {
+      "baseline": [
+        9.144619999997317,
+        9.753280000001183,
+        9.508259999997904
+      ],
+      "candidate": [
+        9.586875000000006,
+        9.5479750000015,
+        9.45789500000329
+      ],
+      "baselineMedian": 9.508259999997904,
+      "candidateMedian": 9.5479750000015,
+      "lessWallTimePercent": -0.4176894616218396
+    },
+    "settling": {
+      "baseline": [
+        4.921054999999697,
+        5.181945000000297,
+        5.171304999999705
+      ],
+      "candidate": [
+        5.252239999994629,
+        5.29336999999731,
+        5.0359149999991075
+      ],
+      "baselineMedian": 5.171304999999705,
+      "candidateMedian": 5.252239999994629,
+      "lessWallTimePercent": -1.5650788339679922
+    }
+  },
+  "total": {
+    "baseline": [
+      118.47542000000179,
+      122.85653500000387,
+      123.5729849999994
+    ],
+    "candidate": [
+      119.71460999999941,
+      123.90189500000328,
+      119.408625
+    ],
+    "baselineMedian": 122.85653500000387,
+    "candidateMedian": 119.71460999999941,
+    "lessWallTimePercent": 2.557393467107272
+  },
+  "scope": "Host wall time between firmware console milestones; includes setup and console delivery. Not isolated function timings, input latency or silicon cycle accuracy. Matching firmware/build inputs and absence of profiling must also be verified from capture provenance."
+}

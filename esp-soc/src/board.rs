@@ -46,8 +46,8 @@ pub trait BoardModel {
     fn display_frames(&self) -> u64 { 0 }
     /// Cheap change counter of the display (`display().3` without building the frame).
     fn display_version(&self) -> u64 { 0 }
-    /// True if a frame should only be pushed once the pixel stream has been quiet for a push
-    /// interval (a display drawn pixel by pixel), false if every new frame is complete.
+    /// Prefer waiting one push interval for a quiet pixel stream. The UI still publishes on
+    /// the next opportunity during continuous changes so animation cannot starve.
     fn display_quiet_push(&self) -> bool { false }
     /// Raw display memory for a debug PNG: (pixels, columns, rows).
     fn gram(&self) -> Option<(Vec<u16>, usize, usize)> { None }

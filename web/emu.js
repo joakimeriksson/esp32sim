@@ -13,8 +13,14 @@
   const pending = new Map();
   worker.onmessage = (ev) => {
     const m = ev.data;
+    if (m.touchTrace) { window.recordTouchTrace?.(m.touchTrace); return; }
+    if (m.frameTrace) window.recordTouchTrace?.(m.frameTrace);
     if (m.text !== undefined) { onmessage && onmessage(m.text); return; }
-    if (m.bin !== undefined) { onmessage && onmessage(m.bin); return; }
+    if (m.bin !== undefined) {
+      onmessage && onmessage(m.bin);
+      if (m.frameTrace) window.recordTouchTrace?.({ stage: 'canvas-drawn', atMs: performance.timeOrigin + performance.now(), cycles: m.frameTrace.cycles });
+      return;
+    }
     if (m.log !== undefined) { console.log(m.log); onmessage && onmessage(JSON.stringify({ t: 'emu', msg: m.log })); return; }
     if (m.ready) { ready = true; setStatus('wasm loaded — choose firmware'); flush(); }
     if (m.created !== undefined) { const r = pending.get('created'); pending.delete('created'); r && r(m.created); }
@@ -33,9 +39,9 @@
     connect(handler, status) {
       onmessage = handler; setStatus = status;
       fetch('wasm/esp32sim.wasm').then((r) => { if (!r.ok) throw new Error('wasm/esp32sim.wasm: ' + r.status); return r.arrayBuffer(); })
-        .then((buf) => worker.postMessage({ op: 'init', wasm: buf }, [buf]))
+        .then((buf) => worker.postMessage({ op: 'init', wasm: buf, touchTrace: q.has('touchTrace') }, [buf]))
         .catch((e) => setStatus('cannot load wasm: ' + e.message));
-      return { send: (d) => { if (!started) return; if (typeof d === 'string') post({ op: 'text', data: d }); else { const b = d.buffer ? d.buffer.slice(d.byteOffset, d.byteOffset + d.byteLength) : d; post({ op: 'bin', data: b }, [b]); } } };
+      return { send: (d, timing) => { if (!started) return; if (typeof d === 'string') post({ op: 'text', data: d, touchTrace: timing }); else { const b = d.buffer ? d.buffer.slice(d.byteOffset, d.byteOffset + d.byteLength) : d; post({ op: 'bin', data: b }, [b]); } } };
     },
   };
 
