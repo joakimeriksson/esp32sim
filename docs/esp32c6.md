@@ -102,12 +102,49 @@ cd examples/hello_world-c6/build && python -m esptool --port /dev/cu.usbmodem101
 python -m espefuse --port /dev/cu.usbmodem101 summary          # the revision fields above
 ```
 
+## A network of motes
+
+`esp32c6::net::Network` owns several `Machine<C6>` on one medium, so a whole 802.15.4 network runs
+in one process — or one browser tab — with no simulator behind it. The exactness is the same as
+the `--cooja` path's, because it is the same primitives: `Machine::run_until_cycle` stops at the
+instruction that starts a transmission, and `SocBus::radio_receive` places a frame on the air at
+its first preamble byte. The network only owns the clock and the medium: every node advances to
+the end of a common slice (100 µs by default, a transmission cutting a node's slice short), and
+the frames a slice produced are handed to every other node in range with `started_ago` set from
+how far that receiver has run past the transmission. A receiver whose radio is not listening at
+that moment refuses the frame, which is what makes two simultaneous transmissions collide.
+
+Two things a network needs that a single mote does not:
+
+- **Different MACs.** Contiki derives its link-layer address from the efuses and drops a frame
+  that appears to come from itself.
+- **Staggered power-on** (`start_ns`). Two identical images booted at the same instant are
+  deterministic to the cycle, so their application timers never drift apart: both broadcast at
+  exactly the same nanosecond, each is transmitting while the other's frame arrives, and neither
+  ever hears anything. Real motes are staggered by their power supplies; here it is explicit.
+  This is visible in csim too — two `esp32sim-c6 --cooja` nodes running the same image transmit
+  at 5.065 s, 10.065 s, 15.065 s together and never receive.
+
+`esp32c6/tests/net.rs` (`external_two_motes_exchange_nullnet_broadcasts`, needing `CONTIKI_C6_DIR`) holds it to that with the Contiki-NG nullnet image: two motes, staggered,
+each hears all five of the other's broadcasts in 30 s, and the payload reaches Contiki's nullnet
+layer rather than only the PHY.
+
+With two different images it is a real IPv6 network: `contiki-ng-esp32` built with
+`-DCONTIKI_UDP_SERVER=ON` is the rpl-udp server and makes itself the DAG root; the ordinary build
+is the client. On one medium the client joins the DAG in about 25 s and then exchanges a UDP
+request and reply with the root every 10 s — 6LoWPAN, RPL Lite, CSMA and the hardware
+acknowledgements, end to end. `web/wasm/fw/c6-rpl-net.json` is that pair; under Node it runs at
+40x real time.
+
 ## In the browser
 
 The C6 is in the WebAssembly build too — pick board `esp32c6` on the page, or open it directly:
 
     https://joakimeriksson.github.io/esp32sim/?fw=c6-hello
     https://joakimeriksson.github.io/esp32sim/?fw=c6-energy-scan
+    https://joakimeriksson.github.io/esp32sim/?fw=c6-contiki
+    https://joakimeriksson.github.io/esp32sim/?fw=c6-contiki-net
+    https://joakimeriksson.github.io/esp32sim/?fw=c6-rpl-net
 
 The first is console-only; the second is the energy scanner on the Waveshare board at real time,
 with the panel, the WS2812 and a BOOT button on the page (its firmware is published under
