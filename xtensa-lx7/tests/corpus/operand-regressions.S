@@ -11,6 +11,7 @@ extui a2, a3, 15, 16
 srai a2, a3, 31
 l32e a2, a3, -4
 s32e a2, a3, -4
+s32nb a2, a3, 60
 ssx f15, a2, a3
 lsxp f15, a2, a3
 ssxp f15, a2, a3

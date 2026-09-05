@@ -127,13 +127,16 @@ wasm-jit/     receipt-priced wasm emitter; first SRAM opcode slice, shared-memor
 
 Analyses attach to a run without touching the scheduler (`esp-soc/src/observe.rs`). An
 observer says what it wants — `INSN` (every instruction: the run single-steps), `BLOCK` (every
-block the fast path ran, at full JIT speed), `TRAP`, `IRQ` (a line appears at a core), `MMIO`,
+block the fast path ran, at full JIT speed), `TRAP` (trap notification), `TRAP_PC`
+(exact fault-PC notification using one-instruction fragments), `IRQ` (a line appears at a core), `MMIO`,
 `GPIO`, `ROUND` — and the machine only pays for hooks somebody asked for. The classic tools are
 observers now (`--trace`, `--break`, `--watch`, `--regtrace`, `--profile`, `--regstat`), and so
 are the full-speed analyses: `--profile-blocks` (time per function, no JIT penalty, no timing
 change), `--coverage[-file]` (block starts per function), `--irq-latency` (raised → taken per
-line), `--vcd` (GPIO edges and interrupt lines as a waveform). Only `INSN` observers force the
-slow path, and only those that say `NO_IDLE_SKIP` change emulated timing — `--profile` does,
+line), `--vcd` (GPIO edges and interrupt lines as a waveform). These two use ordinary `TRAP`
+callbacks and retain block execution. `TRAP` receives the run-entry PC and post-trap CPU state;
+`TRAP_PC` requests exact instruction attribution, at a throughput cost. Only `INSN` observers
+force the single-step hooks, and only those that say `NO_IDLE_SKIP` change emulated timing — `--profile` does,
 `--break` does not, exactly as before. A `CostModel` (`Machine::set_cost_model`) switches the
 machine to a per-event path that records the conceptual fetch, CPU bus accesses, control event,
 trap timing and next pc. The model may refuse any event it cannot price.
@@ -141,8 +144,10 @@ trap timing and next pc. The model may refuse any event it cannot price.
 ## Scheduling and time
 
 Without a cost model, `Machine::run` interleaves the cores in quanta of 64 instructions. A core sitting in `waiti`
-with nothing pending costs nothing; when both cores are idle time advances in 512-cycle
-chunks. Device models see time lazily: cycles accumulate in the bus and are delivered in one
+with nothing pending costs nothing. When both cores are idle, each advance is at most
+512 cycles and is shortened to the earliest enabled-core wakeup, bus deadline, script event,
+cycle limit or remaining instruction allowance. The S3 bus deadline also bounds idle steps to
+its pending device-time flush. Device models see time lazily: cycles accumulate in the bus and are delivered in one
 batch when a timer alarm is due, when a peripheral register is accessed (so registers always
 read exact time), or after 256 cycles at most. Peripheral clocks (APB 80 MHz, systimer 16 MHz,
 RTC slow 150 kHz) are derived from the 240 MHz cycle counter with delivered-tick accounting.

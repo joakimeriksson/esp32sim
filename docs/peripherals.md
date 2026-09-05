@@ -4,7 +4,7 @@ Legend: **full** = everything the IDF/Arduino drivers use; **partial** = the pat
 so far; **stub** = accepts writes, returns plausible reads; **—** = not modelled (unknown
 registers are logged with `--log-periph`).
 
-ESP32-S3 peripheral MMIO writes must be aligned 32-bit accesses. Byte and halfword writes raise a prohibited-access fault before any device side effect; unaligned word writes raise an alignment fault. This is the emulator policy for unsupported accesses, not a claim about every silicon PMS configuration.
+ESP32-S3 peripheral MMIO reads and writes must be aligned 32-bit accesses. Byte and halfword accesses raise a prohibited-access fault before any device side effect; unaligned word accesses raise an alignment fault. This is the emulator policy for unsupported accesses, not a claim about every silicon PMS configuration.
 
 | Block | Base | Status | Modelled |
 | --- | --- | --- | --- |
