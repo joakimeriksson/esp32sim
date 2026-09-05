@@ -1,6 +1,6 @@
 {
  "board": "waveshare-c6-lcd147",
- "flash_mb": 2,
+ "flash_mb": 4,
  "seconds": 30,
  "stubs": [
   "bb_init=0"
@@ -24,7 +24,7 @@
    "min_rx": 3
   }
  ],
- "_note": "Two emulated ESP32-C6 motes on one 802.15.4 medium, both running Contiki-NG (github.com/joakimeriksson/contiki-ng-esp32, -DCONTIKI_NULLNET=ON) as unmodified IDF apps. The medium and the lock-step are in the module (esp32c6::net): a transmission cuts a node's slice at the TX_START write and the frame goes on the air at its first preamble byte. The second mote powers on 1.3 s later — two identical images booted together stay deterministic to the cycle, so their timers never drift apart and every broadcast collides.",
+ "_note": "Two emulated ESP32-C6 motes on one 802.15.4 medium, both running Contiki-NG (contiki-ng-esp32, nullnet + the LCD console). The medium and the lock-step are in the module (esp32c6::net): a transmission cuts a node's slice at the TX_START write and the frame goes on the air at its first preamble byte. The second mote powers on 1.3 s later — two identical images booted together stay deterministic to the cycle, so their timers never drift apart and every broadcast collides.",
  "files": {
   "rom": "esp32c6_rev0_rom.elf",
   "bootloader": "public/c6-contiki-bootloader.bin",
@@ -32,6 +32,6 @@
   "app": "public/c6-contiki.bin"
  },
  "symbols": {
-  "bb_init": "0x4201dfea"
+  "bb_init": "0x42054d80"
  }
 }
