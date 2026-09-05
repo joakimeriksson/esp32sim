@@ -16,9 +16,12 @@ impl Gpio {
     pub fn new() -> Self { Gpio { out: 0, enable: 0, input: (1u64 << 49) - 1, status: 0, pin: [0; 49], func_in_sel: [0x3c; 256], func_out_sel: [0x100; 49], ram: RegRam::new(), changes: Vec::new(), strap: 0x0f, input_changes: Vec::new() } }
     fn note_out(&mut self, old: u64) {
         let vis = self.out & self.enable; let oldvis = old & self.enable;
-        let diff = vis ^ oldvis;
-        if diff == 0 { return; }
-        for p in 0..49u8 { if diff & (1u64 << p) != 0 { self.changes.push((p, vis & (1u64 << p) != 0)); } }
+        let mut diff = (vis ^ oldvis) & ((1u64 << 49) - 1);
+        while diff != 0 {
+            let p = diff.trailing_zeros() as u8;
+            self.changes.push((p, vis & (1u64 << p) != 0));
+            diff &= diff - 1;
+        }
     }
     pub fn set_input(&mut self, pin: u8, level: bool) -> bool {
         let old = self.input;

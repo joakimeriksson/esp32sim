@@ -63,8 +63,8 @@ register presets).
 | `--profile` | top PCs by instruction count (single-steps, and keeps idle cores stepping: an idle core shows as a hot `waiti`) |
 | `--profile-blocks` | time per function from the block path — full speed, no timing change; needs `--elf` for names |
 | `--coverage`, `--coverage-file F` | block starts reached, per function; with a file, one `addr symbol` line each |
-| `--irq-latency` | cycles from an interrupt line appearing at a core to the core taking it, per line |
-| `--vcd F` | GPIO edges and interrupt lines as a VCD waveform (1 ps units) |
+| `--irq-latency` | cycles from an interrupt line appearing at a core to the core taking it, per line; executes one-instruction fragments for exact trap PCs, reducing throughput |
+| `--vcd F` | GPIO edges and interrupt lines as a VCD waveform (1 ps units); executes one-instruction fragments for exact trap PCs, reducing throughput |
 | `--debug AREAS` | what the model prints: device names or prefixes (`spi`, `usb`, `i2c`, `wifi`, `gdma`, `sha`, `rsa`, `lcd_cam`), `net`, `wifi-frames`, `aes`, `rom`, `mmio`, `rt`; also `ESP_EMU_DEBUG=a,b` |
 | `--log-periph` | log the first access to every unknown peripheral register |
 | `--no-jit` | run blocks through the interpreter instead of native code (aarch64 hosts compile blocks to machine code by default); the two must produce identical results, so this is the oracle when something looks wrong |

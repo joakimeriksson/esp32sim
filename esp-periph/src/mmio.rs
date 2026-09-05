@@ -29,7 +29,8 @@ pub trait Dispatch {
     fn source_status(&self) -> [u32; 4];
     /// Advance device time by `cycles` CPU cycles: every clocked device receives the ticks its
     /// domain gained, domains in the clock table's order, devices in the device table's order.
-    fn tick(&mut self, cycles: u64);
+    /// Advance clocked devices and report whether any device interrupt source changed.
+    fn tick(&mut self, cycles: u64) -> bool;
     /// CPU cycles until the earliest timer deadline (conservative by one device tick), or
     /// `u32::MAX` when nothing is armed.
     fn cycles_until_deadline(&self) -> u32;
@@ -137,12 +138,20 @@ macro_rules! device_set {
                 st
             }
             #[inline]
-            fn tick(&mut self, cycles: u64) {
+            fn tick(&mut self, cycles: u64) -> bool {
+                let mut irq_changed = false;
                 let mut deltas = [($crate::__ClockDomain::Cpu, 0u64); 8]; let mut n = 0usize;
                 self.$clk.advance(&Self::CLOCKS, cycles, |d, t| { if n < 8 { deltas[n] = (d, t); n += 1; } });
                 for &(d, t) in &deltas[..n] {
-                    $( if !(false $(|| stringify!($alias) == "alias")?) && $crate::Device::clock(&self.$($f)+) == Some(d) { $crate::Device::tick(&mut self.$($f)+, t); } )*
+                    $( if !(false $(|| stringify!($alias) == "alias")?) && $crate::Device::clock(&self.$($f)+) == Some(d) {
+                        // Only clocked devices can change here. Do not scan unclocked
+                        // GPIO/GDMA sources on every short MMIO-driven time flush.
+                        let before = $crate::Device::irq_sources(&self.$($f)+);
+                        $crate::Device::tick(&mut self.$($f)+, t);
+                        irq_changed |= before != $crate::Device::irq_sources(&self.$($f)+);
+                    } )*
                 }
+                irq_changed
             }
             #[inline]
             fn cycles_until_deadline(&self) -> u32 {
