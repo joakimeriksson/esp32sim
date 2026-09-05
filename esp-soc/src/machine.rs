@@ -364,7 +364,7 @@ impl<S: Soc> Machine<S> {
     fn step_blocks(&mut self, core: usize, budget: u32) -> (u32, Option<Stop>) {
         // Core::run returns a trap without its faulting PC. One-instruction fragments make
         // the entry PC exact while retaining callbacks for combined BLOCK/TRAP observers.
-        let budget = if self.probes.contains(Wants::TRAP) { budget.min(1) } else { budget };
+        let budget = if self.probes.contains(Wants::TRAP_PC) { budget.min(1) } else { budget };
         let cpu = &mut self.cores[core];
         let pc = cpu.pc();
         // stubs and probes are block boundaries, so testing them at block start is exact
@@ -375,13 +375,13 @@ impl<S: Soc> Machine<S> {
             if let Some(&ret) = self.stubs.get(&pc) { cpu.return_from_stub(ret); self.stub_hits += 1; return (1, None); }
         }
         let (used, trap) = cpu.run(&mut self.bus, budget);
-        if self.probes.contains(Wants::BLOCK | Wants::TRAP) {
+        if self.probes.contains(Wants::BLOCK | Wants::TRAP | Wants::TRAP_PC) {
             let cx = Ctx { symbols: &self.symbols, cycles: self.bus.cycles(), cpu_hz: S::CPU_HZ };
             let cpu = &self.cores[core];
             for o in &mut self.observers {
                 let w = o.wants();
                 if w.contains(Wants::BLOCK) && used > 0 { o.on_block(&cx, core, pc, used); }
-                if let (true, Some(t)) = (w.contains(Wants::TRAP), &trap) { o.on_trap(&cx, core, cpu, pc, t); }
+                if let (true, Some(t)) = (w.contains(Wants::TRAP | Wants::TRAP_PC), &trap) { o.on_trap(&cx, core, cpu, pc, t); }
             }
         }
         match trap {
@@ -418,10 +418,10 @@ impl<S: Soc> Machine<S> {
         self.bus.note_pc(pc);
         let outcome = cpu.step(&mut self.bus);
         let r = outcome.result();
-        if let (true, Err(t)) = (self.probes.contains(Wants::TRAP), &r) {
+        if let (true, Err(t)) = (self.probes.contains(Wants::TRAP | Wants::TRAP_PC), &r) {
             let cx = Ctx { symbols: &self.symbols, cycles: self.bus.cycles(), cpu_hz: S::CPU_HZ };
             let cpu = &self.cores[core];
-            for o in &mut self.observers { if o.wants().contains(Wants::TRAP) { o.on_trap(&cx, core, cpu, pc, t); } }
+            for o in &mut self.observers { if o.wants().contains(Wants::TRAP | Wants::TRAP_PC) { o.on_trap(&cx, core, cpu, pc, t); } }
         }
         let cpu = &self.cores[core];
         match r {
@@ -488,9 +488,9 @@ impl<S: Soc> Machine<S> {
         self.probe_bloom = self.fn_probes.keys().fold(0, |m, &pc| m | pc_bit(pc));
         for c in &mut self.cores {
             c.set_boundaries(self.stub_bloom | self.probe_bloom);
-            c.set_block_observation(self.probes.contains(Wants::BLOCK | Wants::TRAP));
+            c.set_block_observation(self.probes.contains(Wants::BLOCK | Wants::TRAP_PC));
         }
-        // Per-instruction observers need the slow hooks; trap observers use bounded fragments.
+        // Per-instruction observers need the slow hooks; only exact-PC trap observers use bounded fragments.
         let blocks = !self.probes.contains(Wants::INSN);
         let slow_path = self.probes.contains(Wants::NO_IDLE_SKIP);
         let trace = self.has_observer("trace");
@@ -733,10 +733,10 @@ impl<S: Soc> Machine<S> {
             (outcome, accesses)
         };
         if let Some(trap) = outcome.trap() {
-            if self.probes.contains(Wants::TRAP) {
+            if self.probes.contains(Wants::TRAP | Wants::TRAP_PC) {
                 let cx = Ctx { symbols: &self.symbols, cycles: self.bus.cycles(), cpu_hz: S::CPU_HZ };
                 for observer in &mut self.observers {
-                    if observer.wants().contains(Wants::TRAP) { observer.on_trap(&cx, core, &self.cores[core], pc, &trap); }
+                    if observer.wants().contains(Wants::TRAP | Wants::TRAP_PC) { observer.on_trap(&cx, core, &self.cores[core], pc, &trap); }
                 }
             }
             match trap {
@@ -789,7 +789,7 @@ impl<S: Soc> Machine<S> {
         self.probe_bloom = self.fn_probes.keys().fold(0, |m, &pc| m | pc_bit(pc));
         for c in &mut self.cores {
             c.set_boundaries(self.stub_bloom | self.probe_bloom);
-            c.set_block_observation(self.probes.contains(Wants::BLOCK | Wants::TRAP));
+            c.set_block_observation(self.probes.contains(Wants::BLOCK | Wants::TRAP_PC));
         }
         let blocks = !self.probes.contains(Wants::INSN);
         let no_skip = self.probes.contains(Wants::NO_IDLE_SKIP);

@@ -179,9 +179,10 @@ Things that cost real time to find out, recorded so they do not have to be found
   in one batch when a systimer/TIMG alarm is due (`Peripherals::cycles_until_timer`, conservative
   by one device tick), when a peripheral register is read or written (flushed first, so registers
   always show exact time and a write that arms an alarm re-plans immediately), or after
-  `MAX_TICK_DEFER` = 256 cycles for everything without a computed deadline. Interrupt lines are
-  re-derived only after a flush or a register write, never on a cadence. +3 % on SID; the panel
-  is idle most of the time and already ticked in 512-cycle chunks.
+  `MAX_TICK_DEFER` = 256 cycles for everything without a computed deadline. On S3, interrupt lines are
+  re-derived when a source may have changed: clocked-source transitions, register writes, DMA
+  completion, board edges or host input. A quiet time flush alone does not require a scan.
+  Read-driven source changes request a block exit before execution continues.
 - **Timing granularity changes shift phases, not content.** Deferring device events by up to
   256 cycles moved the moment LVGL's 30 ms touch poll saw the play tap by 16 ms; the SID audio
   after that point is sample-identical. The Atech WAV, whose script is what the regression
@@ -225,9 +226,12 @@ Things that cost real time to find out, recorded so they do not have to be found
   `Core::run` is within noise. Hooks for analyses, cost models and observers live in
   `Machine`, next to the block boundary the core already returns to; the cores stay 1 IPC.
 - **Observers pay only for what they ask.** `Wants` bits decide per hook whether the machine calls
-  anyone; `INSN` is the only one that leaves the fast path, `NO_IDLE_SKIP` the only one that changes
-  emulated timing. The goldens run with `--profile-blocks --coverage --irq-latency --vcd`
-  attached and stay byte-identical, which is the test that they are analyses and not modifications.
+  anyone. `INSN` enables per-instruction hooks; `TRAP_PC` bounds block runs to one instruction
+  for exact fault-PC attribution. Ordinary `TRAP` supplies the run-entry PC and post-trap CPU
+  state without fragmenting execution. The shipped `--irq-latency` and `--vcd` observers do not
+  consume that PC and use ordinary `TRAP`. Context cycles still describe the scheduler's time;
+  requesting an exact PC does not provide finer interrupt-latency timestamps. `NO_IDLE_SKIP`
+  changes idle execution and can change emulated timing.
 - **The C3's `Core::run` stops at `block_break`**, like the LX7's block interpreter, so the machine
   re-derives its interrupt line after the same instruction the old per-step loop did. Without it
   the shared run loop would have delayed C3 interrupts by up to a quantum.
@@ -323,3 +327,28 @@ Things that cost real time to find out, recorded so they do not have to be found
   differential test green after every core change.
 - Reference emulator for behaviour questions: Espressif's QEMU (`~/.espressif/tools/qemu-xtensa`),
   never for code.
+
+## Execution-boundary policies (September 2026)
+
+- **S3 peripheral accesses are aligned words.** Both reads and writes of peripheral registers,
+  including the MMU table, require aligned 32-bit accesses. Byte and halfword accesses raise
+  `Fault::Prohibited`; unaligned words raise `Fault::Misaligned`, before device reads, writes,
+  time flushing or mapping changes. Synthesizing a narrow write with read-modify-write can pop
+  a FIFO or corrupt write-one-to-clear registers. Narrow reads are rejected consistently rather
+  than silently invoking a full-word device read. This is an emulator policy for unsupported
+  accesses, not a claim that silicon under every PMS configuration raises the same CPU fault.
+- **Idle advances stop at known boundaries.** The former fixed 512-cycle skip could overshoot
+  core timers, device deadlines, scripts and run limits. Both run entry points now bound each
+  skip by those deadlines; active cores retain their 64-instruction scheduling quantum. This
+  deliberately changes instruction totals in fixed-time workloads and makes cycle limits exact.
+- **Read-driven interrupt changes are visible before the next block.** An MMIO read flushes
+  pending device time. If a source changes, it requests a block exit and CPU-line refresh rather
+  than waiting for a later periodic flush. Unchanged sources do not break polling blocks.
+
+The accepted golden shifts are attributed to isolated changes in the
+[correctness evidence](evidence/browser-correctness-2026-09-05/README.md): the operand correction
+removes false register-window exceptions (hello and reboot counts, four reboot timestamps by
+1 ms, and part of the panel count). Read-driven notification and bounded idle advances change
+the Atech counts and the remainder of the panel count. Existing audio hashes are unchanged.
+The native performance follow-up changes no goldens; exact-PC observers are now separately
+opted into so ordinary trap analysis need not pay their fragmentation cost.
