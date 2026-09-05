@@ -14,8 +14,12 @@ pub struct Gpio {
 }
 impl Gpio {
     pub fn new() -> Self { Gpio { out: 0, enable: 0, input: (1u64 << 49) - 1, status: 0, pin: [0; 49], func_in_sel: [0x3c; 256], func_out_sel: [0x100; 49], ram: RegRam::new(), changes: Vec::new(), strap: 0x0f, input_changes: Vec::new() } }
-    fn note_out(&mut self, old: u64) {
-        let vis = self.out & self.enable; let oldvis = old & self.enable;
+    /// Report every pin whose driven level changed: `out & enable` before against after. Both
+    /// words matter — a driver that toggles the output *enable* to produce a level (IDF 5.5's
+    /// esp_lcd releases the D/C line after each colour transfer and re-enables it before the
+    /// next) changes what a board sees just as much as one that toggles `out`.
+    fn note_out(&mut self, old_out: u64, old_enable: u64) {
+        let vis = self.out & self.enable; let oldvis = old_out & old_enable;
         let mut diff = (vis ^ oldvis) & ((1u64 << 49) - 1);
         while diff != 0 {
             let p = diff.trailing_zeros() as u8;
@@ -63,7 +67,7 @@ impl Gpio {
         }
     }
     pub fn write(&mut self, off: u32, v: u32) {
-        let old = self.out;
+        let (old, old_enable) = (self.out, self.enable);
         match off {
             0x4 => self.out = (self.out & !0xffff_ffff) | v as u64,
             0x8 => self.out |= v as u64,
@@ -89,7 +93,7 @@ impl Gpio {
             _ => self.ram.write(off, v),
         }
         // enable changes also change what's visible on pins
-        if matches!(off, 0x4 | 0x8 | 0xc | 0x10 | 0x14 | 0x18 | 0x20 | 0x24 | 0x28 | 0x2c | 0x30 | 0x34) { self.note_out(old); }
+        if matches!(off, 0x4 | 0x8 | 0xc | 0x10 | 0x14 | 0x18 | 0x20 | 0x24 | 0x28 | 0x2c | 0x30 | 0x34) { self.note_out(old, old_enable); }
     }
 }
 
