@@ -176,30 +176,7 @@ impl Cpu {
 
 /// Highest AR index an instruction touches (for the window-overflow check).
 pub(crate) fn max_ar(i: &Insn) -> u8 {
-    use Op::*;
-    let (r, s, t) = (i.r, i.s, i.t);
-    match i.op {
-        Add | AddN | Sub | Addx2 | Addx4 | Addx8 | Subx2 | Subx4 | Subx8 | And | Or | Xor | Min | Max | Minu | Maxu
-        | Moveqz | Movnez | Movltz | Movgez | Src | Mull | Muluh | Mulsh | Mul16u | Mul16s | Quou | Quos | Remu | Rems | Salt | Saltu
-        | AddiN | Lsx | Ssx | Lsxp | Ssxp => r.max(s).max(t),
-        Movf | Movt | Sext | Clamps | Slli | Sll => r.max(s),
-        Neg | Abs | Extui | Srai | Srli | Srl | Sra | Nsa | Nsau | Movsp | L32e | S32e | S32nb | Rer | Wer | Mov | MovN
-        | Witlb | Wdtlb | Ritlb0 | Ritlb1 | Rdtlb0 | Rdtlb1 | Pitlb | Pdtlb => r.max(s).max(t),
-        Rur | RoundS | TruncS | FloorS | CeilS | UtruncS | Rfr => r,
-        Wur | Rsr | Wsr | Xsr | Rsil | Movi => t,
-        // CALLn writes a[n*4] (the return address): that write is what traps to spill the frame owning the callee's window
-        Call4 => 4, Call8 => 8, Call12 => 12, Callx4 => s.max(4), Callx8 => s.max(8), Callx12 => s.max(12),
-        MoviN | Ssr | Ssl | Ssa8l | Ssa8b | Entry | Jx | Callx0 | Iitlb | Idtlb
-        | Beqz | Bnez | Bltz | Bgez | BeqzN | BnezN | Beqi | Bnei | Blti | Bgei | Bltui | Bgeui | Bbci | Bbsi | Loop | Loopnez | Loopgtz
-        | Lsi | Ssi | Lsip | Ssip | FloatS | UfloatS | Wfr | Dpfr | Dpfw | Dpfro | Dpfwo | Dhwb | Dhwbi | Dhi | Dii | Ipf | Ihi | Iii | Ipfl | Ihu | Iiu | Dpfl | Dhu | Diu => s,
-        L8ui | L16ui | L16si | L32i | L32iN | L32ai | S8i | S16i | S32i | S32iN | S32ri | S32c1i | Addi | Addmi
-        | Bnone | Beq | Blt | Bltu | Ball | Bbc | Bany | Bne | Bge | Bgeu | Bnall | Bbs
-        | MoveqzS | MovnezS | MovltzS | MovgezS => s.max(t),
-        L32r => t,
-        Mac16 => s.max(t),
-        Pie => i.imm2 as u8,
-        _ => 0,
-    }
+    i.gpr_effects().max_ar()
 }
 
 #[inline(always)]

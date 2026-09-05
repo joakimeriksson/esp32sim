@@ -1,0 +1,917 @@
+{
+  "scenarios": {
+    "atech-script1": {
+      "medianSeconds": {
+        "main": 2.554854437999893,
+        "operand": 2.5723186034956598,
+        "rework": 2.7173089380012243,
+        "boxed": 2.6965264794998802
+      },
+      "throughputRelativeToMain": {
+        "main": 1.0,
+        "operand": 0.9932107300114248,
+        "rework": 0.9402149318653372,
+        "boxed": 0.9474612830331772
+      },
+      "boxedThroughputRelativeToRework": 1.0077071219805707
+    },
+    "sid-jukebox": {
+      "medianSeconds": {
+        "main": 2.450778354497743,
+        "operand": 2.4731578124992666,
+        "rework": 2.624869437502639,
+        "boxed": 2.614611042001343
+      },
+      "throughputRelativeToMain": {
+        "main": 1.0,
+        "operand": 0.9909510594558832,
+        "rework": 0.9336762886116994,
+        "boxed": 0.9373395564878381
+      },
+      "boxedThroughputRelativeToRework": 1.0039234881733858
+    },
+    "panel-sid": {
+      "medianSeconds": {
+        "main": 3.5320353124989197,
+        "operand": 3.519079062505625,
+        "rework": 3.837602521001827,
+        "boxed": 3.77250933299365
+      },
+      "throughputRelativeToMain": {
+        "main": 1.0,
+        "operand": 1.0036817160862732,
+        "rework": 0.9203754930765635,
+        "boxed": 0.9362562158848514
+      },
+      "boxedThroughputRelativeToRework": 1.017254612848505
+    }
+  },
+  "runs": [
+    {
+      "scenario": "atech-script1",
+      "round": 1,
+      "variant": "main",
+      "wallSeconds": 2.604194290994201,
+      "instructionsPerCore": [
+        12339151,
+        307263698
+      ],
+      "instructions": 319602849,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "atech-script1",
+      "round": 1,
+      "variant": "operand",
+      "wallSeconds": 2.6271720839868067,
+      "instructionsPerCore": [
+        12339151,
+        307263698
+      ],
+      "instructions": 319602849,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "atech-script1",
+      "round": 1,
+      "variant": "rework",
+      "wallSeconds": 2.822685042003286,
+      "instructionsPerCore": [
+        12340984,
+        307284283
+      ],
+      "instructions": 319625267,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "atech-script1",
+      "round": 1,
+      "variant": "boxed",
+      "wallSeconds": 2.9670587919972604,
+      "instructionsPerCore": [
+        12340984,
+        307284283
+      ],
+      "instructions": 319625267,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "atech-script1",
+      "round": 2,
+      "variant": "boxed",
+      "wallSeconds": 2.853709417002392,
+      "instructionsPerCore": [
+        12340984,
+        307284283
+      ],
+      "instructions": 319625267,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "atech-script1",
+      "round": 2,
+      "variant": "rework",
+      "wallSeconds": 2.716240541994921,
+      "instructionsPerCore": [
+        12340984,
+        307284283
+      ],
+      "instructions": 319625267,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "atech-script1",
+      "round": 2,
+      "variant": "operand",
+      "wallSeconds": 2.5804909159924136,
+      "instructionsPerCore": [
+        12339151,
+        307263698
+      ],
+      "instructions": 319602849,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "atech-script1",
+      "round": 2,
+      "variant": "main",
+      "wallSeconds": 2.658939166998607,
+      "instructionsPerCore": [
+        12339151,
+        307263698
+      ],
+      "instructions": 319602849,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "atech-script1",
+      "round": 3,
+      "variant": "main",
+      "wallSeconds": 2.5509195839986205,
+      "instructionsPerCore": [
+        12339151,
+        307263698
+      ],
+      "instructions": 319602849,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "atech-script1",
+      "round": 3,
+      "variant": "operand",
+      "wallSeconds": 2.67529425000248,
+      "instructionsPerCore": [
+        12339151,
+        307263698
+      ],
+      "instructions": 319602849,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "atech-script1",
+      "round": 3,
+      "variant": "rework",
+      "wallSeconds": 2.694473957992159,
+      "instructionsPerCore": [
+        12340984,
+        307284283
+      ],
+      "instructions": 319625267,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "atech-script1",
+      "round": 3,
+      "variant": "boxed",
+      "wallSeconds": 2.672274249998736,
+      "instructionsPerCore": [
+        12340984,
+        307284283
+      ],
+      "instructions": 319625267,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "atech-script1",
+      "round": 4,
+      "variant": "boxed",
+      "wallSeconds": 2.6822993340028916,
+      "instructionsPerCore": [
+        12340984,
+        307284283
+      ],
+      "instructions": 319625267,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "atech-script1",
+      "round": 4,
+      "variant": "rework",
+      "wallSeconds": 2.7183773340075277,
+      "instructionsPerCore": [
+        12340984,
+        307284283
+      ],
+      "instructions": 319625267,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "atech-script1",
+      "round": 4,
+      "variant": "operand",
+      "wallSeconds": 2.530503666988807,
+      "instructionsPerCore": [
+        12339151,
+        307263698
+      ],
+      "instructions": 319602849,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "atech-script1",
+      "round": 4,
+      "variant": "main",
+      "wallSeconds": 2.5320373750000726,
+      "instructionsPerCore": [
+        12339151,
+        307263698
+      ],
+      "instructions": 319602849,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "atech-script1",
+      "round": 5,
+      "variant": "main",
+      "wallSeconds": 2.5587892920011654,
+      "instructionsPerCore": [
+        12339151,
+        307263698
+      ],
+      "instructions": 319602849,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "atech-script1",
+      "round": 5,
+      "variant": "operand",
+      "wallSeconds": 2.564146290998906,
+      "instructionsPerCore": [
+        12339151,
+        307263698
+      ],
+      "instructions": 319602849,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "atech-script1",
+      "round": 5,
+      "variant": "rework",
+      "wallSeconds": 2.7191727090103086,
+      "instructionsPerCore": [
+        12340984,
+        307284283
+      ],
+      "instructions": 319625267,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "atech-script1",
+      "round": 5,
+      "variant": "boxed",
+      "wallSeconds": 2.706869292000192,
+      "instructionsPerCore": [
+        12340984,
+        307284283
+      ],
+      "instructions": 319625267,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "atech-script1",
+      "round": 6,
+      "variant": "boxed",
+      "wallSeconds": 2.6861836669995682,
+      "instructionsPerCore": [
+        12340984,
+        307284283
+      ],
+      "instructions": 319625267,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "atech-script1",
+      "round": 6,
+      "variant": "rework",
+      "wallSeconds": 2.6949433750123717,
+      "instructionsPerCore": [
+        12340984,
+        307284283
+      ],
+      "instructions": 319625267,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "atech-script1",
+      "round": 6,
+      "variant": "operand",
+      "wallSeconds": 2.536375166993821,
+      "instructionsPerCore": [
+        12339151,
+        307263698
+      ],
+      "instructions": 319602849,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "atech-script1",
+      "round": 6,
+      "variant": "main",
+      "wallSeconds": 2.5393593330081785,
+      "instructionsPerCore": [
+        12339151,
+        307263698
+      ],
+      "instructions": 319602849,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "sid-jukebox",
+      "round": 1,
+      "variant": "main",
+      "wallSeconds": 2.3907968749990687,
+      "instructionsPerCore": [
+        13883823,
+        324596977
+      ],
+      "instructions": 338480800,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "sid-jukebox",
+      "round": 1,
+      "variant": "operand",
+      "wallSeconds": 2.4780536250036675,
+      "instructionsPerCore": [
+        13883823,
+        324596977
+      ],
+      "instructions": 338480800,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "sid-jukebox",
+      "round": 1,
+      "variant": "rework",
+      "wallSeconds": 2.596089333004784,
+      "instructionsPerCore": [
+        13884087,
+        324610533
+      ],
+      "instructions": 338494620,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "sid-jukebox",
+      "round": 1,
+      "variant": "boxed",
+      "wallSeconds": 2.5549586660054047,
+      "instructionsPerCore": [
+        13884087,
+        324610533
+      ],
+      "instructions": 338494620,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "sid-jukebox",
+      "round": 2,
+      "variant": "boxed",
+      "wallSeconds": 2.581271957998979,
+      "instructionsPerCore": [
+        13884087,
+        324610533
+      ],
+      "instructions": 338494620,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "sid-jukebox",
+      "round": 2,
+      "variant": "rework",
+      "wallSeconds": 2.654006583004957,
+      "instructionsPerCore": [
+        13884087,
+        324610533
+      ],
+      "instructions": 338494620,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "sid-jukebox",
+      "round": 2,
+      "variant": "operand",
+      "wallSeconds": 2.486348624996026,
+      "instructionsPerCore": [
+        13883823,
+        324596977
+      ],
+      "instructions": 338480800,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "sid-jukebox",
+      "round": 2,
+      "variant": "main",
+      "wallSeconds": 2.548543458004133,
+      "instructionsPerCore": [
+        13883823,
+        324596977
+      ],
+      "instructions": 338480800,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "sid-jukebox",
+      "round": 3,
+      "variant": "main",
+      "wallSeconds": 2.464735458997893,
+      "instructionsPerCore": [
+        13883823,
+        324596977
+      ],
+      "instructions": 338480800,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "sid-jukebox",
+      "round": 3,
+      "variant": "operand",
+      "wallSeconds": 2.4682619999948656,
+      "instructionsPerCore": [
+        13883823,
+        324596977
+      ],
+      "instructions": 338480800,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "sid-jukebox",
+      "round": 3,
+      "variant": "rework",
+      "wallSeconds": 2.652033999998821,
+      "instructionsPerCore": [
+        13884087,
+        324610533
+      ],
+      "instructions": 338494620,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "sid-jukebox",
+      "round": 3,
+      "variant": "boxed",
+      "wallSeconds": 2.6456419589958386,
+      "instructionsPerCore": [
+        13884087,
+        324610533
+      ],
+      "instructions": 338494620,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "sid-jukebox",
+      "round": 4,
+      "variant": "boxed",
+      "wallSeconds": 2.583580125006847,
+      "instructionsPerCore": [
+        13884087,
+        324610533
+      ],
+      "instructions": 338494620,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "sid-jukebox",
+      "round": 4,
+      "variant": "rework",
+      "wallSeconds": 2.5649064169992926,
+      "instructionsPerCore": [
+        13884087,
+        324610533
+      ],
+      "instructions": 338494620,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "sid-jukebox",
+      "round": 4,
+      "variant": "operand",
+      "wallSeconds": 2.377411082998151,
+      "instructionsPerCore": [
+        13883823,
+        324596977
+      ],
+      "instructions": 338480800,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "sid-jukebox",
+      "round": 4,
+      "variant": "main",
+      "wallSeconds": 2.3805372909992,
+      "instructionsPerCore": [
+        13883823,
+        324596977
+      ],
+      "instructions": 338480800,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "sid-jukebox",
+      "round": 5,
+      "variant": "main",
+      "wallSeconds": 2.4368212499975925,
+      "instructionsPerCore": [
+        13883823,
+        324596977
+      ],
+      "instructions": 338480800,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "sid-jukebox",
+      "round": 5,
+      "variant": "operand",
+      "wallSeconds": 2.5580023750080727,
+      "instructionsPerCore": [
+        13883823,
+        324596977
+      ],
+      "instructions": 338480800,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "sid-jukebox",
+      "round": 5,
+      "variant": "rework",
+      "wallSeconds": 2.6607038749934873,
+      "instructionsPerCore": [
+        13884087,
+        324610533
+      ],
+      "instructions": 338494620,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "sid-jukebox",
+      "round": 5,
+      "variant": "boxed",
+      "wallSeconds": 2.666631584012066,
+      "instructionsPerCore": [
+        13884087,
+        324610533
+      ],
+      "instructions": 338494620,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "sid-jukebox",
+      "round": 6,
+      "variant": "boxed",
+      "wallSeconds": 2.7427867499936838,
+      "instructionsPerCore": [
+        13884087,
+        324610533
+      ],
+      "instructions": 338494620,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "sid-jukebox",
+      "round": 6,
+      "variant": "rework",
+      "wallSeconds": 2.597704875006457,
+      "instructionsPerCore": [
+        13884087,
+        324610533
+      ],
+      "instructions": 338494620,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "sid-jukebox",
+      "round": 6,
+      "variant": "operand",
+      "wallSeconds": 2.423220583004877,
+      "instructionsPerCore": [
+        13883823,
+        324596977
+      ],
+      "instructions": 338480800,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "sid-jukebox",
+      "round": 6,
+      "variant": "main",
+      "wallSeconds": 2.4782490829966264,
+      "instructionsPerCore": [
+        13883823,
+        324596977
+      ],
+      "instructions": 338480800,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "panel-sid",
+      "round": 1,
+      "variant": "main",
+      "wallSeconds": 3.8414855830051238,
+      "instructionsPerCore": [
+        260482068,
+        136311274
+      ],
+      "instructions": 396793342,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "panel-sid",
+      "round": 1,
+      "variant": "operand",
+      "wallSeconds": 3.7933966670098016,
+      "instructionsPerCore": [
+        260473426,
+        136313246
+      ],
+      "instructions": 396786672,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "panel-sid",
+      "round": 1,
+      "variant": "rework",
+      "wallSeconds": 3.784284875000594,
+      "instructionsPerCore": [
+        260026792,
+        136442769
+      ],
+      "instructions": 396469561,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "panel-sid",
+      "round": 1,
+      "variant": "boxed",
+      "wallSeconds": 3.7943035409989534,
+      "instructionsPerCore": [
+        260026792,
+        136442769
+      ],
+      "instructions": 396469561,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "panel-sid",
+      "round": 2,
+      "variant": "boxed",
+      "wallSeconds": 3.7123721660027513,
+      "instructionsPerCore": [
+        260026792,
+        136442769
+      ],
+      "instructions": 396469561,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "panel-sid",
+      "round": 2,
+      "variant": "rework",
+      "wallSeconds": 4.043989084006171,
+      "instructionsPerCore": [
+        260026792,
+        136442769
+      ],
+      "instructions": 396469561,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "panel-sid",
+      "round": 2,
+      "variant": "operand",
+      "wallSeconds": 3.5367400420072954,
+      "instructionsPerCore": [
+        260473426,
+        136313246
+      ],
+      "instructions": 396786672,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "panel-sid",
+      "round": 2,
+      "variant": "main",
+      "wallSeconds": 3.5429224580002483,
+      "instructionsPerCore": [
+        260482068,
+        136311274
+      ],
+      "instructions": 396793342,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "panel-sid",
+      "round": 3,
+      "variant": "main",
+      "wallSeconds": 3.5032391249987995,
+      "instructionsPerCore": [
+        260482068,
+        136311274
+      ],
+      "instructions": 396793342,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "panel-sid",
+      "round": 3,
+      "variant": "operand",
+      "wallSeconds": 3.52466758301307,
+      "instructionsPerCore": [
+        260473426,
+        136313246
+      ],
+      "instructions": 396786672,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "panel-sid",
+      "round": 3,
+      "variant": "rework",
+      "wallSeconds": 3.704163583010086,
+      "instructionsPerCore": [
+        260026792,
+        136442769
+      ],
+      "instructions": 396469561,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "panel-sid",
+      "round": 3,
+      "variant": "boxed",
+      "wallSeconds": 3.7573662079958012,
+      "instructionsPerCore": [
+        260026792,
+        136442769
+      ],
+      "instructions": 396469561,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "panel-sid",
+      "round": 4,
+      "variant": "boxed",
+      "wallSeconds": 3.7001385830080835,
+      "instructionsPerCore": [
+        260026792,
+        136442769
+      ],
+      "instructions": 396469561,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "panel-sid",
+      "round": 4,
+      "variant": "rework",
+      "wallSeconds": 3.7190399579994846,
+      "instructionsPerCore": [
+        260026792,
+        136442769
+      ],
+      "instructions": 396469561,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "panel-sid",
+      "round": 4,
+      "variant": "operand",
+      "wallSeconds": 3.500012832999346,
+      "instructionsPerCore": [
+        260473426,
+        136313246
+      ],
+      "instructions": 396786672,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "panel-sid",
+      "round": 4,
+      "variant": "main",
+      "wallSeconds": 3.521148166997591,
+      "instructionsPerCore": [
+        260482068,
+        136311274
+      ],
+      "instructions": 396793342,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "panel-sid",
+      "round": 5,
+      "variant": "main",
+      "wallSeconds": 3.4838886669895146,
+      "instructionsPerCore": [
+        260482068,
+        136311274
+      ],
+      "instructions": 396793342,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "panel-sid",
+      "round": 5,
+      "variant": "operand",
+      "wallSeconds": 3.4802141670079436,
+      "instructionsPerCore": [
+        260473426,
+        136313246
+      ],
+      "instructions": 396786672,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "panel-sid",
+      "round": 5,
+      "variant": "rework",
+      "wallSeconds": 3.8909201670030598,
+      "instructionsPerCore": [
+        260026792,
+        136442769
+      ],
+      "instructions": 396469561,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "panel-sid",
+      "round": 5,
+      "variant": "boxed",
+      "wallSeconds": 3.8395701669942355,
+      "instructionsPerCore": [
+        260026792,
+        136442769
+      ],
+      "instructions": 396469561,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "panel-sid",
+      "round": 6,
+      "variant": "boxed",
+      "wallSeconds": 3.7876524579914985,
+      "instructionsPerCore": [
+        260026792,
+        136442769
+      ],
+      "instructions": 396469561,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "panel-sid",
+      "round": 6,
+      "variant": "rework",
+      "wallSeconds": 4.1259350839973195,
+      "instructionsPerCore": [
+        260026792,
+        136442769
+      ],
+      "instructions": 396469561,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "panel-sid",
+      "round": 6,
+      "variant": "operand",
+      "wallSeconds": 3.5134905419981806,
+      "instructionsPerCore": [
+        260473426,
+        136313246
+      ],
+      "instructions": 396786672,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "scenario": "panel-sid",
+      "round": 6,
+      "variant": "main",
+      "wallSeconds": 3.5816797919978853,
+      "instructionsPerCore": [
+        260482068,
+        136311274
+      ],
+      "instructions": 396793342,
+      "stdoutSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "scope": "Wall time of whole native CLI process; same firmware scenarios as tools/bench-goldens.sh. Each variant must match its validated committed golden instruction count. Main and operand differ by the isolated operand correction; rework and boxed must match each other.",
+  "omitted": "Raw command paths and full process output remain in archive."
+}
