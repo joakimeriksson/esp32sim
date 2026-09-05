@@ -1,0 +1,23 @@
+{
+  "sourceCommits": {
+    "main": "563fecd49e1532fb3e6e833e8f1e50e514756521",
+    "reviewed48": "177c25a699ef206a54d0523b9e1b5399f750d364",
+    "fixed48": "850efecdc7270287e0846cb7b363b4b2ebb8a353",
+    "fixed49": "94e7d62592795035a9b3be572dc0ee4110463e36",
+    "fixed52": "09bde1cd26707921389e77343963fdcb9c97e197",
+    "fixed53": "1e9cb9551206abf68f2011d1294975d9683a3c46"
+  },
+  "machine": "arm64",
+  "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+  "nativeRustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)",
+  "wasmRustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)",
+  "node": "v24.16.0",
+  "nativeInputs": {
+    "@HOME@/.espressif/tools/esp-rom-elfs/20241011/esp32s3_rev0_rom.elf": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+    "@WORKSPACE@/web/wasm/fw/public/atech-bootloader.bin": "876f58f4c5e2b2a3eae9e025b29096f034af99f6617edae3676817306d306dcf",
+    "@WORKSPACE@/web/wasm/fw/public/atech-ptable.bin": "1d9cca96de0fe07ad7fc0648b9878ddecd9ce565e38b589ad20fea698ed4c80c",
+    "@WORKSPACE@/web/wasm/fw/public/atech-firmware.bin": "f66e6178d75e2a3bb85e708e382ae646822c3331eb1590a5f7301928c2eb1000",
+    "@WORKSPACE@/web/wasm/fw/public/atech-script1.txt": "53f404f05590a41ce68ee16f04700c9e378a58cf148035f6267b71d2d37b3458"
+  },
+  "privacy": "Absolute local paths replaced by @WORKSPACE@ and @HOME@. Raw VCD files omitted; exact bytes and SHA-256 hashes are in every VCD run receipt."
+}
