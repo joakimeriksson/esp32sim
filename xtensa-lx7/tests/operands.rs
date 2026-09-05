@@ -25,7 +25,7 @@ fn selectors_immediates_and_fp_registers_do_not_spill_integer_windows() {
         (0x23fb, AddiN), (0x40f320, Nsau), (0x412c30, Srli),
         (0x08f230, Lsx), (0x8b0f20, MoveqzS), (0x40e320, Nsa),
         (0xf42f30, Extui), (0x312f30, Srai), (0x09f320, L32e),
-        (0x49f320, S32e), (0x48f230, Ssx), (0x18f230, Lsxp),
+        (0x49f320, S32e), (0x59f320, S32nb), (0x48f230, Ssx), (0x18f230, Lsxp),
         (0x58f230, Ssxp), (0x9b0f20, MovnezS), (0xab0f20, MovltzS),
         (0xbb0f20, MovgezS), (0x406320, Rer), (0x407320, Wer),
         (0x503320, Ritlb0), (0x507320, Ritlb1), (0x50b320, Rdtlb0),
@@ -74,6 +74,10 @@ fn corrected_operands_produce_expected_values() {
         step(&mut cpu, &mut ram).unwrap();
         assert_eq!(cpu.get_ar(2), expected);
     }
+    let (mut cpu, mut ram) = machine(0x59f320);
+    cpu.set_ar(2, 0x12345678);
+    step(&mut cpu, &mut ram).unwrap();
+    assert_eq!(&ram.mem[0x13c..0x140], &0x12345678u32.to_le_bytes());
     let (mut cpu, mut ram) = machine(0x08f230);
     ram.mem[0x100..0x104].copy_from_slice(&0x12345678u32.to_le_bytes());
     step(&mut cpu, &mut ram).unwrap();
