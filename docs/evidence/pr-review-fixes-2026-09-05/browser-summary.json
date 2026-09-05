@@ -1,0 +1,16 @@
+{
+  "passed": true,
+  "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+  "verdictValidation": {
+    "schema": "tinydraw-gate1-v1",
+    "valid": true,
+    "passed": true,
+    "error": null
+  },
+  "instructions": 9819885134,
+  "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+  "matchesPreviousTopConsole": true,
+  "wallSeconds": 114.6807950000018,
+  "scope": "Single correctness capture without real-time pacing; does not renew earlier incremental performance claims or establish input latency. The fixed ssaa_receipt=yellow marker tracks an existing performance limitation in smoothing stroke edges after drawing. It is separate from the 36 pass/fail gates; closing it requires a dedicated settling-performance check, which this run does not provide.",
+  "sourceCommit": "09bde1cd26707921389e77343963fdcb9c97e197"
+}
