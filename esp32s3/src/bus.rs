@@ -128,7 +128,9 @@ impl SocBus {
             self.periph.i2c[bus as usize].attach(address, device);
         }
         for (pin, level) in self.board.input_levels() {
+            let old_input = self.periph.gpio.input;
             self.periph.gpio.set_input(pin, level);
+            self.irq_dirty |= old_input != self.periph.gpio.input;
         }
     }
 
@@ -253,12 +255,26 @@ impl SocBus {
         if a == PERIPH_BASE + 0x24_000 && w & (1 << 24) != 0 {
             self.spi2_dma_fault = None;
         }
+        let old_gpio_out = self.periph.gpio.out;
         self.periph.write32(a, w);
         self.complete_spi2_dma();
         self.deliver_spi2_transfer();
-        // GPIO output registers (OUT/W1TS/W1TC/OUT1...) are hammered by bit-banged SPI and never change an
-        // interrupt line directly; the periodic 32-cycle poll still sees any indirect effect
-        if !(0x6000_4004..=0x6000_4018).contains(&a) { self.irq_dirty = true; }
+        // GPIO output writes usually only drive the board, but an enabled level
+        // interrupt also observes output levels. Inspect only changed output pins.
+        if !(0x6000_4004..=0x6000_4018).contains(&a) {
+            self.irq_dirty = true;
+        } else {
+            let mut changed = (old_gpio_out ^ self.periph.gpio.out) & self.periph.gpio.enable & ((1u64 << 49) - 1);
+            while changed != 0 {
+                let pin = changed.trailing_zeros() as usize;
+                changed &= changed - 1;
+                let config = self.periph.gpio.pin[pin];
+                if config & (1 << 13) != 0 && matches!((config >> 7) & 7, 4 | 5) {
+                    self.irq_dirty = true;
+                    break;
+                }
+            }
+        }
         if self.periph.spi_exec {
             self.periph.spi_exec = false;
             self.periph.spi1.execute(&mut self.flash, &mut self.psram);
@@ -463,6 +479,7 @@ impl SocBus {
                 let ch_ref = &mut self.periph.gdma.out[ch];
                 if ch_ref.conf0 & (1 << 2) != 0 { let dw0 = self.read32(d.addr).unwrap_or(0) & !(1 << 31); let _ = self.write32(d.addr, dw0); }   // AUTO_WRBACK: owner -> cpu
                 let ch_ref = &mut self.periph.gdma.out[ch];
+                self.irq_dirty = true;
                 ch_ref.int_raw |= 1 << 0;                                                     // OUT_DONE
                 if d.eof { ch_ref.int_raw |= 1 << 1; ch_ref.eof_desc = d.addr; }             // OUT_EOF
                 if d.next == 0 { ch_ref.running = false; ch_ref.desc = 0; ch_ref.int_raw |= 1 << 3; break; }   // OUT_TOTAL_EOF
@@ -541,11 +558,11 @@ impl SocBus {
                 if remaining == 0 {
                     if log { eprintln!("[lcd] desc {:#010x} done (buf {:#010x} len {} eof {}) -> next {:#010x}", c.desc, buf, length, eof, next); }
                     let ch_ref = &mut self.periph.gdma.out[ch];
+                    self.irq_dirty = true;
                     ch_ref.int_raw |= 1 << 0;
                     if eof { ch_ref.int_raw |= 1 << 1; ch_ref.eof_desc = c.desc; }
                     if next == 0 { ch_ref.running = false; ch_ref.desc = 0; ch_ref.int_raw |= 1 << 3; break; }
                     ch_ref.desc = next; ch_ref.buf_pos = 0;
-                    self.irq_dirty = true;
                     continue;
                 }
                 let take = remaining.min(want);
@@ -847,13 +864,14 @@ impl Bus for SocBus {
     fn code_page(&mut self, pc: u32) -> u32 {
         match self.lookup(pc) { Some(e) => e.vbase + ((pc - e.lo) >> VPAGE_SHIFT), None => self.page_ver.len() as u32 - 1 }
     }
-    /// Returns 1 when device models actually ran (so interrupt lines may have changed), else 0.
+    /// Returns 1 when interrupt inputs may have changed. Device time can advance
+    /// without requesting a full interrupt-source scan.
     fn tick(&mut self, cycles: u32) -> u32 {
         self.cycles += cycles as u64;
         self.tick_pending += cycles;
         if self.tick_pending < self.tick_budget { return 0; }
         self.flush_ticks();
-        1
+        u32::from(self.irq_dirty)
     }
 }
 
@@ -874,18 +892,21 @@ impl SocBus {
         let c = std::mem::take(&mut self.tick_pending);
         if c == 0 { return; }
         self.tick_impl(c);
-        // MMIO reads also flush time. Tell the CPU to refresh interrupt lines even
-        // when no Bus::tick call reaches the periodic backstop.
-        self.irq_dirty = true;
         self.refresh_tick_budget();
     }
 
     fn tick_impl(&mut self, cycles: u32) -> u32 {
-        self.periph.tick(cycles as u64);
+        // Reads may flush before the periodic backstop. Refresh for either edge
+        // of a clocked source, without breaking every block that polls MMIO.
+        self.irq_dirty |= self.periph.tick(cycles as u64);
         self.board.advance_to(self.cycles);
         for edge in self.board.take_edges() {
             if let Some(events) = &mut self.gpio_events { events.push((edge.cycle, edge.pin, edge.level)); }
-            if self.periph.gpio.set_input(edge.pin, edge.level) { self.irq_dirty = true; }
+            let old_input = self.periph.gpio.input;
+            self.periph.gpio.set_input(edge.pin, edge.level);
+            // set_input reports latched edges only. Level IRQs can rise or fall
+            // when the input changes, so both polarities require a refresh too.
+            self.irq_dirty |= old_input != self.periph.gpio.input;
         }
         self.complete_spi2_dma();
         self.dma_i2s_step(cycles as u64);
@@ -1307,8 +1328,191 @@ mod gp_spi_board_tests {
             bus.irq_dirty = false;
             assert_eq!(Bus::tick(&mut bus, 128), 0);
             let _ = bus.read32(0x6003_8008).unwrap();
-            assert!(bus.block_break());
+            assert!(!bus.block_break(), "an unchanged source must not break every polling block");
         }
+    }
+
+    #[test]
+    fn periodic_tick_only_requests_irq_refresh_for_events() {
+        let mut bus = SocBus::new(1024, 1024, [0; 6]);
+        for _ in 0..4 {
+            assert_eq!(Bus::tick(&mut bus, MAX_TICK_DEFER), 0);
+            assert_eq!(bus.tick_pending, 0, "quiet flush still advances time");
+        }
+        bus.periph.usb.int_ena = 2;
+        bus.periph.usb.tick(crate::periph::CPU_HZ / 4000 - 4 * u64::from(MAX_TICK_DEFER) - 1);
+        bus.tick_budget = 1;
+        assert_eq!(Bus::tick(&mut bus, 1), 1);
+        assert!(bus.periph.usb.irq());
+        bus.irq_dirty = false;
+        assert_eq!(Bus::tick(&mut bus, MAX_TICK_DEFER), 0, "unchanged asserted source");
+        bus.irq_dirty = true;
+        assert_eq!(Bus::tick(&mut bus, MAX_TICK_DEFER), 1, "preserve prior dirty flag");
+    }
+
+    #[test]
+    fn host_input_notifies_without_a_periodic_irq_scan() {
+        let mut bus = SocBus::new(1024, 1024, [0; 6]);
+        bus.periph.usb.int_ena = 4;
+        esp_soc::SocBus::serial_input(&mut bus, b"x");
+        assert!(bus.irq_dirty);
+        assert!(bus.periph.usb.irq());
+        bus.irq_dirty = false;
+        esp_soc::SocBus::serial_input(&mut bus, b"y");
+        assert!(!bus.irq_dirty, "same asserted source");
+        bus.periph.gpio.pin[7] = (5 << 7) | (1 << 13);
+        bus.periph.gpio.set_input(7, true);
+        esp_soc::SocBus::gpio_set_input(&mut bus, 7, false);
+        assert!(bus.irq_dirty, "host GPIO falling level");
+        assert!(!bus.periph.gpio.irq());
+    }
+
+    #[test]
+    fn gpio_output_level_irqs_notify_for_both_banks_and_polarities() {
+        for pin in [7, 40] {
+            for typ in [4, 5] {
+                let mut bus = SocBus::new(1024, 1024, [0; 6]);
+                bus.periph.gpio.enable = 1u64 << pin;
+                bus.periph.gpio.pin[pin] = (typ << 7) | (1 << 13);
+                let base = if pin < 32 { 0x6000_4004 } else { 0x6000_4010 };
+                let bit = 1 << (pin % 32);
+                // OUT, W1TC, W1TS, OUT all change the level in this sequence.
+                for (addr, value, high) in [(base, bit, true), (base + 8, bit, false), (base + 4, bit, true), (base, 0, false)] {
+                    bus.irq_dirty = false;
+                    bus.write32(addr, value).unwrap();
+                    assert!(bus.irq_dirty, "pin {pin}, type {typ}, register {addr:x}");
+                    assert_eq!(bus.periph.gpio.irq(), if typ == 5 { high } else { !high });
+                }
+                bus.periph.gpio.pin[pin] = 0;
+                bus.irq_dirty = false;
+                bus.write32(base + 4, bit).unwrap();
+                assert!(!bus.irq_dirty, "ordinary output toggles remain cheap");
+            }
+        }
+    }
+
+    #[test]
+    fn periodic_tick_notifies_wifi_tx_and_air_rx() {
+        let mut bus = SocBus::new(1024, 1024, [0; 6]);
+        bus.write32(FIRST_DESC, 0).unwrap();
+        bus.write32(FIRST_DESC + 4, 0).unwrap();
+        bus.periph.wifi.tx_pending.push((0, FIRST_DESC));
+        bus.irq_dirty = false;
+        assert_eq!(Bus::tick(&mut bus, MAX_TICK_DEFER), 1);
+        assert!(bus.periph.wifi.irq());
+
+        let mut bus = SocBus::new(1024, 1024, [0; 6]);
+        bus.periph.wifi.ap = Some(crate::wifi::VirtualAp::new(crate::wifi::ApConfig {
+            ssid: "test".into(), bssid: [2, 0, 0, 0, 0, 1], channel: 1, psk: None,
+        }, false));
+        bus.periph.wifi.ap.as_mut().unwrap().queue.push(crate::wifi::AirFrame { at_us: 0, frame: vec![0; 24] });
+        bus.periph.wifi.rx_next = FIRST_DESC & 0xfffff;
+        bus.write32(FIRST_DESC, 512 | (1 << 31)).unwrap();
+        bus.write32(FIRST_DESC + 4, FIRST_DESC + 64).unwrap();
+        bus.write32(FIRST_DESC + 8, 0).unwrap();
+        bus.irq_dirty = false;
+        assert_eq!(Bus::tick(&mut bus, (crate::periph::CPU_HZ / 1000) as u32), 1);
+        assert_eq!(bus.periph.wifi.rx_frames, 1);
+        assert!(bus.periph.wifi.irq());
+    }
+
+    fn read_flush(bus: &mut SocBus, cycles: u32) {
+        bus.tick_budget = MAX_TICK_DEFER;
+        bus.irq_dirty = false;
+        assert_eq!(Bus::tick(bus, cycles), 0);
+        bus.read32(0x6003_8008).unwrap();
+    }
+
+    #[test]
+    fn read_flush_reports_timer_and_rmt_threshold_sources() {
+        for timer in 0..5 {
+            let mut bus = SocBus::new(1024, 1024, [0; 6]);
+            if timer < 3 {
+                let st = &mut bus.periph.systimer;
+                st.conf = (1 << 30) | (1 << (24 + timer));
+                st.armed[timer] = true;
+                st.target[timer] = 1;
+                st.int_ena = 1 << timer;
+            } else {
+                let tg = &mut bus.periph.timg[timer - 3];
+                tg.t[0].config = (1 << 31) | (1 << 30) | (1 << 13) | (1 << 10);
+                tg.t[0].alarm = 1;
+                tg.int_ena = 1;
+            }
+            read_flush(&mut bus, 15);
+            assert!(bus.block_break(), "timer {timer}");
+            read_flush(&mut bus, 15);
+            assert!(!bus.block_break(), "unchanged timer {timer}");
+        }
+        let mut bus = SocBus::new(1024, 1024, [0; 6]);
+        bus.periph.rmt.ch[0].running = true;
+        bus.periph.rmt.ch[0].tx_lim = 1;
+        bus.periph.rmt.mem[0] = 100 | (100 << 16);
+        bus.periph.rmt.int_ena = 1 << 8;
+        read_flush(&mut bus, 1);
+        assert!(bus.periph.rmt.irq());
+        assert!(bus.periph.rmt.ch[0].running, "threshold precedes completion");
+        assert!(bus.block_break());
+    }
+
+    #[test]
+    fn read_flush_reports_pcnt_without_a_gpio_interrupt() {
+        let mut bus = SocBus::new(1024, 1024, [0; 6]);
+        bus.periph.gpio.func_in_sel[33] = 0x80 | 7;
+        bus.periph.pcnt.conf[0][0] = (1 << 18) | (1 << 14);
+        bus.periph.pcnt.conf[0][1] = 1;
+        bus.periph.pcnt.int_ena = 1;
+        bus.periph.gpio.set_input(7, false);
+        bus.periph.gpio.set_input(7, true);
+        read_flush(&mut bus, 1);
+        assert!(!bus.periph.gpio.irq());
+        assert!(bus.periph.pcnt.irq());
+        assert!(bus.block_break());
+    }
+
+    #[test]
+    fn read_flush_reports_terminal_i2s_and_lcd_dma_descriptors() {
+        for peripheral in [3, 4, 5] {
+            let mut bus = dma_bus();
+            bus.periph.gdma.out[0].peri_sel = peripheral;
+            bus.periph.gdma.out[0].int_ena = 0xb;
+            // An exhausted final descriptor, with no further sample or frame to
+            // publish: the descriptor completion alone must notify the CPU.
+            bus.write32(FIRST_DESC, (1 << 30) | (1 << 31)).unwrap();
+            bus.write32(FIRST_DESC + 4, 0).unwrap();
+            bus.write32(FIRST_DESC + 8, 0).unwrap();
+            match peripheral {
+                3 => { bus.periph.i2s0.tx_conf = 4; bus.periph.i2s0.sample_rate = crate::periph::CPU_HZ as u32; }
+                4 => { bus.periph.i2s1.tx_conf = 4; bus.periph.i2s1.sample_rate = crate::periph::CPU_HZ as u32; }
+                _ => {
+                    bus.periph.lcd_cam.lcd_user = 1 << 27;
+                    bus.periph.lcd_cam.lcd_ctrl = 1 << 31;
+                    bus.periph.lcd_cam.lcd_ctrl1 = 511 << 8;
+                }
+            }
+            read_flush(&mut bus, 1);
+            assert!(bus.periph.gdma.out[0].irq(), "DMA {peripheral}");
+            assert!(bus.block_break(), "DMA {peripheral}");
+        }
+    }
+
+    #[test]
+    fn read_flush_reports_falling_board_level_interrupt() {
+        struct FallingEdge;
+        impl crate::board::BoardModel for FallingEdge {
+            fn name(&self) -> &'static str { "falling-edge" }
+            fn take_edges(&mut self) -> Vec<crate::board::BoardEdge> {
+                vec![crate::board::BoardEdge { cycle: 1, pin: 7, level: false }]
+            }
+        }
+        let mut bus = SocBus::new(1024, 1024, [0; 6]);
+        bus.board = Box::new(FallingEdge);
+        bus.periph.gpio.pin[7] = (5 << 7) | (1 << 13);
+        bus.periph.gpio.set_input(7, true);
+        assert!(bus.periph.gpio.irq());
+        read_flush(&mut bus, 1);
+        assert!(!bus.periph.gpio.irq());
+        assert!(bus.block_break());
     }
 
     #[test]
@@ -1351,7 +1555,29 @@ mod gp_spi_board_tests {
         esp_soc::SocBus::touch_input(&mut bus, 0, 0, false);
         assert_eq!((bus.cycles, bus.tick_pending, bus.tick_budget), (100, 100, MAX_TICK_DEFER));
         assert_eq!(Bus::tick(&mut bus, 155), 0);
-        assert_eq!(Bus::tick(&mut bus, 1), 1);
+        assert_eq!(Bus::tick(&mut bus, 1), 0);
+        assert_eq!(bus.tick_pending, 0, "the deadline still flushes device time");
+    }
+
+    #[test]
+    fn reattaching_board_inputs_notifies_configured_level_irqs() {
+        struct InputBoard(bool);
+        impl crate::board::BoardModel for InputBoard {
+            fn name(&self) -> &'static str { "input-restoration" }
+            fn input_levels(&self) -> Vec<(u8, bool)> { vec![(7, self.0)] }
+        }
+        let mut bus = SocBus::new(1024, 1024, [0; 6]);
+        bus.periph.gpio.pin[7] = (5 << 7) | (1 << 13);
+        for level in [false, true, false] {
+            bus.board = Box::new(InputBoard(level));
+            bus.irq_dirty = false;
+            bus.attach_board_devices();
+            assert!(bus.irq_dirty, "board restoration changes the input to {level}");
+            assert_eq!(bus.periph.gpio.irq(), level);
+            bus.irq_dirty = false;
+            bus.attach_board_devices();
+            assert!(!bus.irq_dirty, "restoring the same input is quiet");
+        }
     }
 
     #[test]

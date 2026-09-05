@@ -532,9 +532,10 @@ impl Peripherals {
 
     /// Advance device time by `cycles` CPU cycles (every clocked device gets its own clock's
     /// ticks), then route GPIO input edges to the pulse counters.
-    pub fn tick(&mut self, cycles: u64) {
-        Dispatch::tick(self, cycles);
+    pub fn tick(&mut self, cycles: u64) -> bool {
+        let mut irq_changed = Dispatch::tick(self, cycles);
         if !self.gpio.input_changes.is_empty() {
+            let before = self.pcnt.irq();
             let changes = std::mem::take(&mut self.gpio.input_changes);
             let gpio = &self.gpio;
             let sig = |idx: u32| -> Option<(u8, bool)> {
@@ -544,7 +545,9 @@ impl Peripherals {
                 let lvl = (gpio.input >> pin) & 1 != 0; Some((pin, lvl ^ (sel & 0x40 != 0)))
             };
             for (pin, level) in changes { self.pcnt.gpio_edge(pin, level, &sig); }
+            irq_changed |= before != self.pcnt.irq();
         }
+        irq_changed
     }
 
     /// Raw per-source interrupt status (4 × 32 bits).

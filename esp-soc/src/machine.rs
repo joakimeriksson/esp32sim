@@ -799,10 +799,6 @@ impl<S: Soc> Machine<S> {
             if self.apply_script_events() { self.drain_console(); return RunUntil::Stop(Stop::Halted); }
             self.refresh_irq();
             let left = target - now;
-            let mut deadline = self.bus.next_deadline().unwrap_or(u64::MAX).max(1);
-            if let Some((at, _)) = self.script.events.get(self.script.pos) {
-                deadline = deadline.min(at.saturating_sub(now).max(1));
-            }
             let core = &self.cores[0];
             if core.waiting() && !core.irq_pending() && !no_skip {
                 let chunk = self.idle_budget(left, &[true]);
@@ -810,6 +806,10 @@ impl<S: Soc> Machine<S> {
                 if self.after_round(chunk) { self.drain_console(); return RunUntil::Stop(Stop::Halted); }
                 if self.bus.take_host_event() { return RunUntil::Yield; }
             } else {
+                let mut deadline = self.bus.next_deadline().unwrap_or(u64::MAX).max(1);
+                if let Some((at, _)) = self.script.events.get(self.script.pos) {
+                    deadline = deadline.min(at.saturating_sub(now).max(1));
+                }
                 let mut budget = left.min(QUANTUM).min(deadline) as u32;
                 let (mut used_total, mut yielded, mut stop) = (0u64, false, None);
                 while budget > 0 {
@@ -851,8 +851,20 @@ impl<S: Soc> Machine<S> {
         script_stopped
     }
 
-    /// Apply actions at the current boundary without advancing device time.
+    /// Keep the common empty/not-due case in the scheduling loop without inlining action
+    /// cloning, logging or device dispatch. Read the public script state at each boundary so
+    /// host edits between runs and events inserted by web input are observed immediately.
+    #[inline]
     fn apply_script_events(&mut self) -> bool {
+        if !self.script.events.get(self.script.pos).is_some_and(|(at, _)| *at <= self.bus.cycles()) {
+            return false;
+        }
+        self.apply_due_script_events()
+    }
+
+    /// Apply actions at the current boundary without advancing device time.
+    #[inline(never)]
+    fn apply_due_script_events(&mut self) -> bool {
         let mut stopped = false;
         while self.script.pos < self.script.events.len() && self.script.events[self.script.pos].0 <= self.bus.cycles() {
             let (t, a) = self.script.events[self.script.pos].clone(); self.script.pos += 1;
