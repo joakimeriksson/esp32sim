@@ -281,6 +281,22 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
         g.op(0x0f);
         g.end();
     }
+    if entry_head && max_ar >= 4 {
+        // Entering past the ENTRY skips its post-rotation proof: prove the union now.
+        g.get(4);
+        g.c(0);
+        g.op(0x47);
+        g.get(WINDOWS);
+        g.c((1 << (max_ar / 4)) - 1);
+        g.op(0x71);
+        g.c(0);
+        g.op(0x47);
+        g.op(0x71);
+        g.begin_if();
+        g.c(CODE_REJECT << 16);
+        g.op(0x0f);
+        g.end();
+    }
     if cp != 0 {
         g.cpu(offset_of!(Cpu, cpenable));
         g.c(cp);

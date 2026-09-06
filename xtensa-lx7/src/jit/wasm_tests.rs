@@ -1228,6 +1228,47 @@ fn regions() -> u32 {
         }, 60);
         cases += 1;
     }
+    // An ENTRY-headed region entered at an interior chunk that touches a8, with the
+    // frame a8 lives in occupied: the module must reject, so the block path raises the
+    // overflow exception. Called directly: the ENTRY block itself never gets hot here.
+    let mut p = Vec::new();
+    p.extend(asm::entry(1, 32));                    // 0
+    p.extend(asm::addi_n(8, 8, 1));                 // 3
+    p.extend(asm::addi_n(2, 2, -1));                // 5
+    p.extend(asm::bz(1, BASE + 7, 2, BASE + 3));    // 7  bnez a2, 3
+    p.extend(asm::j(BASE + 10, BASE + 3));          // 10 j 3
+    {
+        let mut ram = Ram::new(true, false);
+        ram.ram.mem[..p.len()].copy_from_slice(&p);
+        let c0 = cpu(0);
+        let head: Vec<BlockInsn> = (0..4).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: crate::exec::max_ar(&i), off: 0 }) }).collect();
+        let formed = emitter::region::form(&c0, &mut ram, BASE, &head, true).expect("entry-interior region");
+        let interior = formed.chunks.iter().position(|c| c.pc == BASE + 3).expect("interior chunk") as u32;
+        let (bytes, _) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, true);
+        let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
+        assert!(slot != 0);
+        type Run = extern "C" fn(*mut Cpu, *mut Ram, *const Helpers, u32, u32, *const TlbEntry, *mut u32) -> u32;
+        let f: Run = unsafe { std::mem::transmute(slot as usize) };
+        for occupied in [false, true] {
+            let mut c = cpu(3);
+            c.pc = BASE + 3;
+            c.ps = ps::WOE;
+            c.windowstart = (1 << c.windowbase) | if occupied { 1 << ((c.windowbase + 2) % 16) } else { 0 };
+            c.set_ar(2, 5);
+            let before = c.ar;
+            let fm = ram.fast_mem().unwrap();
+            let result = f(&mut c, &mut ram, &Helpers::new::<Ram>(), 64, interior, fm.tlb, fm.page_ver);
+            if occupied {
+                assert_eq!(result >> 16, CODE_REJECT, "interior entry over an occupied frame must reject");
+                assert_eq!(c.ar, before);
+            } else {
+                assert_eq!((result >> 16) & 7, CODE_LEFT);
+                assert!(result & 0xffff >= 3, "interior entry ran {} instructions", result & 0xffff);
+            }
+            cases += 1;
+        }
+        unsafe { host_jit_release(slot) };
+    }
     // A hardware loop whose body is exactly one ENTRY: when the post-ENTRY window proof
     // fails, the side exit must still take the backedge that ends at ENTRY's successor.
     let mut p = Vec::new();
