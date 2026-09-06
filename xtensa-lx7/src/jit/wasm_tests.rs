@@ -1113,11 +1113,17 @@ fn regions() -> u32 {
     // A zero buffer with one odd halfword: the scan matches until it reaches it.
     let mut data = [0u8; 32];
     data[14] = 0x34; data[15] = 0x12;
+    let stat = |i: usize| REGION_STATS[i].load(std::sync::atomic::Ordering::Relaxed);
+    let (formed0, dropped0, covered0) = (stat(0), stat(9), stat(10));
     let max = region_program("tile", &tp, &tile, &data, 2, 6, |c| {
         c.set_ar(12, BASE + 0x1000); c.set_ar(8, BASE + 0x1000); c.set_ar(10, 8);
         c.set_ar(6, 0); c.set_ar(7, 0); c.set_ar(15, BASE + 14); c.set_ar(5, 0x10);
     }, 900);
     assert!(max >= 30, "tile region retired at most {max} per call");
+    // Four heads of this loop become hot, but a head inside a live region gets no region
+    // of its own: only the first, plus one re-formation per code change.
+    assert!(stat(10) > covered0, "no covered head was skipped");
+    assert!(stat(0) - formed0 <= stat(9) - dropped0 + 1, "overlapping regions: formed {} dropped {}", stat(0) - formed0, stat(9) - dropped0);
     cases += 1;
     // A hardware loop with a branch inside its body: the LOOPNEZ, the body, the skip
     // target and the loop exit are all region chunks; the backedge is an internal edge,
@@ -1186,6 +1192,40 @@ fn regions() -> u32 {
         assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(),
             vec![(12, 4), (24, 2), (22, 1)]);
         assert!(emitter::region::form(&c, &mut ram, BASE, &head[..1], true).is_none(), "a lone call is not a region");
+        cases += 1;
+    }
+    // A malformed `entry a4` heading a region: its own operand must still be proved free
+    // before the interpreter helper runs it, so an occupied frame raises the overflow.
+    let mut p = Vec::new();
+    p.extend(asm::entry(4, 32));                    // 0
+    p.extend(asm::bz(1, BASE + 3, 2, BASE + 9));    // 3  bnez a2, 9
+    p.extend(asm::j(BASE + 6, BASE));               // 6
+    p.extend(asm::addi_n(2, 2, -1));                // 9
+    p.extend(asm::j(BASE + 11, BASE));              // 11
+    let bad = [(0, Entry, 0), (3, Bnez, 9), (6, J, 0), (9, AddiN, 0), (11, J, 0)];
+    for occupied in [false, true] {
+        region_program("entry-a4", &p, &bad, &[], 1, 9, |c| {
+            c.ps = ps::WOE | (2 << ps::CALLINC_SHIFT);
+            c.windowstart = (1 << c.windowbase) | if occupied { 1 << ((c.windowbase + 1) % 16) } else { 0 };
+            c.set_ar(2, 3); c.set_ar(4, BASE + 0x4000);
+        }, 60);
+        cases += 1;
+    }
+    // A hardware loop whose body is exactly one ENTRY: when the post-ENTRY window proof
+    // fails, the side exit must still take the backedge that ends at ENTRY's successor.
+    let mut p = Vec::new();
+    p.extend(asm::movi_n(10, 3));                   // 0
+    p.extend(asm::lp(9, BASE + 2, 10, BASE + 8));   // 2  loopnez a10, 8
+    p.extend(asm::entry(1, 32));                    // 5  (ends at LEND)
+    p.extend(asm::addi_n(8, 8, 1));                 // 8
+    p.extend(asm::j(BASE + 10, BASE));              // 10
+    let loop_entry = [(0, MoviN, 0), (2, Loopnez, 8), (5, Entry, 0), (8, AddiN, 0), (10, J, 0)];
+    for occupied in [false, true] {
+        region_program("loop-entry", &p, &loop_entry, &[], 2, 5, |c| {
+            c.ps = ps::WOE | (2 << ps::CALLINC_SHIFT);
+            c.windowstart = (1 << c.windowbase) | if occupied { 1 << ((c.windowbase + 3) % 16) } else { 0 };
+            c.set_ar(1, BASE + 0x4000);
+        }, 60);
         cases += 1;
     }
     // Region formation itself for the tile scan: every static successor, nothing past RSR.

@@ -247,8 +247,11 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
         m | e.writes | e.conditional_writes | e.unclassified
     });
     let max_ar = all().map(|bi| bi.max_ar).max().unwrap_or(0);
-    // An ENTRY head rotates the window before the rest runs; its own proof follows it.
+    // An ENTRY head rotates the window before the rest runs, so the proof for the rest
+    // follows it; the entry-time proof then covers only ENTRY's own operand, which a
+    // malformed `entry aN` with N >= 4 needs before the interpreter helper runs it.
     let entry_head = chunks[0].instructions[0].insn.op == crate::Op::Entry;
+    let guard_max_ar = if entry_head { chunks[0].instructions[0].max_ar } else { max_ar };
     let float = all().any(|bi| float::requires_coprocessor(bi.insn.op));
     let heads = chunks.iter().enumerate().map(|(i, c)| (c.pc, (i, c.instructions.len() as u32))).collect();
     let loops = formed_loops.iter().copied().collect();
@@ -272,9 +275,9 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
     g.op(0x0f);
     g.end();
     g.reload();
-    if max_ar >= 4 && !entry_head {
+    if guard_max_ar >= 4 {
         g.get(WINDOWS);
-        g.c((1 << (max_ar / 4)) - 1);
+        g.c((1 << (guard_max_ar / 4)) - 1);
         g.op(0x71);
         g.begin_if();
         g.c(CODE_REJECT << 16);

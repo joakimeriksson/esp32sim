@@ -658,11 +658,31 @@ fn emit_body(
             if g.region.is_some() && bi.insn.op == crate::Op::Entry && g.max_ar >= 4 {
                 // The rotated window must be free for everything the region touches;
                 // otherwise continue at the next instruction through ordinary blocks.
+                // ENTRY has retired, so a hardware loop ending right here takes its
+                // backedge first, as the interpreter's epilogue would.
                 g.get(WINDOWS);
                 g.c((1 << (g.max_ar / 4)) - 1);
                 g.op(0x71);
                 g.begin_if();
                 g.spill();
+                g.cpu(LEND);
+                g.c(next);
+                g.op(0x46);
+                g.cpu(LCOUNT);
+                g.c(0);
+                g.op(0x47);
+                g.op(0x71);
+                g.begin_if();
+                g.get(0);
+                g.cpu(LCOUNT);
+                g.c(1);
+                g.op(0x6b);
+                g.store(LCOUNT);
+                g.get(0);
+                g.cpu(LBEG);
+                g.store(PC);
+                g.ret_value(CODE_LEFT);
+                g.end();
                 g.cpu_const(PC, next);
                 g.ret_value(CODE_LEFT);
                 g.end();
