@@ -30,16 +30,21 @@ pub const PIN_BTN2: u8 = 16;
 /// `rotary_encoder.h`).
 pub const KNOB_RING_PHYSICAL: [usize; 12] = [0, 2, 4, 6, 8, 10, 11, 1, 3, 5, 7, 9];
 
-/// Where chain index `i` of a Light Grid V1.1 sits on the glass, as a row-major cell of the 3×3 the
-/// page draws, with the module's ESP32 connector at the bottom. The chain is wired
-/// column-serpentine: down the left column (0, 1, 2), up the middle (3 at the bottom, 5 at the
-/// top), down the right (6, 7, 8). Measured on the board, one chain LED at a time, with the
-/// firmware's `set_grid_pixel` self-test — chain 0 top-left, 1 middle-left, 3 bottom-centre
-/// pin it; the rest confirm. The firmware's `xyToIndex` is plain row-major, so the SID
-/// player's per-voice chain columns are scattered on the glass: with every voice at its
-/// lowest step the glass shows the right column, blue at the top and orange at the bottom,
-/// and with all three voices high it shows `BOB / MMM / OBO`.
-pub const GRID_PHYSICAL: [usize; 9] = [0, 3, 6, 7, 4, 1, 2, 5, 8];
+/// Where chain index `i` of the Light Grid V1.1 in **port 7** sits on the glass, as a row-major
+/// cell of the 3×3 the page draws, with the motherboard upright (USB-C at the bottom). The
+/// chain is column-serpentine: down the left column (0, 1, 2), up the middle (3 at the bottom,
+/// 5 at the top), down the right (6, 7, 8). Measured on the board one chain LED at a time with
+/// the `grid-selftest` firmware — chain 0 top-left, 1 middle-left, 3 bottom-centre pin it; the
+/// rest follow from the serpentine.
+pub const GRID_PHYSICAL_PORT7: [usize; 9] = [0, 3, 6, 7, 4, 1, 2, 5, 8];
+
+/// The same module in **port 11**, which is not the same map: a slot's `side` decides how a
+/// module physically mounts, and port 7 is the isolated top slot while port 11 is in the right
+/// column, so the module sits turned 90° clockwise. Measured the same way, with both grids
+/// showing the same chain index at once: chain 0 is top-left on port 7 but top-right on
+/// port 11. A rigid module cannot be mirrored, so one reading fixes the rotation, and this is
+/// `GRID_PHYSICAL_PORT7` rotated: cell (row, col) becomes (col, 2 − row).
+pub const GRID_PHYSICAL_PORT11: [usize; 9] = [2, 1, 0, 3, 4, 5, 8, 7, 6];
 
 /// The visible 160×80 landscape frame of the 0.96" TFT: GRAM columns 26..106 × rows 1..161.
 /// With the driver's rotation 3 (MADCTL MV|MX|BGR) the app's x axis runs down GRAM rows and its
@@ -64,7 +69,8 @@ pub struct Atech14 {
     spi: SpiBitBang,
     /// the Knob V1.1's 12-LED ring, in physical order (see `KNOB_RING_PHYSICAL`)
     pub ring: Ws2812Chain,
-    /// the two 3×3 Light Grids, in glass order (see `GRID_PHYSICAL`)
+    /// the two 3×3 Light Grids, in glass order with the board upright — a different map each,
+    /// since the two slots mount the module at 90° to one another
     pub grid_7: Ws2812Chain,
     pub grid_11: Ws2812Chain,
     pub gpio_events: u64,
@@ -75,7 +81,7 @@ impl Default for Atech14 { fn default() -> Self { Self::new() } }
 impl Atech14 {
     pub fn new() -> Self {
         Atech14 { tft: DcsPanel::st7735(), spi: SpiBitBang::new(PIN_TFT_SCLK, PIN_TFT_MOSI, PIN_TFT_CS), ring: Ws2812Chain::mapped(&KNOB_RING_PHYSICAL),
-                  grid_7: Ws2812Chain::mapped(&GRID_PHYSICAL), grid_11: Ws2812Chain::mapped(&GRID_PHYSICAL), gpio_events: 0 }
+                  grid_7: Ws2812Chain::mapped(&GRID_PHYSICAL_PORT7), grid_11: Ws2812Chain::mapped(&GRID_PHYSICAL_PORT11), gpio_events: 0 }
     }
     /// What the 160×80 glass shows.
     pub fn tft_frame(&self) -> Vec<u16> { tft_frame_160x80(&self.tft) }

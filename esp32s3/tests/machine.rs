@@ -484,20 +484,21 @@ fn due_script_stop_precedes_execution_and_observes_edits_between_runs() {
     }
 }
 
-/// The Light Grid's chain is column-serpentine on the glass (connector at the bottom): down the
-/// left column, up the middle, down the right. Measured on the board with `set_grid_pixel`, one
-/// chain LED at a time. The SID player writes one chain column per voice filling chain rows from
-/// the bottom, so the glass shows the lowest step of every voice as the right column.
+/// The Light Grid's chain is column-serpentine on the glass: down the left column, up the middle,
+/// down the right. Measured one LED at a time on the board with the `grid-selftest` firmware,
+/// motherboard upright. Port 11 holds the same module turned 90° clockwise — the slot decides —
+/// so it needs its own map. A frame written in chain order therefore scatters: one chain column
+/// per voice puts every voice's lowest step in the right column of the glass.
 #[test]
 fn light_grid_reports_the_glass_not_the_chain() {
-    use esp32s3::board::GRID_PHYSICAL;
+    use esp32s3::board::{GRID_PHYSICAL_PORT7, GRID_PHYSICAL_PORT11};
     use esp_soc::devices::Ws2812Chain;
     let px = |r: u8, g: u8, b: u8| -> Vec<bool> { let v = (g as u32) << 16 | (r as u32) << 8 | b as u32; (0..24).map(|i| v >> (23 - i) & 1 != 0).collect() };
-    // the self-test readings that pinned the map: chain 0, 1, 3 lit one at a time
+    // chain 0, 1 and 3 were read off the board; 5 and 8 follow from the serpentine, pinned too
     for (chain, cell, name) in [(0usize, (0usize, 0usize), "top-left"), (1, (1, 0), "middle-left"), (3, (2, 1), "bottom-centre"), (5, (0, 1), "top-centre"), (8, (2, 2), "bottom-right")] {
         let mut bits = Vec::new();
         for i in 0..9 { if i == chain { bits.extend(px(51, 0, 0)); } else { bits.extend(px(0, 0, 0)); } }
-        let mut g = Ws2812Chain::mapped(&GRID_PHYSICAL); g.from_bits(&bits);
+        let mut g = Ws2812Chain::mapped(&GRID_PHYSICAL_PORT7); g.from_bits(&bits);
         let lit: Vec<usize> = (0..9).filter(|&k| g.leds[k] != [0, 0, 0]).collect();
         assert_eq!(lit, vec![cell.0 * 3 + cell.1], "chain {} lights the {} cell", chain, name);
     }
@@ -506,11 +507,22 @@ fn light_grid_reports_the_glass_not_the_chain() {
     let mut bits = Vec::new();
     for _ in 0..6 { bits.extend(px(0, 0, 0)); }
     for (r, g, b) in [blue, magenta, orange] { bits.extend(px(r, g, b)); }
-    let mut g = Ws2812Chain::mapped(&GRID_PHYSICAL); g.from_bits(&bits);
+    let mut g = Ws2812Chain::mapped(&GRID_PHYSICAL_PORT7); g.from_bits(&bits);
     let cell = |row: usize, col: usize| g.leds[row * 3 + col];
     assert_eq!(cell(0, 2), [0, 38, 51], "voice 0's lowest step (chain 6) is top-right");
     assert_eq!(cell(1, 2), [51, 0, 34], "voice 1's lowest step (chain 7) is middle-right");
     assert_eq!(cell(2, 2), [51, 26, 0], "voice 2's lowest step (chain 8) is bottom-right");
     assert_eq!((0..9).filter(|&k| g.leds[k] != [0, 0, 0]).count(), 3);
     let mut chain = Ws2812Chain::new(9); chain.from_bits(&bits); assert_eq!(chain.leds[6], [0, 38, 51], "an unmapped chain keeps chain order");
+
+    // Port 11 is the same module in a right-column slot: 90 degrees clockwise, so cell
+    // (row, col) of port 7 is (col, 2 - row) there. Measured with both grids lit at once.
+    for (chain_i, cell7, cell11) in [(0usize, (0usize, 0usize), (0usize, 2usize)), (1, (1, 0), (0, 1)), (3, (2, 1), (1, 0))] {
+        let mut b = Vec::new();
+        for i in 0..9 { if i == chain_i { b.extend(px(51, 0, 0)); } else { b.extend(px(0, 0, 0)); } }
+        let mut g7 = Ws2812Chain::mapped(&GRID_PHYSICAL_PORT7); g7.from_bits(&b);
+        let mut g11 = Ws2812Chain::mapped(&GRID_PHYSICAL_PORT11); g11.from_bits(&b);
+        assert_eq!(g7.leds[cell7.0 * 3 + cell7.1], [51, 0, 0], "chain {} on port 7", chain_i);
+        assert_eq!(g11.leds[cell11.0 * 3 + cell11.1], [51, 0, 0], "chain {} on port 11", chain_i);
+    }
 }
