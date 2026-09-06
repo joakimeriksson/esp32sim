@@ -23,11 +23,11 @@ Initializing...
 ================ ATECH BOOT ================
   Boot count : 1
   Reset cause: POWERON (1)
-  Free heap  : 362336 bytes
-  Min heap   : 357116 bytes (lowest since boot)
+  Free heap  : 362328 bytes
+  Min heap   : 357108 bytes (lowest since boot)
   CPU freq   : 240 MHz
 ============================================
-[sid] 4 tunes embedded, C64 allocated on demand (free heap 348460)
+[sid] 4 tunes embedded, C64 allocated on demand (free heap 348452)
 ST7735 display initialized (160x80, double-buffered)
 [RotaryEncoder] Ring initialized on pin 8
 [Atech] Transport: USB-Serial
