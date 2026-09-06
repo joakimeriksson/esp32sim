@@ -294,7 +294,7 @@ broadcasts reach the Sky and the Sky's reach Contiki on the C6.
 The Waveshare ESP32-C6-LCD-1.47 wires an ST7789 172×320 panel to SPI2 (MOSI 6, SCLK 7, CS 14,
 D/C 15, RST 21, backlight 22 on LEDC), a WS2812 to GPIO 8 over the RMT, a BOOT button on GPIO 9
 and a TF card to the same SPI bus (MISO 5, CS 4; not modelled). `esp32c6/src/board.rs` is the
-board: an `St7789` fed the SPI bytes with the D/C GPIO level (commands and parameters are
+board: a `DcsPanel` (esp-soc `devices`) with the ST7789's RAM, fed the SPI bytes with the D/C GPIO level (commands and parameters are
 separate transactions, and the driver sets D/C right before each one, so the bus delivers GPIO
 edges to the board before the bytes that follow them), the LED decoded from the RMT frame, the
 button as `press boot 150` in a script.

@@ -1,6 +1,6 @@
 //! The Waveshare ESP32-C6-LCD-1.47 board model on its own: the ST7789 fed command and pixel bytes
 //! with the D/C line, and the WS2812 decoded from an RMT frame.
-use esp32c6::board::{St7789, WaveshareC6Lcd147, PIN_LCD_DC};
+use esp32c6::board::{WaveshareC6Lcd147, LCD_COL_OFFSET, LCD_VISIBLE_COLS, PIN_LCD_DC};
 use esp_soc::BoardModel;
 
 fn cmd(b: &mut WaveshareC6Lcd147, c: u8, params: &[u8]) {
@@ -29,7 +29,7 @@ fn st7789_window_madctl_and_visible_columns() {
     assert_eq!(px[10 * 172], 0xf800, "top-left of the window at visible (0, 10)");
     assert_eq!(px[11 * 172 + 1], 0xf800);
     assert_eq!(px[10 * 172 + 2], 0, "outside the window stays black");
-    assert_eq!(b.panel.bbox(), Some((St7789::COL_OFFSET + St7789::VISIBLE_COLS - 2, 10, St7789::COL_OFFSET + St7789::VISIBLE_COLS - 1, 11)));
+    assert_eq!(b.panel.bbox(), Some((LCD_COL_OFFSET + LCD_VISIBLE_COLS - 2, 10, LCD_COL_OFFSET + LCD_VISIBLE_COLS - 1, 11)));
     // the reset pin low clears the panel state (RAM survives, as on silicon)
     b.gpio_changes(&[(esp32c6::board::PIN_LCD_RST, false)]);
     assert!(b.panel.sleeping && b.panel.resets == 1);
