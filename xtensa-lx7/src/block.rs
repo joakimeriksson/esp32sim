@@ -61,7 +61,10 @@ pub struct BlockCache {
     pub builds: u64,
     pub flushes: u64,
     /// native code for blocks, when the host supports it and `jit_enabled`
+    #[cfg(not(target_arch = "wasm32"))]
     code: Option<crate::jit::CodeCache>,
+    #[cfg(target_arch = "wasm32")]
+    code: Option<Box<crate::jit::CodeCache>>,
     pub jit_enabled: bool,
     /// A machine observer requires one callback for each individual block execution.
     pub observed: bool,
@@ -72,11 +75,16 @@ pub struct BlockCache {
 
 impl BlockCache {
     pub fn new() -> Self {
+        let code = crate::jit::CodeCache::new(CODE_SIZE);
+        // WASM moves the owner out during every compiled call to keep CPU borrows
+        // disjoint. Move a pointer instead of all cache collection metadata.
+        #[cfg(target_arch = "wasm32")]
+        let code = code.map(Box::new);
         BlockCache {
                      #[cfg(all(target_arch = "wasm32", feature = "wasm-jit-profile"))]
                      profile: crate::jit::profile::Profile::default(),
                      entries: vec![Entry::EMPTY; ENTRIES], arena: Vec::with_capacity(ARENA_MAX + MAX_LEN), resume: (0, 0, 1), builds: 0, flushes: 0,
-                     code: crate::jit::CodeCache::new(CODE_SIZE), jit_enabled: crate::jit::AVAILABLE, observed: false, compiled: 0, jit_instructions: 0 }
+                     code, jit_enabled: crate::jit::AVAILABLE, observed: false, compiled: 0, jit_instructions: 0 }
     }
     pub fn flush(&mut self) {
         for e in self.entries.iter_mut() { *e = Entry::EMPTY; }
