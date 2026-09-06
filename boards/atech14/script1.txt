@@ -1,8 +1,0 @@
-# seconds  command
-1.5  press btn1 150
-2.2  knob cw 2
-2.8  press btn1 150
-3.4  press btn2 120
-4.0  serial {"action":"set_note","value":"9"}
-4.3  press btn1 150
-5.0  stop

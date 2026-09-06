@@ -40,7 +40,7 @@ output is left next to the golden as `*.actual` for diffing.
 
 | golden | what it covers |
 | --- | --- |
-| `atech-script1.*` | Pocket Synth: buttons, encoder, serial command, ST7735 over bit-banged SPI, WS2812 via RMT, SID voice on I2S/GDMA; also asserted equal to `boards/atech14/regression.wav`, and re-run with `--no-jit` (the JIT's oracle) |
+| `atech-script1.*` | Pocket Synth: buttons, encoder, serial command, ST7735 over bit-banged SPI, WS2812 via RMT, SID voice on I2S/GDMA; re-run with `--no-jit` (the JIT's oracle) |
 | `atech-sid.*` | the cRSID C64 jukebox: a 6502 + SID inside the emulated S3 |
 | `panel-sid.*` | Touch-LCD-4B energy panel: PSRAM, LCD_CAM RGB frames, GT911 touch and TCA9554 over I2C, ES8311 on I2S, a demo partition via `--flash-at` |
 | `hello-s3.*` | stock ESP-IDF hello_world on UART0, ROM → bootloader → app_main |
