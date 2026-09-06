@@ -23,5 +23,5 @@ cover the RISC-V side.
 | [wasm-plan.md](wasm-plan.md) | The plan the browser build followed, with the original measurements; status at the top |
 | [testing-plan.md](testing-plan.md) | Plan: test layers, CPU/SoC/board/firmware suites, CI tiers, milestones |
 
-Board-specific material lives next to the board: `../boards/atech14/README.md`,
-`../examples/waveshare-cam/README.md`. The top-level `../README.md` is the quick start.
+Board-specific material lives next to the board: `../examples/waveshare-cam/README.md`.
+The Atech Pocket Synth firmware is its own project: [atech-firmware](https://github.com/joakimeriksson/atech-firmware). The top-level `../README.md` is the quick start.

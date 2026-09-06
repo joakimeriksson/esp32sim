@@ -1,9 +1,0 @@
-{
-  "name": "crsid",
-  "version": "1.0.0",
-  "description": "cRSID by Hermit (Mihaly Horvath), WTFPL - full C64 SID player: 6502 CPU, SID, CIA and VIC emulation, plays .sid tunes",
-  "build": {
-    "srcFilter": ["+<libcRSID.c>"],
-    "includeDir": "."
-  }
-}

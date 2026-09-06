@@ -33,8 +33,6 @@ fn atech_script1() {
     expect_text("atech-script1.console.txt", &r.stdout);
     expect_sha("atech-script1.wav.sha256", &wav);
     expect_u64("atech-script1.insns", r.insns);
-    // the committed fixture from the board directory must be the same audio
-    assert_eq!(wav, std::fs::read(root().join("boards/atech14/regression.wav")).unwrap(), "boards/atech14/regression.wav drifted from the emulator's output");
 }
 
 /// `--no-jit` is the oracle: the block interpreter and the JIT must agree bit for bit.

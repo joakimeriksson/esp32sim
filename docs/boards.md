@@ -43,7 +43,10 @@ The SoC model produces the events; the board interprets them. `make_board(name)`
 | Buttons 1/2 | GPIO 17 / 16, active low | |
 | MAX98357A amp | I2S0: BCLK 12, LRCLK 13, DIN 10 | audio captured from I2S0/GDMA |
 
-Firmware, the scripted scenario and its audio fixture: `boards/atech14/`.
+Firmware and its board build: [atech-firmware](https://github.com/joakimeriksson/atech-firmware). The images this repo runs,
+and the scripted scenario, are in `web/wasm/fw/public/`.
+`tools/update-atech-demo.sh` rebuilds those images from a checkout of the firmware repo,
+re-pins the commit in the manifests and regenerates the goldens they move.
 
 ## `waveshare-cam` — Waveshare ESP32-S3-CAM-OV5640
 

@@ -68,7 +68,7 @@ Things that cost real time to find out, recorded so they do not have to be found
   calibration with no RF) it eats half the emulator — see networking-plan.md.
 - **The generated Pocket Synth firmware's waveform button was a stub** (all names
   "TRIANGLE", oscillator ignoring `waveform`); the emulator was faithful. Now replaced by
-  the SID engine in `boards/atech14/firmware/lib/sid`.
+  the SID engine in the firmware's `lib/sid` ([atech-firmware](https://github.com/joakimeriksson/atech-firmware)).
 - **Chrome remote-control clicks are not user gestures**: WebAudio stays suspended in
   automated tests; verify audio by WAV capture, not by listening.
 
