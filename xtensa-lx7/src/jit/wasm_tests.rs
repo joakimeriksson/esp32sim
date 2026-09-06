@@ -408,11 +408,32 @@ fn hardware_loops() -> u32 {
     }
     // LCOUNT-writing suffixes cannot enter production compilation, so accounting
     // may use LCOUNT deltas as backedge counts even after the suffix executes.
-    for op in [Op::Wsr, Op::Xsr, Op::Loop, Op::Loopnez, Op::Loopgtz] {
+    for op in [Op::Wsr, Op::Xsr] {
         let mut rejected = [insn(Op::Add), insn(Op::MovN), insn(op)];
         rejected[2].insn.imm = crate::state::sr::LCOUNT as i32;
         assert!(compile(&mut CodeCache::new(0).unwrap(), &mut rejected, BASE, true).is_none());
         cases += 1;
+    }
+    // Review spike: LOOP* suffixes compile, but such a block never gets a retained prefix.
+    for op in [Op::Loop, Op::Loopnez, Op::Loopgtz] {
+        let mut block = [insn(Op::Add), insn(Op::MovN), insn(op)];
+        block[2].insn.imm = (BASE + 0x40) as i32; // LEND target
+        block[2].insn.s = 6;
+        block[2].max_ar = crate::exec::max_ar(&block[2].insn);
+        let mut cc = CodeCache::new(0).unwrap();
+        let code = compile(&mut cc, &mut block, BASE, true).expect("LOOP suffix compiles");
+        assert_eq!(cc.blocks[code as usize].loop_prefix, 0, "LOOP suffix must not be a retained prefix");
+        for count in [0u32, 1, 2, 0x8000_0000, u32::MAX] {
+            for entry in 0..3 {
+                for budget in 1..=3 {
+                    for loop_end in [false, true] {
+                        compare_configured(&mut block, 9, entry, budget, None, true, false, loop_end,
+                            false, |c| { c.set_ar(6, count); });
+                        cases += 1;
+                    }
+                }
+            }
+        }
     }
     // Stores to either code page must stop at the first loop end, including aliases.
     // An observer head also stops there; a slow access exits after that instruction.

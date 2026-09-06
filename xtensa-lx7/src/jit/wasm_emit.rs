@@ -87,6 +87,7 @@ pub(super) fn supported(op: crate::Op, fast: bool) -> bool {
             | Bbsi
             | Bbc
             | Bbs
+            | Loop | Loopnez | Loopgtz
     ) || float::supported(op) || (fast
         && matches!(
             op,
@@ -893,6 +894,33 @@ fn emit_instruction(
             g.cpu_const(PC, imm);
             g.ret(CODE_LEFT);
             g.end();
+        }
+        Loop | Loopnez | Loopgtz => {
+            // Review spike. Mirrors exec.rs: LCOUNT = AR[s] - 1, LBEG = next, LEND = target;
+            // LOOPNEZ/LOOPGTZ skip the body when the count is zero / non-positive. Blocks
+            // containing these never receive a retained loop prefix (see queue), so the
+            // LCOUNT-delta accounting in run() is unaffected.
+            g.get(0);
+            g.ar(s);
+            g.c(1);
+            g.op(0x6b);
+            g.store(LCOUNT);
+            g.cpu_const(LBEG, next);
+            g.cpu_const(LEND, imm);
+            if i.op != Loop {
+                g.ar(s);
+                if i.op == Loopnez {
+                    g.op(0x45); // i32.eqz
+                } else {
+                    g.c(0);
+                    g.op(0x4c); // i32.le_s
+                }
+                g.begin_if();
+                g.advance();
+                g.cpu_const(PC, imm);
+                g.ret(CODE_LEFT);
+                g.end();
+            }
         }
         Bbci | Bbsi | Bbc | Bbs => {
             g.ar(s);
