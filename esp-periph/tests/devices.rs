@@ -254,3 +254,30 @@ fn gpio_enable_toggle_reports_the_edge() {
     g.write(0x8, 1 << 15);                       // out goes to 1 while enabled: the usual edge still works
     assert_eq!(g.changes, vec![(15, true)]);
 }
+
+/// Host input is USB: packets of at most 64 bytes, one RECV_PKT interrupt each. A driver that
+/// drains one packet per interrupt (Arduino's HWCDC) must be handed the rest of a longer line
+/// as further packets, or the line's tail — and its newline — is stranded in the FIFO.
+#[test]
+fn usb_serial_host_input_arrives_as_64_byte_packets_with_an_interrupt_each() {
+    use esp_periph::usb_serial_jtag::USB_PACKET;
+    let mut u = UsbSerialJtag::new(240_000_000);
+    let line: Vec<u8> = (0..150u8).collect();
+    u.host_input(&line);
+    let drain = |u: &mut UsbSerialJtag| -> Vec<u8> {
+        // the driver: see RECV_PKT, clear it, read up to 64 bytes while the FIFO says data is there
+        assert!(u.read(0x8) & (1 << 2) != 0, "RECV_PKT raised for this packet");
+        u.write(0x14, 1 << 2);
+        let mut got = Vec::new();
+        while got.len() < USB_PACKET && u.read(0x4) & (1 << 2) != 0 { got.push(u.read(0x0) as u8); }
+        got
+    };
+    let a = drain(&mut u); assert_eq!(a, &line[..64], "first packet is the first 64 bytes");
+    assert!(u.read(0x8) & (1 << 2) != 0, "the next packet re-raises RECV_PKT after the first is read out");
+    let b = drain(&mut u); assert_eq!(b, &line[64..128]);
+    let c = drain(&mut u); assert_eq!(c, &line[128..], "the last packet is the 22-byte tail");
+    assert!(u.read(0x8) & (1 << 2) == 0 && u.read(0x4) & (1 << 2) == 0, "nothing left");
+    // a short line is one packet, as before
+    u.host_input(b"{\"action\":\"play_sid\",\"value\":\"0\"}\n");
+    assert_eq!(drain(&mut u).len(), 34);
+}
