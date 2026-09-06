@@ -47,7 +47,8 @@ A board is one `impl esp_soc::BoardModel`: the SoC emits pin-level events and as
 what the UI needs. The chip model never knows what board it is on. Two real ones to copy from:
 `Atech14` (bit-banged SPI display on GPIOs, WS2812 ring on RMT, buttons and an encoder) and
 `WaveshareLcd4b` (I2C IO expander and touch controller, RGB panel on LCD_CAM, codec on I2S), both
-in `esp32s3/src/board.rs`.
+under `esp32s3/src/board/`. The device models a board is built from — DCS display
+controllers, WS2812 chains, a bit-banged SPI slave — are in `esp-soc/src/devices/`.
 
 Say the new board has a BME280-style I2C sensor, a status LED on GPIO 5, and a button on GPIO 0.
 

@@ -46,7 +46,7 @@ esp32sim/
   esp32s3/        SoC + boards: memory map, cache MMU, SPI flash/PSRAM, SHA/AES/RSA, RNG,
                   systimer, timer groups, interrupt matrix (per core), GPIO, USB-CDC,
                   UARTs, I2C, GDMA + I2S/LCD_CAM, RMT TX, regi2c, RTC WDT, WiFi MAC + virtual
-                  AP + NAT; board.rs: atech14 / waveshare-cam / waveshare-lcd4b / waveshare-amoled18-v2 / none
+                  AP + NAT; board/: atech14 / waveshare-cam / waveshare-lcd4b / waveshare-amoled18-v2 / none
   cli/            the `esp32sim` command line, every chip (`--chip`); `esp32sim-c3` / `esp32sim-c6` are alias binaries
   ── ESP32-C3 and ESP32-C6 (RISC-V, single core) ──
   riscv-rv32/     RV32IMAC decoder (verified 100% against objdump), interpreter, disassembler
