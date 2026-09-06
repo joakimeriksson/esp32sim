@@ -1,9 +1,11 @@
 //! Bounded regions: a hot block and the blocks reachable from it over statically known
-//! edges (fallthrough, conditional-branch target, J) compiled as one function. Guest
-//! registers stay in locals across internal edges; the only per-edge work is the credit
-//! check and a jump. Everything that could make an internal boundary observable exits the
-//! region instead: helpers set DIRTY, probes and self-modifying code are checked by the
-//! caller, and window rotation, hardware loops and dynamic transfers are never admitted.
+//! edges (fallthrough, conditional-branch target, J, and the backedge of a hardware loop
+//! set up inside the region) compiled as one function. Guest registers stay in locals
+//! across internal edges; the only per-edge work is the credit check and a jump.
+//! Everything that could make an internal boundary observable exits the region instead:
+//! helpers set DIRTY, probes and self-modifying code are checked by the caller, calls,
+//! returns and computed jumps end the region, and the one admitted window rotation
+//! (ENTRY) re-proves the window before anything after it runs.
 use super::*;
 use crate::block::{ends_block, must_start_block, pc_bit, MAX_LEN};
 use crate::decode::decode;
@@ -110,7 +112,8 @@ fn chunk<B: Bus>(cpu: &Cpu, bus: &mut B, head: u32, pc0: u32, fast: bool, room: 
 }
 
 /// A hardware loop's last instruction ends exactly at LEND; make that a chunk boundary
-/// so the backedge can be an ordinary edge to the LBEG chunk.
+/// so the backedge can be an ordinary edge to the LBEG chunk. Each split adds at most
+/// one chunk per loop, so the total stays within MAX_CHUNKS plus the loop count.
 fn split_at_loop_ends(chunks: &mut Vec<Chunk>, loops: &[(u32, u32)]) {
     let mut k = 0;
     while k < chunks.len() {
@@ -175,6 +178,7 @@ pub(in crate::jit) fn form<B: Bus>(cpu: &Cpu, bus: &mut B, head: u32, block: &[B
     loops.dedup();
     if loops.windows(2).any(|w| w[0].0 == w[1].0) { return None }
     split_at_loop_ends(&mut chunks, &loops);
+    if chunks.len() > MAX_CHUNKS + loops.len() { return None }
     let (mut lo, mut hi) = (u32::MAX, 0u32);
     let mut pages: Vec<(u32, u32)> = Vec::new();
     for c in &chunks {
@@ -263,17 +267,8 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
         region: Some(RegionGen { heads, current: 0, loop_depth: 0, chunk_depth: 0, sites: Vec::new(), page_lo, page_hi, loops }),
         ..Gen::default()
     };
-    // Only a fresh entry with credit for the whole head chunk may run here; anything
-    // else takes the head block's own module, which handles cuts and resumes.
-    g.get(4);
-    g.get(3);
-    g.c(chunks[0].instructions.len() as u32);
-    g.op(0x49);
-    g.op(0x72);
-    g.begin_if();
-    g.c(CODE_REJECT << 16);
-    g.op(0x0f);
-    g.end();
+    // The caller has checked the credit for the entry chunk; window and coprocessor
+    // state are proved here. Anything else takes a block module, which handles cuts.
     g.reload();
     if guard_max_ar >= 4 {
         g.get(WINDOWS);
@@ -296,7 +291,7 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
     }
     g.c(0);
     g.set(DIRTY);
-    g.c(0);
+    g.get(4); // the entry chunk
     g.set(NEXT);
     g.begin_loop();
     let loop_depth = g.depth();
