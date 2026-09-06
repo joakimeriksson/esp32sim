@@ -120,6 +120,7 @@ void gateVoice(int v, float freq, int durationMs) {
   sid_set_control(&sid, v, sidWaveBits(sidVoices[v].waveform) | SID_CTRL_GATE);
 }
 static void gridsUpdate();            // the light grids follow the voices; defined with the player below
+static bool gridTestActive = false;   // set_grid_pixel holds the grids: the VU stays away until index -1 clears it
 
 void renderVoices() {
   // SID: render until every gate is closed and every envelope has died out (max 3 s)
@@ -300,6 +301,7 @@ static void gridsSetVoice(uint8_t voice, uint8_t level) {
 
 static void gridsUpdate() {
   static uint32_t lastMs = 0;
+  if (gridTestActive) return;          // a hardware self-test owns the grids
   if (millis() - lastMs < GRID_FRAME_MS) return;
   lastMs = millis();
   for (uint8_t v = 0; v < 3; v++) {
@@ -554,6 +556,29 @@ void handleMessage(const char* action, const char* value) {
       playCurrentNote();
     }
     wifi.postStateEvent("note_triggered", NOTE_NAMES[noteIndex]);
+    return;
+  }
+  // Hardware self-test for the Light Grids: light one chain index on one grid (or both), so the
+  // physical placement of chain LED i can be read off the glass — how docs/boards.md's
+  // GRID_PHYSICAL map was established. {"grid":7|11|0(both),"index":0..8,"r":..,"g":..,"b":..};
+  // index -1 clears the grid.
+  if (strcmp(action, "set_grid_pixel") == 0) {
+    JsonDocument d;
+    if (deserializeJson(d, value) != DeserializationError::Ok) return;
+    if (!d.is<JsonObject>() || !d["index"].is<int>()) return;
+    int grid = d["grid"].is<int>() ? (int)d["grid"] : 0;
+    int index = d["index"];
+    int r = d["r"].is<int>() ? (int)d["r"] : 51, g = d["g"].is<int>() ? (int)d["g"] : 51, b = d["b"].is<int>() ? (int)d["b"] : 51;
+    if (index < -1 || index > 8 || r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255) return;
+    gridTestActive = index >= 0;         // -1 hands the grids back to the VU
+    NeoPixelGrid* grids[2] = { &light_grid_7, &light_grid_11 };
+    for (int i = 0; i < 2; i++) {
+      if (grid != 0 && grid != (i == 0 ? 7 : 11)) continue;
+      grids[i]->clear();
+      if (index >= 0) grids[i]->setPixel((uint8_t)index, (uint8_t)r, (uint8_t)g, (uint8_t)b);
+      grids[i]->show();
+    }
+    Serial.printf("[grid] %s index %d = (%d,%d,%d)\n", grid == 0 ? "both" : (grid == 7 ? "port 7" : "port 11"), index, r, g, b);
     return;
   }
   if (strcmp(action, "set_ring_color") == 0) {

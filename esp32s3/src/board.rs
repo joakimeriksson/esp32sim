@@ -183,16 +183,30 @@ impl St7735 {
 }
 
 /// WS2812 ring fed by RMT symbols.
-pub struct Ring { pub leds: Vec<[u8; 3]>, pub updates: u64 }
+/// Where chain index `i` of a Light Grid V1.1 sits on the glass, as a row-major cell of the 3×3 the
+/// page draws, with the module's ESP32 connector at the bottom. The chain is wired
+/// column-serpentine: down the left column (0, 1, 2), up the middle (3 at the bottom, 5 at the
+/// top), down the right (6, 7, 8). Measured on the board, one chain LED at a time, with the
+/// firmware's `set_grid_pixel` self-test — chain 0 top-left, 1 middle-left, 3 bottom-centre
+/// pin it; the rest confirm. The firmware's `xyToIndex` is plain row-major, so the SID
+/// player's per-voice chain columns are scattered on the glass: with every voice at its
+/// lowest step the glass shows the right column, blue at the top and orange at the bottom,
+/// and with all three voices high it shows `BOB / MMM / OBO`.
+pub const GRID_PHYSICAL: [usize; 9] = [0, 3, 6, 7, 4, 1, 2, 5, 8];
+
+pub struct Ring { pub leds: Vec<[u8; 3]>, pub updates: u64, physical: Option<&'static [usize; 9]> }
 impl Ring {
-    pub fn new(n: usize) -> Self { Ring { leds: vec![[0; 3]; n], updates: 0 } }
+    pub fn new(n: usize) -> Self { Ring { leds: vec![[0; 3]; n], updates: 0, physical: None } }
+    /// A 3×3 grid: chain order in, physical order out (`leds[GRID_PHYSICAL[i]]` holds chain LED `i`).
+    pub fn grid() -> Self { Ring { leds: vec![[0; 3]; 9], updates: 0, physical: Some(&GRID_PHYSICAL) } }
     /// Decode a WS2812 bit stream (GRB order) into LED colours.
     pub fn from_bits(&mut self, bits: &[bool]) {
         let n = bits.len() / 24;
         for i in 0..n.min(self.leds.len()) {
             let mut v = 0u32;
             for b in 0..24 { v = (v << 1) | bits[i * 24 + b] as u32; }
-            self.leds[i] = [((v >> 8) & 0xff) as u8, ((v >> 16) & 0xff) as u8, (v & 0xff) as u8];   // GRB -> RGB
+            let at = match self.physical { Some(m) => m[i], None => i };
+            self.leds[at] = [((v >> 8) & 0xff) as u8, ((v >> 16) & 0xff) as u8, (v & 0xff) as u8];   // GRB -> RGB
         }
         self.updates += 1;
     }
@@ -210,7 +224,7 @@ pub struct Atech14 {
 impl Default for Atech14 { fn default() -> Self { Self::new() } }
 
 impl Atech14 {
-    pub fn new() -> Self { Atech14 { tft: St7735::new(), ring: Ring::new(12), grid_7: Ring::new(9), grid_11: Ring::new(9), gpio_events: 0 } }
+    pub fn new() -> Self { Atech14 { tft: St7735::new(), ring: Ring::new(12), grid_7: Ring::grid(), grid_11: Ring::grid(), gpio_events: 0 } }
 }
 
 impl BoardModel for Atech14 {
