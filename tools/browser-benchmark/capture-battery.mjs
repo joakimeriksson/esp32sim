@@ -40,15 +40,16 @@ try {
     if (Date.now() > deadline) throw Error('Battery page did not initialize');
     await sleep(100);
   }
-  await evaluate('worker.postMessage({start:true});true');
+  await evaluate('worker.postMessage({start:true,jit:new URL(location.href).searchParams.get("jit")!=="0"});true');
   let result;
   while (!result) {
     await sleep(3000);
-    const state = await evaluate('({result:window.result,progress:window.events?.filter(e=>e.type==="progress").at(-1)})');
+    const state = await evaluate('({result:window.result,error:window.events?.find(e=>e.type==="error"),progress:window.events?.filter(e=>e.type==="progress").at(-1)})');
+    if (state?.error) throw Error(state.error.line);
     result = state?.result;
     console.log(JSON.stringify(state));
   }
-  await fs.writeFile(path.join(output, 'result.json'), JSON.stringify({version, result}, null, 2));
+  await fs.writeFile(path.join(output, 'result.json'), JSON.stringify({captureMode:'timing', version, result}, null, 2));
   await fs.writeFile(path.join(output, 'events.json'), JSON.stringify(await evaluate('window.events')));
   if (!result.passed) process.exitCode = 1;
 } finally {

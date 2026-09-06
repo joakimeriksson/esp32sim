@@ -38,6 +38,43 @@ smoke baseline, not a latency distribution. Animation-frame callback timestamps 
 prove when the screen displayed the pixels. Firmware timing still uses the simulator's
 instruction-count model.
 
+## Build and time matched pairs
+
+`run-pairs.py` builds both checkouts before starting Chrome, then alternates fresh
+baseline and candidate captures. Give it the firmware asset map above (the `wasm`
+entry is replaced by each build):
+
+```sh
+python3 tools/browser-benchmark/run-pairs.py target/browser-pairs \
+  --baseline-tree /absolute/path/baseline-checkout \
+  --candidate-tree /absolute/path/candidate-checkout \
+  --assets /absolute/path/assets.json --pairs 3
+```
+
+It retains the binaries, source hashes and diff, build logs, browser versions, raw
+console events, and a `summary.json` with individual pairs and median wall time.
+Every run must pass the 36 firmware checks defined in `verdict-schema.json`,
+report zero JIT failures, and match the expected instruction total; each capture's
+`result.json` records success as `result.passed`. The current TinyDraw battery expects
+9,819,885,134 instructions; changing
+`--expected-instructions` requires a separately justified workload baseline. Inputs
+must stay identical within each arm; firmware, harness, browser and console output
+must match across arms. Stop other builds and simulator runs during timing.
+Execution timing starts after firmware loading and boot initialization, and ends after
+the completed automated verdict has been drained and validated. The summary reports
+separate baseline/candidate median wall times, the reduction `100 × (1 − candidate
+median / baseline median)`, and each matched pair's percentage reduction. Setup time
+is recorded separately.
+
+Use `--pairs 1` for screening only. Three pairs are a starting point, not a confidence
+guarantee. `--baseline-wasm` and `--candidate-wasm` reuse existing artifacts; check
+their build provenance before interpreting results. Explicit compiler experiments
+can use `--candidate-rustflags='-Ctarget-feature=+simd128'`; ambient `RUSTFLAGS` are
+otherwise cleared. Use `--chrome /path/to/chrome` if Chrome is not installed at the
+standard macOS location. `--archive /path/to/extracted-review-bundle` can supply its
+firmware assets instead of `--assets`. These timings exclude canvas rendering and
+do not establish input latency or hardware clock accuracy.
+
 ## CPU sampling
 
 For uninstrumented battery timing, use an ordinary release build and the headless
@@ -138,8 +175,13 @@ settling. These intervals include setup and console delivery between milestones;
 are not isolated function timings or guest-device measurements.
 
 The tool requires matching console hashes, instruction counts, final firmware verdicts,
-Chrome versions and V8 versions. Verify matching firmware hashes and ordinary, unprofiled
-builds from the capture provenance too. Run comparisons serially with other builds and
+Chrome versions and V8 versions. It also requires an explicit timing capture mode,
+zero JIT failures, stable build hashes within each arm, and matching firmware and
+harness hashes. Only the WASM may differ by default; declare other intended differences
+with `--allow-change` followed by the exact provenance key. `--legacy` permits inspection
+of older receipts without certifying their capture mode or build identity. `--screening`
+permits fewer than three pairs. Verify ordinary, unprofiled build settings from the
+retained build records too. Run comparisons serially with other builds and
 simulator workloads stopped; three samples per build are a starting point, not a
 statistical confidence guarantee.
 

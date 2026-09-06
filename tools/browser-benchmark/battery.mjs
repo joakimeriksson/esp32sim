@@ -37,13 +37,13 @@ export async function runBattery(load, emit, jit = true, chain = false) {
     while(w.esp32sim_cycles(emu)<hz*480 && performance.now()-executionStart<1800000){
       stopCode=w.esp32sim_run(emu,2000000,Date.now());drain();
       if(stopCode){status='stopped';break;}
-      if(/TINYDRAW_GATE1_AUTOMATED_DONE[^\r\n]*[\r\n]/.test(serial)){status='completed';break;}
       if(/Guru Meditation|TG1WDT_SYS_RST|stack overflow|task_wdt/.test(serial)||logs.some(l=>/chip reset|panic/i.test(l))){status='firmware-failure';break;}
+      if(/TINYDRAW_GATE1_AUTOMATED_DONE[^\r\n]*[\r\n]/.test(serial)){status='completed';break;}
       if(performance.now()-lastReport>2000){lastReport=performance.now();emit({type:'progress',guestSeconds:w.esp32sim_cycles(emu)/hz,wallSeconds:(lastReport-executionStart)/1000,frames,jit:{...blockJit.stats},tail:serial.slice(-400)});await new Promise(r=>setTimeout(r,0));}
     }
     const verdict=completedVerdict(serial, schema);
     const verdictValidation=validateVerdict(verdict, schema);
-    const result={status,stopCode,verdict,verdictValidation,passed:status==='completed'&&verdictValidation.passed,guestSeconds:w.esp32sim_cycles(emu)/hz,wallSeconds:(performance.now()-executionStart)/1000,setupSeconds:(executionStart-started)/1000,instructions:w.esp32sim_insns(emu),frames,chainedBackedges:optionalCounter(w, 'esp32sim_chained_backedges', emu),jit:{...blockJit.stats,instructions:w.esp32sim_block_jit_insns(emu)},logs};
+    const result={status,stopCode,verdict,verdictValidation,instrumented:typeof w.esp32sim_profile_report==='function'||typeof w.esp32sim_test_block_jit==='function',passed:status==='completed'&&verdictValidation.passed,guestSeconds:w.esp32sim_cycles(emu)/hz,wallSeconds:(performance.now()-executionStart)/1000,setupSeconds:(executionStart-started)/1000,instructions:w.esp32sim_insns(emu),frames,chainedBackedges:optionalCounter(w, 'esp32sim_chained_backedges', emu),jit:{...blockJit.stats,instructions:w.esp32sim_block_jit_insns(emu)},logs};
     w.esp32sim_profile_report?.(emu);emit({type:'result',...result});return result;
   }finally{w.esp32sim_delete(emu);}
 }

@@ -49,10 +49,19 @@ MILESTONES = (
 )
 
 
-def read_run(directory):
+def read_run(directory, *, legacy=False):
     directory = pathlib.Path(directory)
     capture = json.loads((directory / 'result.json').read_text())
     result, version = capture['result'], capture['version']
+    if not legacy:
+        if capture.get('captureMode') != 'timing':
+            raise ValueError(f'{directory}: missing explicit timing capture mode')
+        if result.get('instrumented'):
+            raise ValueError(f'{directory}: diagnostic exports present in timing capture')
+        if result.get('stopCode') != 0 or result.get('jit', {}).get('failed') != 0:
+            raise ValueError(f'{directory}: missing clean stop/JIT status or reported failure')
+        if not (result.get('provenance') or {}).get('sha256', {}).get('asset/wasm'):
+            raise ValueError(f'{directory}: missing build provenance')
     if not result['passed'] or result['status'] != 'completed':
         raise ValueError(f'{directory}: firmware did not complete successfully')
     validate_verdict(result.get('verdict'))
@@ -83,6 +92,10 @@ def read_run(directory):
                 if line.startswith(SCHEMA['marker'])]
     if verdicts != [result['verdict']] or SCHEMA['marker'] in pending:
         raise ValueError(f'{directory}: missing, duplicate or mismatched console verdict')
+    if re.search(r'Guru Meditation|TG1WDT_SYS_RST|stack overflow|task_wdt', serial) or any(
+            re.search(r'chip reset|panic', event.get('line', ''), re.I)
+            for event in events if event.get('type') in ('emu', 'log', 'error')):
+        raise ValueError(f'{directory}: firmware failure in captured output')
     intervals, previous = {}, 0
     for name, marker in MILESTONES:
         end = times.get(marker)
@@ -105,8 +118,21 @@ def read_run(directory):
     }
 
 
-def comparison(baseline, candidate):
+def comparison(baseline, candidate, *, legacy=False, allowed_changes=('asset/wasm',)):
     runs = baseline + candidate
+    if not baseline or not candidate:
+        raise ValueError('both arms require captures')
+    if not legacy:
+        for name, arm in (('baseline', baseline), ('candidate', candidate)):
+            identities = [run.get('provenance', {}).get('sha256', {}) if run.get('provenance') else {} for run in arm]
+            if any(not identity.get('asset/wasm') for identity in identities):
+                raise ValueError(f'{name}: missing build provenance')
+            if any(identity != identities[0] for identity in identities):
+                raise ValueError(f'{name}: mixed build or input provenance')
+        before, after = (arm[0]['provenance']['sha256'] for arm in (baseline, candidate))
+        for key in before.keys() | after.keys():
+            if key not in allowed_changes and before.get(key) != after.get(key):
+                raise ValueError(f'undeclared changed input: {key}')
     for field in ('instructions', 'consoleSha256', 'verdict', 'browser', 'v8'):
         if len({run[field] for run in runs}) != 1:
             raise ValueError(f'Unmatched {field}; inspect the runs before comparing performance')
@@ -140,9 +166,16 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--baseline', nargs='+', required=True, help='Capture directories, one per run')
     parser.add_argument('--candidate', nargs='+', required=True, help='Capture directories, one per run')
+    parser.add_argument('--legacy', action='store_true', help='Inspect older captures without certifying their capture mode or build identity')
+    parser.add_argument('--screening', action='store_true', help='Allow fewer than three pairs; not a production speed claim')
+    parser.add_argument('--allow-change', action='append', default=['asset/wasm'], help='Explicit provenance key allowed to differ between arms')
     args = parser.parse_args()
+    if not args.screening and (len(args.baseline) != len(args.candidate) or len(args.baseline) < 3):
+        parser.error('production comparison requires at least three matched pairs; use --screening for exploration')
     try:
-        result = comparison([read_run(p) for p in args.baseline], [read_run(p) for p in args.candidate])
+        result = comparison([read_run(p, legacy=args.legacy) for p in args.baseline], [read_run(p, legacy=args.legacy) for p in args.candidate], legacy=args.legacy, allowed_changes=args.allow_change)
+        result['legacy'] = args.legacy
+        result['screeningOnly'] = args.screening
     except (ValueError, KeyError) as error:
         parser.error(str(error))
     print(json.dumps(result, indent=2))
