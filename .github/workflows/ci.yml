@@ -36,7 +36,7 @@ jobs:
           node --test tools/touch-input-test.mjs
       - name: Browser benchmark verdict tests
         run: |
-          node --test tools/browser-benchmark/verdict.test.mjs
+          node --test tools/browser-benchmark/*.test.mjs
           python3 -m unittest discover -s tools/browser-benchmark -p 'test_*.py'
       - name: Differential tests for generated WASM blocks
         run: tools/wasm-jit-test.sh
