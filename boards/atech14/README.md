@@ -93,7 +93,7 @@ titles and authors on screen are read from each file's PSID header at run time.
 The screen shows title and author from the PSID header, `tune/count  sub n/m`, and the volume bar
 (or a MUTE badge). The header reads SID PLAYER while a tune plays.
 
-Both Light Grids are a three-channel VU meter: one column per SID voice, blue, magenta and orange,
+Both Light Grids are a three-channel VU meter: one chain column per SID voice, blue, magenta and orange — which the module, mounted anti-transposed, shows as rows, orange on top and blue at the bottom, each growing from the left,
 the bar growing upward with that voice's envelope. In the player the envelope comes from cRSID's
 own ADSR counters, in the synth from the SID engine's, so the same three columns follow whichever
 source is making the sound. Both grids show the same picture, at 20 Hz. Changes are posted as state events
