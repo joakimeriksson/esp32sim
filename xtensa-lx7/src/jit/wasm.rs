@@ -197,7 +197,7 @@ pub fn compile(
         || !instructions.iter().enumerate().all(|(n, i)| {
             let last = n + 1 == instructions.len();
             (!emitter::terminal_helper(i.insn.op) || last)
-                && (emitter::supported(i.insn.op, fast)
+                && (emitter::supported_insn(&i.insn, fast)
                     || (last && emitter::terminal_helper(i.insn.op)))
         })
     {

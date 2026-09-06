@@ -54,8 +54,8 @@ pub(super) struct RegionGen {
 }
 
 /// May appear anywhere in a chunk.
-fn eligible(op: crate::Op, fast: bool) -> bool {
-    supported(op, fast) && !terminal(op)
+fn eligible(i: &crate::Insn, fast: bool) -> bool {
+    supported_insn(i, fast) && !terminal(i.op)
 }
 
 /// Ends a chunk and leaves the region by itself: calls, returns and computed jumps.
@@ -100,7 +100,7 @@ fn chunk<B: Bus>(cpu: &Cpu, bus: &mut B, head: u32, pc0: u32, fast: bool, room: 
     while v.len() < room.min(MAX_LEN) {
         let Ok(bytes) = bus.fetch(pc) else { break };
         let i = decode(pc, bytes);
-        if i.len == 0 || !(eligible(i.op, fast) || terminal(i.op)) { break }
+        if i.len == 0 || !(eligible(&i, fast) || terminal(i.op)) { break }
         if pc != head && (must_start_block(&i) || cpu.boundary_bloom & pc_bit(pc) != 0) { break }
         v.push(BlockInsn { insn: i, max_ar: max_ar(&i), off: v.len() as u32 });
         // Includes the head: an internal backedge to it would skip a probe there.
@@ -244,7 +244,7 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
     let all = || chunks.iter().flat_map(|c| c.instructions.iter());
     // A return helper reads the CPU after the spill and exits: it needs no operands
     // loaded, exactly as at the end of a single block.
-    let emitted = |bi: &BlockInsn| supported(bi.insn.op, fast) || !terminal_helper(bi.insn.op);
+    let emitted = |bi: &BlockInsn| supported_insn(&bi.insn, fast) || !terminal_helper(bi.insn.op);
     let registers = all().filter(|bi| emitted(bi)).fold(0u16, |m, bi| m | bi.insn.gpr_effects().touched());
     let written = all().filter(|bi| emitted(bi)).fold(0u16, |m, bi| {
         let e = bi.insn.gpr_effects();
@@ -256,7 +256,9 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
     // malformed `entry aN` with N >= 4 needs before the interpreter helper runs it.
     let entry_head = chunks[0].instructions[0].insn.op == crate::Op::Entry;
     let guard_max_ar = if entry_head { chunks[0].instructions[0].max_ar } else { max_ar };
-    let float = all().any(|bi| float::requires_coprocessor(bi.insn.op));
+    // Every instruction is emitted, so both coprocessor bits can be proved at entry.
+    let cp = (all().any(|bi| float::requires_coprocessor(bi.insn.op)) as u32)
+        | if all().any(|bi| bi.insn.op == crate::Op::Pie) { pie::CP3 } else { 0 };
     let heads = chunks.iter().enumerate().map(|(i, c)| (c.pc, (i, c.instructions.len() as u32))).collect();
     let loops = formed_loops.iter().copied().collect();
     let mut g = Gen {
@@ -279,11 +281,12 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
         g.op(0x0f);
         g.end();
     }
-    if float {
+    if cp != 0 {
         g.cpu(offset_of!(Cpu, cpenable));
-        g.c(1);
+        g.c(cp);
         g.op(0x71);
-        g.op(0x45);
+        g.c(cp);
+        g.op(0x47);
         g.begin_if();
         g.c(CODE_REJECT << 16);
         g.op(0x0f);
@@ -314,7 +317,7 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
             r.loop_depth = loop_depth;
             r.chunk_depth = g.ctl.len();
         }
-        emit_body(&mut g, chunk.pc, &chunk.instructions, fast, false, true, float);
+        emit_body(&mut g, chunk.pc, &chunk.instructions, fast, false, true, cp);
     }
     g.op(0x00); // every chunk leaves or branches; no fallthrough out of the last one
     g.end(); // dispatch loop

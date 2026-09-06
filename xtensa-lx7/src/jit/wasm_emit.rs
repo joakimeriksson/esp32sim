@@ -4,7 +4,19 @@ use super::*;
 mod float;
 #[path = "wasm_region.rs"]
 pub(super) mod region;
+#[path = "wasm_pie.rs"]
+mod pie;
 use region::{region_edge, RegionGen};
+
+/// `supported` for a decoded instruction: PIE eligibility depends on the table entry.
+pub(super) fn supported_insn(i: &crate::Insn, fast: bool) -> bool {
+    supported(i.op, fast) || pie::supported(i, fast)
+}
+
+/// Coprocessors whose CPENABLE bits a body may prove once at its start.
+pub(super) fn coprocessors(instructions: &[BlockInsn], fast: bool) -> u32 {
+    (float::can_hoist_guard(instructions, fast) as u32) | if pie::can_hoist(instructions, fast) { pie::CP3 } else { 0 }
+}
 
 // Most unsupported operations keep their block interpreted. Calls/returns at the
 // end may use a helper after the compiled prefix; memory misses also use helpers.
@@ -516,11 +528,11 @@ pub(super) fn generate(block: &Block) -> Vec<u8> {
     // path retains the full register file.
     let registers = block.instructions.iter().enumerate().fold(0u16, |mask, (n, bi)| {
         if n + 1 == block.instructions.len() && terminal_helper(bi.insn.op)
-            && !supported(bi.insn.op, block.fast) {
+            && !supported_insn(&bi.insn, block.fast) {
             // The helper reads the CPU after dirty locals have been spilled. It exits
             // immediately, so neither its operands nor its new window need loading.
             mask
-        } else if !supported(bi.insn.op, block.fast) {
+        } else if !supported_insn(&bi.insn, block.fast) {
             u16::MAX
         } else {
             // Include destinations (also conditional ones), not just reads: entry may
@@ -559,17 +571,19 @@ pub(super) fn generate(block: &Block) -> Vec<u8> {
     g.op(0x4b);
     g.op(0x72);
     g.op(0x71);
-    if float::can_hoist_guard(block) {
+    let cp = coprocessors(&block.instructions, block.fast);
+    if cp != 0 {
         // A disabled coprocessor takes the checked path, which completes the
-        // integer prefix and traps exactly at the first executed FP instruction.
+        // integer prefix and traps exactly at the first executed FP/PIE instruction.
         g.cpu(offset_of!(Cpu, cpenable));
-        g.c(1);
+        g.c(cp);
         g.op(0x71);
+        g.c(cp);
+        g.op(0x46);
         g.op(0x71);
     }
-    let cp_enabled = float::can_hoist_guard(block);
     g.begin_if();
-    emit_body(&mut g, block.pc, &block.instructions, block.fast, looping, true, cp_enabled);
+    emit_body(&mut g, block.pc, &block.instructions, block.fast, looping, true, cp);
     g.end();
     // Cuts, resumes and repeats count at run time; the whole body above never wrote DONE.
     g.dynamic = true;
@@ -585,7 +599,7 @@ pub(super) fn generate(block: &Block) -> Vec<u8> {
     } else {
         g.written = 0;
     }
-    emit_body(&mut g, block.pc, &block.instructions, block.fast, looping, false, false);
+    emit_body(&mut g, block.pc, &block.instructions, block.fast, looping, false, 0);
     if looping {
         g.pending = 0; // the checked body ended with a return
         g.end();
@@ -624,7 +638,7 @@ fn emit_body(
     fast: bool,
     looping: bool,
     whole: bool,
-    cp_enabled: bool,
+    cp: u32,
 ) {
     let mut pc = pc0;
     let mut window_changed = false;
@@ -649,7 +663,7 @@ fn emit_body(
             g.overflow(bi.max_ar, pc);
         }
         let last = index + 1 == instructions.len();
-        if emit_instruction(g, bi, fast, pc, next, last, cp_enabled) {
+        if emit_instruction(g, bi, fast, pc, next, last, cp) {
             if whole {
                 g.advance();
             } else {
@@ -739,14 +753,21 @@ fn emit_instruction(
     pc: u32,
     next: u32,
     last: bool,
-    cp_enabled: bool,
+    cp: u32,
 ) -> bool {
     use crate::Op::*;
     let i = &bi.insn;
     let (r, s, t) = (i.r, i.s, i.t);
     let imm = i.imm as u32;
     if float::supported(i.op) {
-        float::emit(g, bi, pc, next, last, cp_enabled);
+        float::emit(g, bi, pc, next, last, cp & 1 != 0);
+        return true;
+    }
+    if i.op == Pie {
+        if !pie::supported(i, fast) {
+            return false;
+        }
+        pie::emit(g, bi, pc, next, last, cp & pie::CP3 != 0);
         return true;
     }
     match i.op {
@@ -1114,7 +1135,7 @@ fn emit_instruction(
             g.end();
         }
         L8ui | L16ui | L16si | L32i | L32iN | L32r | S8i | S16i | S32i | S32iN | Lsi | Ssi if fast => {
-            if !cp_enabled && matches!(i.op, Lsi | Ssi) { float::guard(g, bi, pc, next, last); }
+            if cp & 1 == 0 && matches!(i.op, Lsi | Ssi) { float::guard(g, bi, pc, next, last); }
             emit_memory(g, bi, pc, next, last);
         }
         _ => return false,
@@ -1219,21 +1240,7 @@ fn emit_memory(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
         g.c(1);
         g.op(0x6a);
         g.store(0);
-        if let Some(r) = &g.region {
-            // A store into one of the region's own code pages: the next chunk head must
-            // leave, so the dispatcher re-validates before stale translated code runs.
-            let (lo, hi) = (r.page_lo, r.page_hi);
-            g.get(TMP);
-            g.get(6);
-            g.op(0x6b);
-            g.c(lo * 4);
-            g.op(0x6b);
-            g.c((hi - lo) * 4);
-            g.op(0x4d);
-            g.get(DIRTY);
-            g.op(0x72);
-            g.set(DIRTY);
-        }
+        region_store_check(g);
     } else {
         if i.op == Lsi { g.set(TMP); g.get(0); g.get(TMP); }
         g.op(match i.op {
@@ -1249,6 +1256,25 @@ fn emit_memory(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
     g.end();
     g.fallback(bi, pc, next, last, false);
     g.end();
+}
+
+/// After a fast store bumped the version at the pointer in TMP: a store into one of the
+/// region's own code pages means the next chunk head must leave, so the dispatcher
+/// re-validates before stale translated code runs.
+fn region_store_check(g: &mut Gen) {
+    if let Some(r) = &g.region {
+        let (lo, hi) = (r.page_lo, r.page_hi);
+        g.get(TMP);
+        g.get(6);
+        g.op(0x6b);
+        g.c(lo * 4);
+        g.op(0x6b);
+        g.c((hi - lo) * 4);
+        g.op(0x4d);
+        g.get(DIRTY);
+        g.op(0x72);
+        g.set(DIRTY);
+    }
 }
 
 fn uleb(out: &mut Vec<u8>, mut n: usize) {

@@ -971,6 +971,20 @@ mod asm {
     pub fn entry(s: u32, frame: u32) -> Vec<u8> { w24(0x36 | (s << 8) | ((frame >> 3) << 12)) }
     pub fn call8(pc: u32, target: u32) -> Vec<u8> { w24(0x25 | (((target.wrapping_sub((pc & !3) + 4) >> 2) & 0x3ffff) << 6)) }
     pub fn retw_n() -> Vec<u8> { w16(0xf01d) }
+    pub fn l32i_n(t: u32, s: u32, imm: u32) -> Vec<u8> { w16(0x8 | (t << 4) | (s << 8) | ((imm / 4) << 12)) }
+    pub fn s32i_n(t: u32, s: u32, imm: u32) -> Vec<u8> { w16(0x9 | (t << 4) | (s << 8) | ((imm / 4) << 12)) }
+    pub fn and(r: u32, s: u32, t: u32) -> Vec<u8> { w24((t << 4) | (s << 8) | (r << 12) | (1 << 20)) }
+    /// Assemble a PIE instruction from its table entry, the inverse of `pie::extract`.
+    pub fn pie(name: &str, fields: &[(crate::pie::Role, i32)]) -> Vec<u8> {
+        let p = crate::pie::OPS.iter().find(|p| p.name == name).unwrap_or_else(|| panic!("no PIE op {name}"));
+        let mut w = p.value;
+        for &(role, v) in fields {
+            let f = p.fields.iter().find(|f| f.role == role).unwrap_or_else(|| panic!("{name} has no {role:?}"));
+            let v = (v / f.scale as i32) as u32;
+            for &(hi, lo, wp) in f.pieces { let n = hi - lo + 1; w |= ((v >> lo) & ((1 << n) - 1)) << wp; }
+        }
+        (0..p.len).map(|k| (w >> (8 * k)) as u8).collect()
+    }
     pub fn nop_n() -> Vec<u8> { w16(0xf03d) }
     pub fn addi_n(r: u32, s: u32, imm: i32) -> Vec<u8> { w16(0xb | (((if imm == -1 { 0 } else { imm as u32 }) & 0xf) << 4) | (s << 8) | (r << 12)) }
     pub fn add_n(r: u32, s: u32, t: u32) -> Vec<u8> { w16(0xa | (t << 4) | (s << 8) | (r << 12)) }
@@ -985,8 +999,11 @@ mod asm {
 /// and timer deadlines. Returns the largest single-call retirement, which proves that
 /// a region ran past its head block.
 fn region_program(name: &str, program: &[u8], expected: &[(u32, Op, u32)], data: &[u8], head_len: u32, interior: u32, setup: impl Fn(&mut Cpu), turns: usize) -> u32 {
+    region_program_on(name, program, expected, data, head_len, interior, false, setup, turns)
+}
+fn region_program_on(name: &str, program: &[u8], expected: &[(u32, Op, u32)], data: &[u8], head_len: u32, interior: u32, readonly: bool, setup: impl Fn(&mut Cpu), turns: usize) -> u32 {
     let (mut a, mut b) = (cpu(3), cpu(3));
-    let (mut ra, mut rb) = (Ram::new(true, false), Ram::new(true, false));
+    let (mut ra, mut rb) = (Ram::new(true, readonly), Ram::new(true, readonly));
     for r in [&mut ra, &mut rb] {
         r.ram.mem[..program.len()].copy_from_slice(program);
         r.ram.mem[0x1000..0x1000 + data.len()].copy_from_slice(data);
@@ -1226,6 +1243,56 @@ fn regions() -> u32 {
             c.windowstart = (1 << c.windowbase) | if occupied { 1 << ((c.windowbase + 3) % 16) } else { 0 };
             c.set_ar(1, BASE + 0x4000);
         }, 60);
+        cases += 1;
+    }
+    // The TinyDraw tile-uniform kernel shape: Q0 filled from a register, a 128-bit load
+    // and lane compare, a LOOPNEZ over load/compare/and, then a store and scalar reduce.
+    // Every PIE instruction is emitted on WASM SIMD and the loop is a region.
+    use crate::pie::Role::*;
+    let mut p = Vec::new();
+    for sel in 0..4 { p.extend(asm::pie("ee.movi.32.q", &[(Qu, 0), (As, 7), (Sel, sel)])); } // 0,3,6,9
+    p.extend(asm::mov_n(8, 12));                                             // 12
+    p.extend(asm::pie("ee.vld.128.ip", &[(Qu, 1), (As, 8), (Imm, 16)]));     // 14
+    p.extend(asm::pie("ee.vcmp.eq.s16", &[(Qa, 3), (Qx, 1), (Qy, 0)]));      // 17
+    p.extend(asm::movi_n(10, 3));                                            // 20
+    p.extend(asm::lp(9, BASE + 22, 10, BASE + 34));                          // 22 loopnez a10, 34
+    p.extend(asm::pie("ee.vld.128.ip", &[(Qu, 1), (As, 8), (Imm, 16)]));     // 25
+    p.extend(asm::pie("ee.vcmp.eq.s16", &[(Qa, 2), (Qx, 1), (Qy, 0)]));      // 28
+    p.extend(asm::pie("ee.andq", &[(Qa, 3), (Qx, 3), (Qy, 2)]));             // 31
+    p.extend(asm::mov_n(10, 13));                                            // 34
+    p.extend(asm::pie("ee.vst.128.ip", &[(Qv, 3), (As, 10), (Imm, 16)]));    // 36
+    p.extend(asm::l32i_n(10, 13, 0));                                        // 39
+    p.extend(asm::l32i_n(11, 13, 4));                                        // 41
+    p.extend(asm::and(10, 10, 11));                                          // 43
+    p.extend(asm::s32i_n(10, 13, 8));                                        // 46
+    p.extend(asm::j(BASE + 48, BASE + 12));                                  // 48: an internal edge after the stores
+    let uniform = [(0, Pie, 0), (3, Pie, 0), (12, MovN, 0), (14, Pie, 0), (17, Pie, 0), (20, MoviN, 0), (22, Loopnez, 34), (25, Pie, 0), (28, Pie, 0), (31, Pie, 0), (34, MovN, 0), (36, Pie, 0), (39, L32iN, 0), (41, L32iN, 0), (43, And, 0), (46, S32iN, 0), (48, J, 12)];
+    let mut data = vec![0x42u8, 0x00].repeat(40);
+    data[50] = 0x43;
+    // Variants: the plain kernel; CP3 disabled; the store landing in the last 16 bytes of
+    // the mapping; loads running off the end of the mapping (slow, then a fault); a
+    // read-only mapping (every fast store misses); the store into the region's own code
+    // page followed by the internal edge back into the loop; the slow window; and an
+    // occupied AR frame together with CP3 disabled, where the window overflow must win.
+    let last16 = BASE + 65536 - 16;
+    for (label, cp3, src, dst, readonly, occupied, turns, whole) in [
+        ("uniform", 8, BASE + 0x1000, BASE + 0x2000, false, false, 600, true),
+        ("uniform-cp3-off", 0, BASE + 0x1000, BASE + 0x2000, false, false, 40, false),
+        ("uniform-last16", 8, BASE + 0x1000, last16, false, false, 300, true),
+        ("uniform-off-end", 8, BASE + 65536 - 32, BASE + 0x2000, false, false, 40, false),
+        ("uniform-readonly", 8, BASE + 0x1000, BASE + 0x2000, true, false, 40, false),
+        // The 128-bit store lands in the region's own code page (past the program), so the
+        // J edge after it must leave and the dispatcher must re-validate.
+        ("uniform-self-modify", 8, BASE + 0x1000, BASE + 64, false, false, 300, false),
+        ("uniform-slow", 8, SLOW, BASE + 0x2000, false, false, 300, false),
+        ("uniform-overflow", 0, BASE + 0x1000, BASE + 0x2000, false, true, 40, false),
+    ] {
+        let max = region_program_on(label, &p, &uniform, &data, 9, 25, readonly, |c| {
+            c.cpenable = cp3;
+            if occupied { c.ps = ps::WOE; c.windowstart = (1 << c.windowbase) | (1 << ((c.windowbase + 2) % 16)); }
+            c.set_ar(7, 0x0042_0042); c.set_ar(12, src); c.set_ar(13, dst);
+        }, turns);
+        assert!(!whole || max >= 20, "{label}: region retired at most {max} per call");
         cases += 1;
     }
     // Region formation itself for the tile scan: every static successor, nothing past RSR.

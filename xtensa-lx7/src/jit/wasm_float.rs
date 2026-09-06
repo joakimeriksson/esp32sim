@@ -57,14 +57,13 @@ pub(super) fn supported(op: crate::Op) -> bool {
 // CPENABLE cannot change within an entirely supported block. A final call/return
 // helper may change machine state, but exits immediately. Do not extend this proof
 // across arbitrary interpreter helpers: they may write CPENABLE before later FP.
-pub(super) fn can_hoist_guard(block: &Block) -> bool {
-    block
-        .instructions
+pub(super) fn can_hoist_guard(instructions: &[BlockInsn], fast: bool) -> bool {
+    instructions
         .iter()
         .any(|bi| requires_coprocessor(bi.insn.op))
-        && block.instructions.iter().enumerate().all(|(n, bi)| {
-            super::supported(bi.insn.op, block.fast)
-                || (n + 1 == block.instructions.len() && terminal_helper(bi.insn.op))
+        && instructions.iter().enumerate().all(|(n, bi)| {
+            super::supported_insn(&bi.insn, fast)
+                || (n + 1 == instructions.len() && terminal_helper(bi.insn.op))
         })
 }
 
