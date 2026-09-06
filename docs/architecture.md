@@ -35,7 +35,7 @@ esp32s3/      the SoC and boards
   net.rs      the emulated subnet 10.0.2.0/24: ARP, DHCP, ICMP, DNS, SNTP
   nat.rs      user-mode NAT: guest TCP/UDP relayed over ordinary host sockets
   crypto.rs   SHA-1/2, HMAC, PBKDF2, the 802.11 PRF, AES, AES key wrap, bignum arithmetic
-  board.rs    Atech14, WaveshareCam, WaveshareLcd4b (BoardModel from esp-soc); ST7735 and WS2812 decoders
+  board/      one file per board: Atech14, WaveshareCam, WaveshareLcd4b, WaveshareAmoled18V2 (BoardModel from esp-soc)
   web.rs      dependency-free HTTP + WebSocket server
   elf.rs / image.rs / picture.rs   loaders (ELF symbols/segments, ESP app images, BMP/PPM)
 esp-periph/   the peripheral IP Espressif chips share, one file each (UART, USB-Serial/JTAG,

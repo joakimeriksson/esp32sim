@@ -186,11 +186,8 @@ function drawFrame(buf) {
   // physical panel: portrait, content rotated 90° (as on the real module)
   tft.save(); tft.clearRect(0, 0, 80, 160); tft.translate(0, 160); tft.rotate(-Math.PI / 2); tft.drawImage($('#tftbig'), 0, 0); tft.restore();
 }
-// The Knob V1.1's 12-LED ring is wired for compatibility with the 6-LED knob: chain indices 0-5
-// are the six original positions, 6-11 the in-between ones, and positions count counter-clockwise
-// from 12 o'clock (firmware: rotary_encoder.h). Physical position p, CCW from 12 o'clock, is
-// chain index p/2 for even p and 6 + ((p+1)/2 mod 6) for odd p.
-function ringChainIndex(p) { return p % 2 === 0 ? p / 2 : 6 + (((p + 1) / 2) % 6); }
+// The ring arrives in physical order, position 0 at 12 o'clock counting counter-clockwise: the
+// board model undoes the Knob V1.1's chain interleave (esp32s3 board, KNOB_RING_PHYSICAL).
 // A single WS2812 as a dot: the hue at full strength, the brightness as the glow. Firmware often
 // runs these at a few percent (the IDF blink example's 16/255 is plainly visible on a board),
 // and painting that value literally is a dot nobody can see.
@@ -213,7 +210,7 @@ function drawRing() {
   c.beginPath(); c.arc(cx, cy, R, 0, 2 * Math.PI); c.strokeStyle = lit ? `rgba(${bleed[0]},${bleed[1]},${bleed[2]},.30)` : '#111'; c.lineWidth = 16; c.stroke();
   for (let p = 0; p < 12; p++) {
     const a = -Math.PI / 2 - p * Math.PI / 6, x = cx + R * Math.cos(a), y = cy + R * Math.sin(a);
-    const [r, g, b] = scaled[ringChainIndex(p)]; const s = r + g + b, on = s > 0;
+    const [r, g, b] = scaled[p] || [0, 0, 0]; const s = r + g + b, on = s > 0;
     if (on) { c.shadowColor = `rgb(${r},${g},${b})`; c.shadowBlur = 18; }
     c.beginPath(); c.arc(x, y, 7, 0, 2 * Math.PI);
     c.fillStyle = on ? `rgb(${r},${g},${b})` : (lit ? `rgba(${bleed[0]},${bleed[1]},${bleed[2]},.35)` : '#2a2d31'); c.fill();
