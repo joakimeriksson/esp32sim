@@ -21,11 +21,15 @@ class VerdictTests(unittest.TestCase):
         candidate = json.loads(json.dumps(run))
         candidate['provenance']['sha256']['asset/wasm'] = 'candidate'
         self.assertEqual(compare.comparison([run], [candidate])['candidate'], [candidate])
+        mixed = json.loads(json.dumps(run))
+        mixed['provenance']['sha256']['asset/wasm'] = 'mixed'
+        with self.assertRaisesRegex(ValueError, 'mixed build'):
+            compare.comparison([run, mixed], [candidate, candidate])
         candidate['provenance']['sha256']['asset/app'] = 'different-firmware'
-        with self.assertRaisesRegex(ValueError, 'firmware hash: app'):
+        with self.assertRaisesRegex(ValueError, 'asset/app'):
             compare.comparison([run], [candidate])
         candidate['provenance'] = None
-        with self.assertRaisesRegex(ValueError, 'firmware hash'):
+        with self.assertRaisesRegex(ValueError, 'provenance'):
             compare.comparison([run], [candidate])
 
     def test_schema(self):
@@ -47,9 +51,9 @@ class VerdictTests(unittest.TestCase):
         # verdict and serial evidence satisfy the current explicit schema.
         with tempfile.TemporaryDirectory(dir=pathlib.Path(__file__).parent) as tmp:
             directory = pathlib.Path(tmp)
-            capture = {'version': {'User-Agent': 'HeadlessChrome/1', 'Browser': '1', 'V8-Version': '1'},
-                       'result': {'passed': True, 'status': 'completed', 'verdict': VERDICT,
-                                  'wallSeconds': 10, 'instructions': 100, 'jit': {'instructions': 50}}}
+            capture = {'captureMode': 'timing', 'version': {'User-Agent': 'HeadlessChrome/1', 'Browser': '1', 'V8-Version': '1'},
+                       'result': {'stopCode': 0, 'provenance': {'sha256': {'asset/wasm': 'wasm'}}, 'passed': True, 'status': 'completed', 'verdict': VERDICT,
+                                  'wallSeconds': 10, 'instructions': 100, 'jit': {'instructions': 50, 'failed': 0}}}
             events = [{'type': 'serial', 'data': (VERDICT if marker == compare.SCHEMA['marker'] else marker) + '\n',
                        'wallMs': (i + 1) * 1000} for i, (_, marker) in enumerate(compare.MILESTONES)]
             def write():
@@ -57,6 +61,23 @@ class VerdictTests(unittest.TestCase):
                 (directory / 'events.json').write_text(json.dumps(events))
             write()
             self.assertEqual(compare.read_run(directory)['verdict'], VERDICT)
+            for mode in [None, 'cpu-profile', 'jit-profile']:
+                capture['captureMode'] = mode
+                write()
+                with self.assertRaisesRegex(ValueError, 'timing capture mode'):
+                    compare.read_run(directory)
+            capture['captureMode'] = 'timing'
+            for failed in [None, 123]:
+                capture['result']['jit']['failed'] = failed
+                write()
+                with self.assertRaisesRegex(ValueError, 'JIT status'):
+                    compare.read_run(directory)
+            capture['result']['jit']['failed'] = 0
+            provenance = capture['result'].pop('provenance')
+            write()
+            with self.assertRaisesRegex(ValueError, 'provenance'):
+                compare.read_run(directory)
+            capture['result']['provenance'] = provenance
             for ending in [VERDICT, VERDICT + '\n' + VERDICT + '\n',
                            VERDICT.replace('stress=1', 'stress=0') + '\n']:
                 events[-1]['data'] = ending

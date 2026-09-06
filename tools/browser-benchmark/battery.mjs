@@ -37,8 +37,8 @@ export async function runBattery(load, emit, jit = true, chain = false) {
     while(w.esp32sim_cycles(emu)<hz*480 && performance.now()-executionStart<1800000){
       stopCode=w.esp32sim_run(emu,2000000,Date.now());drain();
       if(stopCode){status='stopped';break;}
-      if(/TINYDRAW_GATE1_AUTOMATED_DONE[^\r\n]*[\r\n]/.test(serial)){status='completed';break;}
       if(/Guru Meditation|TG1WDT_SYS_RST|stack overflow|task_wdt/.test(serial)||logs.some(l=>/chip reset|panic/i.test(l))){status='firmware-failure';break;}
+      if(/TINYDRAW_GATE1_AUTOMATED_DONE[^\r\n]*[\r\n]/.test(serial)){status='completed';break;}
       if(performance.now()-lastReport>2000){lastReport=performance.now();emit({type:'progress',guestSeconds:w.esp32sim_cycles(emu)/hz,wallSeconds:(lastReport-executionStart)/1000,frames,jit:{...blockJit.stats},tail:serial.slice(-400)});await new Promise(r=>setTimeout(r,0));}
     }
     const verdict=completedVerdict(serial, schema);
