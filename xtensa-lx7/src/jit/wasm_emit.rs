@@ -2,6 +2,21 @@
 use super::*;
 #[path = "wasm_float.rs"]
 mod float;
+#[path = "wasm_region.rs"]
+pub(super) mod region;
+#[path = "wasm_pie.rs"]
+mod pie;
+use region::{region_edge, RegionGen};
+
+/// `supported` for a decoded instruction: PIE eligibility depends on the table entry.
+pub(super) fn supported_insn(i: &crate::Insn, fast: bool) -> bool {
+    supported(i.op, fast) || pie::supported(i, fast)
+}
+
+/// Coprocessors whose CPENABLE bits a body may prove once at its start.
+pub(super) fn coprocessors(instructions: &[BlockInsn], fast: bool) -> u32 {
+    (float::can_hoist_guard(instructions, fast) as u32) | if pie::can_hoist(instructions, fast) { pie::CP3 } else { 0 }
+}
 
 // Most unsupported operations keep their block interpreted. Calls/returns at the
 // end may use a helper after the compiled prefix; memory misses also use helpers.
@@ -87,6 +102,7 @@ pub(super) fn supported(op: crate::Op, fast: bool) -> bool {
             | Bbsi
             | Bbc
             | Bbs
+            | Loop | Loopnez | Loopgtz
     ) || float::supported(op) || (fast
         && matches!(
             op,
@@ -122,6 +138,9 @@ const ADDR: u8 = 10;
 const TLB: u8 = 11;
 const REL: u8 = 12;
 const WINDOWS: u8 = 29;
+/// Region locals: a helper or code-page store happened (leave at the next head); next chunk.
+const DIRTY: u8 = 30;
+const NEXT: u8 = 31;
 const PC: usize = offset_of!(Cpu, pc);
 const AR: usize = offset_of!(Cpu, ar);
 const WINDOWBASE: usize = offset_of!(Cpu, windowbase);
@@ -130,34 +149,59 @@ const LEND: usize = offset_of!(Cpu, lend);
 const LBEG: usize = offset_of!(Cpu, lbeg);
 const SAR: usize = offset_of!(Cpu, sar);
 
+/// Structured control nesting the emitter is inside of. Each construct remembers the
+/// statically pending retirement count at its start; the code after its `end` resumes
+/// that count. A path inside that retires more must therefore flush it into DONE before
+/// falling out, or leave (return or branch) instead.
+enum Ctl { If(u32), Block(u32), Loop(u32) }
+
 #[derive(Default)]
-struct Gen(Vec<u8>, u16, u16);
+struct Gen {
+    /// module body bytes
+    bytes: Vec<u8>,
+    /// registers written so far (spilled on exit)
+    written: u16,
+    /// registers loaded at entry
+    loaded: u16,
+    /// Retired instructions not yet added to the DONE local. In a static body (whole
+    /// path) DONE is never materialized: every exit returns a constant count.
+    pending: u32,
+    /// DONE is a runtime value (checked body, loops, regions)
+    dynamic: bool,
+    ctl: Vec<Ctl>,
+    /// Highest AR index any instruction touches; below 4 no window collision is possible.
+    max_ar: u8,
+    /// Region emission state, when compiling several chunks into one function.
+    region: Option<RegionGen>,
+    /// PC of the most recently emitted guest instruction, for exit-site attribution.
+    last_pc: u32,
+}
 impl Gen {
     fn op(&mut self, op: u8) {
-        self.0.push(op);
+        self.bytes.push(op);
     }
     fn c(&mut self, v: u32) {
         self.op(0x41);
-        sleb(&mut self.0, v as i32);
+        sleb(&mut self.bytes, v as i32);
     }
     fn get(&mut self, n: u8) {
-        self.0.extend([0x20, n]);
+        self.bytes.extend([0x20, n]);
     }
     fn set(&mut self, n: u8) {
-        self.0.extend([0x21, n]);
+        self.bytes.extend([0x21, n]);
     }
     fn tee(&mut self, n: u8) {
-        self.0.extend([0x22, n]);
+        self.bytes.extend([0x22, n]);
     }
     fn load(&mut self, offset: usize) {
         self.op(0x28);
-        uleb(&mut self.0, 2);
-        uleb(&mut self.0, offset);
+        uleb(&mut self.bytes, 2);
+        uleb(&mut self.bytes, offset);
     }
     fn store(&mut self, offset: usize) {
         self.op(0x36);
-        uleb(&mut self.0, 2);
-        uleb(&mut self.0, offset);
+        uleb(&mut self.bytes, 2);
+        uleb(&mut self.bytes, offset);
     }
     fn cpu(&mut self, off: usize) {
         self.get(0);
@@ -196,7 +240,7 @@ impl Gen {
     }
     fn set_ar(&mut self, r: u8) {
         self.set(13 + r);
-        self.1 |= 1 << r;
+        self.written |= 1 << r;
     }
     fn reload(&mut self) {
         self.cpu(WINDOWBASE);
@@ -204,11 +248,14 @@ impl Gen {
         self.op(0x74);
         self.set(WB);
         for r in 0..16 {
-            if self.2 & (1 << r) != 0 {
+            if self.loaded & (1 << r) != 0 {
                 self.ar_addr(r);
                 self.load(AR);
                 self.set(13 + r);
             }
+        }
+        if self.max_ar < 4 {
+            return;
         }
         self.c(0);
         self.set(WINDOWS);
@@ -238,7 +285,7 @@ impl Gen {
     }
     fn spill(&mut self) {
         for r in 0..16 {
-            if self.1 & (1 << r) != 0 {
+            if self.written & (1 << r) != 0 {
                 self.ar_addr(r);
                 self.get(13 + r);
                 self.store(AR);
@@ -246,31 +293,86 @@ impl Gen {
         }
     }
     fn begin_if(&mut self) {
-        self.0.extend([0x04, 0x40]);
+        self.bytes.extend([0x04, 0x40]);
+        self.ctl.push(Ctl::If(self.pending));
+    }
+    fn begin_block(&mut self) {
+        self.bytes.extend([0x02, 0x40]);
+        self.ctl.push(Ctl::Block(self.pending));
+    }
+    fn begin_loop(&mut self) {
+        self.bytes.extend([0x03, 0x40]);
+        self.ctl.push(Ctl::Loop(self.pending));
     }
     fn end(&mut self) {
         self.op(0x0b);
+        if let Some(Ctl::If(pending) | Ctl::Block(pending) | Ctl::Loop(pending)) = self.ctl.pop() {
+            self.pending = pending;
+        }
+    }
+    fn depth(&self) -> usize {
+        self.ctl.len()
     }
     fn ret(&mut self, code: u32) {
         self.spill();
         self.ret_value(code);
     }
+    /// Exit tag: the code, and for regions the exit site so the caller can attribute
+    /// the last retired instruction without a per-instruction PC store.
+    fn tag(&mut self, code: u32) -> u32 {
+        let site = match &mut self.region {
+            Some(r) => {
+                r.sites.push(self.last_pc);
+                (r.sites.len() - 1) as u32
+            }
+            None => 0,
+        };
+        (code << 16) | (site << 19)
+    }
     fn ret_value(&mut self, code: u32) {
-        self.get(DONE);
-        self.c(code << 16);
-        self.op(0x72);
+        let tag = self.tag(code);
+        if self.dynamic {
+            self.get(DONE);
+            if self.pending != 0 {
+                self.c(self.pending);
+                self.op(0x6a);
+            }
+            self.c(tag);
+            self.op(0x72);
+        } else {
+            self.c(tag | self.pending);
+        }
         self.op(0x0f);
     }
+    /// One more instruction retired on the current path.
     fn advance(&mut self) {
-        self.get(DONE);
-        self.c(1);
-        self.op(0x6a);
-        self.set(DONE);
+        self.pending += 1;
+    }
+    /// Materialize pending retirements into DONE. Only valid at a point that dominates
+    /// every later read on the same path: straight-line code, or just before leaving.
+    fn flush(&mut self) {
+        if self.dynamic && self.pending != 0 {
+            self.get(DONE);
+            self.c(self.pending);
+            self.op(0x6a);
+            self.set(DONE);
+        }
+        self.pending = 0;
+    }
+    /// Retire the current instruction and continue at a statically known `target`.
+    fn leave(&mut self, target: u32) {
+        self.advance();
+        if self.region.is_some() {
+            region_edge(self, target, false);
+        } else {
+            self.cpu_const(PC, target);
+            self.ret(CODE_LEFT);
+        }
     }
     fn helper(&mut self, offset: usize, ty: u8) {
         self.get(2);
         self.load(offset);
-        self.0.extend([0x11, ty, 0]);
+        self.bytes.extend([0x11, ty, 0]);
     }
     fn overflow(&mut self, max_ar: u8, pc: u32) {
         if max_ar < 4 {
@@ -309,6 +411,11 @@ impl Gen {
         self.set(REL);
         if continue_block {
             self.reload();
+            if self.region.is_some() {
+                // The helper may have written a region code page: leave at the next head.
+                self.c(1);
+                self.set(DIRTY);
+            }
         }
         self.get(REL);
         self.set(TMP);
@@ -336,10 +443,12 @@ impl Gen {
         }
         self.end();
         if last || !continue_block {
+            // A region never returns CUT: its continuation is a plain PC, not a head-block index.
+            let code = if last { CODE_END } else if self.region.is_some() { CODE_LEFT } else { CODE_CUT };
             if continue_block {
-                self.ret(if last { CODE_END } else { CODE_CUT });
+                self.ret(code);
             } else {
-                self.ret_value(if last { CODE_END } else { CODE_CUT });
+                self.ret_value(code);
             }
         } else {
             self.cpu(WINDOWBASE);
@@ -350,6 +459,7 @@ impl Gen {
     }
     fn fallthrough(&mut self, next: u32, looping: bool) {
         self.advance();
+        self.flush();
         self.cpu(LEND);
         self.c(next);
         self.op(0x46);
@@ -366,7 +476,7 @@ impl Gen {
         self.store(PC);
         if looping {
             // LCOUNT-if, LEND-if, instruction-if, shared-backedge block.
-            self.0.extend([0x0c, 3]);
+            self.bytes.extend([0x0c, 3]);
         } else {
             self.ret(CODE_LEFT);
         }
@@ -374,6 +484,7 @@ impl Gen {
         self.end();
     }
     fn repeat_guard(&mut self) {
+        self.flush();
         self.get(2);
         self.load(offset_of!(Helpers, loop_end));
         self.cpu(LEND);
@@ -403,7 +514,7 @@ impl Gen {
         self.c(0);
         self.set(4);
         // version/budget-if, admission-if, enclosing WASM loop.
-        self.0.extend([0x0c, 2]);
+        self.bytes.extend([0x0c, 2]);
         self.end();
         self.end();
         self.ret(CODE_LEFT);
@@ -417,11 +528,11 @@ pub(super) fn generate(block: &Block) -> Vec<u8> {
     // path retains the full register file.
     let registers = block.instructions.iter().enumerate().fold(0u16, |mask, (n, bi)| {
         if n + 1 == block.instructions.len() && terminal_helper(bi.insn.op)
-            && !supported(bi.insn.op, block.fast) {
+            && !supported_insn(&bi.insn, block.fast) {
             // The helper reads the CPU after dirty locals have been spilled. It exits
             // immediately, so neither its operands nor its new window need loading.
             mask
-        } else if !supported(bi.insn.op, block.fast) {
+        } else if !supported_insn(&bi.insn, block.fast) {
             u16::MAX
         } else {
             // Include destinations (also conditional ones), not just reads: entry may
@@ -430,7 +541,9 @@ pub(super) fn generate(block: &Block) -> Vec<u8> {
             mask | bi.insn.gpr_effects().touched()
         }
     });
-    let mut g = Gen(Vec::new(), 0, registers);
+    let max_ar = block.instructions.iter().map(|bi| bi.max_ar).max().unwrap_or(0);
+    let mut g = Gen { loaded: registers, max_ar, ..Gen::default() };
+    let looping = block.loop_prefix != 0;
     g.reload();
     // The common path has a whole-block budget, no possible window collision and
     // no active loop end in this block. Prove those facts once rather than checking
@@ -442,7 +555,6 @@ pub(super) fn generate(block: &Block) -> Vec<u8> {
     g.c(block.instructions.len() as u32);
     g.op(0x4f);
     g.op(0x71);
-    let max_ar = block.instructions.iter().map(|bi| bi.max_ar).max().unwrap_or(0);
     if max_ar >= 4 {
         g.get(WINDOWS);
         g.c((1 << (max_ar / 4)) - 1);
@@ -459,62 +571,82 @@ pub(super) fn generate(block: &Block) -> Vec<u8> {
     g.op(0x4b);
     g.op(0x72);
     g.op(0x71);
-    if float::can_hoist_guard(block) {
+    let cp = coprocessors(&block.instructions, block.fast);
+    if cp != 0 {
         // A disabled coprocessor takes the checked path, which completes the
-        // integer prefix and traps exactly at the first executed FP instruction.
+        // integer prefix and traps exactly at the first executed FP/PIE instruction.
         g.cpu(offset_of!(Cpu, cpenable));
-        g.c(1);
+        g.c(cp);
         g.op(0x71);
+        g.c(cp);
+        g.op(0x46);
         g.op(0x71);
     }
     g.begin_if();
-    emit_body(&mut g, block, true);
+    emit_body(&mut g, block.pc, &block.instructions, block.fast, looping, true, cp);
     g.end();
-    let looping = block.loop_prefix != 0;
+    // Cuts, resumes and repeats count at run time; the whole body above never wrote DONE.
+    g.dynamic = true;
+    g.pending = 0;
     // On a backedge, later instructions may have dirtied locals before an early cut.
     // The whole-body pass has already identified exactly those written registers.
     if looping {
         // A suffix CALL can write an implicit return register that was never loaded.
         // It cannot participate in a repeated prefix; do not spill it before it executes.
-        g.1 &= registers;
-        g.0.extend([0x03, 0x40, 0x02, 0x40]); // repeat loop, shared-backedge block
+        g.written &= registers;
+        g.begin_loop(); // repeat loop
+        g.begin_block(); // shared-backedge block
     } else {
-        g.1 = 0;
+        g.written = 0;
     }
-    emit_body(&mut g, block, false);
+    emit_body(&mut g, block.pc, &block.instructions, block.fast, looping, false, 0);
     if looping {
+        g.pending = 0; // the checked body ended with a return
         g.end();
         // Only loaded operands can be live at a fallthrough backedge; suffix calls
         // return directly and must not contribute their uninitialized return locals.
-        g.1 &= registers;
+        g.written &= registers;
         g.repeat_guard();
         g.end();
         g.op(0x00); // every iteration returns or branches; no void-loop fallthrough
     }
     g.end();
+    finish(g, block.pc)
+}
+
+fn finish(g: Gen, pc: u32) -> Vec<u8> {
     #[cfg(not(feature = "wasm-cpu-profile"))]
-    { module(&g.0) }
+    { let _ = pc; module(&g.bytes) }
     #[cfg(feature = "wasm-cpu-profile")]
     {
-        let mut bytes = module(&g.0);
+        let mut bytes = module(&g.bytes);
         // Diagnostic names connect host CPU samples to the guest ELF without a debugger.
         let mut names = Vec::new();
         name(&mut names, "name");
         let mut functions = vec![1, 0]; // one function, index zero
-        name(&mut functions, &format!("xtensa_{:08x}", block.pc));
+        name(&mut functions, &format!("xtensa_{:08x}", pc));
         section(&mut names, 1, &functions);
         section(&mut bytes, 0, &names);
         bytes
     }
 }
 
-fn emit_body(g: &mut Gen, block: &Block, whole: bool) {
-    let mut pc = block.pc;
+fn emit_body(
+    g: &mut Gen,
+    pc0: u32,
+    instructions: &[BlockInsn],
+    fast: bool,
+    looping: bool,
+    whole: bool,
+    cp: u32,
+) {
+    let mut pc = pc0;
     let mut window_changed = false;
-    let cp_enabled = whole && float::can_hoist_guard(block);
-    for (index, bi) in block.instructions.iter().enumerate() {
+    for (index, bi) in instructions.iter().enumerate() {
         let next = pc.wrapping_add(bi.insn.len as u32);
+        g.last_pc = pc;
         if !whole {
+            g.flush();
             g.get(4);
             g.c(index as u32);
             g.op(0x4d);
@@ -530,26 +662,88 @@ fn emit_body(g: &mut Gen, block: &Block, whole: bool) {
         if !whole || window_changed {
             g.overflow(bi.max_ar, pc);
         }
-        let last = index + 1 == block.instructions.len();
-        if emit_instruction(g, bi, block.fast, pc, next, last, cp_enabled) {
+        let last = index + 1 == instructions.len();
+        if emit_instruction(g, bi, fast, pc, next, last, cp) {
             if whole {
                 g.advance();
             } else {
-                g.fallthrough(next, block.loop_prefix != 0);
+                g.fallthrough(next, looping);
+            }
+            if g.region.is_some() && bi.insn.op == crate::Op::Entry && g.max_ar >= 4 {
+                // The rotated window must be free for everything the region touches;
+                // otherwise continue at the next instruction through ordinary blocks.
+                // ENTRY has retired, so a hardware loop ending right here takes its
+                // backedge first, as the interpreter's epilogue would.
+                g.get(WINDOWS);
+                g.c((1 << (g.max_ar / 4)) - 1);
+                g.op(0x71);
+                g.begin_if();
+                g.spill();
+                g.cpu(LEND);
+                g.c(next);
+                g.op(0x46);
+                g.cpu(LCOUNT);
+                g.c(0);
+                g.op(0x47);
+                g.op(0x71);
+                g.begin_if();
+                g.get(0);
+                g.cpu(LCOUNT);
+                g.c(1);
+                g.op(0x6b);
+                g.store(LCOUNT);
+                g.get(0);
+                g.cpu(LBEG);
+                g.store(PC);
+                g.ret_value(CODE_LEFT);
+                g.end();
+                g.cpu_const(PC, next);
+                g.ret_value(CODE_LEFT);
+                g.end();
             }
         } else {
             g.fallback(bi, pc, next, last, !last);
         }
         // ENTRY changes which frames can collide; the entry-time whole-block
         // window proof no longer covers subsequent operands.
-        window_changed |= bi.insn.op == crate::Op::Entry;
+        window_changed |= bi.insn.op == crate::Op::Entry && g.region.is_none();
         if !whole {
+            // Both arms of the entry test must agree on the pending count at the join.
+            g.flush();
             g.end();
         }
         pc = next;
     }
-    g.cpu_const(PC, pc);
-    g.ret(CODE_END);
+    if g.region.is_some() {
+        // A J, call, return or JX already left; a trailing edge would be unreachable.
+        let last = instructions.last().unwrap();
+        if last.insn.op != crate::Op::J && !terminal_helper(last.insn.op) && last.insn.op != crate::Op::Jx {
+            if let Some(&lbeg) = g.region.as_ref().unwrap().loops.get(&pc) {
+                // Straight-line arrival at LEND with an active count is the backedge. The
+                // region may have been entered with some other loop active, so LEND must
+                // be this address as well, exactly as the interpreter tests it.
+                g.cpu(LEND);
+                g.c(pc);
+                g.op(0x46);
+                g.cpu(LCOUNT);
+                g.c(0);
+                g.op(0x47);
+                g.op(0x71);
+                g.begin_if();
+                g.get(0);
+                g.cpu(LCOUNT);
+                g.c(1);
+                g.op(0x6b);
+                g.store(LCOUNT);
+                region_edge(g, lbeg, false);
+                g.end();
+            }
+            region_edge(g, pc, true);
+        }
+    } else {
+        g.cpu_const(PC, pc);
+        g.ret(CODE_END);
+    }
 }
 
 fn emit_instruction(
@@ -559,14 +753,21 @@ fn emit_instruction(
     pc: u32,
     next: u32,
     last: bool,
-    cp_enabled: bool,
+    cp: u32,
 ) -> bool {
     use crate::Op::*;
     let i = &bi.insn;
     let (r, s, t) = (i.r, i.s, i.t);
     let imm = i.imm as u32;
     if float::supported(i.op) {
-        float::emit(g, bi, pc, next, last, cp_enabled);
+        float::emit(g, bi, pc, next, last, cp & 1 != 0);
+        return true;
+    }
+    if i.op == Pie {
+        if !pie::supported(i, fast) {
+            return false;
+        }
+        pie::emit(g, bi, pc, next, last, cp & pie::CP3 != 0);
         return true;
     }
     match i.op {
@@ -815,11 +1016,7 @@ fn emit_instruction(
             g.op(0x1b);
             g.set_ar(r);
         }
-        J => {
-            g.advance();
-            g.cpu_const(PC, imm);
-            g.ret(CODE_LEFT);
-        }
+        J => g.leave(imm),
         Jx => {
             g.advance();
             g.get(0);
@@ -889,10 +1086,33 @@ fn emit_instruction(
                 _ => 0x4f,
             });
             g.begin_if();
-            g.advance();
-            g.cpu_const(PC, imm);
-            g.ret(CODE_LEFT);
+            g.leave(imm);
             g.end();
+        }
+        Loop | Loopnez | Loopgtz => {
+            // Review spike. Mirrors exec.rs: LCOUNT = AR[s] - 1, LBEG = next, LEND = target;
+            // LOOPNEZ/LOOPGTZ skip the body when the count is zero / non-positive. Blocks
+            // containing these never receive a retained loop prefix (see queue), so the
+            // LCOUNT-delta accounting in run() is unaffected.
+            g.get(0);
+            g.ar(s);
+            g.c(1);
+            g.op(0x6b);
+            g.store(LCOUNT);
+            g.cpu_const(LBEG, next);
+            g.cpu_const(LEND, imm);
+            if i.op != Loop {
+                g.ar(s);
+                if i.op == Loopnez {
+                    g.op(0x45); // i32.eqz
+                } else {
+                    g.c(0);
+                    g.op(0x4c); // i32.le_s
+                }
+                g.begin_if();
+                g.leave(imm);
+                g.end();
+            }
         }
         Bbci | Bbsi | Bbc | Bbs => {
             g.ar(s);
@@ -911,13 +1131,11 @@ fn emit_instruction(
                 0x47
             });
             g.begin_if();
-            g.advance();
-            g.cpu_const(PC, imm);
-            g.ret(CODE_LEFT);
+            g.leave(imm);
             g.end();
         }
         L8ui | L16ui | L16si | L32i | L32iN | L32r | S8i | S16i | S32i | S32iN | Lsi | Ssi if fast => {
-            if !cp_enabled && matches!(i.op, Lsi | Ssi) { float::guard(g, bi, pc, next, last); }
+            if cp & 1 == 0 && matches!(i.op, Lsi | Ssi) { float::guard(g, bi, pc, next, last); }
             emit_memory(g, bi, pc, next, last);
         }
         _ => return false,
@@ -943,14 +1161,15 @@ fn emit_memory(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
     }
     g.set(ADDR);
     // This block jumps to the slow instruction before making any memory changes.
-    g.0.extend([0x02, 0x40, 0x02, 0x40]);
+    g.begin_block();
+    g.begin_block();
     g.get(5);
     g.op(0x45);
-    g.0.extend([0x0d, 0]);
+    g.bytes.extend([0x0d, 0]);
     g.get(ADDR);
     g.c(width - 1);
     g.op(0x71);
-    g.0.extend([0x0d, 0]);
+    g.bytes.extend([0x0d, 0]);
     g.get(5);
     g.get(ADDR);
     g.c(16);
@@ -969,24 +1188,24 @@ fn emit_memory(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
     g.get(TLB);
     g.load(offset_of!(TlbEntry, lo));
     g.op(0x49);
-    g.0.extend([0x0d, 0]);
+    g.bytes.extend([0x0d, 0]);
     g.get(TLB);
     g.load(offset_of!(TlbEntry, hi));
     g.get(ADDR);
     g.op(0x6b);
     g.c(width);
     g.op(0x49);
-    g.0.extend([0x0d, 0]);
+    g.bytes.extend([0x0d, 0]);
     g.get(ADDR);
     g.get(TLB);
     g.load(offset_of!(TlbEntry, hi));
     g.op(0x4f);
-    g.0.extend([0x0d, 0]);
+    g.bytes.extend([0x0d, 0]);
     if store {
         g.get(TLB);
         g.load(offset_of!(TlbEntry, writable));
         g.op(0x45);
-        g.0.extend([0x0d, 0]);
+        g.bytes.extend([0x0d, 0]);
     }
     g.get(ADDR);
     g.get(TLB);
@@ -1004,7 +1223,7 @@ fn emit_memory(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
             2 => 0x3b,
             _ => 0x36,
         });
-        g.0.extend([0, 0]);
+        g.bytes.extend([0, 0]);
         g.get(6);
         g.get(TLB);
         g.load(offset_of!(TlbEntry, vbase));
@@ -1021,6 +1240,7 @@ fn emit_memory(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
         g.c(1);
         g.op(0x6a);
         g.store(0);
+        region_store_check(g);
     } else {
         if i.op == Lsi { g.set(TMP); g.get(0); g.get(TMP); }
         g.op(match i.op {
@@ -1029,13 +1249,32 @@ fn emit_memory(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
             L16si => 0x2e,
             _ => 0x28,
         });
-        g.0.extend([0, 0]);
+        g.bytes.extend([0, 0]);
         if i.op == Lsi { g.store(offset_of!(Cpu, fr) + 4 * i.t as usize); } else { g.set_ar(i.t); }
     }
-    g.0.extend([0x0c, 1]);
+    g.bytes.extend([0x0c, 1]);
     g.end();
     g.fallback(bi, pc, next, last, false);
     g.end();
+}
+
+/// After a fast store bumped the version at the pointer in TMP: a store into one of the
+/// region's own code pages means the next chunk head must leave, so the dispatcher
+/// re-validates before stale translated code runs.
+fn region_store_check(g: &mut Gen) {
+    if let Some(r) = &g.region {
+        let (lo, hi) = (r.page_lo, r.page_hi);
+        g.get(TMP);
+        g.get(6);
+        g.op(0x6b);
+        g.c(lo * 4);
+        g.op(0x6b);
+        g.c((hi - lo) * 4);
+        g.op(0x4d);
+        g.get(DIRTY);
+        g.op(0x72);
+        g.set(DIRTY);
+    }
 }
 
 fn uleb(out: &mut Vec<u8>, mut n: usize) {
@@ -1090,7 +1329,7 @@ fn module(body: &[u8]) -> Vec<u8> {
     name(&mut exports, "run");
     exports.extend([0, 0]);
     section(&mut out, 7, &exports);
-    let mut func = vec![1, 23, 0x7f];
+    let mut func = vec![1, 25, 0x7f];
     func.extend(body);
     let mut code = vec![1];
     uleb(&mut code, func.len());

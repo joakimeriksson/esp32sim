@@ -101,6 +101,30 @@ budget, overflow and loop-end tests. Generated code loads only the block's opera
 and computes register-window collision state once per entry. Budget cuts, resumptions and
 states that fail either guard keep their checked path.
 
+Once a block is hot, the emitter also tries to form a *region*: the block plus the blocks
+reachable from it over statically known edges (fallthrough, conditional-branch target, `J`,
+and the backedge of a hardware loop set up inside the region), compiled as one function.
+Formation starts with at most 8 chunks, 64 instructions and 4 code pages; splitting at
+hardware-loop ends can add chunk boundaries without adding instructions. Guest registers stay in WASM locals
+across the internal edges; continuing inside the region checks the remaining instruction
+allowance and whether a helper or code-page store requires an exit. Anything that
+could make a block boundary observable leaves the region instead: interpreter helpers and
+stores into one of the region's own code pages make the next chunk head exit, calls, returns
+and computed jumps end a chunk, and entry checks cover page versions, probe boundaries, an active hardware loop,
+and window and coprocessor state. A region's continuation
+exits carry the next PC and are never mid-block cuts, so budget cuts inside a chunk still go
+through the chunk's own block module. A dispatch at any chunk head of a live region enters the
+region at that chunk, and a head already inside a live region does not get a region of its
+own. `ENTRY` may head a region; the window proof is redone after the rotation. The profile
+build (`jit-profile`) reports regions formed, entries, generated-entry rejects and instructions retired
+per core.
+
+The PIE (coprocessor 3) instructions the TinyDraw tile kernels use are emitted on WASM SIMD:
+aligned 128-bit load and store with post-increment, lane compares, the bitwise q-register
+operations, 32-bit lane insert and zeroing. Q registers stay in CPU memory as `v128` values.
+The CP3-disabled check is proved once per body next to the FP one. Other PIE instructions keep
+the interpreter.
+
 Compiled execution uses the same instruction-count timing as the default block interpreter.
 Timer budgets, interrupts, loop ends, code-page versions and observer boundaries still bound
 execution. This does **not** extend the receipt-based cycle model or establish cycle accuracy.

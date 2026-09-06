@@ -57,18 +57,17 @@ pub(super) fn supported(op: crate::Op) -> bool {
 // CPENABLE cannot change within an entirely supported block. A final call/return
 // helper may change machine state, but exits immediately. Do not extend this proof
 // across arbitrary interpreter helpers: they may write CPENABLE before later FP.
-pub(super) fn can_hoist_guard(block: &Block) -> bool {
-    block
-        .instructions
+pub(super) fn can_hoist_guard(instructions: &[BlockInsn], fast: bool) -> bool {
+    instructions
         .iter()
         .any(|bi| requires_coprocessor(bi.insn.op))
-        && block.instructions.iter().enumerate().all(|(n, bi)| {
-            super::supported(bi.insn.op, block.fast)
-                || (n + 1 == block.instructions.len() && terminal_helper(bi.insn.op))
+        && instructions.iter().enumerate().all(|(n, bi)| {
+            super::supported_insn(&bi.insn, fast)
+                || (n + 1 == instructions.len() && terminal_helper(bi.insn.op))
         })
 }
 
-fn requires_coprocessor(op: crate::Op) -> bool {
+pub(super) fn requires_coprocessor(op: crate::Op) -> bool {
     use crate::Op::*;
     (supported(op) && !matches!(op, Movf | Movt | Bf | Bt)) || matches!(op, Lsi | Ssi)
 }
@@ -145,7 +144,7 @@ pub(super) fn emit(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool, 
             g.set(TMP);
             g.get(TMP);
             g.op(0xbe);
-            g.0.extend([0xfc, if i.op == UtruncS { 1 } else { 0 }]);
+            g.bytes.extend([0xfc, if i.op == UtruncS { 1 } else { 0 }]);
             g.c(if i.op == UtruncS {
                 u32::MAX
             } else {
@@ -252,9 +251,7 @@ pub(super) fn emit(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool, 
                 g.op(0x45);
             }
             g.begin_if();
-            g.advance();
-            g.cpu_const(PC, imm);
-            g.ret(CODE_LEFT);
+            g.leave(imm);
             g.end();
         }
         _ => unreachable!("scalar instruction was checked before emission"),
