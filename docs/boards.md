@@ -45,6 +45,8 @@ The SoC model produces the events; the board interprets them. `make_board(name)`
 
 Firmware and its board build: [atech-firmware](https://github.com/joakimeriksson/atech-firmware). The images this repo runs,
 and the scripted scenario, are in `web/wasm/fw/public/`.
+`tools/update-atech-demo.sh` rebuilds those images from a checkout of the firmware repo,
+re-pins the commit in the manifests and regenerates the goldens they move.
 
 ## `waveshare-cam` — Waveshare ESP32-S3-CAM-OV5640
 
