@@ -100,7 +100,7 @@ impl Clone for BlockCache { fn clone(&self) -> Self { let mut b = Self::new(); b
 
 /// The instruction ends a block: control transfer, or a change to interrupt/timer/window state
 /// that the per-block checks depend on.
-fn ends_block(i: &Insn) -> bool {
+pub(crate) fn ends_block(i: &Insn) -> bool {
     use Op::*;
     match i.op {
         Ill | IllN | Break | BreakN | Syscall | Simcall | Waiti | Rsil | Isync | Rsync | Esync | Dsync | Excw
@@ -115,7 +115,7 @@ fn ends_block(i: &Insn) -> bool {
 
 /// The instruction must be the first of its block: it reads or writes state that is only exact
 /// at a block boundary (`CCOUNT`, `CCOMPARE*`, `INTERRUPT`, `INTENABLE`, `PS`).
-fn must_start_block(i: &Insn) -> bool {
+pub(crate) fn must_start_block(i: &Insn) -> bool {
     matches!(i.op, Op::Rsr | Op::Wsr | Op::Xsr)
         && matches!(i.imm as u32, sr::CCOUNT | sr::INTERRUPT | sr::INTCLEAR | sr::INTENABLE | sr::PS | sr::ICOUNT | 240..=242)
 }
@@ -214,16 +214,16 @@ fn run_block_inner<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Opt
     cpu.blocks.resume.2 = 1;
 
     // never run past a CCOMPARE match: the timer interrupt must land on the same instruction
+    #[cfg(not(target_arch = "wasm32"))]
     let mut limit = (end - k).min(budget);
+    // WASM code bounds itself by its block: pass the round's remaining credit so a retained
+    // loop or a region may continue past the block, under the same CCOMPARE deadline.
+    #[cfg(target_arch = "wasm32")]
+    let mut limit = budget.min(0xffff);
     for i in 0..3 { let d = cpu.ccompare[i].wrapping_sub(cpu.ccount); if d != 0 && d < limit { limit = d; } }
 
     let code = cpu.blocks.entries[ei as usize].code;
     if code != crate::jit::NONE && cpu.blocks.jit_enabled && crate::jit::ready(cpu.blocks.code.as_ref().unwrap(), code) {
-        #[cfg(target_arch = "wasm32")]
-        if crate::jit::loop_len(cpu.blocks.code.as_ref().unwrap(), code, cpu).is_some() {
-            limit = budget.min(0xffff);
-            for i in 0..3 { let d = cpu.ccompare[i].wrapping_sub(cpu.ccount); if d != 0 && d < limit { limit = d; } }
-        }
         let entry = cpu.blocks.arena[k as usize].off;
         let fm = bus.fast_mem();
         #[cfg(not(target_arch = "wasm32"))]
@@ -276,6 +276,7 @@ fn run_block_inner<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Opt
         };
     }
 
+    let limit = limit.min(end - k);
     let (mut done, mut trap, mut pre, mut broke) = (0u32, None, false, false);
     while done < limit {
         let e = cpu.blocks.arena[k as usize];

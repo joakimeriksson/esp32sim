@@ -68,7 +68,7 @@ pub(super) fn can_hoist_guard(block: &Block) -> bool {
         })
 }
 
-fn requires_coprocessor(op: crate::Op) -> bool {
+pub(super) fn requires_coprocessor(op: crate::Op) -> bool {
     use crate::Op::*;
     (supported(op) && !matches!(op, Movf | Movt | Bf | Bt)) || matches!(op, Lsi | Ssi)
 }
@@ -145,7 +145,7 @@ pub(super) fn emit(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool, 
             g.set(TMP);
             g.get(TMP);
             g.op(0xbe);
-            g.0.extend([0xfc, if i.op == UtruncS { 1 } else { 0 }]);
+            g.bytes.extend([0xfc, if i.op == UtruncS { 1 } else { 0 }]);
             g.c(if i.op == UtruncS {
                 u32::MAX
             } else {
@@ -252,9 +252,7 @@ pub(super) fn emit(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool, 
                 g.op(0x45);
             }
             g.begin_if();
-            g.advance();
-            g.cpu_const(PC, imm);
-            g.ret(CODE_LEFT);
+            g.leave(imm);
             g.end();
         }
         _ => unreachable!("scalar instruction was checked before emission"),

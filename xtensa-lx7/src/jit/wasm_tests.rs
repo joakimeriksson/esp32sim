@@ -5,6 +5,8 @@ use super::*;
 use crate::bus::{tlb_index, TLB_ENTRIES};
 use crate::{Fault, FlatRam, Insn, Op, Trap};
 const BASE: u32 = 0x4037_0000;
+/// A small window above the fast mapping that only the slow bus path can reach.
+const SLOW: u32 = BASE + 0x1_0000;
 struct Ram {
     ram: FlatRam,
     versions: Vec<u32>,
@@ -12,6 +14,7 @@ struct Ram {
     fast: bool,
     readonly: bool,
     noted: u32,
+    slow: [u8; 256],
 }
 impl Ram {
     fn new(fast: bool, readonly: bool) -> Self {
@@ -36,6 +39,7 @@ impl Ram {
             fast,
             readonly,
             noted: 0,
+            slow: [0x5a; 256],
         }
     }
     fn wrote(&mut self, a: u32, n: u32) {
@@ -46,6 +50,7 @@ impl Ram {
 }
 impl Bus for Ram {
     fn read8(&mut self, a: u32) -> Result<u8, Fault> {
+        if (SLOW..SLOW + 256).contains(&a) { return Ok(self.slow[(a - SLOW) as usize]); }
         self.ram.read8(a)
     }
     fn read16(&mut self, a: u32) -> Result<u16, Fault> {
@@ -58,6 +63,7 @@ impl Bus for Ram {
         if self.readonly {
             return Err(Fault::Prohibited);
         }
+        if (SLOW..SLOW + 256).contains(&a) { self.slow[(a - SLOW) as usize] = v; return Ok(()); }
         self.ram.write8(a, v)?;
         self.wrote(a, 1);
         Ok(())
@@ -111,7 +117,10 @@ fn cpu(seed: u32) -> Cpu {
     }
     c
 }
+thread_local! { static CONTEXT: std::cell::RefCell<String> = std::cell::RefCell::new(String::new()); }
 fn same(a: &Cpu, b: &Cpu) {
+    let cx = CONTEXT.with(|c| c.borrow().clone());
+    assert_eq!(a.ar, b.ar, "registers at {:x} [{cx}]", a.pc);
     assert_eq!(a.fr, b.fr, "float register bits");
     assert_eq!(a.br, b.br, "boolean registers");
     assert_eq!(a.cpenable, b.cpenable);
@@ -163,6 +172,8 @@ fn compare_configured(
     block: &mut [BlockInsn], seed: u32, entry: u32, budget: u32, addr: Option<u32>,
     fast: bool, readonly: bool, loop_end: bool, overflow: bool, configure: impl Fn(&mut Cpu),
 ) {
+    CONTEXT.with(|c| *c.borrow_mut() = format!("{:?} seed={seed} entry={entry} budget={budget} fast={fast} loop_end={loop_end} overflow={overflow}",
+        block.iter().map(|b| b.insn.op).collect::<Vec<_>>()));
     let mut cc = CodeCache::new(0).unwrap();
     let code = queue(&mut cc, block, BASE, fast);
     for _ in 0..HOT {
@@ -940,6 +951,182 @@ fn integer_ops() -> u32 {
     tests
 }
 
+/// Tiny assembler for the region programs: each encoder is checked against the decoder
+/// so a wrong encoding fails the suite instead of silently testing something else.
+mod asm {
+    pub fn j(pc: u32, target: u32) -> Vec<u8> { w24(0x6 | ((target.wrapping_sub(pc + 4) & 0x3ffff) << 6)) }
+    pub fn rri8(op0: u32, r: u32, s: u32, t: u32, imm8: u32) -> Vec<u8> { w24(op0 | (t << 4) | (s << 8) | (r << 12) | ((imm8 & 0xff) << 16)) }
+    /// beq=1 bne=9 blt=2 bge=0xa bltu=3 bgeu=0xb
+    pub fn bcc(r: u32, pc: u32, s: u32, t: u32, target: u32) -> Vec<u8> { rri8(7, r, s, t, target.wrapping_sub(pc + 4)) }
+    /// beqz=0 bnez=1 bltz=2 bgez=3
+    pub fn bz(m: u32, pc: u32, s: u32, target: u32) -> Vec<u8> { w24(0x6 | 0x10 | (m << 6) | (s << 8) | ((target.wrapping_sub(pc + 4) & 0xfff) << 12)) }
+    pub fn l8ui(t: u32, s: u32, imm: u32) -> Vec<u8> { rri8(2, 0, s, t, imm) }
+    pub fn l16ui(t: u32, s: u32, imm: u32) -> Vec<u8> { rri8(2, 1, s, t, imm / 2) }
+    pub fn s8i(t: u32, s: u32, imm: u32) -> Vec<u8> { rri8(2, 4, s, t, imm) }
+    pub fn movi(t: u32, imm: u32) -> Vec<u8> { w24(0x2 | (t << 4) | (((imm >> 8) & 0xf) << 8) | (0xa << 12) | ((imm & 0xff) << 16)) }
+    pub fn xor(r: u32, s: u32, t: u32) -> Vec<u8> { w24((t << 4) | (s << 8) | (r << 12) | (3 << 20)) }
+    pub fn rsr(t: u32, sr: u32) -> Vec<u8> { w24((3 << 16) | (sr << 8) | (t << 4)) }
+    pub fn addi_n(r: u32, s: u32, imm: i32) -> Vec<u8> { w16(0xb | (((if imm == -1 { 0 } else { imm as u32 }) & 0xf) << 4) | (s << 8) | (r << 12)) }
+    pub fn add_n(r: u32, s: u32, t: u32) -> Vec<u8> { w16(0xa | (t << 4) | (s << 8) | (r << 12)) }
+    pub fn mov_n(t: u32, s: u32) -> Vec<u8> { w16(0xd | (t << 4) | (s << 8)) }
+    pub fn movi_n(s: u32, imm: u32) -> Vec<u8> { w16(0xc | (((imm >> 4) & 7) << 4) | (s << 8) | ((imm & 0xf) << 12)) }
+    fn w24(w: u32) -> Vec<u8> { vec![w as u8, (w >> 8) as u8, (w >> 16) as u8] }
+    fn w16(w: u32) -> Vec<u8> { vec![w as u8, (w >> 8) as u8] }
+}
+
+/// Run `program` through the block scheduler with regions and compare against
+/// instruction-by-instruction execution under varying credit, probes, code changes
+/// and timer deadlines. Returns the largest single-call retirement, which proves that
+/// a region ran past its head block.
+fn region_program(name: &str, program: &[u8], expected: &[(u32, Op, u32)], data: &[u8], head_len: u32, interior: u32, setup: impl Fn(&mut Cpu), turns: usize) -> u32 {
+    let (mut a, mut b) = (cpu(3), cpu(3));
+    let (mut ra, mut rb) = (Ram::new(true, false), Ram::new(true, false));
+    for r in [&mut ra, &mut rb] {
+        r.ram.mem[..program.len()].copy_from_slice(program);
+        r.ram.mem[0x1000..0x1000 + data.len()].copy_from_slice(data);
+    }
+    CONTEXT.with(|c| *c.borrow_mut() = format!("region program {name}"));
+    for &(off, op, target) in expected {
+        let i = crate::decode::decode(BASE + off, ra.fetch(BASE + off).unwrap());
+        assert_eq!(i.op, op, "{name}: encoding at +{off}: {}", crate::disasm::format(&i));
+        if target != 0 { assert_eq!(i.imm as u32, BASE + target, "{name}: target at +{off}: {}", crate::disasm::format(&i)); }
+    }
+    for c in [&mut a, &mut b] {
+        c.pc = BASE;
+        c.ps = 0;
+        setup(c);
+    }
+    let mut max_done = 0;
+    for turn in 0..turns {
+        let budget = 1 + (turn * 7) as u32 % 71;
+        let head_probe = (40..45).contains(&(turn % 50));
+        for c in [&mut a, &mut b] {
+            // A probe on an interior chunk head must stop the region without a flush;
+            // a probe on the head itself must stop internal backedges to it.
+            if turn % 50 == 25 { c.boundary_bloom = emu_core::core::pc_bit(BASE + interior); }
+            if turn % 50 == 35 { c.boundary_bloom = 0; }
+            if turn % 50 == 40 { c.boundary_bloom = emu_core::core::pc_bit(BASE); }
+            if turn % 50 == 45 { c.boundary_bloom = 0; }
+            // A timer deadline inside the region must land on the same instruction.
+            if turn % 90 == 60 { c.ccompare[0] = c.ccount.wrapping_add(1 + (turn % 13) as u32); c.intenable = 1 << 6; }
+        }
+        let start = b.pc;
+        CONTEXT.with(|c| *c.borrow_mut() = format!("region program {name} turn {turn} start {start:x} budget {budget}"));
+        let (done, trap) = crate::block::run_block(&mut b, &mut rb, budget);
+        assert!(done <= budget, "{name}: {done} > budget {budget}");
+        if head_probe && start == BASE { assert!(done <= head_len, "{name}: region ran through a probed head ({done})"); }
+        max_done = max_done.max(done);
+        let mut oracle = None;
+        for _ in 0..done {
+            ra.note_pc(a.pc);
+            if let Err(t) = crate::step(&mut a, &mut ra) { oracle = Some(t); break; }
+        }
+        assert_eq!(trap, oracle, "{name}: turn {turn} budget {budget}");
+        same(&a, &b);
+        assert_eq!(ra.ram.mem, rb.ram.mem, "{name}: memory after turn {turn}");
+        assert_eq!(ra.versions, rb.versions, "{name}: versions after turn {turn}");
+        if done > 0 && trap.is_none() { assert_eq!(ra.noted, rb.noted, "{name}: noted PC after turn {turn}"); }
+        if let Some(Trap::Interrupt(_)) = trap {
+            // Return from the interrupt by hand: both continue at the interrupted PC.
+            for c in [&mut a, &mut b] { c.pc = c.epc[1]; c.ps &= !ps::EXCM; c.interrupt = 0; c.ccompare[0] = 0; }
+        }
+    }
+    max_done
+}
+
+fn regions() -> u32 {
+    use Op::*;
+    let mut cases = 0;
+    // The ROM memmove byte loop: a 6-instruction body ending in J, a one-instruction
+    // BNE block branching back, then a boundary the region cannot cross.
+    let mut p = Vec::new();
+    p.extend(asm::add_n(9, 3, 8));       // 0  a9 = src + i
+    p.extend(asm::l8ui(10, 9, 0));       // 2
+    p.extend(asm::add_n(9, 2, 8));       // 5  a9 = dst + i
+    p.extend(asm::s8i(10, 9, 0));        // 7
+    p.extend(asm::addi_n(8, 8, 1));      // 10
+    p.extend(asm::j(BASE + 12, BASE + 17)); // 12
+    p.extend(asm::movi_n(8, 0));         // 15  (never executed)
+    p.extend(asm::bcc(9, BASE + 17, 4, 8, BASE)); // 17 bne a4, a8, 0
+    p.extend(asm::rsr(13, 234));         // 20  rsr a13, ccount: a block boundary
+    p.extend(asm::movi_n(8, 0));         // 23  restart the copy
+    p.extend(asm::j(BASE + 25, BASE));   // 25
+    let memmove = [(0, AddN, 0), (2, L8ui, 0), (5, AddN, 0), (7, S8i, 0), (10, AddiN, 0), (12, J, 17), (17, Bne, 0), (20, Rsr, 0), (23, MoviN, 0), (25, J, 0)];
+    {
+        let mut ram = Ram::new(true, false);
+        ram.ram.mem[..p.len()].copy_from_slice(&p);
+        let c = cpu(0);
+        let head: Vec<BlockInsn> = (0..6).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, off: 0 }) }).collect();
+        let formed = emitter::region::form(&c, &mut ram, BASE, &head, true).expect("memmove region");
+        assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(), vec![(0, 6), (17, 1)]);
+        let (bytes, sites) = emitter::region::generate(&formed.chunks, &formed.pages, true);
+        let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
+        assert!(slot != 0, "memmove region module must compile ({} bytes, {} sites)", bytes.len(), sites.len());
+        unsafe { host_jit_release(slot) };
+    }
+    for (src, dst, whole) in [
+        (BASE + 0x1000, BASE + 0x2000, true),
+        // Copying the program onto itself and over its own tail bumps the code page the
+        // region was decoded from: every store sets DIRTY, so the region leaves at each
+        // edge, and the dispatcher must re-validate and rebuild exactly.
+        (BASE, BASE, false),
+        (BASE + 0x1000, BASE + 0x10, false),
+        // Slow loads and stores leave generated code through the helper in a successor chunk.
+        (SLOW, BASE + 0x2000, false),
+        (BASE + 0x1000, SLOW, false),
+    ] {
+        let max = region_program("memmove", &p, &memmove, &[], 6, 17, |c| {
+            c.set_ar(2, dst); c.set_ar(3, src); c.set_ar(4, 40); c.set_ar(8, 0);
+        }, 700);
+        let stats: Vec<u32> = REGION_STATS.iter().map(|s| s.load(std::sync::atomic::Ordering::Relaxed)).collect();
+        assert!(!whole || max >= 40, "memmove region retired at most {max} per call; formed/failed/maxdone/exits[END,LEFT,TRAP,CUT,PRE,REJ,_,_]/maxbudget {stats:?}");
+        cases += 1;
+    }
+    // A tile scan: two chunks in a loop with a conditional exit to a third. The second
+    // chunk rewrites the first immediate of the chunk it falls into, so the region
+    // must leave at that edge and the rebuilt block must see the new instruction.
+    let mut p = Vec::new();
+    p.extend(asm::l16ui(11, 8, 0));                 // 0
+    p.extend(asm::bcc(9, BASE + 3, 11, 6, BASE + 35)); // 3  bne a11, a6, 35
+    p.extend(asm::addi_n(8, 8, 2));                 // 6
+    p.extend(asm::addi_n(10, 10, -1));              // 8
+    p.extend(asm::bz(1, BASE + 10, 10, BASE));      // 10 bnez a10, 0
+    p.extend(asm::movi_n(10, 8));                   // 13 reset: the immediate byte at 14 gets toggled 8 <-> 9
+    p.extend(asm::mov_n(8, 12));                    // 15
+    p.extend(asm::l8ui(14, 15, 0));                 // 17
+    p.extend(asm::xor(14, 14, 5));                  // 20
+    p.extend(asm::s8i(14, 15, 0));                  // 23 a store into the region's own code page
+    p.extend(asm::j(BASE + 26, BASE + 43));         // 26 j 43: forward, non-contiguous
+    p.extend(asm::rsr(13, 234));                    // 29 (never executed)
+    p.extend(asm::rsr(13, 234));                    // 32 (never executed)
+    p.extend(asm::bcc(1, BASE + 35, 6, 7, BASE + 41)); // 35 beq a6, a7, 41 (always taken)
+    p.extend(asm::rsr(13, 234));                    // 38 (never executed)
+    p.extend(asm::addi_n(8, 8, 2));                 // 41 skip the odd halfword
+    p.extend(asm::j(BASE + 43, BASE));              // 43 j 0
+    let tile = [(0, L16ui, 0), (3, Bne, 35), (6, AddiN, 0), (8, AddiN, 0), (10, Bnez, 0), (13, MoviN, 0), (15, MovN, 0), (17, L8ui, 0), (20, Xor, 0), (23, S8i, 0), (26, J, 43), (35, Beq, 41), (38, Rsr, 0), (41, AddiN, 0), (43, J, 0)];
+    // A zero buffer with one odd halfword: the scan matches until it reaches it.
+    let mut data = [0u8; 32];
+    data[14] = 0x34; data[15] = 0x12;
+    let max = region_program("tile", &p, &tile, &data, 2, 6, |c| {
+        c.set_ar(12, BASE + 0x1000); c.set_ar(8, BASE + 0x1000); c.set_ar(10, 8);
+        c.set_ar(6, 0); c.set_ar(7, 0); c.set_ar(15, BASE + 14); c.set_ar(5, 0x10);
+    }, 900);
+    assert!(max >= 30, "tile region retired at most {max} per call");
+    cases += 1;
+    // Region formation itself: the memmove head yields chunks for the body, the BNE and
+    // nothing past the RSR boundary; a program with a call in it yields none.
+    let mut ram = Ram::new(true, false);
+    ram.ram.mem[..p.len()].copy_from_slice(&p);
+    let c = cpu(0);
+    let head: Vec<BlockInsn> = (0..2).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, off: 0 }) }).collect();
+    let formed = emitter::region::form(&c, &mut ram, BASE, &head, true).expect("tile region");
+    assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(),
+        vec![(0, 2), (35, 1), (6, 3), (41, 2), (13, 6), (43, 1)]);
+    assert_eq!(formed.pages, vec![(0, 0)]);
+    assert!(emitter::region::form(&c, &mut ram, BASE + 38, &head, true).is_none(), "RSR head");
+    cases + 2
+}
+
 pub fn run_tests() -> u32 {
     use Op::*;
     let ops = [
@@ -1007,6 +1194,7 @@ pub fn run_tests() -> u32 {
         }
     }
     scheduler();
+    tests += regions();
     retention();
     hardware_loop_scheduler();
     crate::block::ownership_tests::compiled_helpers_follow_the_current_bus_type();
