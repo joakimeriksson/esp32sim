@@ -67,6 +67,11 @@ class VerdictTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'timing capture mode'):
                     compare.read_run(directory)
             capture['captureMode'] = 'timing'
+            capture['result']['instrumented'] = True
+            write()
+            with self.assertRaisesRegex(ValueError, 'diagnostic exports'):
+                compare.read_run(directory)
+            capture['result']['instrumented'] = False
             for failed in [None, 123]:
                 capture['result']['jit']['failed'] = failed
                 write()

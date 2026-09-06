@@ -29,6 +29,19 @@ class ValidationTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     runner.validate(raw, 100)
 
+    def test_rejects_instrumented_capture(self):
+        raw = copy.deepcopy(self.raw)
+        raw['result']['instrumented'] = True
+        with self.assertRaises(ValueError):
+            runner.validate(raw, 100)
+
+    def test_rejects_known_diagnostic_artifacts(self):
+        runner.validate_timing_build({'buildFeatures': []})
+        for features in [['cpu-profile'], ['jit-profile', 'exit-stats'], ['jit-tests']]:
+            record = {'artifactBuild': {'buildFeatures': features}}
+            with self.subTest(features=features), self.assertRaises(ValueError):
+                runner.validate_timing_build(record)
+
 
 if __name__ == '__main__':
     unittest.main()

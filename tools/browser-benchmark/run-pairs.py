@@ -40,6 +40,16 @@ def command(argv, **kwargs):
     return subprocess.check_output(argv, text=True, **kwargs).strip()
 
 
+def validate_timing_build(record):
+    diagnostic = {'jit-profile', 'cpu-profile', 'exit-stats', 'jit-tests',
+                  'wasm-jit-profile', 'wasm-cpu-profile', 'wasm-jit-tests'}
+    features = record.get('buildFeatures', [])
+    if isinstance(features, list) and diagnostic.intersection(features):
+        raise ValueError(f'diagnostic build cannot be used for timing: {features}')
+    if isinstance(record.get('artifactBuild'), dict):
+        validate_timing_build(record['artifactBuild'])
+
+
 def prepare(out, name, tree, wasm, assets, rustflags=None):
     tree = tree.resolve()
     arm = out / name
@@ -80,6 +90,7 @@ def prepare(out, name, tree, wasm, assets, rustflags=None):
         if origin.is_file():
             original = json.loads(origin.read_text())
             if original.get('wasmSha256') == sha(wasm):
+                validate_timing_build(original)
                 record['artifactBuild'] = original
     shutil.copy2(wasm, arm / 'main.wasm')
     shutil.copytree(tree / 'web/wasm', arm / 'web/wasm', ignore=shutil.ignore_patterns('*.wasm'))
@@ -109,6 +120,8 @@ def await_server(url, process):
 
 def validate(raw, expected):
     r = raw['result']
+    if r.get('instrumented'):
+        raise ValueError('diagnostic exports present in timing capture')
     if not r['passed'] or r['status'] != 'completed' or r['stopCode'] != 0:
         raise ValueError('battery did not complete successfully')
     comparator.validate_verdict(r.get('verdict'))

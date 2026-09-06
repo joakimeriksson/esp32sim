@@ -56,6 +56,8 @@ def read_run(directory, *, legacy=False):
     if not legacy:
         if capture.get('captureMode') != 'timing':
             raise ValueError(f'{directory}: missing explicit timing capture mode')
+        if result.get('instrumented'):
+            raise ValueError(f'{directory}: diagnostic exports present in timing capture')
         if result.get('stopCode') != 0 or result.get('jit', {}).get('failed') != 0:
             raise ValueError(f'{directory}: missing clean stop/JIT status or reported failure')
         if not (result.get('provenance') or {}).get('sha256', {}).get('asset/wasm'):
