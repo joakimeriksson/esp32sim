@@ -85,6 +85,13 @@ impl BlockCache {
     }
     /// Bytes of native code currently in use.
     pub fn code_bytes(&self) -> usize { self.code.as_ref().map(|c| c.used()).unwrap_or(0) }
+    /// Region counters, in the opt-in profile build only.
+    pub fn region_report(&self) -> Option<String> {
+        #[cfg(all(target_arch = "wasm32", feature = "wasm-jit-profile"))]
+        { return self.code.as_ref().map(|c| c.region_stats.report()); }
+        #[allow(unreachable_code)]
+        None
+    }
     pub fn jit_active(&self) -> bool { self.jit_enabled && self.code.is_some() }
     #[inline(always)]
     fn index(pc: u32) -> usize { ((pc >> 1) ^ (pc >> 16)) as usize & (ENTRIES - 1) }

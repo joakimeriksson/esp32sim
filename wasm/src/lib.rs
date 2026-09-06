@@ -803,6 +803,7 @@ pub unsafe extern "C" fn esp32sim_profile_report(e: *mut Emu) {
     if let Some(m) = unsafe { &mut *e }.m.as_any_mut().downcast_mut::<esp32s3::Machine>() {
         for (i, core) in m.cores.iter().enumerate() {
             log(&format!("core={i}\n{}", core.blocks.profile.report()));
+            if let Some(r) = core.blocks.region_report() { log(&format!("core={i} {r}")); }
         }
     }
 }

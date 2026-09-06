@@ -22,6 +22,32 @@ pub const CODE_REJECT: u32 = 5;
 const REGION_TRIES: u8 = 8;
 #[cfg(feature = "wasm-jit-tests")]
 pub(crate) static REGION_STATS: [std::sync::atomic::AtomicU32; 12] = [const { std::sync::atomic::AtomicU32::new(0) }; 12];
+
+/// Region counters for the opt-in profile build; absent from production.
+#[cfg(feature = "wasm-jit-profile")]
+#[derive(Default)]
+pub struct RegionStats {
+    pub formed: Cell<u64>,
+    pub failed: Cell<u64>,
+    pub covered: Cell<u64>,
+    pub dropped: Cell<u64>,
+    pub calls: Cell<u64>,
+    pub rejected: Cell<u64>,
+    pub retired: Cell<u64>,
+    pub exits: [Cell<u64>; 8],
+    pub chunks: Cell<u64>,
+    pub instructions: Cell<u64>,
+    pub bytes: Cell<u64>,
+}
+#[cfg(feature = "wasm-jit-profile")]
+impl RegionStats {
+    pub fn report(&self) -> String {
+        format!("[wasm-region] formed={} failed={} covered={} dropped={} chunks={} instructions={} bytes={} calls={} rejected={} retired={} exits[end,left,trap,cut,pre]={:?}",
+            self.formed.get(), self.failed.get(), self.covered.get(), self.dropped.get(), self.chunks.get(),
+            self.instructions.get(), self.bytes.get(), self.calls.get(), self.rejected.get(), self.retired.get(),
+            self.exits[..5].iter().map(|c| c.get()).collect::<Vec<_>>())
+    }
+}
 const HOT: u32 = 32;
 const RETAIN_BYTES: usize = 64 << 20;
 const RETAIN_BLOCKS: usize = 16_384;
@@ -67,19 +93,33 @@ pub struct CodeCache {
     blocks: Vec<Block>,
     by_pc: HashMap<(u32, usize, bool), u32>,
     generation: u64,
+    /// Chunk heads of live regions, with a count per PC. A head already inside some
+    /// region does not get a region of its own: overlapping copies of one loop cost
+    /// code and compile time, and a dispatch entering at a covered head runs one block
+    /// before reaching the region that covers it.
+    covered: RefCell<HashMap<u32, u32>>,
+    #[cfg(feature = "wasm-jit-profile")]
+    pub region_stats: RegionStats,
 }
 impl Block {
-    fn release(&self) {
+    fn release(&self, covered: &RefCell<HashMap<u32, u32>>) {
         if self.slot.get() != NONE && self.slot.get() != 0 {
             // SAFETY: reset/drop happen only when no compiled block is executing.
             unsafe {
                 host_jit_release(self.slot.get());
             }
         }
-        self.drop_region();
+        self.drop_region(covered);
     }
-    fn drop_region(&self) {
+    fn drop_region(&self, covered: &RefCell<HashMap<u32, u32>>) {
         if let Some(r) = self.region.borrow_mut().take() {
+            let mut covered = covered.borrow_mut();
+            for c in &r.chunks {
+                if let Some(n) = covered.get_mut(&c.pc) {
+                    *n -= 1;
+                    if *n == 0 { covered.remove(&c.pc); }
+                }
+            }
             // SAFETY: as above; a region is dropped from Rust between compiled calls.
             unsafe {
                 host_jit_release(r.slot);
@@ -96,6 +136,9 @@ impl CodeCache {
             blocks: Vec::new(),
             by_pc: HashMap::new(),
             generation: 0,
+            covered: RefCell::new(HashMap::new()),
+            #[cfg(feature = "wasm-jit-profile")]
+            region_stats: RegionStats::default(),
         })
     }
     pub fn used(&self) -> usize {
@@ -107,15 +150,16 @@ impl CodeCache {
         // pressure; enforce these retention limits only after all decoder handles die.
         self.blocks.sort_by_key(|b| std::cmp::Reverse(b.generation));
         let (mut bytes, mut count) = (0, 0);
+        let (generation, covered) = (self.generation, &self.covered);
         self.blocks.retain(|b| {
-            let keep = self.generation - b.generation <= 2
+            let keep = generation - b.generation <= 2
                 && count < RETAIN_BLOCKS
                 && bytes + b.size() <= RETAIN_BYTES;
             if keep {
                 bytes += b.size();
                 count += 1;
             } else {
-                b.release();
+                b.release(covered);
             }
             keep
         });
@@ -129,7 +173,7 @@ impl CodeCache {
 impl Drop for CodeCache {
     fn drop(&mut self) {
         for b in &self.blocks {
-            b.release();
+            b.release(&self.covered);
         }
     }
 }
@@ -317,18 +361,39 @@ pub unsafe fn run<B: Bus>(
     let b = &cc.blocks[code as usize];
     if entry == 0 && !cpu.blocks.observed {
         if b.region_tries.get() < REGION_TRIES && b.region.borrow().is_none() {
-            b.region_tries.set(b.region_tries.get() + 1);
-            let formed = emitter::region::form(cpu, bus, b.pc, &b.instructions, b.fast).and_then(|f| {
-                let (bytes, sites) = emitter::region::generate(&f.chunks, &f.pages, &f.loops, b.fast);
-                // SAFETY: as for ready(): the host copies and installs the module.
-                let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
-                (slot != 0).then(|| Region {
-                    chunks: f.chunks, slot, bytes: bytes.len(), bloom: f.bloom, lo: f.lo, hi: f.hi, loops: f.loops, pages: f.pages, sites,
-                })
-            });
-            #[cfg(feature = "wasm-jit-tests")]
-            REGION_STATS[if formed.is_some() { 0 } else { 1 }].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            *b.region.borrow_mut() = formed;
+            if cc.covered.borrow().contains_key(&b.pc) {
+                #[cfg(feature = "wasm-jit-profile")]
+                cc.region_stats.covered.set(cc.region_stats.covered.get() + 1);
+                #[cfg(feature = "wasm-jit-tests")]
+                REGION_STATS[10].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            } else {
+                b.region_tries.set(b.region_tries.get() + 1);
+                let formed = emitter::region::form(cpu, bus, b.pc, &b.instructions, b.fast).and_then(|f| {
+                    let (bytes, sites) = emitter::region::generate(&f.chunks, &f.pages, &f.loops, b.fast);
+                    // SAFETY: as for ready(): the host copies and installs the module.
+                    let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
+                    (slot != 0).then(|| Region {
+                        chunks: f.chunks, slot, bytes: bytes.len(), bloom: f.bloom, lo: f.lo, hi: f.hi, loops: f.loops, pages: f.pages, sites,
+                    })
+                });
+                if let Some(r) = &formed {
+                    let mut covered = cc.covered.borrow_mut();
+                    for c in &r.chunks { *covered.entry(c.pc).or_insert(0) += 1; }
+                    #[cfg(feature = "wasm-jit-profile")]
+                    {
+                        let st = &cc.region_stats;
+                        st.formed.set(st.formed.get() + 1);
+                        st.chunks.set(st.chunks.get() + r.chunks.len() as u64);
+                        st.instructions.set(st.instructions.get() + r.chunks.iter().map(|c| c.instructions.len() as u64).sum::<u64>());
+                        st.bytes.set(st.bytes.get() + r.bytes as u64);
+                    }
+                }
+                #[cfg(feature = "wasm-jit-profile")]
+                if formed.is_none() { cc.region_stats.failed.set(cc.region_stats.failed.get() + 1); }
+                #[cfg(feature = "wasm-jit-tests")]
+                REGION_STATS[if formed.is_some() { 0 } else { 1 }].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                *b.region.borrow_mut() = formed;
+            }
         }
         let region = b.region.borrow();
         if let Some(r) = region.as_ref() {
@@ -337,7 +402,11 @@ pub unsafe fn run<B: Bus>(
             if !current {
                 // Some chunk's code changed: rebuild the region from the new code later.
                 drop(region);
-                b.drop_region();
+                b.drop_region(&cc.covered);
+                #[cfg(feature = "wasm-jit-profile")]
+                cc.region_stats.dropped.set(cc.region_stats.dropped.get() + 1);
+                #[cfg(feature = "wasm-jit-tests")]
+                REGION_STATS[9].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             } else if cpu.boundary_bloom & r.bloom == 0
                 && (cpu.lcount == 0
                     || cpu.lend.wrapping_sub(r.lo) > r.hi.wrapping_sub(r.lo)
@@ -352,6 +421,18 @@ pub unsafe fn run<B: Bus>(
                     REGION_STATS[2].fetch_max(result & 0xffff, Relaxed);
                     REGION_STATS[3 + ((result >> 16) & 7) as usize].fetch_add(1, Relaxed);
                     REGION_STATS[11].fetch_max(budget, Relaxed);
+                }
+                #[cfg(feature = "wasm-jit-profile")]
+                {
+                    let st = &cc.region_stats;
+                    st.calls.set(st.calls.get() + 1);
+                    let exit = ((result >> 16) & 7) as usize;
+                    if exit == CODE_REJECT as usize {
+                        st.rejected.set(st.rejected.get() + 1);
+                    } else {
+                        st.retired.set(st.retired.get() + (result & 0xffff) as u64);
+                        st.exits[exit].set(st.exits[exit].get() + 1);
+                    }
                 }
                 if (result >> 16) & 7 != CODE_REJECT {
                     assert!(((result >> 19) as usize) < r.sites.len(), "region {:x}: result {result:#x} sites {}", b.pc, r.sites.len());
