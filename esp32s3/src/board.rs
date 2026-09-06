@@ -184,12 +184,15 @@ impl St7735 {
 
 /// WS2812 ring fed by RMT symbols.
 /// Where chain index `i` of a Light Grid V1.1 sits on the glass, as a row-major cell of the 3×3 the
-/// page draws. The module is mounted so that the firmware's row-major `xyToIndex` comes out
-/// anti-transposed: cell (row, col) of the chain lands at (2 − col, 2 − row). Read off the
-/// board: with every SID voice at its lowest lit level the firmware writes only its bottom
-/// row — blue, magenta, orange in chain order — and the glass shows a left column, orange at
-/// the top and blue at the bottom.
-pub const GRID_PHYSICAL: [usize; 9] = [8, 5, 2, 7, 4, 1, 6, 3, 0];
+/// page draws, with the module's ESP32 connector at the bottom. The chain is wired
+/// column-serpentine: down the left column (0, 1, 2), up the middle (3 at the bottom, 5 at the
+/// top), down the right (6, 7, 8). Measured on the board, one chain LED at a time, with the
+/// firmware's `set_grid_pixel` self-test — chain 0 top-left, 1 middle-left, 3 bottom-centre
+/// pin it; the rest confirm. The firmware's `xyToIndex` is plain row-major, so the SID
+/// player's per-voice chain columns are scattered on the glass: with every voice at its
+/// lowest step the glass shows the right column, blue at the top and orange at the bottom,
+/// and with all three voices high it shows `BOB / MMM / OBO`.
+pub const GRID_PHYSICAL: [usize; 9] = [0, 3, 6, 7, 4, 1, 2, 5, 8];
 
 pub struct Ring { pub leds: Vec<[u8; 3]>, pub updates: u64, physical: Option<&'static [usize; 9]> }
 impl Ring {

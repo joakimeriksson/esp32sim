@@ -484,26 +484,33 @@ fn due_script_stop_precedes_execution_and_observes_edits_between_runs() {
     }
 }
 
-/// The Light Grid is mounted anti-transposed to the firmware's row-major chain: the SID player
-/// writes one voice per chain column, filling rows from the bottom, and the glass shows each
-/// voice as a physical row. Pinned from the board — every voice at its lowest level lights the
-/// chain's bottom row (blue, magenta, orange) and the glass shows a left column, orange on top.
+/// The Light Grid's chain is column-serpentine on the glass (connector at the bottom): down the
+/// left column, up the middle, down the right. Measured on the board with `set_grid_pixel`, one
+/// chain LED at a time. The SID player writes one chain column per voice filling chain rows from
+/// the bottom, so the glass shows the lowest step of every voice as the right column.
 #[test]
 fn light_grid_reports_the_glass_not_the_chain() {
     use esp32s3::board::{Ring, GRID_PHYSICAL};
     let px = |r: u8, g: u8, b: u8| -> Vec<bool> { let v = (g as u32) << 16 | (r as u32) << 8 | b as u32; (0..24).map(|i| v >> (23 - i) & 1 != 0).collect() };
+    // the self-test readings that pinned the map: chain 0, 1, 3 lit one at a time
+    for (chain, cell, name) in [(0usize, (0usize, 0usize), "top-left"), (1, (1, 0), "middle-left"), (3, (2, 1), "bottom-centre"), (5, (0, 1), "top-centre"), (8, (2, 2), "bottom-right")] {
+        let mut bits = Vec::new();
+        for i in 0..9 { if i == chain { bits.extend(px(51, 0, 0)); } else { bits.extend(px(0, 0, 0)); } }
+        let mut g = Ring::grid(); g.from_bits(&bits);
+        let lit: Vec<usize> = (0..9).filter(|&k| g.leds[k] != [0, 0, 0]).collect();
+        assert_eq!(lit, vec![cell.0 * 3 + cell.1], "chain {} lights the {} cell", chain, name);
+    }
+    // the SID low-on-all frame: chain row 2 = blue, magenta, orange (one per voice column)
     let (blue, magenta, orange) = ((0, 38, 51), (51, 0, 34), (51, 26, 0));
     let mut bits = Vec::new();
-    for _ in 0..6 { bits.extend(px(0, 0, 0)); }                          // chain rows 0 and 1 dark
-    for (r, g, b) in [blue, magenta, orange] { bits.extend(px(r, g, b)); } // chain row 2: one voice per column
+    for _ in 0..6 { bits.extend(px(0, 0, 0)); }
+    for (r, g, b) in [blue, magenta, orange] { bits.extend(px(r, g, b)); }
     let mut g = Ring::grid(); g.from_bits(&bits);
     let cell = |row: usize, col: usize| g.leds[row * 3 + col];
-    assert_eq!(cell(0, 0), [51, 26, 0], "orange at the top of the left column");
-    assert_eq!(cell(1, 0), [51, 0, 34], "magenta in the middle");
-    assert_eq!(cell(2, 0), [0, 38, 51], "blue at the bottom");
-    for row in 0..3 { for col in 1..3 { assert_eq!(cell(row, col), [0, 0, 0], "the other two columns stay dark"); } }
-    // the map is a permutation — every chain LED lands on exactly one cell
-    let mut seen = [false; 9]; for &p in &GRID_PHYSICAL { assert!(!seen[p]); seen[p] = true; }
-    // a plain ring is untouched: chain order is what the knob's pointer maths expects
-    let mut ring = Ring::new(9); ring.from_bits(&bits); assert_eq!(ring.leds[6], [0, 38, 51]);
+    assert_eq!(cell(0, 2), [0, 38, 51], "voice 0's lowest step (chain 6) is top-right");
+    assert_eq!(cell(1, 2), [51, 0, 34], "voice 1's lowest step (chain 7) is middle-right");
+    assert_eq!(cell(2, 2), [51, 26, 0], "voice 2's lowest step (chain 8) is bottom-right");
+    assert_eq!((0..9).filter(|&k| g.leds[k] != [0, 0, 0]).count(), 3);
+    let mut seen = [false; 9]; for &p in &GRID_PHYSICAL { assert!(!seen[p]); seen[p] = true; }   // a permutation
+    let mut ring = Ring::new(9); ring.from_bits(&bits); assert_eq!(ring.leds[6], [0, 38, 51], "a plain ring keeps chain order");
 }
