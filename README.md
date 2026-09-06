@@ -193,8 +193,8 @@ tools/wasm-build.sh && python3 -m http.server -d web 8790     # then open http:/
 The same emulator compiled to WebAssembly, running inside the page in a Web Worker: pick a board,
 load the ROM ELF and firmware from disk (or `?wasm&fw=<name>` for a hosted manifest), press Boot.
 hello_world, the Touch-LCD-4B panel with its SID player, the Atech board, the ESP32-C3 and the
-ESP32-C6 all run at real time in Chrome; there is no NAT (the browser has no sockets) and no JIT. See
-[docs/wasm.md](docs/wasm.md).
+ESP32-C6 all run at real time in Chrome; there is no NAT (the browser has no sockets). The S3 has
+a WebAssembly JIT of its own (hot blocks and regions, PIE on WASM SIMD). See [docs/wasm.md](docs/wasm.md).
 **Live: https://joakimeriksson.github.io/esp32sim/** — the Touch-LCD-4B panel with its SID
 player, the Atech board, and the ESP32-C3 and C6 booting hello_world; or load your own firmware
 for any chip from disk (pick the board, or `esp32c3` / `esp32c6`).
