@@ -57,6 +57,7 @@ struct Region {
     bloom: u64,
     lo: u32,
     hi: u32,
+    loops: Vec<(u32, u32)>,
     pages: Vec<(u32, u32)>,
     sites: Vec<u32>,
 }
@@ -318,11 +319,11 @@ pub unsafe fn run<B: Bus>(
         if b.region_tries.get() < REGION_TRIES && b.region.borrow().is_none() {
             b.region_tries.set(b.region_tries.get() + 1);
             let formed = emitter::region::form(cpu, bus, b.pc, &b.instructions, b.fast).and_then(|f| {
-                let (bytes, sites) = emitter::region::generate(&f.chunks, &f.pages, b.fast);
+                let (bytes, sites) = emitter::region::generate(&f.chunks, &f.pages, &f.loops, b.fast);
                 // SAFETY: as for ready(): the host copies and installs the module.
                 let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
                 (slot != 0).then(|| Region {
-                    chunks: f.chunks, slot, bytes: bytes.len(), bloom: f.bloom, lo: f.lo, hi: f.hi, pages: f.pages, sites,
+                    chunks: f.chunks, slot, bytes: bytes.len(), bloom: f.bloom, lo: f.lo, hi: f.hi, loops: f.loops, pages: f.pages, sites,
                 })
             });
             #[cfg(feature = "wasm-jit-tests")]
@@ -338,7 +339,9 @@ pub unsafe fn run<B: Bus>(
                 drop(region);
                 b.drop_region();
             } else if cpu.boundary_bloom & r.bloom == 0
-                && (cpu.lcount == 0 || cpu.lend.wrapping_sub(r.lo) > r.hi.wrapping_sub(r.lo))
+                && (cpu.lcount == 0
+                    || cpu.lend.wrapping_sub(r.lo) > r.hi.wrapping_sub(r.lo)
+                    || r.loops.contains(&(cpu.lend, cpu.lbeg)))
             {
                 // SAFETY: the region was installed with the block signature.
                 let f: Run<B> = unsafe { std::mem::transmute(r.slot as usize) };

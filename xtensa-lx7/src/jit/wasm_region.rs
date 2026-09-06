@@ -22,6 +22,9 @@ pub(in crate::jit) struct Chunk {
 
 pub(in crate::jit) struct Formed {
     pub chunks: Vec<Chunk>,
+    /// Hardware loops set up inside the region, as (LEND, LBEG): their backedges are
+    /// internal edges, and an entry with exactly this loop active is admitted.
+    pub loops: Vec<(u32, u32)>,
     /// Every instruction PC, head included: a probe there must stop the region being used.
     pub bloom: u64,
     /// Lowest PC and highest end address; an active hardware loop ending inside rejects.
@@ -44,13 +47,19 @@ pub(super) struct RegionGen {
     /// version-page index range covering every chunk (stores inside it set DIRTY)
     pub page_lo: u32,
     pub page_hi: u32,
+    /// LEND -> LBEG for the region's own hardware loops
+    pub loops: HashMap<u32, u32>,
 }
 
+/// May appear anywhere in a chunk.
 fn eligible(op: crate::Op, fast: bool) -> bool {
-    use crate::Op::*;
-    supported(op, fast)
-        && !terminal_helper(op)
-        && !matches!(op, Entry | Loop | Loopnez | Loopgtz | Jx)
+    supported(op, fast) && !terminal(op)
+}
+
+/// Ends a chunk and leaves the region by itself: calls, returns and computed jumps.
+/// Direct calls and JX are emitted; returns run through the terminal helper.
+fn terminal(op: crate::Op) -> bool {
+    terminal_helper(op) || op == crate::Op::Jx
 }
 
 fn conditional(op: crate::Op) -> bool {
@@ -62,12 +71,19 @@ fn conditional(op: crate::Op) -> bool {
     )
 }
 
+fn chunk_end(chunk: &Chunk) -> u32 {
+    chunk.pc.wrapping_add(chunk.instructions.iter().map(|i| i.insn.len as u32).sum())
+}
+
 /// Where control goes after `chunk`, statically.
 fn successors(chunk: &Chunk) -> Vec<u32> {
+    use crate::Op::*;
     let last = chunk.instructions.last().unwrap();
-    let next = chunk.pc.wrapping_add(chunk.instructions.iter().map(|i| i.insn.len as u32).sum());
+    let next = chunk_end(chunk);
     match last.insn.op {
-        crate::Op::J => vec![last.insn.imm as u32],
+        J => vec![last.insn.imm as u32],
+        op if terminal(op) => vec![],
+        Loopnez | Loopgtz => vec![next, last.insn.imm as u32],
         op if conditional(op) => vec![last.insn.imm as u32, next],
         _ => vec![next],
     }
@@ -82,15 +98,41 @@ fn chunk<B: Bus>(cpu: &Cpu, bus: &mut B, head: u32, pc0: u32, fast: bool, room: 
     while v.len() < room.min(MAX_LEN) {
         let Ok(bytes) = bus.fetch(pc) else { break };
         let i = decode(pc, bytes);
-        if i.len == 0 || !eligible(i.op, fast) { break }
+        if i.len == 0 || !(eligible(i.op, fast) || terminal(i.op)) { break }
         if pc != head && (must_start_block(&i) || cpu.boundary_bloom & pc_bit(pc) != 0) { break }
         v.push(BlockInsn { insn: i, max_ar: max_ar(&i), off: v.len() as u32 });
         // Includes the head: an internal backedge to it would skip a probe there.
         *bloom |= pc_bit(pc);
         pc = pc.wrapping_add(i.len as u32);
-        if ends_block(&i) { break }
+        if ends_block(&i) || terminal(i.op) { break }
     }
     (!v.is_empty()).then_some(v)
+}
+
+/// A hardware loop's last instruction ends exactly at LEND; make that a chunk boundary
+/// so the backedge can be an ordinary edge to the LBEG chunk.
+fn split_at_loop_ends(chunks: &mut Vec<Chunk>, loops: &[(u32, u32)]) {
+    let mut k = 0;
+    while k < chunks.len() {
+        let mut pc = chunks[k].pc;
+        let mut split = None;
+        for (j, bi) in chunks[k].instructions.iter().enumerate() {
+            pc = pc.wrapping_add(bi.insn.len as u32);
+            if j + 1 < chunks[k].instructions.len() && loops.iter().any(|&(lend, _)| lend == pc) {
+                split = Some((j + 1, pc));
+                break;
+            }
+        }
+        if let Some((at, pc)) = split {
+            let mut tail = chunks[k].instructions.split_off(at);
+            // The loop exit is usually a chunk head already (the LOOPNEZ skip target).
+            if !chunks.iter().any(|c| c.pc == pc) {
+                for (n, bi) in tail.iter_mut().enumerate() { bi.off = n as u32; }
+                chunks.push(Chunk { pc, instructions: tail });
+            }
+        }
+        k += 1;
+    }
 }
 
 /// `block` is the head block's own decode: the chunk found in memory must agree with it,
@@ -116,6 +158,23 @@ pub(in crate::jit) fn form<B: Bus>(cpu: &Cpu, bus: &mut B, head: u32, block: &[B
         q += 1;
     }
     if chunks.len() < 2 { return None }
+    let mut loops: Vec<(u32, u32)> = Vec::new();
+    for c in &chunks {
+        let mut pc = c.pc;
+        for bi in &c.instructions {
+            let next = pc.wrapping_add(bi.insn.len as u32);
+            if matches!(bi.insn.op, crate::Op::Loop | crate::Op::Loopnez | crate::Op::Loopgtz) {
+                loops.push((bi.insn.imm as u32, next));
+            }
+            pc = next;
+        }
+    }
+    // A loop is only usable when its body and end are region chunks; two loops sharing
+    // an end would make the backedge target ambiguous.
+    loops.sort_unstable();
+    loops.dedup();
+    if loops.windows(2).any(|w| w[0].0 == w[1].0) { return None }
+    split_at_loop_ends(&mut chunks, &loops);
     let (mut lo, mut hi) = (u32::MAX, 0u32);
     let mut pages: Vec<(u32, u32)> = Vec::new();
     for c in &chunks {
@@ -134,7 +193,7 @@ pub(in crate::jit) fn form<B: Bus>(cpu: &Cpu, bus: &mut B, head: u32, block: &[B
     if pages.len() > MAX_PAGES { return None }
     let pv = bus.page_versions();
     for (i, v) in &mut pages { *v = pv.get(*i as usize).copied().unwrap_or(0); }
-    Some(Formed { chunks, bloom, lo, hi, pages })
+    Some(Formed { chunks, loops, bloom, lo, hi, pages })
 }
 
 /// Retire the current instruction and continue at `target`: inside the region when it is
@@ -175,24 +234,30 @@ pub(super) fn region_edge(g: &mut Gen, target: u32, direct: bool) {
     }
 }
 
-pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], fast: bool) -> (Vec<u8>, Vec<u32>) {
+pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_loops: &[(u32, u32)], fast: bool) -> (Vec<u8>, Vec<u32>) {
     let page_lo = pages.iter().map(|p| p.0).min().unwrap_or(0);
     let page_hi = pages.iter().map(|p| p.0).max().unwrap_or(0);
     let all = || chunks.iter().flat_map(|c| c.instructions.iter());
-    let registers = all().fold(0u16, |m, bi| m | bi.insn.gpr_effects().touched());
-    let written = all().fold(0u16, |m, bi| {
+    // A return helper reads the CPU after the spill and exits: it needs no operands
+    // loaded, exactly as at the end of a single block.
+    let emitted = |bi: &BlockInsn| supported(bi.insn.op, fast) || !terminal_helper(bi.insn.op);
+    let registers = all().filter(|bi| emitted(bi)).fold(0u16, |m, bi| m | bi.insn.gpr_effects().touched());
+    let written = all().filter(|bi| emitted(bi)).fold(0u16, |m, bi| {
         let e = bi.insn.gpr_effects();
         m | e.writes | e.conditional_writes | e.unclassified
     });
     let max_ar = all().map(|bi| bi.max_ar).max().unwrap_or(0);
+    // An ENTRY head rotates the window before the rest runs; its own proof follows it.
+    let entry_head = chunks[0].instructions[0].insn.op == crate::Op::Entry;
     let float = all().any(|bi| float::requires_coprocessor(bi.insn.op));
     let heads = chunks.iter().enumerate().map(|(i, c)| (c.pc, (i, c.instructions.len() as u32))).collect();
+    let loops = formed_loops.iter().copied().collect();
     let mut g = Gen {
         loaded: registers,
         written,
         max_ar,
         dynamic: true,
-        region: Some(RegionGen { heads, current: 0, loop_depth: 0, chunk_depth: 0, sites: Vec::new(), page_lo, page_hi }),
+        region: Some(RegionGen { heads, current: 0, loop_depth: 0, chunk_depth: 0, sites: Vec::new(), page_lo, page_hi, loops }),
         ..Gen::default()
     };
     // Only a fresh entry with credit for the whole head chunk may run here; anything
@@ -207,7 +272,7 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], fast: boo
     g.op(0x0f);
     g.end();
     g.reload();
-    if max_ar >= 4 {
+    if max_ar >= 4 && !entry_head {
         g.get(WINDOWS);
         g.c((1 << (max_ar / 4)) - 1);
         g.op(0x71);

@@ -966,6 +966,12 @@ mod asm {
     pub fn movi(t: u32, imm: u32) -> Vec<u8> { w24(0x2 | (t << 4) | (((imm >> 8) & 0xf) << 8) | (0xa << 12) | ((imm & 0xff) << 16)) }
     pub fn xor(r: u32, s: u32, t: u32) -> Vec<u8> { w24((t << 4) | (s << 8) | (r << 12) | (3 << 20)) }
     pub fn rsr(t: u32, sr: u32) -> Vec<u8> { w24((3 << 16) | (sr << 8) | (t << 4)) }
+    /// loop=8 loopnez=9 loopgtz=10; the end is pc + 4 + imm8
+    pub fn lp(r: u32, pc: u32, s: u32, end: u32) -> Vec<u8> { w24(0x76 | (s << 8) | (r << 12) | ((end - pc - 4) << 16)) }
+    pub fn entry(s: u32, frame: u32) -> Vec<u8> { w24(0x36 | (s << 8) | ((frame >> 3) << 12)) }
+    pub fn call8(pc: u32, target: u32) -> Vec<u8> { w24(0x25 | (((target.wrapping_sub((pc & !3) + 4) >> 2) & 0x3ffff) << 6)) }
+    pub fn retw_n() -> Vec<u8> { w16(0xf01d) }
+    pub fn nop_n() -> Vec<u8> { w16(0xf03d) }
     pub fn addi_n(r: u32, s: u32, imm: i32) -> Vec<u8> { w16(0xb | (((if imm == -1 { 0 } else { imm as u32 }) & 0xf) << 4) | (s << 8) | (r << 12)) }
     pub fn add_n(r: u32, s: u32, t: u32) -> Vec<u8> { w16(0xa | (t << 4) | (s << 8) | (r << 12)) }
     pub fn mov_n(t: u32, s: u32) -> Vec<u8> { w16(0xd | (t << 4) | (s << 8)) }
@@ -1059,7 +1065,7 @@ fn regions() -> u32 {
         let head: Vec<BlockInsn> = (0..6).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, off: 0 }) }).collect();
         let formed = emitter::region::form(&c, &mut ram, BASE, &head, true).expect("memmove region");
         assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(), vec![(0, 6), (17, 1)]);
-        let (bytes, sites) = emitter::region::generate(&formed.chunks, &formed.pages, true);
+        let (bytes, sites) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, true);
         let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
         assert!(slot != 0, "memmove region module must compile ({} bytes, {} sites)", bytes.len(), sites.len());
         unsafe { host_jit_release(slot) };
@@ -1085,38 +1091,106 @@ fn regions() -> u32 {
     // A tile scan: two chunks in a loop with a conditional exit to a third. The second
     // chunk rewrites the first immediate of the chunk it falls into, so the region
     // must leave at that edge and the rebuilt block must see the new instruction.
-    let mut p = Vec::new();
-    p.extend(asm::l16ui(11, 8, 0));                 // 0
-    p.extend(asm::bcc(9, BASE + 3, 11, 6, BASE + 35)); // 3  bne a11, a6, 35
-    p.extend(asm::addi_n(8, 8, 2));                 // 6
-    p.extend(asm::addi_n(10, 10, -1));              // 8
-    p.extend(asm::bz(1, BASE + 10, 10, BASE));      // 10 bnez a10, 0
-    p.extend(asm::movi_n(10, 8));                   // 13 reset: the immediate byte at 14 gets toggled 8 <-> 9
-    p.extend(asm::mov_n(8, 12));                    // 15
-    p.extend(asm::l8ui(14, 15, 0));                 // 17
-    p.extend(asm::xor(14, 14, 5));                  // 20
-    p.extend(asm::s8i(14, 15, 0));                  // 23 a store into the region's own code page
-    p.extend(asm::j(BASE + 26, BASE + 43));         // 26 j 43: forward, non-contiguous
-    p.extend(asm::rsr(13, 234));                    // 29 (never executed)
-    p.extend(asm::rsr(13, 234));                    // 32 (never executed)
-    p.extend(asm::bcc(1, BASE + 35, 6, 7, BASE + 41)); // 35 beq a6, a7, 41 (always taken)
-    p.extend(asm::rsr(13, 234));                    // 38 (never executed)
-    p.extend(asm::addi_n(8, 8, 2));                 // 41 skip the odd halfword
-    p.extend(asm::j(BASE + 43, BASE));              // 43 j 0
+    let mut tp = Vec::new();
+    tp.extend(asm::l16ui(11, 8, 0));                 // 0
+    tp.extend(asm::bcc(9, BASE + 3, 11, 6, BASE + 35)); // 3  bne a11, a6, 35
+    tp.extend(asm::addi_n(8, 8, 2));                 // 6
+    tp.extend(asm::addi_n(10, 10, -1));              // 8
+    tp.extend(asm::bz(1, BASE + 10, 10, BASE));      // 10 bnez a10, 0
+    tp.extend(asm::movi_n(10, 8));                   // 13 reset: the immediate byte at 14 gets toggled 8 <-> 9
+    tp.extend(asm::mov_n(8, 12));                    // 15
+    tp.extend(asm::l8ui(14, 15, 0));                 // 17
+    tp.extend(asm::xor(14, 14, 5));                  // 20
+    tp.extend(asm::s8i(14, 15, 0));                  // 23 a store into the region's own code page
+    tp.extend(asm::j(BASE + 26, BASE + 43));         // 26 j 43: forward, non-contiguous
+    tp.extend(asm::rsr(13, 234));                    // 29 (never executed)
+    tp.extend(asm::rsr(13, 234));                    // 32 (never executed)
+    tp.extend(asm::bcc(1, BASE + 35, 6, 7, BASE + 41)); // 35 beq a6, a7, 41 (always taken)
+    tp.extend(asm::rsr(13, 234));                    // 38 (never executed)
+    tp.extend(asm::addi_n(8, 8, 2));                 // 41 skip the odd halfword
+    tp.extend(asm::j(BASE + 43, BASE));              // 43 j 0
     let tile = [(0, L16ui, 0), (3, Bne, 35), (6, AddiN, 0), (8, AddiN, 0), (10, Bnez, 0), (13, MoviN, 0), (15, MovN, 0), (17, L8ui, 0), (20, Xor, 0), (23, S8i, 0), (26, J, 43), (35, Beq, 41), (38, Rsr, 0), (41, AddiN, 0), (43, J, 0)];
     // A zero buffer with one odd halfword: the scan matches until it reaches it.
     let mut data = [0u8; 32];
     data[14] = 0x34; data[15] = 0x12;
-    let max = region_program("tile", &p, &tile, &data, 2, 6, |c| {
+    let max = region_program("tile", &tp, &tile, &data, 2, 6, |c| {
         c.set_ar(12, BASE + 0x1000); c.set_ar(8, BASE + 0x1000); c.set_ar(10, 8);
         c.set_ar(6, 0); c.set_ar(7, 0); c.set_ar(15, BASE + 14); c.set_ar(5, 0x10);
     }, 900);
     assert!(max >= 30, "tile region retired at most {max} per call");
     cases += 1;
-    // Region formation itself: the memmove head yields chunks for the body, the BNE and
-    // nothing past the RSR boundary; a program with a call in it yields none.
+    // A hardware loop with a branch inside its body: the LOOPNEZ, the body, the skip
+    // target and the loop exit are all region chunks; the backedge is an internal edge,
+    // and a credit cut inside the loop re-enters with the loop active.
+    let mut p = Vec::new();
+    p.extend(asm::mov_n(8, 14));                    // 0  a8 = buffer
+    p.extend(asm::movi_n(10, 12));                  // 2
+    p.extend(asm::lp(9, BASE + 4, 10, BASE + 17));  // 4  loopnez a10, 17
+    p.extend(asm::l8ui(11, 8, 0));                  // 7
+    p.extend(asm::bz(0, BASE + 10, 11, BASE + 15)); // 10 beqz a11, 15
+    p.extend(asm::addi_n(9, 9, 1));                 // 13
+    p.extend(asm::addi_n(8, 8, 1));                 // 15 (ends at LEND)
+    p.extend(asm::addi_n(12, 12, 1));               // 17 loop exit
+    p.extend(asm::rsr(13, 234));                    // 19
+    p.extend(asm::j(BASE + 22, BASE));              // 22
+    let hwloop = [(0, MovN, 0), (2, MoviN, 0), (4, Loopnez, 17), (7, L8ui, 0), (10, Beqz, 15), (13, AddiN, 0), (15, AddiN, 0), (17, AddiN, 0), (19, Rsr, 0), (22, J, 0)];
+    let data: Vec<u8> = (0..16u8).map(|i| i & 1).collect();
+    let formed_before = REGION_STATS[0].load(std::sync::atomic::Ordering::Relaxed);
+    let max = region_program("hwloop", &p, &hwloop, &data, 3, 7, |c| {
+        c.set_ar(14, BASE + 0x1000); c.set_ar(9, 0); c.set_ar(12, 0);
+    }, 900);
+    assert!(max >= 40, "hardware-loop region retired at most {max} per call");
+    assert!(REGION_STATS[0].load(std::sync::atomic::Ordering::Relaxed) > formed_before, "hwloop formed no region");
+    cases += 1;
+    {
+        let mut ram = Ram::new(true, false);
+        ram.ram.mem[..p.len()].copy_from_slice(&p);
+        let c = cpu(0);
+        let head: Vec<BlockInsn> = (0..3).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, off: 0 }) }).collect();
+        let formed = emitter::region::form(&c, &mut ram, BASE, &head, true).expect("hwloop region");
+        assert_eq!(formed.loops, vec![(BASE + 17, BASE + 7)]);
+        assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(),
+            vec![(0, 3), (7, 2), (17, 1), (15, 1), (13, 2)]);
+        cases += 1;
+    }
+    // Calls and returns end chunks and leave; a function entry heads a region whose
+    // window proof is redone after ENTRY; RETW.N runs through the terminal helper.
+    let mut p = Vec::new();
+    p.extend(asm::call8(BASE, BASE + 12));          // 0  call8 F
+    p.extend(asm::addi_n(2, 2, 1));                 // 3  (return address)
+    p.extend(asm::addi_n(3, 3, 1));                 // 5
+    p.extend(asm::j(BASE + 7, BASE));               // 7
+    p.extend(asm::nop_n());                         // 10
+    p.extend(asm::entry(1, 32));                    // 12 F: entry a1, 32
+    p.extend(asm::movi_n(3, 5));                    // 15
+    p.extend(asm::add_n(2, 2, 3));                  // 17
+    p.extend(asm::bz(2, BASE + 19, 2, BASE + 24));  // 19 bltz a2, 24
+    p.extend(asm::retw_n());                        // 22
+    p.extend(asm::movi_n(2, 0));                    // 24
+    p.extend(asm::retw_n());                        // 26
+    let calls = [(0, Call8, 12), (3, AddiN, 0), (5, AddiN, 0), (7, J, 0), (10, NopN, 0), (12, Entry, 0), (15, MoviN, 0), (17, AddN, 0), (19, Bltz, 24), (22, RetwN, 0), (24, MoviN, 0), (26, RetwN, 0)];
+    let formed_before = REGION_STATS[0].load(std::sync::atomic::Ordering::Relaxed);
+    let max = region_program("calls", &p, &calls, &[], 1, 12, |c| {
+        c.ps = ps::WOE; c.windowstart = 1 << c.windowbase;
+        c.set_ar(10, (-100i32) as u32); c.set_ar(2, 0); c.set_ar(3, 0);
+    }, 900);
+    assert!(max >= 4, "call region retired at most {max} per call");
+    assert!(REGION_STATS[0].load(std::sync::atomic::Ordering::Relaxed) >= formed_before + 2, "call/entry regions did not form");
+    cases += 1;
+    {
+        let mut ram = Ram::new(true, false);
+        ram.ram.mem[..p.len()].copy_from_slice(&p);
+        let c = cpu(0);
+        let head: Vec<BlockInsn> = (0..4).scan(BASE + 12, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, off: 0 }) }).collect();
+        let formed = emitter::region::form(&c, &mut ram, BASE + 12, &head, true).expect("entry region");
+        assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(),
+            vec![(12, 4), (24, 2), (22, 1)]);
+        assert!(emitter::region::form(&c, &mut ram, BASE, &head[..1], true).is_none(), "a lone call is not a region");
+        cases += 1;
+    }
+    // Region formation itself for the tile scan: every static successor, nothing past RSR.
     let mut ram = Ram::new(true, false);
-    ram.ram.mem[..p.len()].copy_from_slice(&p);
+    ram.ram.mem[..tp.len()].copy_from_slice(&tp);
     let c = cpu(0);
     let head: Vec<BlockInsn> = (0..2).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, off: 0 }) }).collect();
     let formed = emitter::region::form(&c, &mut ram, BASE, &head, true).expect("tile region");

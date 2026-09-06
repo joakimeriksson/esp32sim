@@ -655,12 +655,24 @@ fn emit_body(
             } else {
                 g.fallthrough(next, looping);
             }
+            if g.region.is_some() && bi.insn.op == crate::Op::Entry && g.max_ar >= 4 {
+                // The rotated window must be free for everything the region touches;
+                // otherwise continue at the next instruction through ordinary blocks.
+                g.get(WINDOWS);
+                g.c((1 << (g.max_ar / 4)) - 1);
+                g.op(0x71);
+                g.begin_if();
+                g.spill();
+                g.cpu_const(PC, next);
+                g.ret_value(CODE_LEFT);
+                g.end();
+            }
         } else {
             g.fallback(bi, pc, next, last, !last);
         }
         // ENTRY changes which frames can collide; the entry-time whole-block
         // window proof no longer covers subsequent operands.
-        window_changed |= bi.insn.op == crate::Op::Entry;
+        window_changed |= bi.insn.op == crate::Op::Entry && g.region.is_none();
         if !whole {
             // Both arms of the entry test must agree on the pending count at the join.
             g.flush();
@@ -669,8 +681,29 @@ fn emit_body(
         pc = next;
     }
     if g.region.is_some() {
-        // An unconditional J already left; its trailing edge would be unreachable.
-        if instructions.last().map_or(true, |bi| bi.insn.op != crate::Op::J) {
+        // A J, call, return or JX already left; a trailing edge would be unreachable.
+        let last = instructions.last().unwrap();
+        if last.insn.op != crate::Op::J && !terminal_helper(last.insn.op) && last.insn.op != crate::Op::Jx {
+            if let Some(&lbeg) = g.region.as_ref().unwrap().loops.get(&pc) {
+                // Straight-line arrival at LEND with an active count is the backedge. The
+                // region may have been entered with some other loop active, so LEND must
+                // be this address as well, exactly as the interpreter tests it.
+                g.cpu(LEND);
+                g.c(pc);
+                g.op(0x46);
+                g.cpu(LCOUNT);
+                g.c(0);
+                g.op(0x47);
+                g.op(0x71);
+                g.begin_if();
+                g.get(0);
+                g.cpu(LCOUNT);
+                g.c(1);
+                g.op(0x6b);
+                g.store(LCOUNT);
+                region_edge(g, lbeg, false);
+                g.end();
+            }
             region_edge(g, pc, true);
         }
     } else {
