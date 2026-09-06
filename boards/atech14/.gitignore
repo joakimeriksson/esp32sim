@@ -1,4 +1,0 @@
-firmware/.pio/
-examples/idf-minimal/build/
-examples/idf-minimal/sdkconfig
-examples/idf-minimal/sdkconfig.old

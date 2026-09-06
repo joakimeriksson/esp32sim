@@ -1,15 +1,13 @@
 target/
+# the Atech firmware moved to github.com/joakimeriksson/atech-firmware; an existing
+# checkout keeps a local build tree here, which is no longer this repo's
+/boards/
 *.log
 *.wav
-!boards/atech14/regression.wav
 *.png
 hw/*.bin
 hw/*.dump
 hw/*trace*.txt
-boards/atech14/firmware/.pio/
-boards/atech14/.venv/
-boards/atech14/idf-minimal/build/
-boards/atech14/idf-minimal/sdkconfig*
 examples/hello_world/build/
 examples/hello_world-c3/build/
 examples/hello_world-c3/sdkconfig*
@@ -21,8 +19,4 @@ examples/hello_world/sdkconfig*
 examples/hello_world/managed_components/
 __pycache__/
 .DS_Store
-
-# Atech SDK modules: fetched by `make sync-sdk` (boards/atech14/tools/sync-sdk-modules.sh), not redistributed here
-boards/atech14/firmware/lib/atech_*/
-boards/atech14/firmware/lib/SDK_VERSION
 web/wasm/esp32sim.wasm

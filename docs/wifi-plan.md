@@ -117,7 +117,7 @@ The real Atech board (ESP32-S3, same silicon) is used as the oracle: flash this 
 receive real beacons off the air, then over the built-in USB-JTAG (`openocd-esp32` + gdb) `halt` and
 read the live WiFi MAC registers and RX descriptor ring — `hw/difftest*.sh` show the openocd/gdb
 setup. This confirmed the descriptor bit layout (owner stays set), the masked register-pointer format,
-and the 48-byte `rx_ctrl` header. Reflashing is reversible: `boards/atech14/` rebuilds the synth,
+and the 48-byte `rx_ctrl` header. Reflashing is reversible: [atech-firmware](https://github.com/joakimeriksson/atech-firmware) rebuilds the synth,
 or `esptool write_flash 0 hw/atech/flash-8M.bin` restores the original dump byte-for-byte.
 
 ## Tools added for this work

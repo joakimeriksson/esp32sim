@@ -60,9 +60,6 @@ esp32sim/
   web/            browser UI (board drawing, console, audio, camera) + emu.js/worker.js for wasm
   hw/             JTAG differential-test scripts against a real board, captured C3 and C6 consoles
   examples/       hello_world (IDF, S3, C3 and C6), waveshare-cam (autopling run script + photo)
-  boards/atech14/ the Atech Pocket Synth: firmware (PlatformIO: SID chip synth + a cRSID SID
-                  player for real .sid tunes), script1.txt and regression.wav — a fixture of that
-                  firmware build's audio, bit-exact per run
   tools/          PIE table generator (TRM-derived); bench.py (interleaved A/B benchmark);
                   wasm-build.sh (the WebAssembly module)
 ```
@@ -83,16 +80,19 @@ from `--cam-image` or the browser (picture upload / webcam) → esp‑dl pedestr
 emulated PIE SIMD unit → pling on the ES8311. See `examples/waveshare-cam/`. Adding a board =
 implementing the trait (`gpio_changes`, `rmt_frame`, `i2c_devices`, `camera_frame`, …).
 
+The Pocket Synth firmware the `atech14` demos run is its own project:
+[atech-firmware](https://github.com/joakimeriksson/atech-firmware) — a PlatformIO build of the SID synth and a cRSID
+player for real `.sid` tunes. This repo carries the built images it produces, in
+`web/wasm/fw/public/`.
+
 ## Run — ESP32-S3
 
 ```sh
 cargo build --release
-B=boards/atech14/firmware/.pio/build/hw
-BL=~/.platformio/packages/framework-arduinoespressif32/tools/sdk/esp32s3/bin/bootloader_dio_80m.elf
+FW=web/wasm/fw/public                       # the demo images the goldens and the web page run
 ./target/release/esp32sim --boot rom \
-    --bootloader $B/bootloader.bin --ptable $B/partitions.bin --app $B/firmware.bin \
-    --elf $B/firmware.elf --elf $BL \
-    --script boards/atech14/script1.txt --wav out.wav --tft-png tft.png --max-seconds 5
+    --bootloader $FW/atech-bootloader.bin --ptable $FW/atech-ptable.bin --app $FW/atech-firmware.bin \
+    --script $FW/atech-script1.txt --wav out.wav --tft-png tft.png --max-seconds 5
 ```
 
 The mask ROM ELF is picked up from `~/.espressif/tools/esp-rom-elfs/*/esp32s3_rev0_rom.elf`

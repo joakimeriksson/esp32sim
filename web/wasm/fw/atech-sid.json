@@ -10,5 +10,6 @@
   "app": "public/atech-firmware.bin",
   "script": "public/atech-sid.txt"
  },
+ "_source": "https://github.com/joakimeriksson/atech-firmware — `make dist APP=pocket-synth`. This image predates the split, so it pins no commit; a rebuild should.",
  "_note": "Same firmware, jukebox mode: cRSID runs a whole emulated C64 and plays real .sid tunes."
 }
