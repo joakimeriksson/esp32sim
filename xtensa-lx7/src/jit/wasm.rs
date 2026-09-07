@@ -73,6 +73,8 @@ struct Block {
     region_tries: Cell<u8>,
     /// Region (owning block, chunk) this head was last found in; rechecked when stale.
     covered_by: Cell<(u32, u32)>,
+    /// Last coverage epoch where this PC was absent from the map.
+    uncovered_epoch: Cell<u64>,
 }
 /// Several chunks compiled as one function; see wasm_region.rs.
 struct Region {
@@ -102,6 +104,8 @@ pub struct CodeCache {
     /// covering region at that chunk. Overlapping copies of one loop would only cost
     /// code and compile time.
     covered: RefCell<HashMap<u32, (u32, u32)>>,
+    /// Advances whenever a previously absent PC might acquire a region.
+    coverage_epoch: Cell<u64>,
     #[cfg(feature = "wasm-jit-profile")]
     pub region_stats: RegionStats,
 }
@@ -138,6 +142,7 @@ impl CodeCache {
             by_pc: HashMap::new(),
             generation: 0,
             covered: RefCell::new(HashMap::new()),
+            coverage_epoch: Cell::new(0),
             #[cfg(feature = "wasm-jit-profile")]
             region_stats: RegionStats::default(),
         })
@@ -147,6 +152,7 @@ impl CodeCache {
     }
     pub fn reset(&mut self) {
         self.generation += 1;
+        self.coverage_epoch.set(self.coverage_epoch.get().wrapping_add(1));
         // Keep recently decoded blocks across arena turnover. Prefer recent code under
         // pressure; enforce these retention limits only after all decoder handles die.
         self.blocks.sort_by_key(|b| std::cmp::Reverse(b.generation));
@@ -250,6 +256,7 @@ fn queue(cc: &mut CodeCache, instructions: &mut [BlockInsn], pc: u32, fast: bool
         region: RefCell::new(None),
         region_tries: Cell::new(0),
         covered_by: Cell::new((NONE, 0)),
+        uncovered_epoch: Cell::new(u64::MAX),
     });
     cc.by_pc.insert(key, id);
     id
@@ -379,7 +386,14 @@ pub unsafe fn run<B: Bus>(
                 && cc.blocks.get(cached.0 as usize).and_then(|o| o.region.borrow().as_ref()
                     .map(|r| r.chunks.get(cached.1 as usize).is_some_and(|c| c.pc == b.pc))).unwrap_or(false);
             // A temporary borrow in an `if let` would outlive the whole chain.
-            let found = if live { None } else { cc.covered.borrow().get(&b.pc).copied() };
+            let epoch = cc.coverage_epoch.get();
+            let found = if live || b.uncovered_epoch.get() == epoch {
+                None
+            } else {
+                let found = cc.covered.borrow().get(&b.pc).copied();
+                if found.is_none() { b.uncovered_epoch.set(epoch); }
+                found
+            };
             if live {
                 cached
             } else if let Some(found) = found {
@@ -401,6 +415,8 @@ pub unsafe fn run<B: Bus>(
                     })
                 });
                 if let Some(r) = &formed {
+                    // Removal cannot invalidate a negative lookup; insertion can.
+                    cc.coverage_epoch.set(cc.coverage_epoch.get().wrapping_add(1));
                     let mut covered = cc.covered.borrow_mut();
                     for (k, c) in r.chunks.iter().enumerate() { covered.entry(c.pc).or_insert((code, k as u32)); }
                     #[cfg(feature = "wasm-jit-profile")]
