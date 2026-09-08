@@ -370,16 +370,9 @@ impl Device for Pcr {
     fn write(&mut self, off: u32, v: u32) -> WriteEffect { self.ram.write(off, v); WriteEffect::NONE }
 }
 
-/// LPPERI + 0x8 is the hardware RNG (`WDEV_RND_REG` on this chip). Real silicon seeds it from
-/// radio noise — xorshift is enough for the bootloader's stack canary and `esp_random`.
-pub struct Rng { state: u32, pub now: u32 }
-impl Device for Rng {
-    fn read(&mut self, _off: u32) -> u32 {
-        self.state ^= self.state << 13; self.state ^= self.state >> 17; self.state ^= self.state << 5;
-        self.state.wrapping_add(self.now)
-    }
-    fn write(&mut self, _off: u32, _v: u32) -> WriteEffect { WriteEffect::NONE }
-}
+/// LPPERI + 0x8 is the hardware RNG (`WDEV_RND_REG` on this chip). The model is the shared
+/// xorshift32 in `esp_periph::rng`; re-exported here so `esp32c6::periph::Rng` keeps working.
+pub use esp_periph::Rng;
 
 /// Seed the efuse block the way this C6 reads back (a Waveshare ESP32-C6-LCD-1.47, MAC
 /// dc:1e:d5:6e:8c:dc, `hw/c6-efuse.txt`): wafer v0.1, package 1, block revision v0.3, embedded
@@ -485,7 +478,7 @@ impl Peripherals {
             sha: Sha::new(), aes: Aes::new(), rsa: Rsa::new(),
             rmt: RmtC6::new(CPU_HZ), gdma: GdmaC6::new(), spi2: GpSpi::new(), radio: Ieee802154::new(),
             intmtx: IntMatrix::new(), intc: Intc::new(), cache: Cache::new(), lpsys: LpSys::new(), pcr: Pcr::new(), ana_mst: AnaMst::new(), assist_debug: AssistDebug::new(),
-            rng: Rng { state: 0x2545_f491, now: 0 }, cpu_sub: RegRam::new(),
+            rng: Rng::new(), cpu_sub: RegRam::new(),
             misc: Misc::new(), spi_exec: false, clock: Self::new_clock(),
             last_status: [0; 4],
         }

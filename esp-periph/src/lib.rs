@@ -1,8 +1,8 @@
 //! The peripheral IP that Espressif reuses across chips (UART, USB-Serial/JTAG, systimer, timer
-//! groups, GPIO, RTC_CNTL, efuse, SYSTEM, SPI_MEM, GDMA, SHA/AES/RSA, I2S, RMT, I2C), one file
-//! each, plus the plumbing that mounts them: the `Device` trait every model implements and the
-//! `DeviceSet` table a chip fills in once — dispatch, interrupt sources, clock ticks and timer
-//! deadlines all come from that one table.
+//! groups, GPIO, RTC_CNTL, efuse, SYSTEM, SPI_MEM, GDMA, SHA/AES/RSA, I2S, RMT, I2C, the RISC-V
+//! chips' RNG), one file each, plus the plumbing that mounts them: the `Device` trait every model
+//! implements and the `DeviceSet` table a chip fills in once — dispatch, interrupt sources, clock
+//! ticks and timer deadlines all come from that one table.
 pub mod device;
 pub mod mmio;
 pub mod regram;
@@ -24,6 +24,7 @@ pub mod gdma;
 pub mod i2s;
 pub mod rmt;
 pub mod gpspi;
+pub mod rng;
 
 pub use device::{Device, WriteEffect};
 pub use mmio::{DeviceSet, Dispatch, Misc, NO_SOURCE};
@@ -44,6 +45,7 @@ pub use gdma::{read_desc, DmaDesc, Gdma, GdmaInCh, GdmaOutCh, DMA_ADDR_BASE, GDM
 pub use i2s::I2s;
 pub use rmt::{Rmt, RmtTxCh, RMT_MEM_WORDS};
 pub use gpspi::{GpSpi, GpSpiTransfer};
+pub use rng::Rng;
 
 /// Clocks the shared IP is specified against; the CPU clock differs per chip and is a parameter.
 pub const APB_HZ: u64 = 80_000_000;

@@ -281,3 +281,25 @@ fn usb_serial_host_input_arrives_as_64_byte_packets_with_an_interrupt_each() {
     u.host_input(b"{\"action\":\"play_sid\",\"value\":\"0\"}\n");
     assert_eq!(drain(&mut u).len(), 34);
 }
+
+// ------------------------------------------------------------------ rng
+/// The RISC-V chips' `WDEV_RND_REG`: the xorshift32 sequence from the default seed is the one
+/// the C3 and C6 produced before the model was shared, and the cycle count the chip stamps into
+/// `now` is added to each read, not mixed into the state.
+#[test]
+fn rng_sequence_from_the_default_seed_plus_the_cycle_count() {
+    use esp_periph::Rng;
+    let mut r = Rng::new();
+    let first: Vec<u32> = (0..4).map(|_| Device::read(&mut r, 0)).collect();
+    assert_eq!(first, [0xe124_b63a, 0x8b9a_74ab, 0x64e1_b3ac, 0x0017_4626]);
+    assert_eq!(Device::write(&mut r, 0, 0xdead_beef), WriteEffect::NONE, "writes are ignored");
+
+    let mut stamped = Rng::new();
+    stamped.now = 1000;
+    assert_eq!(Device::read(&mut stamped, 0x3), 0xe124_b63au32.wrapping_add(1000));
+    stamped.now = 0;
+    assert_eq!(Device::read(&mut stamped, 0), 0x8b9a_74ab, "the stamp never entered the state");
+
+    assert_eq!(Device::read(&mut Rng::with_seed(0x2545_f491), 0), 0xe124_b63a, "with_seed(DEFAULT_SEED) is new()");
+    assert_eq!(Device::read(&mut Rng::default(), 0), 0xe124_b63a);
+}

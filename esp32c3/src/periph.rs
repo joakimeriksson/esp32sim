@@ -169,16 +169,9 @@ impl Device for Extmem {
 }
 
 /// APB_CTRL + 0xB0 is the hardware RNG (`WDEV_RND_REG`); everything else in the block is plain
-/// configuration. Real silicon seeds this from radio noise — xorshift is enough for the
-/// bootloader's stack canary and for `esp_random` to make progress.
-pub struct Rng { state: u32, pub now: u32 }
-impl Device for Rng {
-    fn read(&mut self, _off: u32) -> u32 {
-        self.state ^= self.state << 13; self.state ^= self.state >> 17; self.state ^= self.state << 5;
-        self.state.wrapping_add(self.now)
-    }
-    fn write(&mut self, _off: u32, _v: u32) -> WriteEffect { WriteEffect::NONE }
-}
+/// configuration. The model is the shared xorshift32 in `esp_periph::rng`; re-exported here so
+/// `esp32c3::periph::Rng` keeps working.
+pub use esp_periph::Rng;
 
 pub struct Peripherals {
     pub uart: [Uart; 2],
@@ -249,7 +242,7 @@ impl Peripherals {
             spi0: { let mut s = SpiMem::new(false); s.has_psram = false; s },
             spi1: { let mut s = SpiMem::new(true); s.has_psram = false; s },   // the C3 has no PSRAM
             gdma: Gdma::new(),
-            sha: Sha::new(), aes: Aes::new(), rsa: Rsa::new(), rng: Rng { state: 0x2545_f491, now: 0 },
+            sha: Sha::new(), aes: Aes::new(), rsa: Rsa::new(), rng: Rng::new(),
             misc: Misc::new(), spi_exec: false, clock: Self::new_clock(),
             last_status: [0; 4],
         }
