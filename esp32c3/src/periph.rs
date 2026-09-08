@@ -36,7 +36,7 @@ pub mod src {
 /// The C3's interrupt matrix (`INTERRUPT_CORE0`, 0x600C2000).
 ///
 /// 62 peripheral sources are each mapped to one of 31 CPU interrupt lines. A line is taken when
-/// it is enabled, its priority is **strictly above** the threshold, and `mstatus.MIE` is set; the
+/// it is enabled, its priority is **at or above** the threshold, and `mstatus.MIE` is set; the
 /// CPU then vectors to `mtvec + 4*line`. Level lines follow the source; edge lines latch and are
 /// cleared by writing CPU_INT_CLEAR.
 pub struct Intc {
