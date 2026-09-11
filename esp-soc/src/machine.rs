@@ -370,9 +370,10 @@ impl<S: Soc> Machine<S> {
         // stubs and probes are block boundaries, so testing them at block start is exact
         if (self.stub_bloom | self.probe_bloom) & pc_bit(pc) != 0 && !cpu.waiting() {
             if let Some(name) = self.fn_probes.get(&pc) {
-                eprintln!("[fn] i={} t={:.4}s c{} {}({}) ret={:#x}", cpu.insn_count(), self.bus.cycles() as f64 / S::CPU_HZ as f64, core, name, cpu.probe_args(), cpu.return_address());
+                let (args, ret) = (cpu.probe_args(&mut self.bus), cpu.return_address(&mut self.bus));
+                eprintln!("[fn] i={} t={:.4}s c{} {}({}) ret={:#x}", cpu.insn_count(), self.bus.cycles() as f64 / S::CPU_HZ as f64, core, name, args, ret);
             }
-            if let Some(&ret) = self.stubs.get(&pc) { cpu.return_from_stub(ret); self.stub_hits += 1; return (1, None); }
+            if let Some(&ret) = self.stubs.get(&pc) { cpu.return_from_stub(&mut self.bus, ret); self.stub_hits += 1; return (1, None); }
         }
         let (used, trap) = cpu.run(&mut self.bus, budget);
         if self.probes.contains(Wants::BLOCK | Wants::TRAP | Wants::TRAP_PC) {
@@ -404,11 +405,12 @@ impl<S: Soc> Machine<S> {
         let pc = cpu.pc();
         if self.probe_bloom & pc_bit(pc) != 0 && !cpu.waiting() {
             if let Some(name) = self.fn_probes.get(&pc) {
-                eprintln!("[fn] i={} t={:.4}s c{} {}({}) ret={:#x}", cpu.insn_count(), self.bus.cycles() as f64 / S::CPU_HZ as f64, core, name, cpu.probe_args(), cpu.return_address());
+                let (args, ret) = (cpu.probe_args(&mut self.bus), cpu.return_address(&mut self.bus));
+                eprintln!("[fn] i={} t={:.4}s c{} {}({}) ret={:#x}", cpu.insn_count(), self.bus.cycles() as f64 / S::CPU_HZ as f64, core, name, args, ret);
             }
         }
         if self.stub_bloom & pc_bit(pc) != 0 && !cpu.waiting() {
-            if let Some(&ret) = self.stubs.get(&pc) { cpu.return_from_stub(ret); self.stub_hits += 1; return None; }
+            if let Some(&ret) = self.stubs.get(&pc) { cpu.return_from_stub(&mut self.bus, ret); self.stub_hits += 1; return None; }
         }
         {
             let cx = Ctx { symbols: &self.symbols, cycles: self.bus.cycles(), cpu_hz: S::CPU_HZ };
@@ -707,7 +709,8 @@ impl<S: Soc> Machine<S> {
         if self.probe_bloom & pc_bit(pc) != 0 && !self.cores[core].waiting() {
             if let Some(name) = self.fn_probes.get(&pc) {
                 let cpu = &self.cores[core];
-                eprintln!("[fn] i={} t={:.4}s c{} {}({}) ret={:#x}", cpu.insn_count(), self.bus.cycles() as f64 / S::CPU_HZ as f64, core, name, cpu.probe_args(), cpu.return_address());
+                let (args, ret) = (cpu.probe_args(&mut self.bus), cpu.return_address(&mut self.bus));
+                eprintln!("[fn] i={} t={:.4}s c{} {}({}) ret={:#x}", cpu.insn_count(), self.bus.cycles() as f64 / S::CPU_HZ as f64, core, name, args, ret);
             }
         }
         if self.stub_bloom & pc_bit(pc) != 0 && !self.cores[core].waiting() && self.stubs.contains_key(&pc) {

@@ -145,8 +145,8 @@ impl Core for TestCore {
         StepOutcome { pc, next_pc: self.pc, bytes: Some(bytes), length: 1, kind, control }
     }
     fn regs(&self, _out: &mut Vec<(&'static str, u32)>) {}
-    fn arg(&self, _n: usize) -> u32 { 0 }
-    fn return_from_stub(&mut self, _v: u32) {}
+    fn arg<B: Bus>(&self, _bus: &mut B, _n: usize) -> u32 { 0 }
+    fn return_from_stub<B: Bus>(&mut self, _bus: &mut B, _v: u32) {}
     fn disasm(&self, _pc: u32, _bytes: [u8; 4]) -> String { String::new() }
     fn insn_len(_bytes: [u8; 4]) -> u32 { 1 }
     const TRACE_WIDTH: usize = 1;
@@ -154,8 +154,8 @@ impl Core for TestCore {
     fn regtrace_line(&self, _pc: u32) -> String { String::new() }
     fn dump(&self, _core: usize, _sym: &dyn Fn(u32) -> String) -> String { String::new() }
     fn has_trap_handler(&self) -> bool { false }
-    fn probe_args(&self) -> String { String::new() }
-    fn return_address(&self) -> u32 { 0 }
+    fn probe_args<B: Bus>(&self, _bus: &mut B) -> String { String::new() }
+    fn return_address<B: Bus>(&self, _bus: &mut B) -> u32 { 0 }
 }
 
 struct TestBus {

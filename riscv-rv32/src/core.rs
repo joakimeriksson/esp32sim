@@ -34,8 +34,8 @@ impl emu_core::Core for Cpu {
         (budget, None)
     }
     fn regs(&self, out: &mut Vec<(&'static str, u32)>) { for (&name, &value) in X[1..].iter().zip(&self.x[1..]) { out.push((name, value)); } out.push(("mstatus", self.mstatus)); }
-    fn arg(&self, n: usize) -> u32 { self.x[10 + n] }
-    fn return_from_stub(&mut self, v: u32) { self.x[10] = v; self.pc = self.x[1]; self.insn_count += 1; self.retired_count += 1; self.cycle_count += 1; }
+    fn arg<B: emu_core::Bus>(&self, _bus: &mut B, n: usize) -> u32 { self.x[10 + n] }
+    fn return_from_stub<B: emu_core::Bus>(&mut self, _bus: &mut B, v: u32) { self.x[10] = v; self.pc = self.x[1]; self.insn_count += 1; self.retired_count += 1; self.cycle_count += 1; }
     fn disasm(&self, pc: u32, bytes: [u8; 4]) -> String { crate::disasm::format(&crate::decode::decode(pc, bytes)).replace('\t', " ") }
     fn insn_len(bytes: [u8; 4]) -> u32 { crate::decode::decode(0, bytes).len as u32 }
     const TRACE_WIDTH: usize = 28;
@@ -50,8 +50,8 @@ impl emu_core::Core for Cpu {
         format!("core{}: pc={:#010x} {}  mtvec={:#010x} mcause={:#010x} mepc={:#010x} mstatus={:#010x} insns={}\n", core, self.pc, sym(self.pc), self.mtvec, self.mcause, self.mepc, self.mstatus, self.insn_count)
     }
     fn has_trap_handler(&self) -> bool { self.mtvec != 0 }
-    fn probe_args(&self) -> String { format!("a0={:#x} a1={:#x} a2={:#x}", self.x[10], self.x[11], self.x[12]) }
-    fn return_address(&self) -> u32 { self.x[1] }
+    fn probe_args<B: emu_core::Bus>(&self, _bus: &mut B) -> String { format!("a0={:#x} a1={:#x} a2={:#x}", self.x[10], self.x[11], self.x[12]) }
+    fn return_address<B: emu_core::Bus>(&self, _bus: &mut B) -> u32 { self.x[1] }
 }
 
 #[cfg(test)]
@@ -137,9 +137,10 @@ mod tests {
 
     #[test]
     fn stub_return_preserves_guest_counter_accounting() {
+        let mut ram = FlatRam::new(0x4038_0000, 64);
         let mut cpu = crate::Cpu::new();
         cpu.x[1] = 0x4038_0100;
-        cpu.return_from_stub(7);
+        cpu.return_from_stub(&mut ram, 7);
         assert_eq!((cpu.pc, cpu.x[10]), (0x4038_0100, 7));
         assert_eq!((cpu.insn_count, cpu.retired_count, cpu.cycle_count), (1, 1, 1));
         let instret = cpu.read_csr(csr::MINSTRET); let cycles = cpu.read_csr(csr::MCYCLE);

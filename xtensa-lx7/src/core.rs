@@ -42,14 +42,17 @@ impl emu_core::Core for Cpu {
         for (i, n) in AR.iter().enumerate() { out.push((n, self.get_ar(i as u8))); }
         out.push(("ps", self.ps)); out.push(("wb", self.windowbase));
     }
-    /// At a function's entry its `entry` has not run, so the window is still the caller's: a
-    /// `callN` left the return address in a(4N) and the arguments from a(4N+2) on, with N in
-    /// PS.CALLINC (0 after `call0`, where a0/a2 hold them directly).
-    fn arg(&self, n: usize) -> u32 { self.get_ar(self.call_window() + 2 + n as u8) }
+    /// At a function's entry the window is still the caller's. A windowed function — it begins
+    /// with `entry` — was reached by a `callN` that left the return address in a(4N) and the
+    /// arguments from a(4N+2), N in PS.CALLINC. A call0-ABI function (ROM assembly, code built
+    /// `-mno-windowed`) has them in a0/a2 whatever CALLINC still holds: `call0` does not touch
+    /// it, on silicon or here.
+    fn arg<B: emu_core::Bus>(&self, bus: &mut B, n: usize) -> u32 { self.get_ar(self.frame_base(bus) + 2 + n as u8) }
     /// Synthetic return from a function entry whose `entry` has not executed: the value goes
-    /// where the caller will read it, a(4N+2), and the pc to a(4N); no window rotation to undo.
-    fn return_from_stub(&mut self, v: u32) {
-        let w = self.call_window();
+    /// where the caller will read it, the pc comes from the frame's return address, and there
+    /// is no window rotation to undo.
+    fn return_from_stub<B: emu_core::Bus>(&mut self, bus: &mut B, v: u32) {
+        let w = self.frame_base(bus);
         let ra = self.get_ar(w);
         self.set_ar(w + 2, v);
         self.pc = (ra & 0x3fff_ffff) | (self.pc & 0xc000_0000);
@@ -80,8 +83,19 @@ impl emu_core::Core for Cpu {
         for i in 0..16 { s += &format!("a{:<2}={:08x} ", i, c.get_ar(i)); if i % 8 == 7 { s += "\n"; } }
         s
     }
-    fn probe_args(&self) -> String { format!("a2={:#x} a3={:#x} a4={:#x}", self.arg(0), self.arg(1), self.arg(2)) }
-    fn return_address(&self) -> u32 { (self.get_ar(self.call_window()) & 0x3fff_ffff) | (self.pc & 0xc000_0000) }
+    fn probe_args<B: emu_core::Bus>(&self, bus: &mut B) -> String { format!("a2={:#x} a3={:#x} a4={:#x}", self.arg(bus, 0), self.arg(bus, 1), self.arg(bus, 2)) }
+    fn return_address<B: emu_core::Bus>(&self, bus: &mut B) -> u32 { (self.get_ar(self.frame_base(bus)) & 0x3fff_ffff) | (self.pc & 0xc000_0000) }
+}
+
+impl Cpu {
+    /// Register offset of the frame a stub or probe at pc sees: 4·CALLINC when the function
+    /// starts with `entry` (a windowed call is pending), 0 otherwise (call0 ABI).
+    fn frame_base<B: emu_core::Bus>(&self, bus: &mut B) -> u8 {
+        match bus.fetch(self.pc) {
+            Ok(bytes) if crate::decode::decode(self.pc, bytes).op == crate::decode::Op::Entry => self.call_window(),
+            _ => 0,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -111,16 +125,37 @@ mod tests {
         let base = 0x4037_0000;
         let mut ram = FlatRam::new(base, 64);
         ram.mem[..3].copy_from_slice(&[0x25, 0x00, 0x00]);   // call8 base+4
+        ram.mem[4..7].copy_from_slice(&[0x36, 0x41, 0x00]);  // entry a1, 32: a windowed function
         let mut cpu = crate::Cpu::new(0); cpu.pc = base; cpu.ps = crate::state::ps::WOE;
         cpu.set_ar(3, 0x1234); cpu.set_ar(10, 0xdead);
         assert_eq!(cpu.step(&mut ram).result(), Ok(()));
         assert_eq!(Core::pc(&cpu), base + 4);
-        assert_eq!(cpu.return_address(), base + 3);
-        assert_eq!(cpu.arg(0), 0xdead);
+        assert_eq!(cpu.return_address(&mut ram), base + 3);
+        assert_eq!(cpu.arg(&mut ram, 0), 0xdead);
         let wb = cpu.windowbase;
-        cpu.return_from_stub(7);
+        cpu.return_from_stub(&mut ram, 7);
         assert_eq!(Core::pc(&cpu), base + 3);
         assert_eq!((cpu.get_ar(10), cpu.get_ar(3), cpu.windowbase), (7, 0x1234, wb));
+    }
+
+    /// `call0` leaves PS.CALLINC as the last `callN` set it, so a stub on a call0-ABI function
+    /// (no `entry`) must read a0/a2 even though CALLINC still says 2.
+    #[test]
+    fn stub_on_a_call0_function_ignores_a_stale_callinc() {
+        let base = 0x4037_0000;
+        let mut ram = FlatRam::new(base, 64);
+        ram.mem[..3].copy_from_slice(&[0x05, 0x00, 0x00]);   // call0 base+4
+        ram.mem[4..7].copy_from_slice(&[0x22, 0xa0, 0x05]);  // movi a2, 5: no entry here
+        let mut cpu = crate::Cpu::new(0); cpu.pc = base;
+        cpu.ps = crate::state::ps::WOE | (2 << crate::state::ps::CALLINC_SHIFT);   // a call8 ran earlier
+        cpu.set_ar(2, 0xbeef); cpu.set_ar(10, 0x1111);
+        assert_eq!(cpu.step(&mut ram).result(), Ok(()));
+        assert_eq!(Core::pc(&cpu), base + 4);
+        assert_eq!(cpu.return_address(&mut ram), base + 3);
+        assert_eq!(cpu.arg(&mut ram, 0), 0xbeef);
+        cpu.return_from_stub(&mut ram, 9);
+        assert_eq!(Core::pc(&cpu), base + 3);
+        assert_eq!((cpu.get_ar(2), cpu.get_ar(10)), (9, 0x1111));
     }
 
     #[test]
