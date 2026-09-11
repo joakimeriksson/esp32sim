@@ -9,6 +9,7 @@ to the page) and executed in the tab.
 
 ```sh
 tools/wasm-build.sh                      # -> web/wasm/esp32sim.wasm (needs the wasm32-unknown-unknown target)
+tools/fetch-web-vendor.sh                # xterm.js for the Terminal tab (optional; the page works without it)
 python3 -m http.server -d web 8790       # any static server; file:// will not do (workers, fetch)
 open http://127.0.0.1:8790/?wasm
 ```

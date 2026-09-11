@@ -1,6 +1,7 @@
 name: pages
 # Build the WebAssembly emulator and publish web/ to GitHub Pages: the emulator, the public demo
-# firmware under web/wasm/fw/public, and the mask ROM ELFs (Apache-2.0, espressif/esp-rom-elfs).
+# firmware under web/wasm/fw/public, the mask ROM ELFs (Apache-2.0, espressif/esp-rom-elfs) and
+# xterm.js for the Terminal tab (MIT, pinned by version and hash).
 on:
   push:
     branches: [main]
@@ -33,6 +34,8 @@ jobs:
           find . -name esp32c3_rev3_rom.elf -exec cp {} web/wasm/fw/ \;
           find . -name esp32c6_rev0_rom.elf -exec cp {} web/wasm/fw/ \;
           ls -la web/wasm/fw/esp32s3_rev0_rom.elf web/wasm/fw/esp32c3_rev3_rom.elf web/wasm/fw/esp32c6_rev0_rom.elf
+      - name: Fetch xterm.js for the Terminal tab (MIT, xtermjs/xterm.js, pinned)
+        run: tools/fetch-web-vendor.sh
       - name: Version-stamp the script and module URLs (Pages caches for 10 minutes)
         run: |
           v=${GITHUB_SHA::8}

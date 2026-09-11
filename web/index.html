@@ -64,10 +64,13 @@
   .led { display:inline-block; width:18px; height:18px; border-radius:50%; background:#222; border:2px solid #555; margin-left:12px; }
   .chips button { font-size:12px; padding:4px 10px; }
 .bare .boardwrap, .bare #tftcard, .bare #presets, .bare #presets + *, .bare .actions { display: none; }
+.bare main { grid-template-columns: 1fr; }
 .bare .right { max-width: 1100px; }
-</style></head>
+#term { display:none; background:#0b0d10; border-radius:8px; padding:8px; height:436px; overflow:auto; }
+</style><link rel="stylesheet" href="vendor/xterm/xterm.css"></head>
 <body>
 <script src="emu.js"></script>
+<script src="vendor/xterm/xterm.js"></script>
 <header><h1>ESP32‑S3 emulator — Atech 14‑port board</h1><span class="st" id="status">connecting…</span><span style="flex:1"></span>
   <span class="st" id="stat"></span><button class="act" id="audioBtn">🔇 enable audio</button></header>
 <main>
@@ -115,9 +118,10 @@
     <div class="card" id="tftcard"><div class="row"><strong>Display (readable)</strong><span class="st">ST7735 160×80, decoded from the bit‑banged SPI</span></div><canvas id="tftbig" width="160" height="80"></canvas></div>
     <div class="card">
       <div class="row tabs"><strong>Console</strong>
-        <button class="on chiptab" data-src="usb">USB‑CDC (Serial)</button><button class="chiptab" data-src="uart0">UART0 (ROM/bootloader)</button><button class="chiptab" data-src="all">both</button><button data-src="node0" class="nodetab" style="display:none">node 1</button><button data-src="node1" class="nodetab" style="display:none">node 2</button><button data-src="all" class="nodetab" style="display:none">both consoles</button>
+        <button class="on chiptab" data-src="usb">USB‑CDC (Serial)</button><button class="chiptab" data-src="uart0">UART0 (ROM/bootloader)</button><button class="chiptab" data-src="term">Terminal (UART0, xterm.js)</button><button class="chiptab" data-src="all">both</button><button data-src="node0" class="nodetab" style="display:none">node 1</button><button data-src="node1" class="nodetab" style="display:none">node 2</button><button data-src="all" class="nodetab" style="display:none">both consoles</button>
         <span style="flex:1"></span><button class="act" id="clear">clear</button></div>
       <div id="console" tabindex="0" title="click, then type: keys go to the console shown"></div>
+      <div id="term"></div>
       <div class="row" style="margin-top:4px"><span class="st" id="keyhint">click the console and type — keys go straight to the UART (Enter, Backspace, arrows, Ctrl‑C…); paste works too</span></div>
       <div class="row" style="margin-top:8px"><input type="text" id="line" placeholder='{"action":"set_note","value":"5"}'/><button class="act" id="send">send to USB‑CDC</button></div>
       <div class="row chips" id="presets" style="margin-top:6px"><span class="st">actions:</span></div>
@@ -151,7 +155,23 @@ function drawGrid(id, leds) {
   const mod = $('#grid' + id); if (mod) mod.style.background = n ? `rgba(${Math.min(255, sum[0] / n * 5)},${Math.min(255, sum[1] / n * 5)},${Math.min(255, sum[2] / n * 5)},${0.12 + 0.03 * n})` : '';
 }
 
+// ---- a real terminal on UART0: xterm.js (vendor/xterm, MIT) does the VT100 work — cursor
+// movement, colours, line editing, full-screen programs — and encodes the keys itself. It is
+// fetched, not committed: tools/fetch-web-vendor.sh, pinned by version and hash.
+// 100×30, fixed, so `stty cols 100 rows 30` on the guest describes it exactly.
+const TERM_SRC = 'uart0'; let term = null;
+function ensureTerm() {
+  if (term) return;
+  if (!window.Terminal) { $('#term').innerHTML = '<span style="color:#9aa">xterm.js is not here — run <code>tools/fetch-web-vendor.sh</code> once (the Pages build does); the plain UART0 tab works without it</span>'; return; }
+  term = new Terminal({ cols: 100, rows: 30, fontSize: 12, fontFamily: 'ui-monospace,Menlo,monospace', cursorBlink: true, scrollback: 5000, theme: { background: '#0b0d10', foreground: '#e6e6e6', cursor: '#e6e6e6' } });
+  term.open($('#term'));
+  term.onData(d => send({t:'key', src: TERM_SRC, data: d}));
+  for (const l of lines) if (l.src === TERM_SRC) term.write(l.text + '\r\n');   // what arrived before the tab was opened (colours already stripped)
+  const partial = (addSerial.buf || {})[TERM_SRC]; if (partial) term.write(partial.replace(/\r$/, ''));
+}
+function showTerm(on) { $('#term').style.display = on ? 'block' : 'none'; con.style.display = on ? 'none' : ''; $('#keyhint').textContent = on ? 'a VT100 terminal on UART0 — click it and type; the guest can run `stty cols 100 rows 30` to match' : 'click the console and type — keys go straight to the UART (Enter, Backspace, arrows, Ctrl‑C…); paste works too'; if (on) { ensureTerm(); if (term) term.focus(); } }
 function render() {
+  if (view === 'term') return;
   con.textContent = '';
   for (const l of lines) {
     if (view !== 'all' && l.src !== view) continue;
@@ -263,9 +283,9 @@ function playAudio(buf) {
 function handleMessage(data) {
     if (data instanceof ArrayBuffer) { const t = new Uint8Array(data)[0]; if (t === 1) drawFrame(data); else if (t === 2) playAudio(data); else if (t === 4) drawCamPreview(data); return; }
     const m = JSON.parse(data);
-    if (m.t === 'serial') addSerial(m.src, m.data);
+    if (m.t === 'serial') { if (term && m.src === TERM_SRC) term.write(m.data); addSerial(m.src, m.data); }
     else if (m.t === 'emu') addSerial('usb', m.msg + '\n');
-    else if (m.t === 'board') { document.body.classList.toggle('bare', m.name !== 'atech14'); if (m.name === 'atech14') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Atech 14‑port board'; } else if (m.name === 'esp32c3') { document.querySelector('h1').textContent = 'ESP32‑C3 emulator — RISC-V, console only'; } else if (m.name === 'esp32c6') { document.querySelector('h1').textContent = 'ESP32‑C6 emulator — RISC-V, console only'; } else if (m.name === 'waveshare-c6-lcd147') { document.querySelector('h1').textContent = 'ESP32‑C6 emulator — Waveshare ESP32‑C6‑LCD‑1.47'; $('#lcdpanel').style.display = ''; $('#lcdstat').textContent = 'ST7789 172×320 over SPI2 + GDMA — nothing drawn yet: this firmware has not written the display'; $('#lcd').style.display = 'none'; $('#lcdextras').style.display = ''; } else if (m.name === 'none') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — bare module'; document.querySelector('.tabs button[data-src="uart0"]').click(); } if (m.name === 'waveshare-cam') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Waveshare ESP32‑S3‑CAM‑OV5640'; $('#campanel').style.display = ''; } if (m.name === 'waveshare-lcd4b') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Waveshare ESP32‑S3‑Touch‑LCD‑4B'; $('#lcdpanel').style.display = ''; } }
+    else if (m.t === 'board') { document.body.classList.toggle('bare', m.name !== 'atech14'); if (m.name === 'atech14') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Atech 14‑port board'; } else if (m.name === 'esp32c3') { document.querySelector('h1').textContent = 'ESP32‑C3 emulator — RISC-V, console only'; } else if (m.name === 'esp32c6') { document.querySelector('h1').textContent = 'ESP32‑C6 emulator — RISC-V, console only'; } else if (m.name === 'waveshare-c6-lcd147') { document.querySelector('h1').textContent = 'ESP32‑C6 emulator — Waveshare ESP32‑C6‑LCD‑1.47'; $('#lcdpanel').style.display = ''; $('#lcdstat').textContent = 'ST7789 172×320 over SPI2 + GDMA — nothing drawn yet: this firmware has not written the display'; $('#lcd').style.display = 'none'; $('#lcdextras').style.display = ''; } else if (m.name === 'none') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — bare module'; document.querySelector(`.tabs button[data-src="${window.preferTerminal ? 'term' : 'uart0'}"]`).click(); } if (m.name === 'waveshare-cam') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Waveshare ESP32‑S3‑CAM‑OV5640'; $('#campanel').style.display = ''; } if (m.name === 'waveshare-lcd4b') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Waveshare ESP32‑S3‑Touch‑LCD‑4B'; $('#lcdpanel').style.display = ''; } }
     if (m.t === 'board' && m.name === 'waveshare-amoled18-v2') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator, Waveshare ESP32‑S3‑Touch‑AMOLED‑1.8 V2'; $('#lcdstat').textContent = 'CO5300 368×448 over QSPI, click or drag to touch'; const lcd = $('#lcd'); lcd.style.width = '368px'; lcd.style.height = '448px'; $('#lcdpanel').style.display = ''; }
     else if (m.t === 'grid') { drawGrid(m.id, m.leds); }
     else if (m.t === 'net') {
@@ -293,7 +313,7 @@ function connect() {
   ws.onmessage = ev => handleMessage(ev.data);
   link = { send: (d) => { if (ws.readyState === 1) ws.send(d); } };
 }
-document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { document.querySelectorAll('.tabs button').forEach(x => x.classList.remove('on')); b.classList.add('on'); view = b.dataset.src; $('#send').textContent = keySrc() === 'uart0' ? 'send to UART0' : 'send to USB‑CDC'; render(); });
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { document.querySelectorAll('.tabs button').forEach(x => x.classList.remove('on')); b.classList.add('on'); view = b.dataset.src; $('#send').textContent = keySrc() === 'uart0' ? 'send to UART0' : 'send to USB‑CDC'; showTerm(view === 'term'); render(); });
 document.querySelectorAll('.btn .cell, .boardbtn').forEach(el => {
   const pin = +el.dataset.pin; let downAt = 0;
   const down = v => { el.classList.toggle('down', v); if (v) { downAt = performance.now(); send({t:'btn', pin, v:1}); } else { setTimeout(() => send({t:'btn', pin, v:0}), Math.max(0, 60 - (performance.now() - downAt))); } };
@@ -307,7 +327,7 @@ window.onmouseup = e => { dragX = null; if (e.target.closest('.cap')) send({t:'k
 window.onkeydown = e => { if (e.target.tagName === 'INPUT') return; if (e.key === 'ArrowRight') turn(1); if (e.key === 'ArrowLeft') turn(-1); if (e.key === ' ') { e.preventDefault(); send({t:'knobpress', v:1}); } };
 window.onkeyup = e => { if (e.key === ' ' && e.target.tagName !== 'INPUT') send({t:'knobpress', v:0}); };
 // ---- keyboard on the console: which console the keys (and the line box) go to
-function keySrc() { return view === 'usb' ? 'usb' : view.startsWith('node') ? null : 'uart0'; }
+function keySrc() { return view === 'usb' ? 'usb' : view.startsWith('node') ? null : 'uart0'; }   // 'term' and 'all' type into UART0
 function keyBytes(e) {
   if (e.metaKey || e.altKey) return null;   // the browser's own shortcuts stay the browser's
   const esc = { ArrowUp:'\x1b[A', ArrowDown:'\x1b[B', ArrowRight:'\x1b[C', ArrowLeft:'\x1b[D', Home:'\x1b[H', End:'\x1b[F', Delete:'\x1b[3~', PageUp:'\x1b[5~', PageDown:'\x1b[6~', Insert:'\x1b[2~', F1:'\x1bOP', F2:'\x1bOQ', F3:'\x1bOR', F4:'\x1bOS' };

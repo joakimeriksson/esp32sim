@@ -47,7 +47,7 @@ Text frames:
 | `knobpress` | `v` |
 | `knob` | `d` (+1 cw / −1 ccw per detent); the emulator queues the quadrature edges 2 ms apart |
 | `serial` | `line`, optional `src` (`usb` default, `uart0`, `uart1`) — the line plus a newline into that console's RX |
-| `key` | `src`, `data` — bytes exactly as typed, no newline added: the page's console is a terminal (click it, type; Enter is CR, Backspace DEL, arrows and Ctrl-letters their escape/control codes, paste sends the text) |
+| `key` | `src`, `data` — bytes exactly as typed, no newline added: the page's console is a terminal (click it, type; Enter is CR, Backspace DEL, arrows and Ctrl-letters their escape/control codes, paste sends the text). The **Terminal** tab is a real VT100 on UART0 — xterm.js (MIT; `tools/fetch-web-vendor.sh` puts it in `web/vendor/xterm`, pinned by hash — not committed), 100×30 — so cursor movement, colours and full-screen programs render; it encodes its own keys into the same `key` message |
 | `gpio` | `pin`, `level` |
 | `touch` | `x`, `y`, `down` (1 = touching) |
 
