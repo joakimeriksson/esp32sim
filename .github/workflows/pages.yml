@@ -1,7 +1,8 @@
 name: pages
 # Build the WebAssembly emulator and publish web/ to GitHub Pages: the emulator, the public demo
-# firmware under web/wasm/fw/public, the mask ROM ELFs (Apache-2.0, espressif/esp-rom-elfs) and the
-# Linux-on-esp32-S3 flash image (GPL-3.0, svermigo/Linux-on-esp32-S3, pinned by commit and hash).
+# firmware under web/wasm/fw/public, the mask ROM ELFs (Apache-2.0, espressif/esp-rom-elfs),
+# xterm.js for the Terminal tab (MIT, pinned by version and hash) and the Linux-on-esp32-S3 flash
+# image (GPL-3.0, svermigo/Linux-on-esp32-S3, pinned by commit and hash).
 on:
   push:
     branches: [main]

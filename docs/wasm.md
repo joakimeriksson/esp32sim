@@ -29,8 +29,8 @@ mask ROM is Espressif's and the firmware is whoever built it; host them only whe
 `.github/workflows/pages.yml` builds the module on every push to `main`, fetches the mask-ROM ELF
 from the Apache-2.0 `espressif/esp-rom-elfs` release, and publishes `web/` — so the page at
 **https://joakimeriksson.github.io/esp32sim/** is the emulator, with the demos in
-`web/wasm/fw/demos.json` (hello_world and the Touch-LCD-4B energy panel with its SID player; the Atech Pocket Synth once Atech confirms its driver-module license) one click away and the file
-inputs for anyone's own firmware. The workflow also fetches the **Linux-on-esp32-S3** flash image
+`web/wasm/fw/demos.json` — hello_world, the Touch-LCD-4B energy panel with its SID player, the Atech
+Pocket Synth, and the C3 and C6 demos — one click away and the file inputs for anyone's own firmware. The workflow also fetches the **Linux-on-esp32-S3** flash image
 (GPL-3.0, [svermigo/Linux-on-esp32-S3](https://github.com/svermigo/Linux-on-esp32-S3), release 0.7,
 pinned by commit and SHA-256 in `pages.yml`) so the `linux` demos boot it — `linux-term` opens on the
 xterm.js terminal tab (manifest `terminal: true`), where `vi`, `top` and colours render properly; the image is never

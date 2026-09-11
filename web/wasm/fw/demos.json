@@ -2,17 +2,17 @@
  {
   "fw": "linux",
   "title": "Linux 6.11 on the ESP32-S3",
-  "note": "Linux-on-esp32-S3 by svermigo (GPL-3.0): the esp-hosted network adapter on core 0, Linux executing in place from flash on core 1, cramfs root, jffs2 /etc and /home. Log in as root, password changeme123 \u2014 click the console and type; bash, MicroPython and fork are all there"
+  "note": "Linux-on-esp32-S3 by svermigo (GPL-3.0): the esp-hosted network adapter on core 0, Linux executing in place from flash on core 1, cramfs root, jffs2 /etc and /home. Log in as root, password changeme123 — click the console and type; bash, MicroPython and fork are all there"
  },
  {
   "fw": "linux-login",
-  "title": "\u2026logged in for you",
+  "title": "…logged in for you",
   "note": "same image, a script types the login at 24 s and runs uname -a"
  },
  {
   "fw": "linux-term",
-  "title": "\u2026in a full terminal (xterm.js)",
-  "note": "same image, logged in by the script, on a VT100 terminal: colours, cursor movement, line editing and full-screen programs render properly \u2014 try `ls --color`, `top`, `vi`, or `micropython`"
+  "title": "…in a full terminal (xterm.js)",
+  "note": "same image, logged in by the script, on a VT100 terminal: colours, cursor movement, line editing and full-screen programs render properly — try `ls --color`, `top`, `vi`, or `micropython`"
  },
  {
   "fw": "hello",
@@ -22,51 +22,51 @@
  {
   "fw": "panel",
   "title": "Touch-LCD-4B energy panel",
-  "note": "LVGL 480x480 over the RGB bus, GT911 touch \u2014 swipe between pages; demo data from energydata.json, tiles toggle; the SID player is on the last page (enable audio)"
+  "note": "LVGL 480x480 over the RGB bus, GT911 touch — swipe between pages; demo data from energydata.json, tiles toggle; the SID player is on the last page (enable audio)"
  },
  {
   "fw": "panel-sid",
-  "title": "\u2026with the SID player playing",
+  "title": "…with the SID player playing",
   "note": "same firmware, a script swipes to the SID page and presses play at 5.5 s"
  },
  {
   "fw": "c3-hello",
-  "title": "ESP32-C3 \u00b7 hello_world (RISC-V)",
-  "note": "the other chip: one RV32IMC core, console only \u2014 real mask ROM through the bootloader into FreeRTOS. Verified line-for-line against a physical C3."
+  "title": "ESP32-C3 · hello_world (RISC-V)",
+  "note": "the other chip: one RV32IMC core, console only — real mask ROM through the bootloader into FreeRTOS. Verified line-for-line against a physical C3."
  },
  {
   "fw": "c6-hello",
-  "title": "ESP32-C6 \u00b7 hello_world (RISC-V)",
-  "note": "the newest chip: one RV32IMAC core, console only \u2014 real mask ROM through the bootloader into FreeRTOS. Verified line-for-line against a Waveshare ESP32-C6-LCD-1.47."
+  "title": "ESP32-C6 · hello_world (RISC-V)",
+  "note": "the newest chip: one RV32IMAC core, console only — real mask ROM through the bootloader into FreeRTOS. Verified line-for-line against a Waveshare ESP32-C6-LCD-1.47."
  },
  {
   "fw": "c6-energy-scan",
-  "title": "ESP32-C6 \u00b7 802.15.4 energy scanner",
-  "note": "the Waveshare ESP32-C6-LCD-1.47: LVGL spectrum of channels 11\u201326 on the ST7789 over SPI2 and DMA, the WS2812 blinking per scan, energy detect from the emulated 802.15.4 MAC with a moving 2.4 GHz picture \u2014 press BOOT for single-channel mode"
+  "title": "ESP32-C6 · 802.15.4 energy scanner",
+  "note": "the Waveshare ESP32-C6-LCD-1.47: LVGL spectrum of channels 11–26 on the ST7789 over SPI2 and DMA, the WS2812 blinking per scan, energy detect from the emulated 802.15.4 MAC with a moving 2.4 GHz picture — press BOOT for single-channel mode"
  },
  {
   "fw": "c6-contiki",
-  "title": "ESP32-C6 \u00b7 Contiki-NG",
+  "title": "ESP32-C6 · Contiki-NG",
   "note": "Contiki-NG on the ESP32-C6 as an unmodified IDF app: its own scheduler, CSMA and 802.15.4 stack over the emulated MAC, broadcasting every 5 s and blinking the WS2812 through the RMT"
  },
  {
   "fw": "c6-contiki-net",
-  "title": "\u2026two of them on one radio medium",
-  "note": "two emulated C6 motes on one 802.15.4 medium, in this tab, with no simulator behind them: each hears the other's broadcasts. The second powers on 1.3 s later \u2014 two identical images booted together stay deterministic to the cycle and every frame collides"
+  "title": "…two of them on one radio medium",
+  "note": "two emulated C6 motes on one 802.15.4 medium, in this tab, with no simulator behind them: each hears the other's broadcasts. The second powers on 1.3 s later — two identical images booted together stay deterministic to the cycle and every frame collides"
  },
  {
   "fw": "c6-rpl-net",
-  "title": "\u2026an RPL/IPv6 network: root and client",
-  "note": "two emulated C6 motes in this tab: node 1 is Contiki-NG's rpl-udp server and the DAG root, node 2 the client \u2014 it joins the DAG, then sends a UDP request every 10 s and gets a reply. 6LoWPAN, RPL Lite and CSMA end to end over the emulated 802.15.4 MAC, hardware ACKs included"
+  "title": "…an RPL/IPv6 network: root and client",
+  "note": "two emulated C6 motes in this tab: node 1 is Contiki-NG's rpl-udp server and the DAG root, node 2 the client — it joins the DAG, then sends a UDP request every 10 s and gets a reply. 6LoWPAN, RPL Lite and CSMA end to end over the emulated 802.15.4 MAC, hardware ACKs included"
  },
  {
   "fw": "atech",
   "title": "Atech 14-port Pocket Synth",
-  "note": "Arduino firmware on the 14-port board: ST7735 display, WS2812 ring, encoder and buttons, SID-chip synth \u2014 the script plays it (enable audio)"
+  "note": "Arduino firmware on the 14-port board: ST7735 display, WS2812 ring, encoder and buttons, SID-chip synth — the script plays it (enable audio)"
  },
  {
   "fw": "atech-sid",
-  "title": "\u2026as a C64 SID jukebox",
-  "note": "same firmware: cRSID emulates a whole C64 \u2014 6502, SID, CIA, VIC \u2014 so it plays real .sid tunes. Commando by Rob Hubbard, then Wizball (enable audio)"
+  "title": "…as a C64 SID jukebox",
+  "note": "same firmware: cRSID emulates a whole C64 — 6502, SID, CIA, VIC — so it plays real .sid tunes. Commando by Rob Hubbard, then Wizball (enable audio)"
  }
 ]
