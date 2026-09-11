@@ -29,7 +29,7 @@ pub mod rng;
 pub use device::{Device, WriteEffect};
 pub use mmio::{DeviceSet, Dispatch, Misc, NO_SOURCE};
 pub use regram::RegRam;
-pub use uart::Uart;
+pub use uart::{Uart, UartLayout};
 pub use usb_serial_jtag::UsbSerialJtag;
 pub use systimer::Systimer;
 pub use timg::{Timer, TimerGroup};

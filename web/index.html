@@ -52,6 +52,8 @@
   .tabs button.on { background:#111; color:#fff; border-color:#111; }
   #console { background:#0b0d10; color:#e6e6e6; border-radius:8px; height:420px; overflow:auto; padding:10px; font:12px/1.35 ui-monospace,Menlo,monospace; white-space:pre-wrap; word-break:break-all; }
   #console .evt { color:#34d399; } #console .sim { color:#f59e0b; } #console .in { color:var(--acc); }
+  #console:focus { outline:2px solid var(--acc); outline-offset:1px; }
+  #console .cur { background:#e6e6e6; color:#0b0d10; }
   input[type=text] { flex:1; min-width:260px; border:1px solid #e5e7eb; border-radius:8px; padding:7px 10px; font-family:ui-monospace,Menlo,monospace; }
   button.act { background:#fff; border:1px solid #d1d5db; border-radius:8px; padding:6px 12px; cursor:pointer; }
   button.act:hover { border-color:var(--acc); }
@@ -62,10 +64,13 @@
   .led { display:inline-block; width:18px; height:18px; border-radius:50%; background:#222; border:2px solid #555; margin-left:12px; }
   .chips button { font-size:12px; padding:4px 10px; }
 .bare .boardwrap, .bare #tftcard, .bare #presets, .bare #presets + *, .bare .actions { display: none; }
+.bare main { grid-template-columns: 1fr; }
 .bare .right { max-width: 1100px; }
-</style></head>
+#term { display:none; background:#0b0d10; border-radius:8px; padding:8px; height:436px; overflow:auto; }
+</style><link rel="stylesheet" href="vendor/xterm/xterm.css"></head>
 <body>
 <script src="emu.js"></script>
+<script src="vendor/xterm/xterm.js"></script>
 <header><h1>ESP32‑S3 emulator — Atech 14‑port board</h1><span class="st" id="status">connecting…</span><span style="flex:1"></span>
   <span class="st" id="stat"></span><button class="act" id="audioBtn">🔇 enable audio</button></header>
 <main>
@@ -113,18 +118,21 @@
     <div class="card" id="tftcard"><div class="row"><strong>Display (readable)</strong><span class="st">ST7735 160×80, decoded from the bit‑banged SPI</span></div><canvas id="tftbig" width="160" height="80"></canvas></div>
     <div class="card">
       <div class="row tabs"><strong>Console</strong>
-        <button class="on chiptab" data-src="usb">USB‑CDC (Serial)</button><button class="chiptab" data-src="uart0">UART0 (ROM/bootloader)</button><button class="chiptab" data-src="all">both</button><button data-src="node0" class="nodetab" style="display:none">node 1</button><button data-src="node1" class="nodetab" style="display:none">node 2</button><button data-src="all" class="nodetab" style="display:none">both consoles</button>
+        <button class="on chiptab" data-src="usb">USB‑CDC (Serial)</button><button class="chiptab" data-src="uart0">UART0 (ROM/bootloader)</button><button class="chiptab" data-src="term">Terminal (UART0, xterm.js)</button><button class="chiptab" data-src="all">both</button><button data-src="node0" class="nodetab" style="display:none">node 1</button><button data-src="node1" class="nodetab" style="display:none">node 2</button><button data-src="all" class="nodetab" style="display:none">both consoles</button>
         <span style="flex:1"></span><button class="act" id="clear">clear</button></div>
-      <div id="console"></div>
+      <div id="console" tabindex="0" title="click, then type: keys go to the console shown"></div>
+      <div id="term"></div>
+      <div class="row" style="margin-top:4px"><span class="st" id="keyhint">click the console and type — keys go straight to the UART (Enter, Backspace, arrows, Ctrl‑C…); paste works too</span></div>
       <div class="row" style="margin-top:8px"><input type="text" id="line" placeholder='{"action":"set_note","value":"5"}'/><button class="act" id="send">send to USB‑CDC</button></div>
       <div class="row chips" id="presets" style="margin-top:6px"><span class="st">actions:</span></div>
     </div>
   </section>
 </main>
 <script src="touch-input.js"></script>
+<script src="terminal.js"></script>
 <script>
 const $ = s => document.querySelector(s);
-const con = $('#console'); let ws, view = 'usb', netInit = false; const lines = [];   // {src, text}
+const con = $('#console'); let ws, view = 'usb', netInit = false, boardName = null; const lines = [];   // {src, text}
 let audioCtx = null, playHead = 0, audioLead = 0.06, underruns = 0, ctxRate = 44100, knobAngle = 0, ringLeds = new Array(12).fill([0,0,0]);
 const tft = $('#tft').getContext('2d'), tftbig = $('#tftbig').getContext('2d'), ringC = $('#ring').getContext('2d');
 // Light Grid V1.1 modules, one 3x3 of cells each, keyed by the port they sit in.
@@ -148,7 +156,12 @@ function drawGrid(id, leds) {
   const mod = $('#grid' + id); if (mod) mod.style.background = n ? `rgba(${Math.min(255, sum[0] / n * 5)},${Math.min(255, sum[1] / n * 5)},${Math.min(255, sum[2] / n * 5)},${0.12 + 0.03 * n})` : '';
 }
 
+// ---- a real terminal on UART0 (terminal.js); the plain console tabs stay a line log
+const terminal = window.installTerminal($('#term'), send);
+function showTerm(on) { $('#term').style.display = on ? 'block' : 'none'; con.style.display = on ? 'none' : ''; $('#line').parentElement.style.display = on ? 'none' : ''; $('#keyhint').textContent = on ? 'a VT100 terminal on UART0 — click it and type; the guest can run `stty cols 100 rows 30` to match' : 'click the console and type — keys go straight to the UART (Enter, Backspace, arrows, Ctrl‑C…); paste works too';
+  if (on) terminal.show(lines.filter(l => l.src === terminal.src).map(l => l.text), ((addSerial.buf || {})[terminal.src] || '').replace(/\r$/, '')); }
 function render() {
+  if (view === 'term') return;
   con.textContent = '';
   for (const l of lines) {
     if (view !== 'all' && l.src !== view) continue;
@@ -156,12 +169,28 @@ function render() {
     d.className = l.text.startsWith('SIM:') ? 'sim' : l.text.startsWith('{"type":"event"') ? 'evt' : l.text.startsWith('> ') ? 'in' : '';
     d.textContent = (view === 'all' ? `[${l.src}] ` : '') + l.text + '\n'; con.appendChild(d);
   }
+  const src = keySrc(), partial = ((addSerial.buf || {})[src] || '').replace(/\r$/, '');   // the prompt is a line without its newline
+  if (partial || document.activeElement === con) { const d = document.createElement('span'); d.textContent = partial; con.appendChild(d); const c = document.createElement('span'); c.className = 'cur'; c.textContent = ' '; con.appendChild(c); }
   con.scrollTop = con.scrollHeight;
 }
-function addSerial(src, data) { data = data.replace(/\x1b\[[0-9;]*m/g, '');
+// A terminal's line editing on the unterminated line: backspace rubs out a character, a
+// carriage return with more text after it restarts the line; a trailing one is kept, it may be
+// the first half of a CR LF still in flight.
+function editLine(s) {
+  let out = '';
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (ch === '\x08') out = out.slice(0, -1);
+    else if (ch === '\r') { if (i === s.length - 1) return out + '\r'; out = ''; }
+    else out += ch;
+  }
+  return out;
+}
+function addSerial(src, data) { data = data.replace(/\x1b\[[0-9;?]*[A-Za-z]|\x1b[()][A-Z0-9]|\x1b[=>]/g, '');
   // split into lines, keep partial line per source
   addSerial.buf = addSerial.buf || {}; let b = (addSerial.buf[src] || '') + data;
-  const parts = b.split('\n'); addSerial.buf[src] = parts.pop();
+  const parts = b.split('\n');
+  addSerial.buf[src] = editLine(parts.pop());
   for (const p of parts) { lines.push({src, text: p.replace(/\r$/, '')}); }
   while (lines.length > 2000) lines.shift();
   render();
@@ -244,9 +273,9 @@ function playAudio(buf) {
 function handleMessage(data) {
     if (data instanceof ArrayBuffer) { const t = new Uint8Array(data)[0]; if (t === 1) drawFrame(data); else if (t === 2) playAudio(data); else if (t === 4) drawCamPreview(data); return; }
     const m = JSON.parse(data);
-    if (m.t === 'serial') addSerial(m.src, m.data);
+    if (m.t === 'serial') { if (m.src === terminal.src) terminal.write(m.data); addSerial(m.src, m.data); }
     else if (m.t === 'emu') addSerial('usb', m.msg + '\n');
-    else if (m.t === 'board') { document.body.classList.toggle('bare', m.name !== 'atech14'); if (m.name === 'atech14') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Atech 14‑port board'; } else if (m.name === 'esp32c3') { document.querySelector('h1').textContent = 'ESP32‑C3 emulator — RISC-V, console only'; } else if (m.name === 'esp32c6') { document.querySelector('h1').textContent = 'ESP32‑C6 emulator — RISC-V, console only'; } else if (m.name === 'waveshare-c6-lcd147') { document.querySelector('h1').textContent = 'ESP32‑C6 emulator — Waveshare ESP32‑C6‑LCD‑1.47'; $('#lcdpanel').style.display = ''; $('#lcdstat').textContent = 'ST7789 172×320 over SPI2 + GDMA — nothing drawn yet: this firmware has not written the display'; $('#lcd').style.display = 'none'; $('#lcdextras').style.display = ''; } else if (m.name === 'none') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — bare module'; document.querySelector('.tabs button[data-src="uart0"]').click(); } if (m.name === 'waveshare-cam') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Waveshare ESP32‑S3‑CAM‑OV5640'; $('#campanel').style.display = ''; } if (m.name === 'waveshare-lcd4b') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Waveshare ESP32‑S3‑Touch‑LCD‑4B'; $('#lcdpanel').style.display = ''; } }
+    else if (m.t === 'board') { boardName = m.name; document.body.classList.toggle('bare', m.name !== 'atech14'); if (m.name === 'atech14') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Atech 14‑port board'; } else if (m.name === 'esp32c3') { document.querySelector('h1').textContent = 'ESP32‑C3 emulator — RISC-V, console only'; } else if (m.name === 'esp32c6') { document.querySelector('h1').textContent = 'ESP32‑C6 emulator — RISC-V, console only'; } else if (m.name === 'waveshare-c6-lcd147') { document.querySelector('h1').textContent = 'ESP32‑C6 emulator — Waveshare ESP32‑C6‑LCD‑1.47'; $('#lcdpanel').style.display = ''; $('#lcdstat').textContent = 'ST7789 172×320 over SPI2 + GDMA — nothing drawn yet: this firmware has not written the display'; $('#lcd').style.display = 'none'; $('#lcdextras').style.display = ''; } else if (m.name === 'none') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — bare module'; document.querySelector(`.tabs button[data-src="${window.EmuLink && window.EmuLink.terminal ? 'term' : 'uart0'}"]`).click(); } if (m.name === 'waveshare-cam') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Waveshare ESP32‑S3‑CAM‑OV5640'; $('#campanel').style.display = ''; } if (m.name === 'waveshare-lcd4b') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Waveshare ESP32‑S3‑Touch‑LCD‑4B'; $('#lcdpanel').style.display = ''; } }
     if (m.t === 'board' && m.name === 'waveshare-amoled18-v2') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator, Waveshare ESP32‑S3‑Touch‑AMOLED‑1.8 V2'; $('#lcdstat').textContent = 'CO5300 368×448 over QSPI, click or drag to touch'; const lcd = $('#lcd'); lcd.style.width = '368px'; lcd.style.height = '448px'; $('#lcdpanel').style.display = ''; }
     else if (m.t === 'grid') { drawGrid(m.id, m.leds); }
     else if (m.t === 'net') {
@@ -274,7 +303,7 @@ function connect() {
   ws.onmessage = ev => handleMessage(ev.data);
   link = { send: (d) => { if (ws.readyState === 1) ws.send(d); } };
 }
-document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { document.querySelectorAll('.tabs button').forEach(x => x.classList.remove('on')); b.classList.add('on'); view = b.dataset.src; render(); });
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { document.querySelectorAll('.tabs button').forEach(x => x.classList.remove('on')); b.classList.add('on'); view = b.dataset.src; $('#send').textContent = keySrc() === 'uart0' ? 'send to UART0' : 'send to USB‑CDC'; showTerm(view === 'term'); render(); });
 document.querySelectorAll('.btn .cell, .boardbtn').forEach(el => {
   const pin = +el.dataset.pin; let downAt = 0;
   const down = v => { el.classList.toggle('down', v); if (v) { downAt = performance.now(); send({t:'btn', pin, v:1}); } else { setTimeout(() => send({t:'btn', pin, v:0}), Math.max(0, 60 - (performance.now() - downAt))); } };
@@ -285,9 +314,17 @@ $('#knob').addEventListener('wheel', e => { e.preventDefault(); turn(e.deltaY > 
 let dragX = null; $('#knob').onmousedown = e => { if (e.target.closest('.cap')) { send({t:'knobpress', v:1}); return; } dragX = e.clientX; };
 window.onmousemove = e => { if (dragX === null) return; const dx = e.clientX - dragX; if (Math.abs(dx) >= 14) { turn(dx > 0 ? 1 : -1); dragX = e.clientX; } };
 window.onmouseup = e => { dragX = null; if (e.target.closest('.cap')) send({t:'knobpress', v:0}); };
-window.onkeydown = e => { if (e.target.tagName === 'INPUT') return; if (e.key === 'ArrowRight') turn(1); if (e.key === 'ArrowLeft') turn(-1); if (e.key === ' ') { e.preventDefault(); send({t:'knobpress', v:1}); } };
-window.onkeyup = e => { if (e.key === ' ' && e.target.tagName !== 'INPUT') send({t:'knobpress', v:0}); };
-$('#send').onclick = () => { const l = $('#line').value.trim(); if (!l) return; lines.push({src:'usb', text:'> ' + l}); render(); send({t:'serial', line:l}); };
+// Space and the arrow keys drive the Atech knob: only on that board, and not when the key was
+// typed into something — a text box, the console, or the terminal — whose own handler took it.
+const knobKeys = e => boardName === 'atech14' && !e.defaultPrevented && !(e.target.closest && e.target.closest('input, textarea, #console, #term'));
+window.onkeydown = e => { if (!knobKeys(e)) return; if (e.key === 'ArrowRight') turn(1); if (e.key === 'ArrowLeft') turn(-1); if (e.key === ' ') { e.preventDefault(); send({t:'knobpress', v:1}); } };
+window.onkeyup = e => { if (e.key === ' ' && knobKeys(e)) send({t:'knobpress', v:0}); };
+// ---- keyboard on the console: which console the keys (and the line box) go to
+function keySrc() { return view === 'usb' ? 'usb' : view.startsWith('node') ? null : 'uart0'; }   // 'term' and 'all' type into UART0
+con.onkeydown = e => { const src = keySrc(), data = terminalKeyBytes(e); if (!src || data === null) return; e.preventDefault(); send({t:'key', src, data}); };
+con.onpaste = e => { const src = keySrc(); if (!src) return; e.preventDefault(); const text = (e.clipboardData || window.clipboardData).getData('text'); if (text) send({t:'key', src, data:text}); };
+con.onfocus = con.onblur = () => render();
+$('#send').onclick = () => { const l = $('#line').value.trim(); if (!l) return; const src = keySrc() || 'usb'; lines.push({src, text:'> ' + l}); render(); send({t:'serial', src, line:l}); };
 $('#line').onkeydown = e => { if (e.key === 'Enter') $('#send').click(); };
 $('#clear').onclick = () => { lines.length = 0; render(); };
 $('#audioBtn').onclick = async () => { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)({sampleRate: ctxRate}); await audioCtx.resume(); $('#audioBtn').textContent = '🔊 audio on'; };

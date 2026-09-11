@@ -1,0 +1,21 @@
+{
+ "board": "none",
+ "flash_mb": 16,
+ "psram_mb": 8,
+ "wifi": "ssid=esp32sim,psk=esp32sim-pass",
+ "files": {
+  "rom": "esp32s3_rev0_rom.elf",
+  "flash": "linux-esp32s3-native-full.bin",
+  "script": "linux-login.txt"
+ },
+ "symbols": {
+  "nimble_port_init": "0x4200f094"
+ },
+ "stubs": [
+  "nimble_port_init=0xffffffff"
+ ],
+ "expect": "xtensa GNU/Linux",
+ "seconds": 40,
+ "_source": "https://github.com/svermigo/Linux-on-esp32-S3 — images/linux-esp32s3-native-full.bin at 9a543fb (release 0.7), GPL-3.0; fetched by the Pages workflow, not committed",
+ "_note": "the wifi spec lets the PHY calibration finish; the stub skips BLE provisioning (no Bluetooth baseband model) so the network adapter goes on to launch Linux on core 1"
+}

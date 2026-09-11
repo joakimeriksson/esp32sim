@@ -1,0 +1,4 @@
+24 uart0 root
+27 uart0 changeme123
+30 uart0 stty cols 100 rows 30
+32 uart0 uname -a

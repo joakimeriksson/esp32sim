@@ -9,6 +9,7 @@ to the page) and executed in the tab.
 
 ```sh
 tools/wasm-build.sh                      # -> web/wasm/esp32sim.wasm (needs the wasm32-unknown-unknown target)
+tools/fetch-web-vendor.sh                # xterm.js for the Terminal tab (optional; the page works without it)
 python3 -m http.server -d web 8790       # any static server; file:// will not do (workers, fetch)
 open http://127.0.0.1:8790/?wasm
 ```
@@ -28,8 +29,12 @@ mask ROM is Espressif's and the firmware is whoever built it; host them only whe
 `.github/workflows/pages.yml` builds the module on every push to `main`, fetches the mask-ROM ELF
 from the Apache-2.0 `espressif/esp-rom-elfs` release, and publishes `web/` — so the page at
 **https://joakimeriksson.github.io/esp32sim/** is the emulator, with the demos in
-`web/wasm/fw/demos.json` (hello_world and the Touch-LCD-4B energy panel with its SID player; the Atech Pocket Synth once Atech confirms its driver-module license) one click away and the file
-inputs for anyone's own firmware. On a `github.io` host the page starts in wasm mode without
+`web/wasm/fw/demos.json` — hello_world, the Touch-LCD-4B energy panel with its SID player, the Atech
+Pocket Synth, and the C3 and C6 demos — one click away and the file inputs for anyone's own firmware. The workflow also fetches the **Linux-on-esp32-S3** flash image
+(GPL-3.0, [svermigo/Linux-on-esp32-S3](https://github.com/svermigo/Linux-on-esp32-S3), release 0.7,
+pinned by commit and SHA-256 in `pages.yml`) so the `linux` demos boot it — `linux-term` opens on the
+xterm.js terminal tab (manifest `terminal: true`), where `vi`, `top` and colours render properly; the image is never
+committed here — the source for everything in it is that repository. On a `github.io` host the page starts in wasm mode without
 `?wasm`. Only firmware whose code is ours is committed under `web/wasm/fw/public/`; the panel is a
 separate build with placeholder `secrets.h` values (checked with `strings` against the real ones).
 
@@ -70,6 +75,7 @@ the tab falls half a second behind. `Date.now()` is passed in for the emulated S
 | firmware | in the tab | notes |
 | --- | --- | --- |
 | IDF hello_world | real time | ROM → bootloader → app, `esp_restart` reboots through the ROM |
+| **Linux 6.11 on the ESP32-S3** (svermigo/Linux-on-esp32-S3) | real time, ~4× under Node | the esp-hosted network adapter on core 0, Linux XIP from flash on core 1, cramfs root, jffs2 overlays; login and a shell typed on the page console (UART0). Needs the `wifi` spec (PHY calibration) and a stub on `nimble_port_init` — no Bluetooth baseband is modelled, so BLE provisioning is skipped |
 | Waveshare Touch-LCD-4B energy panel + SID player | **real time**, ~62 Minsn/s | LVGL at 60 fps, touch, the tune plays through WebAudio |
 | Atech 14-port synth | real time | ST7735 and WS2812 decoded, buttons/knob, scripted scenario |
 | ESP32-C3 hello_world | real time | the other chip: one RV32IMC core, console only — pick board `esp32c3` |

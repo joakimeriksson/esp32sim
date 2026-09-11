@@ -1,5 +1,20 @@
 [
  {
+  "fw": "linux",
+  "title": "Linux 6.11 on the ESP32-S3",
+  "note": "Linux-on-esp32-S3 by svermigo (GPL-3.0): the esp-hosted network adapter on core 0, Linux executing in place from flash on core 1, cramfs root, jffs2 /etc and /home. Log in as root, password changeme123 — click the console and type; bash, MicroPython and fork are all there"
+ },
+ {
+  "fw": "linux-login",
+  "title": "…logged in for you",
+  "note": "same image, a script types the login at 24 s and runs uname -a"
+ },
+ {
+  "fw": "linux-term",
+  "title": "…in a full terminal (xterm.js)",
+  "note": "same image, logged in by the script, on a VT100 terminal: colours, cursor movement, line editing and full-screen programs render properly — try `ls --color`, `top`, `vi`, or `micropython`"
+ },
+ {
   "fw": "hello",
   "title": "IDF hello_world",
   "note": "boots the ROM, prints, reboots through the watchdog"

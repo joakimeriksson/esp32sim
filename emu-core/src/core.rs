@@ -140,10 +140,11 @@ pub trait Core {
     /// Registers worth printing in a trace line, in the core's conventional order.
     fn regs(&self, out: &mut Vec<(&'static str, u32)>);
     /// Argument `n` of the function about to be entered, per the core's calling convention
-    /// (Xtensa windowed: a2 + n; RISC-V: a0 + n). For function probes and stubs.
-    fn arg(&self, n: usize) -> u32;
+    /// (RISC-V: a0 + n; Xtensa: the frame the call set up, which the instruction at pc decides —
+    /// hence the bus). For function probes and stubs.
+    fn arg<B: Bus>(&self, bus: &mut B, n: usize) -> u32;
     /// Return from the function about to be entered with `v`, as if it ran: the stub mechanism.
-    fn return_from_stub(&mut self, v: u32);
+    fn return_from_stub<B: Bus>(&mut self, bus: &mut B, v: u32);
     /// Disassemble the instruction bytes at `pc` for a trace line.
     fn disasm(&self, pc: u32, bytes: [u8; 4]) -> String;
     /// Length in bytes of the instruction these bytes start (for walking a listing).
@@ -161,8 +162,8 @@ pub trait Core {
     /// Whether the guest has installed a trap handler (an `ebreak` without one is a stop).
     fn has_trap_handler(&self) -> bool { true }
     /// The function-probe argument summary, e.g. `a2=.. a3=.. a4=..`, and the return address.
-    fn probe_args(&self) -> String;
-    fn return_address(&self) -> u32;
+    fn probe_args<B: Bus>(&self, bus: &mut B) -> String;
+    fn return_address<B: Bus>(&self, bus: &mut B) -> u32;
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

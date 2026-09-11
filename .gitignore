@@ -20,3 +20,6 @@ examples/hello_world/managed_components/
 __pycache__/
 .DS_Store
 web/wasm/esp32sim.wasm
+
+# fetched by tools/fetch-web-vendor.sh (xterm.js for the Terminal tab), not committed
+web/vendor/

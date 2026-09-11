@@ -18,7 +18,7 @@ ESP32-S3 peripheral MMIO reads and writes must be aligned 32-bit accesses. Byte 
 | systimer | 0x60023000 | full | 2 units, 3 targets, one-shot/periodic |
 | Timer groups 0/1 | 0x6001F000/20000 | partial | timer 0 with alarm/auto-reload; WDT registers as stubs |
 | GPIO / IO_MUX | 0x60004000/9000 | full | out/enable/input, pin matrix in/out selects, edge/level interrupts, strap |
-| UART0/1/2 | 0x60000000… | partial | TX FIFO to console, RX from scripts, TX-done/empty interrupts |
+| UART0/1/2 | 0x60000000… | partial | TX straight to the console (FIFO count 0, TX-done/empty raised); a 128-byte RX FIFO fed from the page keyboard and scripts, rxfifo_cnt in STATUS, RXFIFO_FULL as a level against the CONF1 threshold, overflow flagged, rxfifo_rst honoured |
 | USB Serial/JTAG | 0x60038000 | full | TX/RX FIFOs, interrupts (IDF console and Arduino `Serial`) |
 | I2C0/I2C1 | 0x60013000/27000 | full | IDF `i2c_master` command list, FIFOs, NACK/END/COMPLETE interrupts |
 | GDMA | 0x6003F000 | partial | out-channels (I2S0/I2S1) and in-channels (CAM); descriptor walk, DONE/EOF/TOTAL_EOF |
