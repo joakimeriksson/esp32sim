@@ -131,7 +131,7 @@
 <script src="touch-input.js"></script>
 <script>
 const $ = s => document.querySelector(s);
-const con = $('#console'); let ws, view = 'usb', netInit = false; const lines = [];   // {src, text}
+const con = $('#console'); let ws, view = 'usb', netInit = false, boardName = null; const lines = [];   // {src, text}
 let audioCtx = null, playHead = 0, audioLead = 0.06, underruns = 0, ctxRate = 44100, knobAngle = 0, ringLeds = new Array(12).fill([0,0,0]);
 const tft = $('#tft').getContext('2d'), tftbig = $('#tftbig').getContext('2d'), ringC = $('#ring').getContext('2d');
 // Light Grid V1.1 modules, one 3x3 of cells each, keyed by the port they sit in.
@@ -169,7 +169,7 @@ function ensureTerm() {
   for (const l of lines) if (l.src === TERM_SRC) term.write(l.text + '\r\n');   // what arrived before the tab was opened (colours already stripped)
   const partial = (addSerial.buf || {})[TERM_SRC]; if (partial) term.write(partial.replace(/\r$/, ''));
 }
-function showTerm(on) { $('#term').style.display = on ? 'block' : 'none'; con.style.display = on ? 'none' : ''; $('#keyhint').textContent = on ? 'a VT100 terminal on UART0 — click it and type; the guest can run `stty cols 100 rows 30` to match' : 'click the console and type — keys go straight to the UART (Enter, Backspace, arrows, Ctrl‑C…); paste works too'; if (on) { ensureTerm(); if (term) term.focus(); } }
+function showTerm(on) { $('#term').style.display = on ? 'block' : 'none'; con.style.display = on ? 'none' : ''; $('#line').parentElement.style.display = on ? 'none' : ''; $('#keyhint').textContent = on ? 'a VT100 terminal on UART0 — click it and type; the guest can run `stty cols 100 rows 30` to match' : 'click the console and type — keys go straight to the UART (Enter, Backspace, arrows, Ctrl‑C…); paste works too'; if (on) { ensureTerm(); if (term) term.focus(); } }
 function render() {
   if (view === 'term') return;
   con.textContent = '';
@@ -285,7 +285,7 @@ function handleMessage(data) {
     const m = JSON.parse(data);
     if (m.t === 'serial') { if (term && m.src === TERM_SRC) term.write(m.data); addSerial(m.src, m.data); }
     else if (m.t === 'emu') addSerial('usb', m.msg + '\n');
-    else if (m.t === 'board') { document.body.classList.toggle('bare', m.name !== 'atech14'); if (m.name === 'atech14') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Atech 14‑port board'; } else if (m.name === 'esp32c3') { document.querySelector('h1').textContent = 'ESP32‑C3 emulator — RISC-V, console only'; } else if (m.name === 'esp32c6') { document.querySelector('h1').textContent = 'ESP32‑C6 emulator — RISC-V, console only'; } else if (m.name === 'waveshare-c6-lcd147') { document.querySelector('h1').textContent = 'ESP32‑C6 emulator — Waveshare ESP32‑C6‑LCD‑1.47'; $('#lcdpanel').style.display = ''; $('#lcdstat').textContent = 'ST7789 172×320 over SPI2 + GDMA — nothing drawn yet: this firmware has not written the display'; $('#lcd').style.display = 'none'; $('#lcdextras').style.display = ''; } else if (m.name === 'none') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — bare module'; document.querySelector(`.tabs button[data-src="${window.preferTerminal ? 'term' : 'uart0'}"]`).click(); } if (m.name === 'waveshare-cam') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Waveshare ESP32‑S3‑CAM‑OV5640'; $('#campanel').style.display = ''; } if (m.name === 'waveshare-lcd4b') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Waveshare ESP32‑S3‑Touch‑LCD‑4B'; $('#lcdpanel').style.display = ''; } }
+    else if (m.t === 'board') { boardName = m.name; document.body.classList.toggle('bare', m.name !== 'atech14'); if (m.name === 'atech14') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Atech 14‑port board'; } else if (m.name === 'esp32c3') { document.querySelector('h1').textContent = 'ESP32‑C3 emulator — RISC-V, console only'; } else if (m.name === 'esp32c6') { document.querySelector('h1').textContent = 'ESP32‑C6 emulator — RISC-V, console only'; } else if (m.name === 'waveshare-c6-lcd147') { document.querySelector('h1').textContent = 'ESP32‑C6 emulator — Waveshare ESP32‑C6‑LCD‑1.47'; $('#lcdpanel').style.display = ''; $('#lcdstat').textContent = 'ST7789 172×320 over SPI2 + GDMA — nothing drawn yet: this firmware has not written the display'; $('#lcd').style.display = 'none'; $('#lcdextras').style.display = ''; } else if (m.name === 'none') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — bare module'; document.querySelector(`.tabs button[data-src="${window.preferTerminal ? 'term' : 'uart0'}"]`).click(); } if (m.name === 'waveshare-cam') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Waveshare ESP32‑S3‑CAM‑OV5640'; $('#campanel').style.display = ''; } if (m.name === 'waveshare-lcd4b') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator — Waveshare ESP32‑S3‑Touch‑LCD‑4B'; $('#lcdpanel').style.display = ''; } }
     if (m.t === 'board' && m.name === 'waveshare-amoled18-v2') { document.querySelector('h1').textContent = 'ESP32‑S3 emulator, Waveshare ESP32‑S3‑Touch‑AMOLED‑1.8 V2'; $('#lcdstat').textContent = 'CO5300 368×448 over QSPI, click or drag to touch'; const lcd = $('#lcd'); lcd.style.width = '368px'; lcd.style.height = '448px'; $('#lcdpanel').style.display = ''; }
     else if (m.t === 'grid') { drawGrid(m.id, m.leds); }
     else if (m.t === 'net') {
@@ -324,8 +324,11 @@ $('#knob').addEventListener('wheel', e => { e.preventDefault(); turn(e.deltaY > 
 let dragX = null; $('#knob').onmousedown = e => { if (e.target.closest('.cap')) { send({t:'knobpress', v:1}); return; } dragX = e.clientX; };
 window.onmousemove = e => { if (dragX === null) return; const dx = e.clientX - dragX; if (Math.abs(dx) >= 14) { turn(dx > 0 ? 1 : -1); dragX = e.clientX; } };
 window.onmouseup = e => { dragX = null; if (e.target.closest('.cap')) send({t:'knobpress', v:0}); };
-window.onkeydown = e => { if (e.target.tagName === 'INPUT') return; if (e.key === 'ArrowRight') turn(1); if (e.key === 'ArrowLeft') turn(-1); if (e.key === ' ') { e.preventDefault(); send({t:'knobpress', v:1}); } };
-window.onkeyup = e => { if (e.key === ' ' && e.target.tagName !== 'INPUT') send({t:'knobpress', v:0}); };
+// Space and the arrow keys drive the Atech knob: only on that board, and not when the key was
+// typed into something — a text box, the console, or the terminal — whose own handler took it.
+const knobKeys = e => boardName === 'atech14' && !e.defaultPrevented && !(e.target.closest && e.target.closest('input, textarea, #console, #term'));
+window.onkeydown = e => { if (!knobKeys(e)) return; if (e.key === 'ArrowRight') turn(1); if (e.key === 'ArrowLeft') turn(-1); if (e.key === ' ') { e.preventDefault(); send({t:'knobpress', v:1}); } };
+window.onkeyup = e => { if (e.key === ' ' && knobKeys(e)) send({t:'knobpress', v:0}); };
 // ---- keyboard on the console: which console the keys (and the line box) go to
 function keySrc() { return view === 'usb' ? 'usb' : view.startsWith('node') ? null : 'uart0'; }   // 'term' and 'all' type into UART0
 function keyBytes(e) {
