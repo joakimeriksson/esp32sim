@@ -196,4 +196,6 @@ impl Cpu {
     pub fn woe(&self) -> bool { self.ps & ps::WOE != 0 }
     #[inline(always)]
     pub fn callinc(&self) -> u32 { (self.ps & ps::CALLINC_MASK) >> ps::CALLINC_SHIFT }
+    /// Register offset of the frame a pending `callN` set up: 4·CALLINC, the rotation its `entry` will apply.
+    pub fn call_window(&self) -> u8 { (self.callinc() * 4) as u8 }
 }

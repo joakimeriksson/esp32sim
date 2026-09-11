@@ -42,13 +42,17 @@ impl emu_core::Core for Cpu {
         for (i, n) in AR.iter().enumerate() { out.push((n, self.get_ar(i as u8))); }
         out.push(("ps", self.ps)); out.push(("wb", self.windowbase));
     }
-    fn arg(&self, n: usize) -> u32 { self.get_ar(2 + n as u8) }
-    /// Synthetic return from a windowed function entry whose `entry` has not executed: a0 holds
-    /// the return address with the call increment in bits 31:30; no window rotation to undo.
+    /// At a function's entry its `entry` has not run, so the window is still the caller's: a
+    /// `callN` left the return address in a(4N) and the arguments from a(4N+2) on, with N in
+    /// PS.CALLINC (0 after `call0`, where a0/a2 hold them directly).
+    fn arg(&self, n: usize) -> u32 { self.get_ar(self.call_window() + 2 + n as u8) }
+    /// Synthetic return from a function entry whose `entry` has not executed: the value goes
+    /// where the caller will read it, a(4N+2), and the pc to a(4N); no window rotation to undo.
     fn return_from_stub(&mut self, v: u32) {
-        let a0 = self.get_ar(0);
-        self.set_ar(2, v);
-        self.pc = (a0 & 0x3fff_ffff) | (self.pc & 0xc000_0000);
+        let w = self.call_window();
+        let ra = self.get_ar(w);
+        self.set_ar(w + 2, v);
+        self.pc = (ra & 0x3fff_ffff) | (self.pc & 0xc000_0000);
         self.insn_count += 1; self.advance_ccount(1);
     }
     fn disasm(&self, pc: u32, bytes: [u8; 4]) -> String { crate::disasm::format(&crate::decode::decode(pc, bytes)) }
@@ -76,8 +80,8 @@ impl emu_core::Core for Cpu {
         for i in 0..16 { s += &format!("a{:<2}={:08x} ", i, c.get_ar(i)); if i % 8 == 7 { s += "\n"; } }
         s
     }
-    fn probe_args(&self) -> String { format!("a2={:#x} a3={:#x} a4={:#x}", self.get_ar(2), self.get_ar(3), self.get_ar(4)) }
-    fn return_address(&self) -> u32 { self.get_ar(0) & 0x3fff_ffff | 0x4000_0000 }
+    fn probe_args(&self) -> String { format!("a2={:#x} a3={:#x} a4={:#x}", self.arg(0), self.arg(1), self.arg(2)) }
+    fn return_address(&self) -> u32 { (self.get_ar(self.call_window()) & 0x3fff_ffff) | (self.pc & 0xc000_0000) }
 }
 
 #[cfg(test)]
@@ -97,6 +101,26 @@ mod tests {
         let mut cpu2 = crate::Cpu::new(0); cpu2.pc = 0x4037_0000; cpu2.ps = 0;
         assert_eq!(cpu2.step(&mut ram).result(), Ok(())); assert_eq!(cpu2.get_ar(2), 5);
         let mut r = Vec::new(); cpu2.regs(&mut r); assert_eq!(r[2], ("a2", 5));
+    }
+
+    /// A stub at a windowed function's entry fires before its `entry` rotated the window, so
+    /// the return goes through the frame the `call8` set up: value in a10, pc from a8, the
+    /// caller's other registers and the window untouched.
+    #[test]
+    fn stub_returns_through_the_pending_call_window() {
+        let base = 0x4037_0000;
+        let mut ram = FlatRam::new(base, 64);
+        ram.mem[..3].copy_from_slice(&[0x25, 0x00, 0x00]);   // call8 base+4
+        let mut cpu = crate::Cpu::new(0); cpu.pc = base; cpu.ps = crate::state::ps::WOE;
+        cpu.set_ar(3, 0x1234); cpu.set_ar(10, 0xdead);
+        assert_eq!(cpu.step(&mut ram).result(), Ok(()));
+        assert_eq!(Core::pc(&cpu), base + 4);
+        assert_eq!(cpu.return_address(), base + 3);
+        assert_eq!(cpu.arg(0), 0xdead);
+        let wb = cpu.windowbase;
+        cpu.return_from_stub(7);
+        assert_eq!(Core::pc(&cpu), base + 3);
+        assert_eq!((cpu.get_ar(10), cpu.get_ar(3), cpu.windowbase), (7, 0x1234, wb));
     }
 
     #[test]
