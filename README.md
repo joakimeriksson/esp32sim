@@ -195,9 +195,11 @@ load the ROM ELF and firmware from disk (or `?wasm&fw=<name>` for a hosted manif
 hello_world, the Touch-LCD-4B panel with its SID player, the Atech board, the ESP32-C3 and the
 ESP32-C6 all run at real time in Chrome; there is no NAT (the browser has no sockets). The S3 has
 a WebAssembly JIT of its own (hot blocks and regions, PIE on WASM SIMD). See [docs/wasm.md](docs/wasm.md).
-**Live: https://joakimeriksson.github.io/esp32sim/** — the Touch-LCD-4B panel with its SID
-player, the Atech board, and the ESP32-C3 and C6 booting hello_world; or load your own firmware
-for any chip from disk (pick the board, or `esp32c3` / `esp32c6`).
+**Live: https://joakimeriksson.github.io/esp32sim/** — Linux 6.11 on the ESP32-S3
+([svermigo/Linux-on-esp32-S3](https://github.com/svermigo/Linux-on-esp32-S3), log in and type on the
+console), the Touch-LCD-4B panel with its SID player, the Atech board, and the ESP32-C3 and C6
+booting hello_world; or load your own firmware for any chip from disk (pick the board, or
+`esp32c3` / `esp32c6`).
 
 ## Debugging
 
