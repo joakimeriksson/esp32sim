@@ -85,6 +85,7 @@ One action per line, `<seconds> <cmd> [args]`; buttons/encoder are active low.
 2.5  gpio 17 0
 3.0  knob cw 3             # 3 detents clockwise (ccw for the other way)
 4.0  serial {"action":"set_note","value":"5"}
+4.2  uart0 root              # a line into UART0's receive FIFO (also `uart1`): a login on a Linux console
 4.5  touch 450 30 1        # touch panel press at (450,30); `touch x y 0` releases
 5.5  stop
 ```

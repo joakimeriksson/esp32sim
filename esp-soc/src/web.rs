@@ -177,7 +177,17 @@ pub fn json_str(msg: &str, key: &str) -> Option<String> {
     let rest = msg[p..].trim_start().strip_prefix(':')?.trim_start();
     if let Some(r) = rest.strip_prefix('"') {
         let mut out = String::new(); let mut it = r.chars();
-        while let Some(c) = it.next() { match c { '"' => break, '\\' => { if let Some(n) = it.next() { out.push(match n { 'n' => '\n', 't' => '\t', x => x }); } } x => out.push(x) } }
+        while let Some(c) = it.next() {
+            match c {
+                '"' => break,
+                '\\' => match it.next() {
+                    Some('n') => out.push('\n'), Some('t') => out.push('\t'), Some('r') => out.push('\r'), Some('b') => out.push('\u{8}'), Some('f') => out.push('\u{c}'),
+                    Some('u') => { let h: String = it.by_ref().take(4).collect(); if let Some(ch) = u32::from_str_radix(&h, 16).ok().and_then(char::from_u32) { out.push(ch); } }
+                    Some(x) => out.push(x), None => break,
+                },
+                x => out.push(x),
+            }
+        }
         Some(out)
     } else {
         let end = rest.find(|c: char| !(c.is_alphanumeric() || c == '-' || c == '.')).unwrap_or(rest.len());

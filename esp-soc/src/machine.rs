@@ -19,7 +19,7 @@ fn leds_json(leds: &[[u8; 3]]) -> String {
 }
 
 #[derive(Clone, Debug)]
-pub enum ScriptAction { Gpio(u8, bool), Serial(String), Stop, Touch(u16, u16, bool), Poke(u32, u32) }
+pub enum ScriptAction { Gpio(u8, bool), Serial(String), Uart(usize, String), Stop, Touch(u16, u16, bool), Poke(u32, u32) }
 
 /// The stop conditions that are not observers.
 pub struct Debug { pub stop_on_unimplemented: bool, pub stop_after_exceptions: u64 }
@@ -875,6 +875,7 @@ impl<S: Soc> Machine<S> {
             match a {
                 ScriptAction::Gpio(pin, level) => { self.bus.gpio_set_input(pin, level); *self.bus.irq_dirty() = true; }
                 ScriptAction::Serial(text) => self.bus.serial_input(text.as_bytes()),
+                ScriptAction::Uart(n, text) => self.bus.uart_input(n, text.as_bytes()),
                 ScriptAction::Stop => { self.max_cycles = 0; stopped = true; }
                 ScriptAction::Touch(x, y, d) => { self.bus.touch_input(x, y, d); }
                 ScriptAction::Poke(a, v) => { let _ = self.bus.write32(a, v); }
@@ -1019,7 +1020,15 @@ impl<S: Soc> Machine<S> {
                     // current horizon have not necessarily run when input arrives at run entry.
                     self.script.events[self.script.pos..].sort_by_key(|e| e.0);
                 }
-                "serial" => { let line = json_str(&m, "line").unwrap_or_default(); self.bus.serial_input(format!("{}\n", line).as_bytes()); }
+                // a line with its newline, or `key`: bytes exactly as typed (a terminal on the console)
+                "serial" | "key" => {
+                    let data = if t == "key" { json_str(&m, "data").unwrap_or_default() } else { format!("{}\n", json_str(&m, "line").unwrap_or_default()) };
+                    match json_str(&m, "src").as_deref() {
+                        Some("uart0") => self.bus.uart_input(0, data.as_bytes()),
+                        Some("uart1") => self.bus.uart_input(1, data.as_bytes()),
+                        _ => self.bus.serial_input(data.as_bytes()),
+                    }
+                }
                 "touch" => { let x: u16 = json_str(&m, "x").and_then(|v| v.parse().ok()).unwrap_or(0); let y: u16 = json_str(&m, "y").and_then(|v| v.parse().ok()).unwrap_or(0);
                              let down = json_str(&m, "down").unwrap_or_default() == "1"; self.bus.touch_input(x, y, down); }
                 _ => {}
@@ -1058,6 +1067,7 @@ impl<S: Soc> Machine<S> {
                 "poke" => { let mut p = rest.split_whitespace(); let a = u32::from_str_radix(p.next().unwrap_or("0").trim_start_matches("0x"), 16).map_err(|e| e.to_string())?; let v = u32::from_str_radix(p.next().unwrap_or("0").trim_start_matches("0x"), 16).map_err(|e| e.to_string())?; ev.push((c, ScriptAction::Poke(a, v))); }
                 "touch" => { let mut p = rest.split_whitespace(); let x: u16 = p.next().and_then(|v| v.parse().ok()).unwrap_or(0); let y: u16 = p.next().and_then(|v| v.parse().ok()).unwrap_or(0); let d = p.next().unwrap_or("1") == "1"; ev.push((c, ScriptAction::Touch(x, y, d))); }
                 "serial" => ev.push((c, ScriptAction::Serial(format!("{}\n", rest)))),
+                "uart0" | "uart1" => ev.push((c, ScriptAction::Uart(if cmd == "uart0" { 0 } else { 1 }, format!("{}\n", rest)))),
                 "knob" => {
                     let mut p = rest.split_whitespace(); let dir = p.next().unwrap_or("cw"); let n: usize = p.next().map(|x| x.parse().unwrap_or(1)).unwrap_or(1);
                     let (clk, dt) = board.encoder().ok_or_else(|| format!("line {}: this board has no encoder", ln + 1))?;

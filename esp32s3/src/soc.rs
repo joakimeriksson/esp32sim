@@ -123,6 +123,12 @@ impl esp_soc::SocBus for SocBus {
         self.periph.usb.host_input(data);
         self.irq_dirty |= before != self.periph.usb.irq();
     }
+    fn uart_input(&mut self, n: usize, data: &[u8]) {
+        let Some(u) = self.periph.uart.get_mut(n) else { return };
+        let before = u.irq();
+        u.host_input(data);
+        self.irq_dirty |= before != u.irq();
+    }
     fn gpio_set_input(&mut self, pin: u8, level: bool) {
         let old_input = self.periph.gpio.input;
         self.periph.gpio.set_input(pin, level);

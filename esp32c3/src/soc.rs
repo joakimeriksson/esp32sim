@@ -100,6 +100,7 @@ impl esp_soc::SocBus for SocBus {
     fn last_fault(&self) -> Option<(u32, bool)> { self.last_fault }
     fn console_take(&mut self) -> [Vec<u8>; 4] { [std::mem::take(&mut self.periph.usb.tx_out), std::mem::take(&mut self.periph.uart[0].tx_out), Vec::new(), Vec::new()] }
     fn serial_input(&mut self, data: &[u8]) { self.periph.usb.host_input(data); }
+    fn uart_input(&mut self, n: usize, data: &[u8]) { if let Some(u) = self.periph.uart.get_mut(n) { u.host_input(data); } }
     fn gpio_set_input(&mut self, pin: u8, level: bool) { self.periph.gpio.set_input(pin, level); if let Some(ev) = &mut self.gpio_events { ev.push((self.cycles, pin, level)); } }
     fn set_flash_size(&mut self, bytes: usize) {
         self.flash = vec![0xff; bytes];
