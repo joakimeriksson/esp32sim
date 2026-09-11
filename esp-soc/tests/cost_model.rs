@@ -294,7 +294,6 @@ impl SocBus for TestBus {
     fn last_fault(&self) -> Option<(u32, bool)> { None }
     fn console_take(&mut self) -> [Vec<u8>; 4] { std::array::from_fn(|_| Vec::new()) }
     fn serial_input(&mut self, _data: &[u8]) {}
-
     fn uart_input(&mut self, _n: usize, _data: &[u8]) {}
     fn gpio_set_input(&mut self, _pin: u8, _level: bool) {}
     fn gpio_input(&self) -> u64 { 0 }
