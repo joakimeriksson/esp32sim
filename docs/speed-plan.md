@@ -104,6 +104,25 @@ word reads 1.9 %), and `exec_insn` dispatch into it 8 %. The kernel's instructio
 generated code for a helper call, and a helper ends a region at its next chunk head, so emitting
 them in the wasm backend should shrink the dispatch share as well as the PIE share.
 
+### The dot product in the wasm backend
+
+The wasm backend now emits pocket-tank's kernel: signed 8- and 16-bit multiply-accumulate into
+ACCX with and without its load, the ACCX reset, and the RUR of ACCX that follows each dot
+product. RUR mattered as much as the vector code: a block with any instruction the backend
+does not emit stays interpreted, so without it none of the kernel's blocks compiled and the
+emission gained nothing. With it, the model core runs 92 % of its instructions compiled, up
+from 70 %.
+
+| pocket-tank, 30 guest s | packed PIE | + wasm dot product | change |
+| --- | --- | --- | --- |
+| Node, median of 3 | 162.8 Minsn/s, 0.49 | 199.5 Minsn/s, 0.59 | 1.23× |
+| headless Chrome 152, 3 matched pairs, median wall | 63.3 s, 0.47 | 50.2 s, 0.60 | 20.7 % less wall time |
+
+Against main that is 1.88× under Node and 0.33 to 0.60 real time in Chrome, with the pinned
+instruction total unchanged. Still interpreted on the model core: signed division (3.6 % of its
+instructions) and a dequantisation block needing SAR-byte writes, saturating subtract and
+byte shifts (2.8 %).
+
 ### Guest work: the panel's transfers take no time
 
 Host speed is half of real time; the other half is how much the guest does per emulated second.
