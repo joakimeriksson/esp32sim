@@ -342,8 +342,8 @@ fn dot_s8(x: &[u8; 16], y: &[u8; 16]) -> i64 {
 /// Σ x·y over the 8 signed 16-bit lanes; the sum can exceed an i32.
 #[inline]
 fn dot_s16(x: &[u8; 16], y: &[u8; 16]) -> i64 {
-    x.chunks_exact(2).zip(y.chunks_exact(2))
-        .map(|(a, b)| i64::from(i32::from(i16::from_le_bytes([a[0], a[1]])) * i32::from(i16::from_le_bytes([b[0], b[1]]))))
+    x.as_chunks::<2>().0.iter().zip(y.as_chunks::<2>().0)
+        .map(|(&a, &b)| i64::from(i32::from(i16::from_le_bytes(a)) * i32::from(i16::from_le_bytes(b))))
         .sum()
 }
 
