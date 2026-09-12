@@ -137,6 +137,10 @@ fn same(a: &Cpu, b: &Cpu) {
     assert_eq!(a.exccause, b.exccause);
     assert_eq!(a.insn_count, b.insn_count);
     assert_eq!(a.ccount, b.ccount);
+    assert_eq!(a.excvaddr, b.excvaddr, "EXCVADDR [{cx}]");
+    assert_eq!(a.qr, b.qr, "PIE Q registers [{cx}]");
+    assert_eq!(a.accx, b.accx, "PIE ACCX [{cx}]");
+    assert_eq!((a.qacc_h, a.qacc_l, a.sar_byte), (b.qacc_h, b.qacc_l, b.sar_byte), "PIE QACC / SAR_BYTE [{cx}]");
 }
 fn insn(op: Op) -> BlockInsn {
     let i = Insn {
@@ -966,6 +970,8 @@ mod asm {
     pub fn movi(t: u32, imm: u32) -> Vec<u8> { w24(0x2 | (t << 4) | (((imm >> 8) & 0xf) << 8) | (0xa << 12) | ((imm & 0xff) << 16)) }
     pub fn xor(r: u32, s: u32, t: u32) -> Vec<u8> { w24((t << 4) | (s << 8) | (r << 12) | (3 << 20)) }
     pub fn rsr(t: u32, sr: u32) -> Vec<u8> { w24((3 << 16) | (sr << 8) | (t << 4)) }
+    /// RUR: op2 = 14, op1 = 3; the user register number is s:t.
+    pub fn rur(r: u32, ur: u32) -> Vec<u8> { w24((0xe3 << 16) | (r << 12) | (ur << 4)) }
     /// loop=8 loopnez=9 loopgtz=10; the end is pc + 4 + imm8
     pub fn lp(r: u32, pc: u32, s: u32, end: u32) -> Vec<u8> { w24(0x76 | (s << 8) | (r << 12) | ((end - pc - 4) << 16)) }
     pub fn entry(s: u32, frame: u32) -> Vec<u8> { w24(0x36 | (s << 8) | ((frame >> 3) << 12)) }
@@ -1332,6 +1338,52 @@ fn regions() -> u32 {
             c.cpenable = cp3;
             if occupied { c.ps = ps::WOE; c.windowstart = (1 << c.windowbase) | (1 << ((c.windowbase + 2) % 16)); }
             c.set_ar(7, 0x0042_0042); c.set_ar(12, src); c.set_ar(13, dst);
+        }, turns);
+        assert!(!whole || max >= 20, "{label}: region retired at most {max} per call");
+        cases += 1;
+    }
+    // The dot-product kernel of on-device inference (pocket-tank's 4-bit matmul): the ACCX reset,
+    // 128-bit loads, signed 8- and 16-bit multiply-accumulate with and without their load, and the
+    // RUR of ACCX that follows each dot product (without it the block would stay interpreted), in
+    // a LOOPNEZ with an internal edge back. Variants: mixed lanes; lanes that drive ACCX into its
+    // upper and lower saturation bound (starting near it, past the reset); CP3 disabled; a
+    // read-only mapping, where loads stay on the fast path; loads running off the mapping; and
+    // the slow window, where every load misses and re-executes in the interpreter.
+    let mut dp = Vec::new();
+    dp.extend(asm::pie("ee.zero.accx", &[]));                                                          // 0
+    dp.extend(asm::movi_n(10, 3));                                                                     // 3
+    dp.extend(asm::lp(9, BASE + 5, 10, BASE + 34));                                                    // 5 loopnez a10, 34
+    dp.extend(asm::pie("ee.vld.128.ip", &[(Qu, 0), (As, 8), (Imm, 16)]));                              // 8
+    dp.extend(asm::pie("ee.vld.128.ip", &[(Qu, 4), (As, 9), (Imm, 16)]));                              // 11
+    dp.extend(asm::pie("ee.vmulas.s8.accx.ld.ip", &[(Qu, 5), (As, 9), (Imm, 16), (Qx, 0), (Qy, 4)]));  // 14
+    dp.extend(asm::pie("ee.vmulas.s8.accx", &[(Qx, 0), (Qy, 5)]));                                     // 18
+    dp.extend(asm::rur(11, 0));                                                                        // 21 rur.accx_0 a11
+    dp.extend(asm::pie("ee.vmulas.s16.accx", &[(Qx, 4), (Qy, 5)]));                                    // 24
+    dp.extend(asm::rur(15, 1));                                                                        // 27 rur.accx_1 a15
+    dp.extend(asm::pie("ee.vmulas.s16.accx.ld.ip", &[(Qu, 1), (As, 8), (Imm, 16), (Qx, 0), (Qy, 5)])); // 30
+    dp.extend(asm::mov_n(8, 12));                                                                      // 34
+    dp.extend(asm::mov_n(9, 13));                                                                      // 36
+    dp.extend(asm::j(BASE + 38, BASE + 3));                                                            // 38
+    let dot = [(0, Pie, 0), (3, MoviN, 0), (5, Loopnez, 34), (8, Pie, 0), (11, Pie, 0), (14, Pie, 0), (18, Pie, 0),
+               (21, Rur, 0), (24, Pie, 0), (27, Rur, 0), (30, Pie, 0), (34, MovN, 0), (36, MovN, 0), (38, J, 3)];
+    let mixed: Vec<u8> = (0..0x100u32).map(|i| (i.wrapping_mul(0x9e37_79b9) >> 24) as u8).collect();
+    let positive = vec![0x80u8; 0x100];                          // every product positive
+    let negative = [vec![0x7fu8; 0x80], vec![0x80u8; 0x80]].concat(); // the a8 stream against the a9 stream: net negative
+    let (near_high, near_low) = ((1i64 << 39) - 1 - 5_000_000, -(1i64 << 39) + 5_000_000);
+    for (label, cp3, data, accx, src, readonly, turns, whole) in [
+        ("dot", 8, &mixed, 0i64, BASE + 0x1000, false, 600, true),
+        ("dot-saturate-high", 8, &positive, near_high, BASE + 0x1000, false, 300, false),
+        ("dot-saturate-low", 8, &negative, near_low, BASE + 0x1000, false, 300, false),
+        ("dot-cp3-off", 0, &mixed, 0, BASE + 0x1000, false, 40, false),
+        ("dot-readonly", 8, &mixed, 0, BASE + 0x1000, true, 300, true),
+        ("dot-off-end", 8, &mixed, 0, BASE + 65536 - 48, false, 40, false),
+        ("dot-slow", 8, &mixed, 0, SLOW, false, 300, false),
+    ] {
+        let max = region_program_on(label, &dp, &dot, data, 3, 8, readonly, |c| {
+            c.cpenable = cp3;
+            c.accx = [accx as u32, ((accx >> 32) & 0xff) as u32];
+            if accx != 0 { c.pc = BASE + 3; } // past the reset, so ACCX starts near its bound
+            c.set_ar(8, src); c.set_ar(9, src + 0x80); c.set_ar(12, src); c.set_ar(13, src + 0x80);
         }, turns);
         assert!(!whole || max >= 20, "{label}: region retired at most {max} per call");
         cases += 1;

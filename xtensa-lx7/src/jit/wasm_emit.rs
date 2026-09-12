@@ -8,9 +8,10 @@ pub(super) mod region;
 mod pie;
 use region::{region_edge, RegionGen};
 
-/// `supported` for a decoded instruction: PIE eligibility depends on the table entry.
+/// `supported` for a decoded instruction: PIE eligibility depends on the table entry, and RUR
+/// is emitted for ACCX_0/ACCX_1, which inference kernels read after every dot product.
 pub(super) fn supported_insn(i: &crate::Insn, fast: bool) -> bool {
-    supported(i.op, fast) || pie::supported(i, fast)
+    supported(i.op, fast) || pie::supported(i, fast) || (i.op == crate::Op::Rur && matches!(i.imm, 0 | 1))
 }
 
 /// Coprocessors whose CPENABLE bits a body may prove once at its start.
@@ -141,6 +142,10 @@ const WINDOWS: u8 = 29;
 /// Region locals: a helper or code-page store happened (leave at the next head); next chunk.
 const DIRTY: u8 = 30;
 const NEXT: u8 = 31;
+/// Typed scratch locals declared after the 25 i32 locals: a vector and a 64-bit integer
+/// (PIE lane sums and the 40-bit ACCX). `module` must declare them in this order.
+const V128: u8 = 32;
+const WIDE: u8 = 33;
 const PC: usize = offset_of!(Cpu, pc);
 const AR: usize = offset_of!(Cpu, ar);
 const WINDOWBASE: usize = offset_of!(Cpu, windowbase);
@@ -770,6 +775,16 @@ fn emit_instruction(
         pie::emit(g, bi, pc, next, last, cp & pie::CP3 != 0);
         return true;
     }
+    if i.op == Rur {
+        if !matches!(imm, 0 | 1) {
+            return false;
+        }
+        // RUR ACCX_0 / ACCX_1: `Cpu::read_ur` returns the word as stored and, unlike FCR and
+        // FSR, checks no coprocessor enable.
+        g.cpu(offset_of!(Cpu, accx) + 4 * imm as usize);
+        g.set_ar(r);
+        return true;
+    }
     match i.op {
         Nop | NopN | Memw | Extw => {}
         Movi | MoviN => {
@@ -1329,7 +1344,7 @@ fn module(body: &[u8]) -> Vec<u8> {
     name(&mut exports, "run");
     exports.extend([0, 0]);
     section(&mut out, 7, &exports);
-    let mut func = vec![1, 25, 0x7f];
+    let mut func = vec![3, 25, 0x7f, 1, 0x7b, 1, 0x7e];   // 25 i32, then V128 and WIDE
     func.extend(body);
     let mut code = vec![1];
     uleb(&mut code, func.len());
