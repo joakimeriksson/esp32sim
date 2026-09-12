@@ -8,9 +8,10 @@ pub(super) mod region;
 mod pie;
 use region::{region_edge, RegionGen};
 
-/// `supported` for a decoded instruction: PIE eligibility depends on the table entry.
+/// `supported` for a decoded instruction: PIE eligibility depends on the table entry, and RUR
+/// is emitted for ACCX_0/ACCX_1, which inference kernels read after every dot product.
 pub(super) fn supported_insn(i: &crate::Insn, fast: bool) -> bool {
-    supported(i.op, fast) || pie::supported(i, fast)
+    supported(i.op, fast) || pie::supported(i, fast) || (i.op == crate::Op::Rur && matches!(i.imm, 0 | 1))
 }
 
 /// Coprocessors whose CPENABLE bits a body may prove once at its start.
@@ -40,6 +41,10 @@ pub(super) fn supported(op: crate::Op, fast: bool) -> bool {
             | Mull
             | Muluh
             | Mulsh
+            | Quou
+            | Quos
+            | Remu
+            | Rems
             | Salt
             | Saltu
             | Addi
@@ -141,6 +146,10 @@ const WINDOWS: u8 = 29;
 /// Region locals: a helper or code-page store happened (leave at the next head); next chunk.
 const DIRTY: u8 = 30;
 const NEXT: u8 = 31;
+/// Typed scratch locals declared after the 25 i32 locals: a vector and a 64-bit integer
+/// (PIE lane sums and the 40-bit ACCX). `module` must declare them in this order.
+const V128: u8 = 32;
+const WIDE: u8 = 33;
 const PC: usize = offset_of!(Cpu, pc);
 const AR: usize = offset_of!(Cpu, ar);
 const WINDOWBASE: usize = offset_of!(Cpu, windowbase);
@@ -770,6 +779,16 @@ fn emit_instruction(
         pie::emit(g, bi, pc, next, last, cp & pie::CP3 != 0);
         return true;
     }
+    if i.op == Rur {
+        if !matches!(imm, 0 | 1) {
+            return false;
+        }
+        // RUR ACCX_0 / ACCX_1: `Cpu::read_ur` returns the word as stored and, unlike FCR and
+        // FSR, checks no coprocessor enable.
+        g.cpu(offset_of!(Cpu, accx) + 4 * imm as usize);
+        g.set_ar(r);
+        return true;
+    }
     match i.op {
         Nop | NopN | Memw | Extw => {}
         Movi | MoviN => {
@@ -780,6 +799,7 @@ fn emit_instruction(
             g.ar(s);
             g.set_ar(t);
         }
+        Quou | Quos | Remu | Rems => emit_divide(g, bi, pc, next, last),
         Add | AddN | Sub | And | Or | Xor | Mull | Salt | Saltu => {
             g.ar(s);
             g.ar(t);
@@ -1143,6 +1163,38 @@ fn emit_instruction(
     true
 }
 
+/// QUOU/QUOS/REMU/REMS. A zero divisor raises DIVIDE_BY_ZERO and QUOS of INT_MIN by -1 wraps,
+/// where wasm's `i32.div_s` would trap, so both re-execute the whole instruction in the
+/// interpreter; every other operand pair divides inline. (`i32.rem_s` of INT_MIN by -1 is 0 in
+/// wasm, as `wrapping_rem` is, so REMS needs only the zero check.)
+fn emit_divide(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
+    use crate::Op::*;
+    let i = &bi.insn;
+    g.begin_block();
+    g.begin_block();
+    g.ar(i.t);
+    g.op(0x45); // i32.eqz
+    g.bytes.extend([0x0d, 0]);
+    if i.op == Quos {
+        g.ar(i.s);
+        g.c(0x8000_0000);
+        g.op(0x46); // i32.eq
+        g.ar(i.t);
+        g.c(u32::MAX);
+        g.op(0x46);
+        g.op(0x71); // i32.and
+        g.bytes.extend([0x0d, 0]);
+    }
+    g.ar(i.s);
+    g.ar(i.t);
+    g.op(match i.op { Quos => 0x6d, Quou => 0x6e, Rems => 0x6f, _ => 0x70 }); // i32.div_s/div_u/rem_s/rem_u
+    g.set_ar(i.r);
+    g.bytes.extend([0x0c, 1]);
+    g.end();
+    g.fallback(bi, pc, next, last, false);
+    g.end();
+}
+
 fn emit_memory(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
     use crate::Op::*;
     let i = &bi.insn;
@@ -1329,7 +1381,7 @@ fn module(body: &[u8]) -> Vec<u8> {
     name(&mut exports, "run");
     exports.extend([0, 0]);
     section(&mut out, 7, &exports);
-    let mut func = vec![1, 25, 0x7f];
+    let mut func = vec![3, 25, 0x7f, 1, 0x7b, 1, 0x7e];   // 25 i32, then V128 and WIDE
     func.extend(body);
     let mut code = vec![1];
     uleb(&mut code, func.len());

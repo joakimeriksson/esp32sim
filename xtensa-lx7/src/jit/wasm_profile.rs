@@ -51,7 +51,7 @@ impl Profile {
     pub fn record(&mut self, pc: u32, jit: bool, done: u32, ms: f64, ops: &[BlockInsn], fast: bool) {
         let row = self.rows.entry((pc, jit)).or_insert_with(|| Row {
             ops: ops.iter().map(|i| format!("{:?}", i.insn.op)).collect::<Vec<_>>().join(","),
-            missing: ops.iter().filter(|i| !emitter::supported(i.insn.op, fast))
+            missing: ops.iter().filter(|i| !emitter::supported_insn(&i.insn, fast))
                 .map(|i| format!("{:?}", i.insn.op)).collect::<Vec<_>>().join(","),
             ..Row::default()
         });

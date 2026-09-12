@@ -468,6 +468,65 @@ mod tests {
         }
     }
 
+    fn w24(w: u32) -> Vec<u8> { vec![w as u8, (w >> 8) as u8, (w >> 16) as u8] }
+    fn w16(w: u32) -> Vec<u8> { vec![w as u8, (w >> 8) as u8] }
+    /// Assemble a PIE instruction from its table entry, the inverse of `extract`.
+    fn pie_op(name: &str, fields: &[(Role, i32)]) -> Vec<u8> {
+        let p = OPS.iter().find(|p| p.name == name).unwrap();
+        let mut w = p.value;
+        for &(role, v) in fields {
+            let f = p.fields.iter().find(|f| f.role == role).unwrap();
+            let v = (v / f.scale as i32) as u32;
+            for &(hi, lo, wp) in f.pieces { let n = hi - lo + 1; w |= ((v >> lo) & ((1 << n) - 1)) << wp; }
+        }
+        (0..p.len).map(|k| (w >> (8 * k)) as u8).collect()
+    }
+
+    /// The interpreter, the block interpreter and the native JIT (on AArch64 hosts; blocks
+    /// elsewhere) must leave identical state after a PIE loop: packed loads and multiply-
+    /// accumulates, RUR ACCX, a table-path PIE instruction, and a packed PIE instruction as
+    /// the last one before LEND, so the JIT's PIE helper also takes the loop back-edge.
+    #[test]
+    fn pie_loop_agrees_across_step_blocks_and_jit() {
+        use Role::*;
+        let base = 0x4037_0000u32;
+        let mut p = Vec::new();
+        p.extend(w24(0x76 | (10 << 8) | (9 << 12) | ((22 - 4) << 16)));                               // 0  loopnez a10, 22
+        p.extend(pie_op("ee.vld.128.ip", &[(Qu, 0), (As, 8), (Imm, 16)]));                         // 3
+        p.extend(pie_op("ee.vld.128.ip", &[(Qu, 4), (As, 9), (Imm, 16)]));                         // 6
+        p.extend(pie_op("ee.vmulas.s8.accx.ld.ip", &[(Qu, 5), (As, 9), (Imm, 16), (Qx, 0), (Qy, 4)])); // 9
+        p.extend(w24(0xe30000 | (11 << 12)));                                                      // 13 rur.accx_0 a11
+        p.extend(pie_op("ee.vsubs.s8", &[(Qa, 2), (Qx, 0), (Qy, 4)]));                             // 16 table path
+        p.extend(pie_op("ee.vmulas.s16.accx", &[(Qx, 2), (Qy, 5)]));                               // 19 last before LEND
+        p.extend(w16(0xd | (8 << 4) | (12 << 8)));                                                 // 22 mov.n a8, a12
+        p.extend(w16(0xd | (9 << 4) | (13 << 8)));                                                 // 24 mov.n a9, a13
+        p.extend(w16(0xc | (10 << 8) | (5 << 12)));                                                // 26 movi.n a10, 5
+        p.extend(pie_op("ee.zero.accx", &[]));                                                     // 28
+        p.extend(w24(0x6 | ((0u32.wrapping_sub(31 + 4) & 0x3ffff) << 6)));                         // 31 j 0
+        let mut results = Vec::new();
+        for mode in 0..3 {
+            let mut ram = FlatRam::new(base, 64 * 1024);
+            ram.mem[..p.len()].copy_from_slice(&p);
+            for (k, b) in ram.mem[0x1000..0x1200].iter_mut().enumerate() { *b = ((k as u32).wrapping_mul(0x9e37_79b9) >> 24) as u8; }
+            let mut cpu = Cpu::new(0);
+            cpu.pc = base; cpu.ps = 0; cpu.cpenable = 1 << 3;
+            for (r, v) in [(8, base + 0x1000), (9, base + 0x1100), (10, 5), (12, base + 0x1000), (13, base + 0x1100)] { cpu.set_ar(r, v); }
+            let mut done = 0u32;
+            if mode == 0 {
+                while done < 3000 { crate::step(&mut cpu, &mut ram).expect("no traps"); done += 1; }
+            } else {
+                cpu.blocks.jit_enabled = mode == 2;
+                while done < 3000 { let (used, t) = crate::block::run_block(&mut cpu, &mut ram, 3000 - done); assert!(t.is_none(), "mode {mode}: {t:?}"); done += used; }
+                if mode == 2 && crate::jit::AVAILABLE { assert!(cpu.blocks.jit_instructions > 0, "the JIT ran none of the loop"); }
+            }
+            assert_eq!(done, 3000);
+            results.push((cpu.ar, cpu.pc, cpu.lcount, cpu.lend, cpu.insn_count, cpu.ccount, cpu.qr, cpu.accx, ram.mem[0x1000..0x1200].to_vec()));
+        }
+        assert_ne!(results[0].7, [0, 0], "the loop accumulated");
+        assert_eq!(results[1], results[0], "block interpreter differs from single steps");
+        assert_eq!(results[2], results[0], "JIT differs from single steps");
+    }
+
     #[test]
     fn only_the_handled_kinds_are_packed() {
         for (i, p) in OPS.iter().enumerate() {

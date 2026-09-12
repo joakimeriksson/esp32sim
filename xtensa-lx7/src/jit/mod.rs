@@ -86,10 +86,10 @@ mod native {
     // ------------------------------------------------------------------ helpers called from generated code
     /// Function pointers the generated code calls; field order is the offset table below.
     #[repr(C)]
-    pub struct Helpers { read8: *const (), read16: *const (), read32: *const (), write8: *const (), write16: *const (), write32: *const (), exec: *const (), raise_mem: *const (), overflow: *const () }
+    pub struct Helpers { read8: *const (), read16: *const (), read32: *const (), write8: *const (), write16: *const (), write32: *const (), exec: *const (), raise_mem: *const (), overflow: *const (), pie: *const () }
     const H_READ8: u32 = 0; const H_READ16: u32 = 8; const H_READ32: u32 = 16;
     const H_WRITE8: u32 = 24; const H_WRITE16: u32 = 32; const H_WRITE32: u32 = 40;
-    const H_EXEC: u32 = 48; const H_RAISE_MEM: u32 = 56; const H_OVERFLOW: u32 = 64;
+    const H_EXEC: u32 = 48; const H_RAISE_MEM: u32 = 56; const H_OVERFLOW: u32 = 64; const H_PIE: u32 = 72;
 
     /// Loads return the value in the low word, bit 32 = fault, bit 33 = the bus wants the block to end.
     macro_rules! read_helper {
@@ -132,6 +132,29 @@ mod native {
         bus.note_pc(pc);
         match exec_insn(cpu, bus, &i.insn) { Ok(()) => (bus.block_break() as u32) << 1, Err(t) => { cpu.jit_trap = Some(t); 1 } }
     }
+    /// A PIE instruction straight into `pie::exec`, skipping `exec_insn`'s dispatch. PIE never
+    /// transfers control, so its tail is `exec_insn`'s fall-through tail: the zero-overhead loop
+    /// back-edge, then the PC. Same calling convention and result bits as `h_exec`.
+    extern "C" fn h_pie<B: Bus>(cpu: *mut Cpu, bus: *mut B, insn: *const BlockInsn, pc: u32) -> u32 {
+        // SAFETY: as for h_exec: exclusive CPU and bus pointers from `run`, and an instruction in
+        // the stable block arena, copied before the CPU is borrowed.
+        let i = unsafe { *insn };
+        let (cpu, bus) = unsafe { (&mut *cpu, &mut *bus) };
+        cpu.pc = pc;
+        bus.note_pc(pc);
+        match crate::pie::exec(cpu, bus, &i.insn) {
+            Ok(()) => {
+                let mut next = pc.wrapping_add(i.insn.len as u32);
+                if next == cpu.lend && cpu.lcount != 0 {
+                    cpu.lcount = cpu.lcount.wrapping_sub(1);
+                    next = cpu.lbeg;
+                }
+                cpu.pc = next;
+                (bus.block_break() as u32) << 1
+            }
+            Err(t) => { cpu.jit_trap = Some(t); 1 }
+        }
+    }
     extern "C" fn h_raise_mem(cpu: *mut Cpu, cause: u32, addr: u32, pc: u32) {
         // SAFETY: Compiled blocks pass the exclusive CPU pointer supplied to `run`, and the helper
         // returns before generated code resumes.
@@ -154,6 +177,7 @@ mod native {
                 read8: h_read8::<B> as *const (), read16: h_read16::<B> as *const (), read32: h_read32::<B> as *const (),
                 write8: h_write8::<B> as *const (), write16: h_write16::<B> as *const (), write32: h_write32::<B> as *const (),
                 exec: h_exec::<B> as *const (), raise_mem: h_raise_mem as *const (), overflow: h_overflow as *const (),
+                pie: h_pie::<B> as *const (),
             }
         }
 
@@ -166,7 +190,7 @@ mod native {
 
     // The generated AArch64 loads use these byte offsets and pointer width directly.
     const _: () = {
-        assert!(std::mem::size_of::<Helpers>() == 72);
+        assert!(std::mem::size_of::<Helpers>() == 80);
         assert!(std::mem::align_of::<Helpers>() == 8);
         assert!(std::mem::offset_of!(Helpers, read8) == H_READ8 as usize);
         assert!(std::mem::offset_of!(Helpers, read16) == H_READ16 as usize);
@@ -177,6 +201,7 @@ mod native {
         assert!(std::mem::offset_of!(Helpers, exec) == H_EXEC as usize);
         assert!(std::mem::offset_of!(Helpers, raise_mem) == H_RAISE_MEM as usize);
         assert!(std::mem::offset_of!(Helpers, overflow) == H_OVERFLOW as usize);
+        assert!(std::mem::offset_of!(Helpers, pie) == H_PIE as usize);
     };
 
     // ------------------------------------------------------------------ the compiler
@@ -463,7 +488,7 @@ mod native {
                     g.a.mov_x(0, CPU); g.a.mov_x(1, BUS);
                     g.a.mov64(2, (&raw const *block_insn) as u64);
                     g.a.mov32(3, pc);
-                    g.call(H_EXEC);
+                    g.call(if i.op == crate::decode::Op::Pie { H_PIE } else { H_EXEC });
                     let tr = g.exit_trap;
                     g.a.tbnz(0, 0, tr);
                     g.a.lsr_imm(12, 0, 1);

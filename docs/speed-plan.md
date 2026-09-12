@@ -104,6 +104,46 @@ word reads 1.9 %), and `exec_insn` dispatch into it 8 %. The kernel's instructio
 generated code for a helper call, and a helper ends a region at its next chunk head, so emitting
 them in the wasm backend should shrink the dispatch share as well as the PIE share.
 
+### The dot product in the wasm backend
+
+The wasm backend now emits pocket-tank's kernel: signed 8- and 16-bit multiply-accumulate into
+ACCX with and without its load, the ACCX reset, and the RUR of ACCX that follows each dot
+product. RUR mattered as much as the vector code: a block with any instruction the backend
+does not emit stays interpreted, so without it none of the kernel's blocks compiled and the
+emission gained nothing. With it, the model core runs 92 % of its instructions compiled, up
+from 70 %.
+
+| pocket-tank, 30 guest s | packed PIE | + wasm dot product | change |
+| --- | --- | --- | --- |
+| Node, median of 3 | 162.8 Minsn/s, 0.49 | 199.5 Minsn/s, 0.59 | 1.23× |
+| headless Chrome 152, 3 matched pairs, median wall | 63.3 s, 0.47 | 50.2 s, 0.60 | 20.7 % less wall time |
+
+Against main that is 1.9× under Node and 0.33 to 0.60 real time in Chrome, with the pinned
+instruction total unchanged. Still interpreted on the model core: signed division (3.6 % of its
+instructions) and a dequantisation block needing SAR-byte writes, saturating subtract and
+byte shifts (2.8 %).
+
+### Division in wasm, a direct PIE helper natively
+
+Two follow-ups. The wasm backend emits QUOU, QUOS, REMU and REMS inline, re-executing only a zero
+divisor or QUOS of INT_MIN by -1 in the interpreter. Native blocks call `pie::exec` through their
+own helper instead of `exec_insn`'s dispatch. Timed against the previous step on a quiet machine:
+
+| pocket-tank | before | after | change |
+| --- | --- | --- | --- |
+| native, `bench.py` 5 interleaved rounds of 20 guest s, median | 28.65 s, 0.70 | 27.76 s, 0.72 | 1.03× |
+| Node, 3 rounds of 30 guest s, median | 205.1 Minsn/s, 0.61 | 210.8 Minsn/s, 0.63 | 1.03× |
+| headless Chrome 153, 3 matched pairs, median wall | 51.2 s, 0.59 | 48.5 s, 0.62 | 5.3 % less wall time (pairs 1.4, 5.3, 2.2 %) |
+
+Both are small because both costs were small: division was 3.6 % of the model core's instructions
+and the dispatch a few percent of native time. Where the work stands against main:
+
+| pocket-tank, real time | main | now | change |
+| --- | --- | --- | --- |
+| native, M-series Mac | 0.47 | 0.72 | 1.53× |
+| Node | 0.31 | 0.63 | 2.0× |
+| headless Chrome | 0.32 | 0.62 | 1.9× |
+
 ### Guest work: the panel's transfers take no time
 
 Host speed is half of real time; the other half is how much the guest does per emulated second.
@@ -123,10 +163,10 @@ Modelling transfer time is worth about 14 % on this board on any host. The remai
 board's frame rate and its 12 tok/s is memory latency (flash cache, PSRAM), which the fast paths
 do not charge.
 
-Where the next factors are, estimated from the profile above and not yet measured: the dot-product
-instructions in the wasm backend 1.2–1.4×, cheaper scheduler rounds or direct block chaining about
-1.2×. With transfer time, headless Chrome would go from 0.50 to roughly 0.85–1.0 real time and the
-native build past real time.
+Where the next factors are: the dot-product instructions in the wasm backend, estimated at 1.2–1.4×,
+measured 1.23× under Node (above); not yet measured, cheaper scheduler rounds or direct block chaining about
+1.2×. With transfer time, headless Chrome would go from 0.62 to roughly 0.85 real time and the
+native build to about real time.
 
 ## Phase 0 — small, independent, do anytime
 

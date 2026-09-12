@@ -127,9 +127,14 @@ per core.
 
 The PIE (coprocessor 3) instructions the TinyDraw tile kernels use are emitted on WASM SIMD:
 aligned 128-bit load and store with post-increment, lane compares, the bitwise q-register
-operations, 32-bit lane insert and zeroing. Q registers stay in CPU memory as `v128` values.
-The CP3-disabled check is proved once per body next to the FP one. Other PIE instructions keep
-the interpreter.
+operations, 32-bit lane insert and zeroing. So is the dot product of on-device inference
+(pocket-tank's 4-bit matmul): signed 8- and 16-bit multiply-accumulate into ACCX, with and
+without its load, the ACCX reset, and the RUR of ACCX_0/ACCX_1 that follows each dot product.
+The products are widening vector multiplies with 64-bit lane sums, and ACCX is updated with
+the interpreter's 40-bit saturation. Q registers stay in CPU memory as `v128` values; generated
+functions have one `v128` and one `i64` scratch local. The CP3-disabled check is proved once per
+body next to the FP one. Other PIE instructions keep the interpreter, and a block containing
+any of them stays interpreted.
 
 Compiled execution uses the same instruction-count timing as the default block interpreter.
 Timer budgets, interrupts, loop ends, code-page versions and observer boundaries still bound
