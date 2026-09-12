@@ -498,6 +498,68 @@ impl SocBus {
         if !samples.is_empty() { let i2s = if which == 0 { &mut self.periph.i2s0 } else { &mut self.periph.i2s1 }; i2s.frames_out += samples.len() as u64; i2s.pcm.extend_from_slice(&samples); }
     }
 
+    /// One DMA descriptor as the engines read it (an unmapped word reads as 0).
+    fn dma_desc(&mut self, addr: u32) -> crate::periph::DmaDesc {
+        let dw0 = self.read32(addr).unwrap_or(0);
+        crate::periph::DmaDesc { addr, size: dw0 & 0xfff, length: (dw0 >> 12) & 0xfff, eof: dw0 & (1 << 30) != 0, owner_dma: dw0 & (1 << 31) != 0, buf: self.read32(addr + 4).unwrap_or(0), next: self.read32(addr + 8).unwrap_or(0) }
+    }
+
+    /// Memory-to-memory GDMA: a channel pair whose IN side has MEM_TRANS_EN set copies its OUT
+    /// descriptor chain into its IN chain (ESP-IDF's `esp_async_memcpy`). The whole copy lands
+    /// in one scheduling round — no transfer timing is modelled — and the descriptors are
+    /// written back the way the engine does it: the IN side gets each buffer's length, owner
+    /// back to the CPU, and SUC_EOF where the OUT chain's EOF fell, so the driver's EOF
+    /// callback finds its transaction through IN_SUC_EOF_DES_ADDR.
+    fn dma_m2m_step(&mut self) {
+        for ch in 0..crate::periph::GDMA_CHANNELS {
+            let (inp, out) = (self.periph.gdma.inp[ch], self.periph.gdma.out[ch]);
+            if !(inp.running && out.running && inp.conf0 & (1 << 4) != 0 && inp.desc != 0 && out.desc != 0) { continue; }
+            let (mut out_desc, mut out_pos, mut in_desc, mut in_fill) = (out.desc, out.buf_pos, inp.desc, 0u32);
+            let (mut out_int, mut in_int, mut out_eof_desc, mut in_eof_desc, mut out_running) = (0u32, 0u32, out.eof_desc, inp.eof_desc, true);
+            loop {
+                let od = self.dma_desc(out_desc);
+                if !od.owner_dma { out_int |= 1 << 2; break; }                                            // OUT_DSCR_ERR
+                let remaining = od.length.saturating_sub(out_pos);
+                if remaining > 0 {
+                    if in_desc == 0 { in_int |= 1 << 4; break; }                                          // IN_DSCR_EMPTY
+                    let id = self.dma_desc(in_desc);
+                    if !id.owner_dma || id.size == 0 { in_int |= 1 << 3; break; }                         // IN_DSCR_ERR
+                    let n = remaining.min(id.size - in_fill);
+                    let (src, dst) = (od.buf + out_pos, id.buf + in_fill);
+                    let mut i = 0u32;
+                    if (src | dst) & 3 == 0 { while i + 4 <= n { let v = self.read32(src + i).unwrap_or(0); let _ = self.write32(dst + i, v); i += 4; } }
+                    while i < n { let v = self.read8(src + i).unwrap_or(0); let _ = self.write8(dst + i, v); i += 1; }
+                    out_pos += n; in_fill += n;
+                    let eof_now = out_pos == od.length && od.eof;
+                    if in_fill == id.size || eof_now {
+                        let dw0 = (self.read32(in_desc).unwrap_or(0) & !(0xfff << 12) & !(1 << 31) & !(1 << 30)) | (in_fill << 12) | if eof_now { 1 << 30 } else { 0 };
+                        let _ = self.write32(in_desc, dw0);
+                        in_int |= 1 << 0;                                                                  // IN_DONE
+                        if eof_now { in_int |= 1 << 1; in_eof_desc = in_desc; }                            // IN_SUC_EOF
+                        in_desc = id.next; in_fill = 0;
+                    }
+                    if out_pos < od.length { continue; }                                                   // the IN buffer filled first
+                } else if od.eof && in_desc != 0 {
+                    // an empty EOF descriptor still ends the IN side's current buffer
+                    let dw0 = (self.read32(in_desc).unwrap_or(0) & !(0xfff << 12) & !(1 << 31)) | (in_fill << 12) | (1 << 30);
+                    let _ = self.write32(in_desc, dw0);
+                    in_int |= (1 << 0) | (1 << 1); in_eof_desc = in_desc;
+                    in_desc = self.read32(in_desc + 8).unwrap_or(0); in_fill = 0;
+                }
+                if out.conf0 & (1 << 2) != 0 { let dw0 = self.read32(od.addr).unwrap_or(0) & !(1 << 31); let _ = self.write32(od.addr, dw0); }   // AUTO_WRBACK: owner -> cpu
+                out_int |= 1 << 0;                                                                         // OUT_DONE
+                if od.eof { out_int |= 1 << 1; out_eof_desc = od.addr; }                                   // OUT_EOF
+                if od.next == 0 { out_int |= 1 << 3; out_running = false; out_desc = 0; out_pos = 0; break; }   // OUT_TOTAL_EOF
+                out_desc = od.next; out_pos = 0;
+            }
+            let o = &mut self.periph.gdma.out[ch];
+            o.desc = out_desc; o.buf_pos = out_pos; o.eof_desc = out_eof_desc; o.int_raw |= out_int; o.running = out_running;
+            let r = &mut self.periph.gdma.inp[ch];
+            r.desc = in_desc; r.eof_desc = in_eof_desc; r.int_raw |= in_int; if in_desc == 0 { r.running = false; }
+            self.irq_dirty = true;
+        }
+    }
+
     /// Camera engine: when a sensor frame is due, push it through the GDMA IN channel bound to CAM (trigger 5).
     fn dma_cam_step(&mut self, cycles: u64) {
         if !self.periph.lcd_cam.frame_due(cycles) { return; }
@@ -913,6 +975,7 @@ impl SocBus {
         self.dma_i2s_step(cycles as u64);
         self.dma_cam_step(cycles as u64);
         self.dma_lcd_step(cycles as u64);
+        self.dma_m2m_step();
         if !self.periph.wifi.tx_pending.is_empty() { self.wifi_tx_step(); }
         if self.periph.aes.dma_pending { self.aes_dma_step(); }
         if self.periph.sha.dma_pending { self.sha_dma_step(); }
@@ -980,6 +1043,41 @@ mod gp_spi_board_tests {
     impl crate::board::BoardModel for FixedDeadlineBoard {
         fn name(&self) -> &'static str { "fixed-deadline-test" }
         fn next_deadline(&self) -> Option<u64> { Some(self.deadline) }
+    }
+
+    /// ESP-IDF's `esp_async_memcpy`: a channel pair in MEM_TRANS_EN mode, the source split over
+    /// two OUT descriptors (the second with EOF), the destination over IN descriptors of 4 KB —
+    /// after one round the bytes are across, the IN descriptors carry length/owner/SUC_EOF, the
+    /// EOF address is the last IN descriptor, both sides report their interrupts and stop.
+    #[test]
+    fn gdma_copies_memory_to_memory_when_mem_trans_en_is_set() {
+        let mut bus = SocBus::new(1024, 1024, [0; 6]);
+        let (src, dst, out0, out1, in0, in1) = (0x3fc9_2000u32, 0x3fc9_6000u32, 0x3fc9_0100u32, 0x3fc9_0110u32, 0x3fc9_0200u32, 0x3fc9_0210u32);
+        let n = 5000u32;
+        for i in 0..n { bus.write8(src + i, (i % 251) as u8).unwrap(); }
+        for i in 0..n + 4 { bus.write8(dst + i, 0xee).unwrap(); }          // the word after the copy must stay untouched
+        // OUT: 3000 bytes, then 2000 bytes with EOF; owner = DMA
+        bus.write32(out0, (1 << 31) | (3000 << 12) | 3000).unwrap(); bus.write32(out0 + 4, src).unwrap(); bus.write32(out0 + 8, out1).unwrap();
+        bus.write32(out1, (1 << 31) | (1 << 30) | (2000 << 12) | 2000).unwrap(); bus.write32(out1 + 4, src + 3000).unwrap(); bus.write32(out1 + 8, 0).unwrap();
+        // IN: two 4095-byte buffers, owner = DMA
+        bus.write32(in0, (1 << 31) | 4095).unwrap(); bus.write32(in0 + 4, dst).unwrap(); bus.write32(in0 + 8, in1).unwrap();
+        bus.write32(in1, (1 << 31) | 4095).unwrap(); bus.write32(in1 + 4, dst + 4095).unwrap(); bus.write32(in1 + 8, 0).unwrap();
+        bus.write32(GDMA, 1 << 4).unwrap();                                 // IN_CONF0: MEM_TRANS_EN
+        bus.write32(GDMA + 0x10, 1 << 1).unwrap();                          // IN_INT_ENA: SUC_EOF
+        bus.write32(GDMA + 0x20, (1 << 22) | (in0 & 0xf_ffff)).unwrap();    // IN_LINK start
+        bus.write32(GDMA + 0x80, (1 << 21) | (out0 & 0xf_ffff)).unwrap();   // OUT_LINK start
+        assert!(bus.periph.gdma.inp[0].running && bus.periph.gdma.out[0].running);
+        emu_core::Bus::tick(&mut bus, 1); bus.flush_ticks();   // ticks are deferred up to the next timer deadline
+        for i in 0..n { assert_eq!(bus.read8(dst + i).unwrap(), (i % 251) as u8, "byte {i}"); }
+        assert_eq!(bus.read8(dst + n).unwrap(), 0xee);
+        let (d0, d1) = (bus.read32(in0).unwrap(), bus.read32(in1).unwrap());
+        assert_eq!(((d0 >> 12) & 0xfff, d0 >> 30), (4095, 0), "first IN descriptor: full, owner cpu, no eof");
+        assert_eq!(((d1 >> 12) & 0xfff, d1 >> 30), (905, 1), "second IN descriptor: the rest, owner cpu, suc_eof");
+        let (r, o) = (bus.periph.gdma.inp[0], bus.periph.gdma.out[0]);
+        assert_eq!((r.eof_desc, r.int_raw & 0b11, r.running), (in1, 0b11, false));
+        assert_eq!((o.eof_desc, o.int_raw & 0b1011, o.running), (out1, 0b1011, false));
+        assert!(r.irq(), "IN_SUC_EOF is the interrupt the async memcpy driver waits for");
+        assert_eq!(bus.read32(GDMA + 0x28).unwrap(), in1);                  // IN_SUC_EOF_DES_ADDR
     }
 
     fn dma_bus() -> SocBus {
