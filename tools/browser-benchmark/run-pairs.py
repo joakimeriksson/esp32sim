@@ -208,11 +208,14 @@ def main():
         workload = paths.get('workload', 'tinydraw')
         if workload not in WORKLOADS:
             p.error(f'unknown workload {workload}')
+        missing = [k for k in WORKLOADS[workload]['assets'] if k not in paths]
+        if missing:
+            p.error(f'{a.assets} names no {", ".join(missing)} for the {workload} workload')
         assets = {k: str((a.assets.resolve().parent / paths[k]).resolve()) for k in WORKLOADS[workload]['assets']}
     for path in assets.values():
         if not Path(path).is_file():
             p.error('missing asset ' + path)
-    expected = a.expected_instructions or WORKLOADS[workload]['expectedInstructions']
+    expected = WORKLOADS[workload]['expectedInstructions'] if a.expected_instructions is None else a.expected_instructions
     if expected is None:
         p.error(f'{workload} has no pinned instruction total in workloads.json; pass --expected-instructions')
     assets['workload'] = workload

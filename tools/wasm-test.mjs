@@ -7,6 +7,7 @@
 //   tools/wasm-test.mjs [manifest ...]          default: hello c3-hello
 //   ESP32SIM_ROM_DIR=dir                        mask ROM ELFs not found next to the manifests
 //   ESP32SIM_NO_WASM_JIT=1                      interpreter-only manifest runs
+//   ESP32SIM_WASM=path                          another module, so two builds can be timed on one manifest
 //
 // A manifest (web/wasm/fw/<name>.json) names the board, sizes, stubs and files exactly as the
 // page reads them. Each run boots and executes `seconds` (3) of emulated time in 2 M-cycle

@@ -49,7 +49,9 @@ AMOLED-1.8 board) is the workload for this path. Measured on 2026-09-12 on an M-
 | the same wasm with `-C target-feature=+simd128` | Node 108.8 against 108.7 for its plain build; Chrome 0.32 | no measurable change |
 
 Every run executes exactly 10,073,833,775 instructions with 15 model decisions, so the total is
-pinned in `workloads.json`. The interactive page in a visible Chrome tab ran at 0.23 real time:
+pinned in `workloads.json`. The native row's 20 guest seconds include the boot, which runs denser
+than the steady state: 363 M instructions per emulated second there against 336 M averaged over 30
+seconds, which is why its Minsn/s and real-time columns relate differently from the others. The interactive page in a visible Chrome tab ran at 0.23 real time:
 drawing and pacing there cost extra on top of the headless harness.
 
 The guest asks for 336 M instructions per emulated second across both cores, more than the

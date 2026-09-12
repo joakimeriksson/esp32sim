@@ -39,6 +39,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif name == '/workload.json':
             key = assets.get('workload', 'tinydraw')
             workloads = json.loads((pathlib.Path(__file__).parent / 'workloads.json').read_text())
+            if key not in workloads:
+                self.send_error(404, f'unknown workload {key}')
+                return
             data = json.dumps({'name': key, **workloads[key]}).encode()
             kind = 'application/json'
         else:
