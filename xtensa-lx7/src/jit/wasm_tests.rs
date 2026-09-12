@@ -1372,8 +1372,8 @@ fn regions() -> u32 {
     let (near_high, near_low) = ((1i64 << 39) - 1 - 5_000_000, -(1i64 << 39) + 5_000_000);
     for (label, cp3, data, accx, src, readonly, turns, whole) in [
         ("dot", 8, &mixed, 0i64, BASE + 0x1000, false, 600, true),
-        ("dot-saturate-high", 8, &positive, near_high, BASE + 0x1000, false, 300, false),
-        ("dot-saturate-low", 8, &negative, near_low, BASE + 0x1000, false, 300, false),
+        ("dot-saturate-high", 8, &positive, near_high, BASE + 0x1000, false, 300, true),
+        ("dot-saturate-low", 8, &negative, near_low, BASE + 0x1000, false, 300, true),
         ("dot-cp3-off", 0, &mixed, 0, BASE + 0x1000, false, 40, false),
         ("dot-readonly", 8, &mixed, 0, BASE + 0x1000, true, 300, true),
         ("dot-off-end", 8, &mixed, 0, BASE + 65536 - 48, false, 40, false),

@@ -517,6 +517,7 @@ mod tests {
             } else {
                 cpu.blocks.jit_enabled = mode == 2;
                 while done < 3000 { let (used, t) = crate::block::run_block(&mut cpu, &mut ram, 3000 - done); assert!(t.is_none(), "mode {mode}: {t:?}"); done += used; }
+                if mode == 2 && crate::jit::AVAILABLE { assert!(cpu.blocks.jit_instructions > 0, "the JIT ran none of the loop"); }
             }
             assert_eq!(done, 3000);
             results.push((cpu.ar, cpu.pc, cpu.lcount, cpu.lend, cpu.insn_count, cpu.ccount, cpu.qr, cpu.accx, ram.mem[0x1000..0x1200].to_vec()));

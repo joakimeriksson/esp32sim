@@ -118,7 +118,7 @@ from 70 %.
 | Node, median of 3 | 162.8 Minsn/s, 0.49 | 199.5 Minsn/s, 0.59 | 1.23× |
 | headless Chrome 152, 3 matched pairs, median wall | 63.3 s, 0.47 | 50.2 s, 0.60 | 20.7 % less wall time |
 
-Against main that is 1.88× under Node and 0.33 to 0.60 real time in Chrome, with the pinned
+Against main that is 1.9× under Node and 0.33 to 0.60 real time in Chrome, with the pinned
 instruction total unchanged. Still interpreted on the model core: signed division (3.6 % of its
 instructions) and a dequantisation block needing SAR-byte writes, saturating subtract and
 byte shifts (2.8 %).
@@ -165,8 +165,8 @@ do not charge.
 
 Where the next factors are: the dot-product instructions in the wasm backend, estimated at 1.2–1.4×,
 measured 1.23× under Node (above); not yet measured, cheaper scheduler rounds or direct block chaining about
-1.2×. With transfer time, headless Chrome would go from 0.50 to roughly 0.85–1.0 real time and the
-native build past real time.
+1.2×. With transfer time, headless Chrome would go from 0.62 to roughly 0.85 real time and the
+native build to about real time.
 
 ## Phase 0 — small, independent, do anytime
 
