@@ -264,7 +264,8 @@ pub const PACKED: u8 = 0x80;
 /// when the instruction is decoded and carried in the `r`/`s`/`t` its `Insn` otherwise leaves
 /// zero: `r` = PACKED | third Q register << 4 | AR register, `s` = first Q | second Q << 4,
 /// `t` = the post-increment / 16 (each packed load and store scales its immediate by 16).
-/// Anything `exec_packed` does not run gets zeros and keeps the table path.
+/// Anything `exec_packed` does not run gets zeros and keeps the table path. The packed values
+/// exceed 15, so `Insn::gpr_effects` masks the fields it would otherwise shift by.
 pub fn pack(w: u32, idx: usize) -> (u8, u8, u8) {
     use Role::*;
     let p = &OPS[idx];
@@ -447,6 +448,23 @@ mod tests {
             }
             assert!(runs >= 1000, "{name}: only {runs} runs");
             if name.ends_with(".ip") { assert!(faults >= 50, "{name}: only {faults} faults exercised"); }
+        }
+    }
+
+    /// Packed operands exceed 15 in `r`/`s`/`t`. The register-effect analysis every block build
+    /// runs must not shift by them (a debug build panicked there) and must see what the table sees.
+    #[test]
+    fn packed_fields_leave_register_effects_unchanged() {
+        for name in HOT {
+            let p = OPS.iter().find(|p| p.name == name).unwrap();
+            let mut w = p.value;
+            for f in p.fields { for &(hi, lo, wp) in f.pieces { w |= ((1u32 << (hi - lo + 1)) - 1) << wp; } }
+            let insn = crate::decode::decode(0x4037_0000, w.to_le_bytes());
+            assert!(insn.r & PACKED != 0 && (insn.r > 15 || insn.s > 15 || insn.t > 15), "{name}");
+            let mut table = insn;
+            (table.r, table.s, table.t) = (0, 0, 0);
+            assert!(insn.gpr_effects() == table.gpr_effects(), "{name}");
+            assert_eq!(crate::exec::max_ar(&insn), crate::exec::max_ar(&table), "{name}");
         }
     }
 

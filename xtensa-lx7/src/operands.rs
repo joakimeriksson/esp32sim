@@ -30,7 +30,9 @@ impl Insn {
     /// suppresses their write. FP and boolean register numbers never occur here.
     pub fn gpr_effects(&self) -> GprEffects {
         use Op::*;
-        let (r, s, t) = (1u16 << self.r, 1u16 << self.s, 1u16 << self.t);
+        // PIE keeps packed operands in r/s/t (`pie::pack`, values past 15) and takes its effects
+        // from `pie::gpr_mask` below; the mask keeps these unused shifts from overflowing.
+        let (r, s, t) = (1u16 << (self.r & 15), 1u16 << (self.s & 15), 1u16 << (self.t & 15));
         let rw = |reads, writes| GprEffects { reads, writes, ..GprEffects::default() };
         let conditional = |reads, conditional_writes| GprEffects { reads, conditional_writes, ..GprEffects::default() };
         let window = |mut effects: GprEffects| { effects.changes_window = true; effects };

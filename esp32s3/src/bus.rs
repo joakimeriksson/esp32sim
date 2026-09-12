@@ -1166,6 +1166,27 @@ mod gp_spi_board_tests {
         assert_eq!(bus.read32(GDMA + 0x28).unwrap(), in1);                  // IN_SUC_EOF_DES_ADDR
     }
 
+    /// Bulk reads (PIE 128-bit loads) return exactly what per-byte reads do, or decline: swept over
+    /// SRAM, its instruction-bus alias, 256-byte and entry edges, unmapped flash and peripherals.
+    #[test]
+    fn read_bulk_matches_per_byte_reads_or_declines() {
+        let mut bus = SocBus::new(1024, 1024, [0; 6]);
+        for i in 0..0x2_0000u32 { bus.write8(0x3fc8_8000 + i, (i.wrapping_mul(0x9e37_79b9) >> 24) as u8).unwrap(); }
+        let mut served = 0;
+        for base in [0x3fc8_8000u32, 0x4037_8000, 0x3fc9_f000, 0x4200_0000, 0x3c00_0000, 0x6000_8000] {
+            for k in 0..0x200u32 {
+                let addr = base + k * 0x100 - 8 * (k % 3);
+                let mut out = [0u8; 16];
+                if emu_core::Bus::read_bulk(&mut bus, addr, &mut out) {
+                    served += 1;
+                    for (i, b) in out.iter().enumerate() { assert_eq!(bus.read8(addr + i as u32).ok(), Some(*b), "{addr:#x}+{i}"); }
+                }
+            }
+        }
+        assert!(served > 0x200, "SRAM and its alias are served in bulk ({served})");
+        assert!(!emu_core::Bus::read_bulk(&mut bus, 0x6000_8000, &mut [0u8; 16]), "peripherals never are");
+    }
+
     /// Two copies back to back with AUTO_WRBACK on, as IDF always configures it: the second
     /// start after the first completed must land too (the pocket-tank freeze was the second copy).
     #[test]
