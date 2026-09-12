@@ -18,7 +18,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         name = self.path.split('?')[0]
         if name == '/provenance.json':
             # Record transitive worker dependencies as well as the entry point.
-            files = {f'asset/{key}': pathlib.Path(value) for key, value in assets.items()}
+            files = {f'asset/{key}': pathlib.Path(value) for key, value in assets.items() if key != 'workload'}
             files.update({str(path.relative_to(root)): path
                           for path in (root / 'web/wasm').rglob('*')
                           if path.is_file() and path.suffix in ('.js', '.mjs')})
@@ -35,6 +35,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             kind = 'application/json'
         elif name == '/assets.json':
             data = json.dumps(assets).encode()
+            kind = 'application/json'
+        elif name == '/workload.json':
+            key = assets.get('workload', 'tinydraw')
+            workloads = json.loads((pathlib.Path(__file__).parent / 'workloads.json').read_text())
+            data = json.dumps({'name': key, **workloads[key]}).encode()
             kind = 'application/json'
         else:
             if name.startswith('/asset/'):

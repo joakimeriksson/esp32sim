@@ -8,6 +8,7 @@ import statistics
 import re
 
 SCHEMA = json.loads(pathlib.Path(__file__).with_name('verdict-schema.json').read_text())
+WORKLOADS = json.loads(pathlib.Path(__file__).with_name('workloads.json').read_text())
 
 
 def validate_verdict(line):
@@ -64,10 +65,16 @@ def read_run(directory, *, legacy=False):
             raise ValueError(f'{directory}: missing build provenance')
     if not result['passed'] or result['status'] != 'completed':
         raise ValueError(f'{directory}: firmware did not complete successfully')
-    validate_verdict(result.get('verdict'))
-    validation = result.get('verdictValidation')
-    if validation is not None and validation.get('schema') != SCHEMA['version']:
-        raise ValueError(f'{directory}: unsupported verdict schema')
+    workload = result.get('workload', 'tinydraw')
+    if workload == 'tinydraw':
+        validate_verdict(result.get('verdict'))
+        validation = result.get('verdictValidation')
+        if validation is not None and validation.get('schema') != SCHEMA['version']:
+            raise ValueError(f'{directory}: unsupported verdict schema')
+    elif workload not in WORKLOADS:
+        raise ValueError(f'{directory}: unknown workload {workload}')
+    elif not result.get('checks') or any(check['count'] < check['min'] for check in result['checks']):
+        raise ValueError(f'{directory}: workload checks failed')
     if 'HeadlessChrome/' not in version['User-Agent']:
         raise ValueError(f'{directory}: expected a headless Chrome timing capture')
     events = json.loads((directory / 'events.json').read_text())
@@ -90,14 +97,14 @@ def read_run(directory, *, legacy=False):
                 times[marker] = event['wallMs'] / 1000
     verdicts = [line.rstrip('\r') for line in serial.split('\n')[:-1]
                 if line.startswith(SCHEMA['marker'])]
-    if verdicts != [result['verdict']] or SCHEMA['marker'] in pending:
+    if workload == 'tinydraw' and (verdicts != [result['verdict']] or SCHEMA['marker'] in pending):
         raise ValueError(f'{directory}: missing, duplicate or mismatched console verdict')
     if re.search(r'Guru Meditation|TG1WDT_SYS_RST|stack overflow|task_wdt', serial) or any(
             re.search(r'chip reset|panic', event.get('line', ''), re.I)
             for event in events if event.get('type') in ('emu', 'log', 'error')):
         raise ValueError(f'{directory}: firmware failure in captured output')
     intervals, previous = {}, 0
-    for name, marker in MILESTONES:
+    for name, marker in (MILESTONES if workload == 'tinydraw' else ()):
         end = times.get(marker)
         if end is None or end < previous:
             raise ValueError(f'{directory}: missing or out-of-order milestone {marker}')
@@ -105,7 +112,8 @@ def read_run(directory, *, legacy=False):
         previous = end
     return {
         'directory': str(directory),
-        'verdictSchema': SCHEMA['version'],
+        'workload': workload,
+        'verdictSchema': SCHEMA['version'] if workload == 'tinydraw' else WORKLOADS[workload]['schema'],
         'provenance': result.get('provenance'),
         'wallSeconds': result['wallSeconds'],
         'intervalSeconds': intervals,
@@ -122,6 +130,10 @@ def comparison(baseline, candidate, *, legacy=False, allowed_changes=('asset/was
     runs = baseline + candidate
     if not baseline or not candidate:
         raise ValueError('both arms require captures')
+    workloads = {run.get('workload', 'tinydraw') for run in runs}
+    if len(workloads) != 1:
+        raise ValueError('Unmatched workload; inspect the runs before comparing performance')
+    workload = workloads.pop()
     if not legacy:
         for name, arm in (('baseline', baseline), ('candidate', candidate)):
             identities = [run.get('provenance', {}).get('sha256', {}) if run.get('provenance') else {} for run in arm]
@@ -139,7 +151,7 @@ def comparison(baseline, candidate, *, legacy=False, allowed_changes=('asset/was
     # Legacy captures have no provenance. New captures must use identical guest
     # inputs; WASM and JavaScript hashes are retained because those may vary.
     if any(run.get('provenance') is not None for run in runs):
-        for name in ('rom', 'bootloader', 'ptable', 'app', 'elf'):
+        for name in WORKLOADS[workload]['assets']:
             hashes = [(run.get('provenance') or {}).get('sha256', {}).get(f'asset/{name}')
                       for run in runs]
             if None in hashes or len(set(hashes)) != 1:
@@ -155,7 +167,7 @@ def comparison(baseline, candidate, *, legacy=False, allowed_changes=('asset/was
         'baseline': baseline,
         'candidate': candidate,
         'total': metric(lambda run: run['wallSeconds']),
-        'intervals': {name: metric(lambda run: run['intervalSeconds'][name]) for name, _ in MILESTONES},
+        'intervals': {name: metric(lambda run: run['intervalSeconds'][name]) for name, _ in (MILESTONES if workload == 'tinydraw' else ())},
         'scope': 'Host wall time between firmware console milestones; includes setup and console delivery. '
                  'Not isolated function timings, input latency or silicon cycle accuracy. '
                  'Matching firmware/build inputs and absence of profiling must also be verified from capture provenance.',

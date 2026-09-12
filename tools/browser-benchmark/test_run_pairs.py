@@ -43,5 +43,30 @@ class ValidationTests(unittest.TestCase):
                 runner.validate_timing_build(record)
 
 
+class PocketTankValidationTests(unittest.TestCase):
+    def setUp(self):
+        self.raw = {'result': {'workload': 'pocket-tank', 'passed': True, 'status': 'completed', 'stopCode': 0,
+                              'verdict': None, 'checks': [{'name': 'model_decisions', 'count': 12, 'min': 10}],
+                              'instructions': 100, 'jit': {'failed': 0, 'compiled': 1},
+                              'provenance': {'sha256': {'asset/wasm': 'hash'}}}}
+
+    def test_accepts_completed_run_without_a_verdict(self):
+        self.assertEqual(runner.validate(self.raw, 100, 'pocket-tank')['instructions'], 100)
+
+    def test_rejects_other_workload_and_failed_checks(self):
+        with self.assertRaisesRegex(ValueError, 'workload'):
+            runner.validate(self.raw, 100, 'tinydraw')
+        for checks in ([], [{'name': 'model_decisions', 'count': 3, 'min': 10}]):
+            with self.subTest(checks=checks):
+                raw = copy.deepcopy(self.raw)
+                raw['result']['checks'] = checks
+                with self.assertRaisesRegex(ValueError, 'checks failed'):
+                    runner.validate(raw, 100, 'pocket-tank')
+
+    def test_workloads_name_their_assets(self):
+        self.assertEqual(runner.WORKLOADS['tinydraw']['assets'], ['rom', 'bootloader', 'ptable', 'app', 'elf'])
+        self.assertIn('model', runner.WORKLOADS['pocket-tank']['assets'])
+
+
 if __name__ == '__main__':
     unittest.main()

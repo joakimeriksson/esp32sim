@@ -29,7 +29,8 @@ function romPath(file) {
   throw new Error(`${file}: not in ${fwDir}, ESP32SIM_ROM_DIR or ~/.espressif/tools/esp-rom-elfs`);
 }
 
-const wasmBytes = readFileSync(join(root, 'web', 'wasm', 'esp32sim.wasm'));
+// ESP32SIM_WASM names another module, so two builds can be timed on the same manifest.
+const wasmBytes = readFileSync(process.env.ESP32SIM_WASM || join(root, 'web', 'wasm', 'esp32sim.wasm'));
 const enc = new TextEncoder(), dec = new TextDecoder();
 let failures = 0;
 
