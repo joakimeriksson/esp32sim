@@ -140,6 +140,13 @@ fn st<B: Bus>(cpu: &mut Cpu, bus: &mut B, a: u32, bytes: u32, v: u128) -> Result
 
 pub fn exec<B: Bus>(cpu: &mut Cpu, bus: &mut B, i: &Insn) -> Result<(), Trap> {
     if cpu.cpenable & (1 << 3) == 0 { return Err(cpu.raise(exc::COPROCESSOR0_DISABLED + 3)); }
+    if i.r & PACKED != 0 { return exec_packed(cpu, bus, i); }
+    exec_table(cpu, bus, i)
+}
+
+/// Any PIE instruction from its table entry, extracting the operands from the word on every
+/// execution. The reference the packed path is tested against.
+fn exec_table<B: Bus>(cpu: &mut Cpu, bus: &mut B, i: &Insn) -> Result<(), Trap> {
     let p = &OPS[i.imm as usize];
     let w = i.raw;
     let o = extract(w, p);
@@ -247,4 +254,233 @@ pub fn exec<B: Bus>(cpu: &mut Cpu, bus: &mut B, i: &Insn) -> Result<(), Trap> {
         Kind::Unimpl => return Err(Trap::Unimplemented(cpu.pc, w)),
     }
     Ok(())
+}
+
+// ------------------------------------------------------------------ packed fast path
+/// `Insn::r` bit of a PIE instruction whose operands `pack` extracted at decode time.
+pub const PACKED: u8 = 0x80;
+
+/// Operands of the hot PIE instructions (on-device inference loops over these), extracted once
+/// when the instruction is decoded and carried in the `r`/`s`/`t` its `Insn` otherwise leaves
+/// zero: `r` = PACKED | third Q register << 4 | AR register, `s` = first Q | second Q << 4,
+/// `t` = the post-increment / 16 (each packed load and store scales its immediate by 16).
+/// Anything `exec_packed` does not run gets zeros and keeps the table path. The packed values
+/// exceed 15, so `Insn::gpr_effects` masks the fields it would otherwise shift by.
+pub fn pack(w: u32, idx: usize) -> (u8, u8, u8) {
+    use Role::*;
+    let p = &OPS[idx];
+    let o = extract(w, p);
+    let q = |v: i32| (v & 7) as u8;
+    let a = (o.get(As) & 15) as u8;
+    let imm = o.get(Imm);
+    let step = (imm % 16 == 0 && (-128..=127).contains(&(imm / 16))).then_some((imm / 16) as i8 as u8);
+    match (p.kind, step) {
+        (Kind::ZeroAccx, _) => (PACKED, 0, 0),
+        (Kind::Vld128(Mode::Ip), Some(t)) => (PACKED | a, q(o.get(Qu)), t),
+        (Kind::Vst128(Mode::Ip), Some(t)) => (PACKED | a, q(o.get(Qv)), t),
+        (Kind::Vmulas { signed: true, w: 8 | 16, accx: true, ld: LdKind::None, qup: false }, _) =>
+            (PACKED, q(o.get(Qx)) | (q(o.get(Qy)) << 4), 0),
+        (Kind::Vmulas { signed: true, w: 8 | 16, accx: true, ld: LdKind::Ip, qup: false }, Some(t)) =>
+            (PACKED | (q(o.get(Qu)) << 4) | a, q(o.get(Qx)) | (q(o.get(Qy)) << 4), t),
+        _ => (0, 0, 0),
+    }
+}
+
+/// The instructions `pack` marked, from their packed operands: the 128-bit loads in one bulk
+/// read, the dot products over byte arrays. Must leave exactly the state `exec_table` leaves,
+/// including when a load faults after the accumulator has changed.
+#[inline]
+fn exec_packed<B: Bus>(cpu: &mut Cpu, bus: &mut B, i: &Insn) -> Result<(), Trap> {
+    let a = i.r & 15;
+    let (q0, q1, q2) = ((i.s & 7) as usize, ((i.s >> 4) & 7) as usize, ((i.r >> 4) & 7) as usize);
+    let step = (i32::from(i.t as i8) * 16) as u32;
+    match OPS[i.imm as usize].kind {
+        Kind::Vld128(_) => {
+            let at = cpu.get_ar(a);
+            let v = ld128(cpu, bus, at)?;
+            cpu.qr[q0] = v;
+            cpu.set_ar(a, at.wrapping_add(step));
+        }
+        Kind::Vst128(_) => {
+            let (at, v) = (cpu.get_ar(a), cpu.qr[q0]);
+            st(cpu, bus, at, 16, v)?;
+            cpu.set_ar(a, at.wrapping_add(step));
+        }
+        Kind::Vmulas { w, ld: load, .. } => {
+            let (x, y) = (cpu.qr[q0].to_le_bytes(), cpu.qr[q1].to_le_bytes());
+            let dot = if w == 8 { dot_s8(&x, &y) } else { dot_s16(&x, &y) };
+            let acc = sat(accx_get(cpu) + dot, 40);
+            accx_set(cpu, acc);
+            if load == LdKind::Ip {
+                let at = cpu.get_ar(a);
+                let v = ld128(cpu, bus, at)?;
+                cpu.qr[q2] = v;
+                cpu.set_ar(a, at.wrapping_add(step));
+            }
+        }
+        Kind::ZeroAccx => cpu.accx = [0; 2],
+        _ => unreachable!("pack marks only the kinds handled here"),
+    }
+    Ok(())
+}
+
+/// A 128-bit load: one bulk copy when the bus holds the whole range as plain memory, else the
+/// per-word reads, which also raise the exception at the exact faulting word.
+#[inline]
+fn ld128<B: Bus>(cpu: &mut Cpu, bus: &mut B, a: u32) -> Result<u128, Trap> {
+    let a = a & !15;
+    let mut bytes = [0u8; 16];
+    if bus.read_bulk(a, &mut bytes) { Ok(u128::from_le_bytes(bytes)) } else { ld(cpu, bus, a, 16) }
+}
+
+/// Σ x·y over the 16 signed 8-bit lanes. Each product fits an i16, so the compiler can use a
+/// widening vector multiply (NEON, SSE, wasm SIMD) instead of 16 scalar steps.
+#[inline]
+fn dot_s8(x: &[u8; 16], y: &[u8; 16]) -> i64 {
+    i64::from(x.iter().zip(y).map(|(&a, &b)| i32::from(i16::from(a as i8) * i16::from(b as i8))).sum::<i32>())
+}
+
+/// Σ x·y over the 8 signed 16-bit lanes; the sum can exceed an i32.
+#[inline]
+fn dot_s16(x: &[u8; 16], y: &[u8; 16]) -> i64 {
+    x.as_chunks::<2>().0.iter().zip(y.as_chunks::<2>().0)
+        .map(|(&a, &b)| i64::from(i32::from(i16::from_le_bytes(a)) * i32::from(i16::from_le_bytes(b))))
+        .sum()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use emu_core::{Fault, FlatRam};
+
+    const BASE: u32 = 0x3fc9_0000;
+    /// Not a multiple of 16: a load aligned into the last partial block runs off the end mid-load.
+    const SIZE: usize = 0x1000 - 8;
+    const HOT: [&str; 7] = ["ee.vld.128.ip", "ee.vst.128.ip", "ee.vmulas.s8.accx", "ee.vmulas.s8.accx.ld.ip",
+                            "ee.vmulas.s16.accx", "ee.vmulas.s16.accx.ld.ip", "ee.zero.accx"];
+
+    /// The same memory without a bulk read, so the packed path takes its per-word fallback.
+    struct NoBulk(FlatRam);
+    impl Bus for NoBulk {
+        fn read8(&mut self, a: u32) -> Result<u8, Fault> { self.0.read8(a) }
+        fn read16(&mut self, a: u32) -> Result<u16, Fault> { self.0.read16(a) }
+        fn read32(&mut self, a: u32) -> Result<u32, Fault> { self.0.read32(a) }
+        fn write8(&mut self, a: u32, v: u8) -> Result<(), Fault> { self.0.write8(a, v) }
+        fn write16(&mut self, a: u32, v: u16) -> Result<(), Fault> { self.0.write16(a, v) }
+        fn write32(&mut self, a: u32, v: u32) -> Result<(), Fault> { self.0.write32(a, v) }
+        fn fetch(&mut self, pc: u32) -> Result<[u8; 4], Fault> { self.0.fetch(pc) }
+    }
+
+    struct Rng(u64);
+    impl Rng {
+        fn next(&mut self) -> u64 { self.0 ^= self.0 << 13; self.0 ^= self.0 >> 7; self.0 ^= self.0 << 17; self.0 }
+        fn u32(&mut self) -> u32 { self.next() as u32 }
+        /// Random lanes, or every lane at an extreme of the 8- or 16-bit range.
+        fn q(&mut self) -> u128 {
+            match self.next() % 6 {
+                0 => u128::from_le_bytes([0x80; 16]),
+                1 => u128::from_le_bytes([0x7f; 16]),
+                2 => u128::from_le_bytes([0x00, 0x80].repeat(8).try_into().unwrap()),
+                3 => u128::from_le_bytes([0xff, 0x7f].repeat(8).try_into().unwrap()),
+                _ => (u128::from(self.next()) << 64) | u128::from(self.next()),
+            }
+        }
+        /// A 40-bit accumulator, often a few products away from saturating either way.
+        fn accx(&mut self) -> i64 {
+            let near = (self.next() % 400_000) as i64;
+            match self.next() % 3 { 0 => (1i64 << 39) - 1 - near, 1 => -(1i64 << 39) + near, _ => sext(self.next() as i64, 40) }
+        }
+        /// Mostly inside memory at any alignment; sometimes running off its end, below it, or unmapped.
+        fn address(&mut self) -> u32 {
+            match self.next() % 12 {
+                0 => BASE + SIZE as u32 - 4,
+                1 => BASE - 8,
+                2 => 0x1000_0000,
+                _ => BASE + self.u32() % (SIZE as u32 - 32),
+            }
+        }
+    }
+
+    fn state(c: &Cpu) -> (Vec<u32>, [u128; 8], [u32; 2], u32, u32, u32) {
+        ((0..16u8).map(|n| c.get_ar(n)).collect(), c.qr, c.accx, c.exccause, c.excvaddr, c.pc)
+    }
+
+    fn ram(fill: &[u8]) -> FlatRam { let mut r = FlatRam::new(BASE, SIZE); r.mem.copy_from_slice(fill); r }
+
+    /// Every hot instruction, decoded from random operand bits, run three ways from one random
+    /// state: packed with bulk reads, packed with per-word reads, and from the table. All three
+    /// must agree on the result, every register, the Q registers, ACCX, the exception state and
+    /// memory.
+    #[test]
+    fn packed_execution_matches_the_table() {
+        let mut r = Rng(0x9e37_79b9_7f4a_7c15);
+        for name in HOT {
+            let idx = OPS.iter().position(|p| p.name == name).unwrap();
+            let p = &OPS[idx];
+            let (mut runs, mut faults) = (0, 0);
+            for _ in 0..4000 {
+                let width = if p.len == 3 { 0xff_ffff } else { u32::MAX };
+                let w = (r.u32() & !p.mask & width) | p.value;
+                if decode(w) != Some(idx) { continue; }
+                let insn = crate::decode::decode(0x4037_0000, w.to_le_bytes());
+                assert_eq!((insn.op, insn.imm as usize), (crate::decode::Op::Pie, idx), "{name}");
+                assert_ne!(insn.r & PACKED, 0, "{name} {w:#x} decodes packed");
+                let table = Insn { r: 0, s: 0, t: 0, ..insn };
+
+                let mut cpu = Cpu::new(0);
+                cpu.cpenable = if r.next().is_multiple_of(16) { 0 } else { 1 << 3 };
+                for n in 0..16u8 { let v = r.address(); cpu.set_ar(n, v); }
+                for q in cpu.qr.iter_mut() { *q = r.q(); }
+                let acc = r.accx();
+                accx_set(&mut cpu, acc);
+                let fill: Vec<u8> = (0..SIZE).map(|_| r.next() as u8).collect();
+                let (mut cpu_word, mut cpu_table) = (cpu.clone(), cpu.clone());
+                let (mut bulk, mut word, mut reference) = (ram(&fill), NoBulk(ram(&fill)), ram(&fill));
+
+                let want = exec(&mut cpu_table, &mut reference, &table);
+                assert_eq!(exec(&mut cpu, &mut bulk, &insn), want, "{name} {w:#x} bulk");
+                assert_eq!(exec(&mut cpu_word, &mut word, &insn), want, "{name} {w:#x} per-word");
+                assert_eq!(state(&cpu), state(&cpu_table), "{name} {w:#x} bulk state");
+                assert_eq!(state(&cpu_word), state(&cpu_table), "{name} {w:#x} per-word state");
+                assert!(bulk.mem == reference.mem && word.0.mem == reference.mem, "{name} {w:#x} memory");
+                runs += 1;
+                faults += usize::from(want.is_err());
+            }
+            assert!(runs >= 1000, "{name}: only {runs} runs");
+            if name.ends_with(".ip") { assert!(faults >= 50, "{name}: only {faults} faults exercised"); }
+        }
+    }
+
+    /// Packed operands exceed 15 in `r`/`s`/`t`. The register-effect analysis every block build
+    /// runs must not shift by them (a debug build panicked there) and must see what the table sees.
+    #[test]
+    fn packed_fields_leave_register_effects_unchanged() {
+        for name in HOT {
+            let p = OPS.iter().find(|p| p.name == name).unwrap();
+            let mut w = p.value;
+            for f in p.fields { for &(hi, lo, wp) in f.pieces { w |= ((1u32 << (hi - lo + 1)) - 1) << wp; } }
+            let insn = crate::decode::decode(0x4037_0000, w.to_le_bytes());
+            assert!(insn.r & PACKED != 0 && (insn.r > 15 || insn.s > 15 || insn.t > 15), "{name}");
+            let mut table = insn;
+            (table.r, table.s, table.t) = (0, 0, 0);
+            assert!(insn.gpr_effects() == table.gpr_effects(), "{name}");
+            assert_eq!(crate::exec::max_ar(&insn), crate::exec::max_ar(&table), "{name}");
+        }
+    }
+
+    #[test]
+    fn only_the_handled_kinds_are_packed() {
+        for (i, p) in OPS.iter().enumerate() {
+            let packed = pack(p.value, i).0 & PACKED != 0;
+            assert_eq!(packed, HOT.contains(&p.name), "{}", p.name);
+        }
+    }
+
+    #[test]
+    fn dot_products_reach_their_extremes_without_overflow() {
+        assert_eq!(dot_s8(&[0x80; 16], &[0x80; 16]), 16 * 128 * 128);
+        assert_eq!(dot_s8(&[0x80; 16], &[0x7f; 16]), -16 * 128 * 127);
+        let min16: [u8; 16] = [0x00, 0x80].repeat(8).try_into().unwrap();
+        assert_eq!(dot_s16(&min16, &min16), 8 * (1i64 << 30));
+    }
 }

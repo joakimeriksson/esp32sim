@@ -315,12 +315,12 @@ pub fn decode(pc: u32, bytes: [u8; 4]) -> Insn {
         // ---------------------------------------------------------------- MAC16 / PIE (op0 = 4)
         4 => {
             // the ESP32-S3 has no MAC16; op0 = 4 is the 24-bit PIE space (kept: MAC16 fallback for data the old objdump decodes)
-            if let Some(idx) = crate::pie::decode(w24) { let m = crate::pie::max_ar(w24, idx); return Insn::new(Op::Pie, 0, 0, 0, idx as i32, m as i32, 3, w24); }
+            if let Some(idx) = crate::pie::decode(w24) { let m = crate::pie::max_ar(w24, idx); let (pr, ps, pt) = crate::pie::pack(w24, idx); return Insn::new(Op::Pie, pr, ps, pt, idx as i32, m as i32, 3, w24); }
             Insn::new(Op::Mac16, r, s, t, 0, 0, 3, w24)
         }
         0xe | 0xf => {
             let w32 = u32::from_le_bytes(bytes);
-            if let Some(idx) = crate::pie::decode(w32) { let m = crate::pie::max_ar(w32, idx); return Insn::new(Op::Pie, 0, 0, 0, idx as i32, m as i32, 4, w32); }
+            if let Some(idx) = crate::pie::decode(w32) { let m = crate::pie::max_ar(w32, idx); let (pr, ps, pt) = crate::pie::pack(w32, idx); return Insn::new(Op::Pie, pr, ps, pt, idx as i32, m as i32, 4, w32); }
             ill3
         }
         // ---------------------------------------------------------------- CALLN

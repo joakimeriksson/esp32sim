@@ -69,6 +69,12 @@ wasm-jit/     receipt-priced wasm emitter; first SRAM opcode slice, shared-memor
   (`tools/gen_pie_table.py` + `tools/pie_trm.json` → `pie_table.rs`), cross-checked against
   the ESP-IDF 5.5 assembler. Execution follows the TRM "Operation" pseudo-code; PIE is
   coprocessor 3, so `CPENABLE[3]` gates it and FreeRTOS's lazy save/restore works unchanged.
+  The hot instructions of inference kernels (128-bit load/store with post-increment, signed
+  8/16-bit multiply-accumulate into ACCX with and without the load, ACCX reset) are packed at
+  decode: `pie::pack` puts their operands in the `r`/`s`/`t` a PIE `Insn` otherwise leaves zero, and
+  `exec_packed` runs them without re-extracting fields, loading through `Bus::read_bulk` in one
+  copy and computing the dot products over byte arrays. The table executor stays the reference;
+  randomized tests hold the two to identical state, faults included.
 - **Interpreter**: `exec_insn` executes one decoded instruction. Register windows are modelled
   with the 64-entry physical file and WindowBase/WindowStart, including overflow/underflow
   exceptions raised at the *instruction that would touch* the missing window (see
