@@ -976,6 +976,15 @@ impl Bus for SocBus {
     #[inline(always)]
     fn note_pc(&mut self, pc: u32) { self.periph.misc.cur_pc = pc; }
     fn fast_mem(&mut self) -> Option<FastMem> { Some(FastMem { tlb: self.tlb.as_ptr(), page_ver: self.page_ver.as_mut_ptr() }) }
+    fn read_bulk(&mut self, addr: u32, out: &mut [u8]) -> bool {
+        // Only a range inside one mapped entry with no peripheral behind it: exactly what the
+        // per-word reads would return, without their per-word lookups or fault reporting.
+        if Self::is_periph(addr) { return false; }
+        let Some(e) = self.lookup(addr) else { return false };
+        if u64::from(addr) + out.len() as u64 > u64::from(e.hi) { return false; }
+        let o = e.off as usize + (addr - e.lo) as usize;
+        match self.buf(e.src as u8).get(o..o + out.len()) { Some(bytes) => { out.copy_from_slice(bytes); true } None => false }
+    }
     #[inline(always)]
     fn block_break(&self) -> bool { self.irq_dirty }
     fn code_page(&mut self, pc: u32) -> u32 {

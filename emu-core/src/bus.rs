@@ -67,6 +67,10 @@ pub trait Bus {
     fn block_break(&self) -> bool { false }
     /// Direct memory access for generated code, if the bus has a `TlbEntry` table.
     fn fast_mem(&mut self) -> Option<FastMem> { None }
+    /// Copy guest memory at `addr` into `out` in one piece when the whole range is plain
+    /// memory with no device behind it. `false` changes nothing and means the caller must use
+    /// the per-access reads, which also report where a fault is. A fast path for vector loads.
+    fn read_bulk(&mut self, addr: u32, out: &mut [u8]) -> bool { let _ = (addr, out); false }
     /// Called after every executed instruction with the cycle estimate; lets the
     /// SoC advance timers and DMA. Return pending external level-interrupt lines.
     fn tick(&mut self, cycles: u32) -> u32 { let _ = cycles; 0 }
@@ -92,6 +96,9 @@ impl Bus for FlatRam {
     fn read8(&mut self, a: u32) -> Result<u8, Fault> { let o = self.off(a, 1)?; Ok(self.mem[o]) }
     fn read16(&mut self, a: u32) -> Result<u16, Fault> { let o = self.off(a, 2)?; Ok(u16::from_le_bytes([self.mem[o], self.mem[o + 1]])) }
     fn read32(&mut self, a: u32) -> Result<u32, Fault> { let o = self.off(a, 4)?; Ok(u32::from_le_bytes(self.mem[o..o + 4].try_into().unwrap())) }
+    fn read_bulk(&mut self, a: u32, out: &mut [u8]) -> bool {
+        match self.off(a, out.len()) { Ok(o) => { out.copy_from_slice(&self.mem[o..o + out.len()]); true } Err(_) => false }
+    }
     fn write8(&mut self, a: u32, v: u8) -> Result<(), Fault> { let o = self.off(a, 1)?; self.mem[o] = v; self.ver += 1; Ok(()) }
     fn write16(&mut self, a: u32, v: u16) -> Result<(), Fault> { let o = self.off(a, 2)?; self.mem[o..o + 2].copy_from_slice(&v.to_le_bytes()); self.ver += 1; Ok(()) }
     fn write32(&mut self, a: u32, v: u32) -> Result<(), Fault> { let o = self.off(a, 4)?; self.mem[o..o + 4].copy_from_slice(&v.to_le_bytes()); self.ver += 1; Ok(()) }
