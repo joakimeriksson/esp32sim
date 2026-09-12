@@ -84,6 +84,26 @@ Plan, in order: packed PIE operands and bulk loads in the interpreter (all hosts
 instructions in the wasm backend, then NEON in the AArch64 backend or direct block chaining,
 whichever the next profile shows larger.
 
+### Packed PIE operands and bulk loads
+
+The first step of that plan: `pie::pack` extracts the hot instructions' operands once at decode,
+`exec_packed` runs them from the packed fields with byte-array dot products, and 128-bit loads
+use `Bus::read_bulk`. The table executor stays the reference (randomized equivalence tests), and
+pocket-tank still executes exactly 10,073,833,775 instructions with the same 15 decisions.
+
+| pocket-tank | main | packed PIE | change |
+| --- | --- | --- | --- |
+| native, `tools/bench.py`, 20 guest s, best of 5 | 169.5 Minsn/s, 0.47 real time | 258.8 Minsn/s, 0.71 | 1.53× |
+| Node, 30 guest s, median of 3 | 107.2 Minsn/s, 0.32 | 163.9 Minsn/s, 0.49 | 1.53× |
+| headless Chrome 152, `run-pairs.py`, 3 matched pairs, median wall | 90.4 s, 0.33 | 60.3 s, 0.50 | 33.3 % less wall time |
+| the packed build with `+simd128`, Node | | 164.8 Minsn/s | +0.5 %, within noise |
+
+Wasm host time afterwards: the scheduler loop between blocks 37 %, generated code 21 %, the PIE
+path about 18 % (packed execution 9 %, bulk loads 4.5 %, instructions still on the table 2.8 %,
+word reads 1.9 %), and `exec_insn` dispatch into it 8 %. The kernel's instructions still leave
+generated code for a helper call, and a helper ends a region at its next chunk head, so emitting
+them in the wasm backend should shrink the dispatch share as well as the PIE share.
+
 ## Phase 0 — small, independent, do anytime
 
 - **NEON for PIE** (`pie.rs`): every `ee.*` op runs as a scalar loop over `u128` lanes with
