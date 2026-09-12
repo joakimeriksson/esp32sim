@@ -123,6 +123,27 @@ instruction total unchanged. Still interpreted on the model core: signed divisio
 instructions) and a dequantisation block needing SAR-byte writes, saturating subtract and
 byte shifts (2.8 %).
 
+### Division in wasm, a direct PIE helper natively
+
+Two follow-ups. The wasm backend emits QUOU, QUOS, REMU and REMS inline, re-executing only a zero
+divisor or QUOS of INT_MIN by -1 in the interpreter. Native blocks call `pie::exec` through their
+own helper instead of `exec_insn`'s dispatch. Timed against the previous step on a quiet machine:
+
+| pocket-tank | before | after | change |
+| --- | --- | --- | --- |
+| native, `bench.py` 5 interleaved rounds of 20 guest s, median | 28.65 s, 0.70 | 27.76 s, 0.72 | 1.03× |
+| Node, 3 rounds of 30 guest s, median | 205.1 Minsn/s, 0.61 | 210.8 Minsn/s, 0.63 | 1.03× |
+| headless Chrome 153, 3 matched pairs, median wall | 51.2 s, 0.59 | 48.5 s, 0.62 | 5.3 % less wall time (pairs 1.4, 5.3, 2.2 %) |
+
+Both are small because both costs were small: division was 3.6 % of the model core's instructions
+and the dispatch a few percent of native time. Where the work stands against main:
+
+| pocket-tank, real time | main | now | change |
+| --- | --- | --- | --- |
+| native, M-series Mac | 0.47 | 0.72 | 1.53× |
+| Node | 0.31 | 0.63 | 2.0× |
+| headless Chrome | 0.32 | 0.62 | 1.9× |
+
 ### Guest work: the panel's transfers take no time
 
 Host speed is half of real time; the other half is how much the guest does per emulated second.
@@ -142,8 +163,8 @@ Modelling transfer time is worth about 14 % on this board on any host. The remai
 board's frame rate and its 12 tok/s is memory latency (flash cache, PSRAM), which the fast paths
 do not charge.
 
-Where the next factors are, estimated from the profile above and not yet measured: the dot-product
-instructions in the wasm backend 1.2–1.4×, cheaper scheduler rounds or direct block chaining about
+Where the next factors are: the dot-product instructions in the wasm backend, estimated at 1.2–1.4×,
+measured 1.23× under Node (above); not yet measured, cheaper scheduler rounds or direct block chaining about
 1.2×. With transfer time, headless Chrome would go from 0.50 to roughly 0.85–1.0 real time and the
 native build past real time.
 
