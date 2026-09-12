@@ -1,0 +1,42 @@
+{
+  "tinydraw": {
+    "schema": "tinydraw-gate1-v1",
+    "assets": [
+      "rom",
+      "bootloader",
+      "ptable",
+      "app",
+      "elf"
+    ],
+    "serialSource": "usb",
+    "expectedInstructions": 9819885134
+  },
+  "pocket-tank": {
+    "schema": "pocket-tank-v1",
+    "assets": [
+      "rom",
+      "bootloader",
+      "ptable",
+      "app",
+      "model"
+    ],
+    "flashAt": {
+      "model": 2686976
+    },
+    "guestSeconds": 30,
+    "serialSource": "uart0",
+    "checks": [
+      {
+        "name": "model_decisions",
+        "pattern": "advisor: [^\\n]*tok/s",
+        "min": 10
+      },
+      {
+        "name": "render_reports",
+        "pattern": "display: [0-9.]+ fps",
+        "min": 2
+      }
+    ],
+    "expectedInstructions": 10073833775
+  }
+}

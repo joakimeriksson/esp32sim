@@ -7,8 +7,9 @@ panel with picture upload / webcam and speaker meter; bare: console only), the U
 UART0 consoles, an action box for the SDK's JSON protocol, and audio through WebAudio
 (click 🔇 once — browsers require a user gesture).
 
-The header shows emulated time, instructions, frames, and `real time` / `⚠ N s behind` /
-resync count. The audio buffer is adaptive: it starts at 60 ms and grows on underrun (up to
+The header shows emulated time, instructions, frames, and `real time` / `⚠ N% of real time` /
+resync count. The percentage is emulated seconds per wall second over the last second: a
+resynchronisation resets the lag but not this, so a run that cannot keep up stays visible. The audio buffer is adaptive: it starts at 60 ms and grows on underrun (up to
 400 ms) so a busy firmware phase (a full display redraw) does not produce gaps.
 
 ## Emulator → browser
@@ -20,7 +21,7 @@ Text frames (JSON):
 | `board` | `name` | on connect; the page switches layout |
 | `serial` | `src` (`usb`/`uart0`), `data` | console output (ANSI colours stripped by the page) |
 | `ring` | `leds` `[[r,g,b]…]` | ring changed |
-| `stat` | `time`, `insns`, `frames`, `behind`, `resyncs`, `cam`, `gpio_in` | every 20 ms emulated |
+| `stat` | `time`, `insns`, `frames`, `behind`, `resyncs`, `speed` (emulated seconds per wall second over the last second, `null` before the first second and when not paced), `cam`, `gpio_in` | every 20 ms emulated |
 
 Binary frames (first byte = type):
 

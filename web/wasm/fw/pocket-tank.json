@@ -1,0 +1,10 @@
+{
+ "board": "waveshare-amoled18-v2",
+ "flash_mb": 16,
+ "psram_mb": 8,
+ "files": { "rom": "esp32s3_rev0_rom.elf", "bootloader": "local/pt-bootloader.bin", "ptable": "local/pt-ptable.bin", "app": "local/pocket_tank.bin" },
+ "flash_at": { "0x290000": "local/model_q4.bin" },
+ "expect": "tok/s",
+ "seconds": 30,
+ "_note": "benchmark workload, not a page demo: mediacutlet/pocket-tank (MIT), parts fetched by tools/fetch-pocket-tank.sh; see docs/speed-plan.md"
+}

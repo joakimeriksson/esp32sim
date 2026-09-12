@@ -96,5 +96,46 @@ class VerdictTests(unittest.TestCase):
                 compare.read_run(directory)
 
 
+class PocketTankTests(unittest.TestCase):
+    def capture(self, directory, checks, serial):
+        capture = {'captureMode': 'timing', 'version': {'User-Agent': 'HeadlessChrome/1', 'Browser': '1', 'V8-Version': '1'},
+                   'result': {'workload': 'pocket-tank', 'stopCode': 0, 'provenance': {'sha256': {'asset/wasm': 'wasm'}},
+                              'passed': True, 'status': 'completed', 'verdict': None, 'checks': checks,
+                              'verdictValidation': {'schema': 'pocket-tank-v1'},
+                              'wallSeconds': 10, 'instructions': 100, 'jit': {'instructions': 50, 'failed': 0}}}
+        (directory / 'result.json').write_text(json.dumps(capture))
+        (directory / 'events.json').write_text(json.dumps([{'type': 'serial', 'data': serial, 'wallMs': 1000}]))
+
+    def test_read_run_needs_no_verdict_or_milestones_but_checks_output(self):
+        with tempfile.TemporaryDirectory(dir=pathlib.Path(__file__).parent) as tmp:
+            directory = pathlib.Path(tmp)
+            good = [{'name': 'model_decisions', 'count': 12, 'min': 10}]
+            self.capture(directory, good, 'I (1) advisor: x tok/s\n')
+            run = compare.read_run(directory)
+            self.assertEqual((run['workload'], run['verdict'], run['intervalSeconds'], run['verdictSchema']),
+                             ('pocket-tank', None, {}, 'pocket-tank-v1'))
+            self.capture(directory, [{'name': 'model_decisions', 'count': 1, 'min': 10}], 'I (1) advisor: x tok/s\n')
+            with self.assertRaisesRegex(ValueError, 'checks failed'):
+                compare.read_run(directory)
+            self.capture(directory, good, 'Guru Meditation Error\n')
+            with self.assertRaisesRegex(ValueError, 'firmware failure'):
+                compare.read_run(directory)
+
+    def test_comparison_matches_the_model_and_refuses_mixed_workloads(self):
+        run = {'workload': 'pocket-tank', 'instructions': 100, 'consoleSha256': 'console', 'verdict': None,
+               'browser': '1', 'v8': '1', 'wallSeconds': 10, 'intervalSeconds': {},
+               'provenance': {'sha256': {f'asset/{name}': name for name in ('rom', 'bootloader', 'ptable', 'app', 'model', 'wasm')}}}
+        candidate = json.loads(json.dumps(run))
+        candidate['provenance']['sha256']['asset/wasm'] = 'candidate'
+        self.assertEqual(compare.comparison([run], [candidate])['intervals'], {})
+        candidate['provenance']['sha256']['asset/model'] = 'other-model'
+        with self.assertRaisesRegex(ValueError, 'asset/model'):
+            compare.comparison([run], [candidate])
+        tinydraw = json.loads(json.dumps(run))
+        tinydraw['workload'] = 'tinydraw'
+        with self.assertRaisesRegex(ValueError, 'Unmatched workload'):
+            compare.comparison([run], [tinydraw])
+
+
 if __name__ == '__main__':
     unittest.main()

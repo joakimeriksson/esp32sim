@@ -1,6 +1,7 @@
 # Browser CPU and drawing-response benchmarks
 
-Run these against a local TinyDraw battery firmware build. The battery enters its normal
+Run these against a local TinyDraw battery firmware build, or the pocket-tank workload
+described below; the asset map selects which. The battery enters its normal
 interactive app after the automated gates. The drawing page waits for
 `TINYDRAW_VECTOR_V2_READY`, uses the production WASM worker and pacing, and renders its
 RGB565 output. No device is required.
@@ -74,6 +75,31 @@ otherwise cleared. Use `--chrome /path/to/chrome` if Chrome is not installed at 
 standard macOS location. `--archive /path/to/extracted-review-bundle` can supply its
 firmware assets instead of `--assets`. These timings exclude canvas rendering and
 do not establish input latency or hardware clock accuracy.
+
+## The pocket-tank workload
+
+TinyDraw measures drawing: integer, tile and cache code. pocket-tank measures on-device
+language-model inference, which is PIE multiply-accumulate kernels reading their weights from
+flash. [mediacutlet/pocket-tank](https://github.com/mediacutlet/pocket-tank) (MIT) runs a 4-bit
+transformer on the Waveshare ESP32-S3-Touch-AMOLED-1.8.
+
+```sh
+tools/fetch-pocket-tank.sh
+python3 tools/browser-benchmark/run-pairs.py target/pocket-tank-pairs \
+  --baseline-tree /absolute/path/baseline-checkout \
+  --candidate-tree /absolute/path/candidate-checkout \
+  --assets web/wasm/fw/local/pocket-tank-assets.json --pairs 3
+```
+
+The fetch script pins the four flash parts by SHA-256, keeps them out of git in
+`web/wasm/fw/local/`, and writes the asset map. Its `"workload": "pocket-tank"` selects the
+second entry in `workloads.json`: the model loads at flash offset 0x290000 and the run lasts
+30 guest seconds. There is no firmware verdict, so the UART0 console must instead show at
+least ten model decisions and two render reports with no panic or reset. The pinned
+instruction total checks that both arms emulated the same thing; timing, provenance and
+the matched-pair rules are the same as for TinyDraw. `tools/bench.py` and
+`ESP32SIM_WASM=... node tools/wasm-test.mjs pocket-tank` time the same workload natively and
+under Node.
 
 ## CPU sampling
 

@@ -4,7 +4,7 @@ Every number here was measured in this repo with `tools/bench.py` (interleaved r
 median wall time, guest instruction counts cross-checked) or `sample(1)` against a normal run.
 The negative results are listed too, so nobody re-spends the time.
 
-**Status:** Phase 1 (block interpreter) and the first cut of Phase 2 (AArch64 JIT) have landed; Phase 0's NEON work and the JIT's inline memory path are open.
+**Status:** Phase 1 (block interpreter) and the first cut of Phase 2 (AArch64 JIT) have landed; Phase 0's NEON work and the JIT's inline memory path are open. The wasm backend compiles bounded regions and the PIE instructions TinyDraw's tile kernels use (#63). pocket-tank now measures language-model inference, the PIE path that remains slow; its baseline is below.
 
 ## Where we are (M-series Mac, `lto = "fat"`, `tools/bench.py`)
 
@@ -35,6 +35,54 @@ generated code — is the classic answer and the next structural step.
 Before blocks the per-instruction scaffolding was ~35 % and **no single piece of it was
 removable** — each ablated to ≈0 %. Executing blocks reclaimed it; the JIT then removed the
 dispatch and operand unpacking. What remains is memory access.
+
+## Language-model inference on PIE: pocket-tank
+
+`tools/fetch-pocket-tank.sh` (mediacutlet/pocket-tank, MIT; a 4-bit transformer on the Waveshare
+AMOLED-1.8 board) is the workload for this path. Measured on 2026-09-12 on an M-series Mac; commands in `tools/browser-benchmark/README.md`.
+
+| pocket-tank, main `de7c6d7` | Minsn/s | real time |
+| --- | --- | --- |
+| native, `tools/bench.py`, 20 guest s, best of 5 | 170.7 | 0.47 |
+| Node, `tools/wasm-test.mjs` loop, 30 guest s, median of 3 | 105.2 | 0.31 |
+| headless Chrome 152, `run-pairs.py`, 30 guest s, one screening pair | 107.5 | 0.32 |
+| the same wasm with `-C target-feature=+simd128` | Node 108.8 against 108.7 for its plain build; Chrome 0.32 | no measurable change |
+
+Every run executes exactly 10,073,833,775 instructions with 15 model decisions, so the total is
+pinned in `workloads.json`. The native row's 20 guest seconds include the boot, which runs denser
+than the steady state: 363 M instructions per emulated second there against 336 M averaged over 30
+seconds, which is why its Minsn/s and real-time columns relate differently from the others. The interactive page in a visible Chrome tab ran at 0.23 real time:
+drawing and pacing there cost extra on top of the headless harness.
+
+The guest asks for 336 M instructions per emulated second across both cores, more than the
+silicon does: SPI2 transfers finish instantly and flash-cache and PSRAM reads cost nothing extra, so
+the firmware renders at 62 fps instead of 25–30 and decodes 24 tokens/s instead of 12.
+
+Where the time goes (instruction shares from `--profile-blocks`; host shares from `sample(1)` and
+a Node `--cpu-prof` of the wasm build):
+
+| guest instructions | share |
+| --- | --- |
+| two 4 KB pages of the 4-bit matmul kernel | 65 % |
+| `__divsf3` / `memcpy` | 3 % / 2 % |
+
+| wasm host time | share |
+| --- | --- |
+| PIE interpreter (`pie::exec`, operand extraction, `Ops::get`, `ld`) | 29 % |
+| scheduler loop between blocks (`run_unmodeled`) | 27 % |
+| all generated code | 19 % |
+| bus reads, mostly PIE weight loads | 8 % |
+| single-instruction interpreter | 6 % |
+| display transaction | 0.5 % |
+
+The kernel's instructions are `ee.vld.128.ip`, `ee.vmulas.s8.accx[.ld.ip]` and `ee.zero.accx`. The
+wasm backend emits only the load (and only through the fast mapping); the AArch64 backend emits no
+PIE; every PIE instruction re-extracts its operands from the word and loads word by word through
+the bus.
+
+Plan, in order: packed PIE operands and bulk loads in the interpreter (all hosts), then those
+instructions in the wasm backend, then NEON in the AArch64 backend or direct block chaining,
+whichever the next profile shows larger.
 
 ## Phase 0 — small, independent, do anytime
 

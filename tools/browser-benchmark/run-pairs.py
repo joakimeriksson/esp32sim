@@ -26,6 +26,7 @@ HERE = Path(__file__).resolve().parent
 _spec = importlib.util.spec_from_file_location('compare_runs', HERE / 'compare-runs.py')
 comparator = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(comparator)
+WORKLOADS = json.loads((HERE / 'workloads.json').read_text())
 
 
 def sha(path):
@@ -118,13 +119,18 @@ def await_server(url, process):
     raise RuntimeError(f'timed out waiting for {url}')
 
 
-def validate(raw, expected):
+def validate(raw, expected, workload='tinydraw'):
     r = raw['result']
+    if r.get('workload', 'tinydraw') != workload:
+        raise ValueError(f"capture ran workload {r.get('workload', 'tinydraw')}, expected {workload}")
     if r.get('instrumented'):
         raise ValueError('diagnostic exports present in timing capture')
     if not r['passed'] or r['status'] != 'completed' or r['stopCode'] != 0:
         raise ValueError('battery did not complete successfully')
-    comparator.validate_verdict(r.get('verdict'))
+    if workload == 'tinydraw':
+        comparator.validate_verdict(r.get('verdict'))
+    elif not r.get('checks') or any(check['count'] < check['min'] for check in r['checks']):
+        raise ValueError('workload checks failed')
     if r['instructions'] != expected:
         raise ValueError(f'instruction total {r["instructions"]} != {expected}')
     if r['jit']['failed'] != 0 or r['jit']['compiled'] <= 0:
@@ -134,7 +140,7 @@ def validate(raw, expected):
     return r
 
 
-def capture(arm, run, chrome, expected):
+def capture(arm, run, chrome, expected, workload='tinydraw'):
     run.mkdir()
     capture_record = {'mode': 'timing', 'platform': platform.platform(),
                       'loadBefore': os.getloadavg(),
@@ -167,7 +173,7 @@ def capture(arm, run, chrome, expected):
     capture_record['loadAfter'] = os.getloadavg()
     write_json(run / 'capture.json', capture_record)
     raw = json.loads((run / 'result.json').read_text())
-    r = validate(raw, expected)
+    r = validate(raw, expected, workload)
     if r['provenance']['sha256']['asset/wasm'] != sha(arm / 'main.wasm'):
         raise ValueError('captured WASM differs from arm artifact')
     shutil.rmtree(run / 'chrome-profile')
@@ -188,20 +194,31 @@ def main():
     source.add_argument('--assets', type=Path)
     source.add_argument('--archive', type=Path)
     p.add_argument('--pairs', type=int, default=3)
-    p.add_argument('--expected-instructions', type=int, default=9819885134)
+    p.add_argument('--expected-instructions', type=int, help="default: the workload's pinned total in workloads.json")
     p.add_argument('--chrome', default=os.environ.get('CHROME', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'))
     a = p.parse_args()
     if a.pairs < 1:
         p.error('--pairs must be positive')
     if a.archive:
         paths = json.loads((a.archive / 'assets/paths.json').read_text())
-        assets = {k: str((a.archive / paths[k]).resolve()) for k in ('rom', 'app', 'bootloader', 'ptable', 'elf')}
+        workload = 'tinydraw'
+        assets = {k: str((a.archive / paths[k]).resolve()) for k in WORKLOADS[workload]['assets']}
     else:
         paths = json.loads(a.assets.read_text())
-        assets = {k: str((a.assets.resolve().parent / paths[k]).resolve()) for k in ('rom', 'app', 'bootloader', 'ptable', 'elf')}
+        workload = paths.get('workload', 'tinydraw')
+        if workload not in WORKLOADS:
+            p.error(f'unknown workload {workload}')
+        missing = [k for k in WORKLOADS[workload]['assets'] if k not in paths]
+        if missing:
+            p.error(f'{a.assets} names no {", ".join(missing)} for the {workload} workload')
+        assets = {k: str((a.assets.resolve().parent / paths[k]).resolve()) for k in WORKLOADS[workload]['assets']}
     for path in assets.values():
         if not Path(path).is_file():
             p.error('missing asset ' + path)
+    expected = WORKLOADS[workload]['expectedInstructions'] if a.expected_instructions is None else a.expected_instructions
+    if expected is None:
+        p.error(f'{workload} has no pinned instruction total in workloads.json; pass --expected-instructions')
+    assets['workload'] = workload
     out = a.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
     arms = {}
@@ -213,7 +230,7 @@ def main():
         order = ('baseline', 'candidate') if pair % 2 else ('candidate', 'baseline')
         for name in order:
             print(f'Running pair {pair}/{a.pairs} {name}', flush=True)
-            row = {'pair': pair, 'arm': name, **capture(arms[name], out / f'{pair}-{name}', a.chrome, a.expected_instructions)}
+            row = {'pair': pair, 'arm': name, **capture(arms[name], out / f'{pair}-{name}', a.chrome, expected, workload)}
             rows.append(row)
             write_json(out / 'runs.json', rows)
             print(json.dumps({key: row[key] for key in ('pair', 'arm', 'wallSeconds', 'realtimeRatio', 'instructions', 'passed', 'jitFailed')}), flush=True)
