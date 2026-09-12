@@ -31,6 +31,13 @@ pub const MMU_SPIRAM: u32 = 1 << 15;
 pub const PAGE: u32 = 0x1_0000;
 
 const SPI2_DMA_DESCRIPTOR_STEP_BUDGET: usize = 1024;
+/// Steps the memory-to-memory walker takes in one round at most: OUT descriptors visited plus IN
+/// descriptors closed. 4096 covers 16 MB of full 4095-byte buffers; a ring of zero-length OUT
+/// descriptors meets it instead of spinning.
+const GDMA_M2M_STEP_BUDGET: usize = 4096;
+
+/// Which end of a memory-to-memory copy faulted.
+enum M2mFault { Source, Destination }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DmaDescriptorWord {
@@ -498,6 +505,115 @@ impl SocBus {
         if !samples.is_empty() { let i2s = if which == 0 { &mut self.periph.i2s0 } else { &mut self.periph.i2s1 }; i2s.frames_out += samples.len() as u64; i2s.pcm.extend_from_slice(&samples); }
     }
 
+    /// One DMA descriptor as the engines see it, with its first word, or the fault reading it.
+    fn try_dma_desc(&mut self, addr: u32) -> Result<(u32, crate::periph::DmaDesc), Fault> {
+        let dw0 = self.read32(addr)?;
+        let (buf, next) = (self.read32(addr.wrapping_add(4))?, self.read32(addr.wrapping_add(8))?);
+        Ok((dw0, crate::periph::DmaDesc { addr, size: dw0 & 0xfff, length: (dw0 >> 12) & 0xfff, eof: dw0 & (1 << 30) != 0, owner_dma: dw0 & (1 << 31) != 0, buf, next }))
+    }
+
+    /// Copy `n` guest bytes for the memory-to-memory engine, a word at a time where both ends are aligned.
+    fn dma_copy(&mut self, src: u32, dst: u32, n: u32) -> Result<(), M2mFault> {
+        let mut i = 0u32;
+        if (src | dst) & 3 == 0 {
+            while i + 4 <= n {
+                let v = self.read32(src.wrapping_add(i)).map_err(|_| M2mFault::Source)?;
+                self.write32(dst.wrapping_add(i), v).map_err(|_| M2mFault::Destination)?;
+                i += 4;
+            }
+        }
+        while i < n {
+            let v = self.read8(src.wrapping_add(i)).map_err(|_| M2mFault::Source)?;
+            self.write8(dst.wrapping_add(i), v).map_err(|_| M2mFault::Destination)?;
+            i += 1;
+        }
+        Ok(())
+    }
+
+    /// Hand a filled or EOF-ended IN descriptor back to the CPU (its length, owner, SUC_EOF) and
+    /// move the channel to the next one. False when the write-back faults.
+    fn dma_close_in(&mut self, r: &mut crate::periph::GdmaInCh, dw0: u32, next: u32, eof: bool) -> bool {
+        let v = (dw0 & !(0xfff << 12) & !(3 << 30)) | (r.buf_pos << 12) | if eof { 1 << 30 } else { 0 };
+        if self.write32(r.desc, v).is_err() { return false; }
+        r.int_raw |= 1 << 0;                                                  // IN_DONE
+        if eof { r.int_raw |= 1 << 1; r.eof_desc = r.desc; }                  // IN_SUC_EOF
+        r.desc = next; r.buf_pos = 0;
+        true
+    }
+
+    /// Memory-to-memory GDMA: a channel pair whose IN side has MEM_TRANS_EN set copies its OUT
+    /// descriptor chain into its IN chain — the transaction-based `esp_async_memcpy` of IDF v5.4,
+    /// which starts both channels for each copy. The copy lands in one scheduling round, no
+    /// transfer timing, and the descriptors are written back the way the engine does it: the IN
+    /// side gets each buffer's length, owner back to the CPU and SUC_EOF where the OUT chain's
+    /// EOF fell, so the driver's EOF callback finds its transaction through IN_SUC_EOF_DES_ADDR.
+    ///
+    /// A descriptor the CPU still owns parks that side with its DSCR_ERR raised until software
+    /// hands it over, and the copy resumes where it stopped. A fault reading a descriptor,
+    /// copying or writing back stops that side with DSCR_ERR and writes nothing more back; so
+    /// does a walk longer than `GDMA_M2M_STEP_BUDGET` (a ring of empty OUT descriptors).
+    /// Interrupt inputs are marked for re-evaluation only when a channel's state changed.
+    fn dma_m2m_step(&mut self) {
+        use crate::periph::{GdmaInCh, GdmaOutCh};
+        const OUT_DONE: u32 = 1 << 0;
+        const OUT_EOF: u32 = 1 << 1;
+        const OUT_DSCR_ERR: u32 = 1 << 2;
+        const OUT_TOTAL_EOF: u32 = 1 << 3;
+        const IN_DSCR_ERR: u32 = 1 << 3;
+        const IN_DSCR_EMPTY: u32 = 1 << 4;
+        const AUTO_WRBACK: u32 = 1 << 2;
+        const MEM_TRANS_EN: u32 = 1 << 4;
+        let out_state = |c: &GdmaOutCh| (c.int_raw, c.desc, c.buf_pos, c.running, c.eof_desc);
+        let in_state = |c: &GdmaInCh| (c.int_raw, c.desc, c.buf_pos, c.running, c.eof_desc);
+        for ch in 0..crate::periph::GDMA_CHANNELS {
+            let (mut r, mut o) = (self.periph.gdma.inp[ch], self.periph.gdma.out[ch]);
+            if !(r.running && o.running && r.conf0 & MEM_TRANS_EN != 0 && r.desc != 0 && o.desc != 0) { continue; }
+            let (in_before, out_before) = (in_state(&r), out_state(&o));
+            let mut steps = 0usize;
+            loop {
+                steps += 1;
+                if steps > GDMA_M2M_STEP_BUDGET { o.int_raw |= OUT_DSCR_ERR; o.running = false; break; }
+                let Ok((out_dw0, od)) = self.try_dma_desc(o.desc) else { o.int_raw |= OUT_DSCR_ERR; o.running = false; break };
+                if !od.owner_dma { o.int_raw |= OUT_DSCR_ERR; break; }                 // parked until software hands it over
+                let remaining = od.length.saturating_sub(o.buf_pos);
+                if remaining > 0 || (od.eof && r.desc != 0) {
+                    if r.desc == 0 { r.int_raw |= IN_DSCR_EMPTY; break; }
+                    let Ok((in_dw0, id)) = self.try_dma_desc(r.desc) else { r.int_raw |= IN_DSCR_ERR; r.running = false; break };
+                    if !id.owner_dma || (remaining > 0 && id.size <= r.buf_pos) { r.int_raw |= IN_DSCR_ERR; break; }
+                    let n = remaining.min(id.size.saturating_sub(r.buf_pos));
+                    if n > 0 {
+                        match self.dma_copy(od.buf.wrapping_add(o.buf_pos), id.buf.wrapping_add(r.buf_pos), n) {
+                            Ok(()) => {}
+                            Err(M2mFault::Source) => { o.int_raw |= OUT_DSCR_ERR; o.running = false; break; }
+                            Err(M2mFault::Destination) => { r.int_raw |= IN_DSCR_ERR; r.running = false; break; }
+                        }
+                        o.buf_pos += n;
+                        r.buf_pos += n;
+                    }
+                    let eof_now = o.buf_pos == od.length && od.eof;
+                    if r.buf_pos == id.size || eof_now {
+                        steps += 1;
+                        if !self.dma_close_in(&mut r, in_dw0, id.next, eof_now) { r.int_raw |= IN_DSCR_ERR; r.running = false; break; }
+                    }
+                    if o.buf_pos < od.length { continue; }                                 // the IN buffer filled first
+                }
+                if o.conf0 & AUTO_WRBACK != 0 && self.write32(od.addr, out_dw0 & !(1 << 31)).is_err() {
+                    o.int_raw |= OUT_DSCR_ERR; o.running = false; break;
+                }
+                o.int_raw |= OUT_DONE;
+                if od.eof { o.int_raw |= OUT_EOF; o.eof_desc = od.addr; }
+                if od.next == 0 { o.int_raw |= OUT_TOTAL_EOF; o.running = false; o.desc = 0; o.buf_pos = 0; break; }
+                o.desc = od.next;
+                o.buf_pos = 0;
+            }
+            if r.desc == 0 { r.running = false; }
+            let changed = in_state(&r) != in_before || out_state(&o) != out_before;
+            self.periph.gdma.inp[ch] = r;
+            self.periph.gdma.out[ch] = o;
+            self.irq_dirty |= changed;
+        }
+    }
+
     /// Camera engine: when a sensor frame is due, push it through the GDMA IN channel bound to CAM (trigger 5).
     fn dma_cam_step(&mut self, cycles: u64) {
         if !self.periph.lcd_cam.frame_due(cycles) { return; }
@@ -913,6 +1029,7 @@ impl SocBus {
         self.dma_i2s_step(cycles as u64);
         self.dma_cam_step(cycles as u64);
         self.dma_lcd_step(cycles as u64);
+        self.dma_m2m_step();
         if !self.periph.wifi.tx_pending.is_empty() { self.wifi_tx_step(); }
         if self.periph.aes.dma_pending { self.aes_dma_step(); }
         if self.periph.sha.dma_pending { self.sha_dma_step(); }
@@ -980,6 +1097,177 @@ mod gp_spi_board_tests {
     impl crate::board::BoardModel for FixedDeadlineBoard {
         fn name(&self) -> &'static str { "fixed-deadline-test" }
         fn next_deadline(&self) -> Option<u64> { Some(self.deadline) }
+    }
+
+    const M2M_SRC: u32 = 0x3fc9_2000;
+    const M2M_DST: u32 = 0x3fc9_6000;
+
+    fn m2m_pattern(i: u32, seed: u32) -> u8 { ((i + seed) % 251) as u8 }
+
+    fn m2m_desc(bus: &mut SocBus, at: u32, dw0: u32, buf: u32, next: u32) {
+        bus.write32(at, dw0).unwrap();
+        bus.write32(at + 4, buf).unwrap();
+        bus.write32(at + 8, next).unwrap();
+    }
+
+    /// Channel 0 the way `esp_async_memcpy` sets up a copy: MEM_TRANS_EN on IN, AUTO_WRBACK on
+    /// OUT when asked, SUC_EOF enabled, RX started before TX.
+    fn m2m_start(bus: &mut SocBus, in0: u32, out0: u32, auto_wrback: bool) {
+        bus.write32(GDMA, 1 << 4).unwrap();                                 // IN_CONF0: MEM_TRANS_EN
+        bus.write32(GDMA + 0x60, if auto_wrback { 1 << 2 } else { 0 }).unwrap();   // OUT_CONF0: AUTO_WRBACK
+        bus.write32(GDMA + 0x10, 1 << 1).unwrap();                          // IN_INT_ENA: SUC_EOF
+        bus.write32(GDMA + 0x20, (1 << 22) | (in0 & 0xf_ffff)).unwrap();    // IN_LINK start
+        bus.write32(GDMA + 0x80, (1 << 21) | (out0 & 0xf_ffff)).unwrap();   // OUT_LINK start
+    }
+
+    /// One scheduling round; ticks are deferred up to the next timer deadline, so flush them.
+    fn m2m_round(bus: &mut SocBus) {
+        emu_core::Bus::tick(bus, 1);
+        bus.flush_ticks();
+    }
+
+    /// The source split over two OUT descriptors (the second with EOF), the destination over
+    /// IN descriptors of 4095 bytes: after one round the bytes are across, the IN descriptors
+    /// carry length/owner/SUC_EOF, the EOF address is the last IN descriptor, both sides report
+    /// their interrupts and stop.
+    #[test]
+    fn gdma_copies_memory_to_memory_when_mem_trans_en_is_set() {
+        let mut bus = SocBus::new(1024, 1024, [0; 6]);
+        let (out0, out1, in0, in1) = (0x3fc9_0100u32, 0x3fc9_0110u32, 0x3fc9_0200u32, 0x3fc9_0210u32);
+        let n = 5000u32;
+        for i in 0..n { bus.write8(M2M_SRC + i, m2m_pattern(i, 0)).unwrap(); }
+        for i in 0..n + 4 { bus.write8(M2M_DST + i, 0xee).unwrap(); }       // the word after the copy must stay untouched
+        m2m_desc(&mut bus, out0, (1 << 31) | (3000 << 12) | 3000, M2M_SRC, out1);
+        m2m_desc(&mut bus, out1, (1 << 31) | (1 << 30) | (2000 << 12) | 2000, M2M_SRC + 3000, 0);
+        m2m_desc(&mut bus, in0, (1 << 31) | 4095, M2M_DST, in1);
+        m2m_desc(&mut bus, in1, (1 << 31) | 4095, M2M_DST + 4095, 0);
+        m2m_start(&mut bus, in0, out0, false);
+        assert!(bus.periph.gdma.inp[0].running && bus.periph.gdma.out[0].running);
+        m2m_round(&mut bus);
+        for i in 0..n { assert_eq!(bus.read8(M2M_DST + i).unwrap(), m2m_pattern(i, 0), "byte {i}"); }
+        assert_eq!(bus.read8(M2M_DST + n).unwrap(), 0xee);
+        let (d0, d1) = (bus.read32(in0).unwrap(), bus.read32(in1).unwrap());
+        assert_eq!(((d0 >> 12) & 0xfff, d0 >> 30), (4095, 0), "first IN descriptor: full, owner cpu, no eof");
+        assert_eq!(((d1 >> 12) & 0xfff, d1 >> 30), (905, 1), "second IN descriptor: the rest, owner cpu, suc_eof");
+        assert_eq!(bus.read32(out0).unwrap() >> 31, 1, "AUTO_WRBACK off: the OUT descriptors keep their owner");
+        let (r, o) = (bus.periph.gdma.inp[0], bus.periph.gdma.out[0]);
+        assert_eq!((r.eof_desc, r.int_raw & 0b11, r.running), (in1, 0b11, false));
+        assert_eq!((o.eof_desc, o.int_raw & 0b1011, o.running), (out1, 0b1011, false));
+        assert!(r.irq(), "IN_SUC_EOF is the interrupt the async memcpy driver waits for");
+        assert_eq!(bus.read32(GDMA + 0x28).unwrap(), in1);                  // IN_SUC_EOF_DES_ADDR
+    }
+
+    /// Two copies back to back with AUTO_WRBACK on, as IDF always configures it: the second
+    /// start after the first completed must land too (the pocket-tank freeze was the second copy).
+    #[test]
+    fn gdma_m2m_back_to_back_copies_with_auto_wrback() {
+        let mut bus = SocBus::new(1024, 1024, [0; 6]);
+        let (out0, in0, n) = (0x3fc9_0100u32, 0x3fc9_0200u32, 4000u32);
+        for (copy, seed) in [(0, 7u32), (1, 101)] {
+            for i in 0..n { bus.write8(M2M_SRC + i, m2m_pattern(i, seed)).unwrap(); }
+            m2m_desc(&mut bus, out0, (1 << 31) | (1 << 30) | (n << 12) | n, M2M_SRC, 0);
+            m2m_desc(&mut bus, in0, (1 << 31) | 4095, M2M_DST, 0);
+            bus.write32(GDMA + 0x14, u32::MAX).unwrap();                    // IN_INT_CLR, as the EOF ISR does
+            bus.write32(GDMA + 0x74, u32::MAX).unwrap();                    // OUT_INT_CLR
+            m2m_start(&mut bus, in0, out0, true);
+            m2m_round(&mut bus);
+            for i in 0..n { assert_eq!(bus.read8(M2M_DST + i).unwrap(), m2m_pattern(i, seed), "copy {copy} byte {i}"); }
+            assert_eq!(bus.read32(out0).unwrap() >> 31, 0, "copy {copy}: AUTO_WRBACK hands the OUT descriptor back");
+            let d = bus.read32(in0).unwrap();
+            assert_eq!(((d >> 12) & 0xfff, d >> 30), (n, 1), "copy {copy}: IN length and SUC_EOF, owner cpu");
+            let (r, o) = (bus.periph.gdma.inp[0], bus.periph.gdma.out[0]);
+            assert_eq!((r.int_raw & 0b11, r.running, o.int_raw & 0b1011, o.running), (0b11, false, 0b1011, false), "copy {copy}");
+        }
+    }
+
+    /// A ring of zero-length OUT descriptors that stay DMA-owned, AUTO_WRBACK off, never reaches
+    /// the end of a chain: the walk stops at its step budget with OUT_DSCR_ERR instead of hanging.
+    #[test]
+    fn gdma_m2m_ring_of_empty_out_descriptors_stops_at_the_step_budget() {
+        let mut bus = SocBus::new(1024, 1024, [0; 6]);
+        let (out0, out1, in0) = (0x3fc9_0100u32, 0x3fc9_0110u32, 0x3fc9_0200u32);
+        m2m_desc(&mut bus, out0, 1 << 31, M2M_SRC, out1);
+        m2m_desc(&mut bus, out1, 1 << 31, M2M_SRC, out0);
+        m2m_desc(&mut bus, in0, (1 << 31) | 4095, M2M_DST, 0);
+        m2m_start(&mut bus, in0, out0, false);
+        m2m_round(&mut bus);
+        let (r, o) = (bus.periph.gdma.inp[0], bus.periph.gdma.out[0]);
+        assert_eq!((o.int_raw & (1 << 2), o.running), (1 << 2, false), "OUT_DSCR_ERR and the OUT side stops");
+        assert_eq!((r.desc, r.int_raw, r.buf_pos), (in0, 0, 0), "nothing reached the IN side");
+        assert_eq!(bus.read32(in0).unwrap(), (1 << 31) | 4095);
+    }
+
+    /// OUT parks on a descriptor the CPU still owns, with the IN buffer part-filled. Waiting does
+    /// not re-dirty interrupts every round; once software hands the descriptor over, the copy
+    /// resumes where it stopped, including the position inside the IN buffer.
+    #[test]
+    fn gdma_m2m_parked_pair_resumes_where_it_stopped_and_stays_quiet_meanwhile() {
+        let mut bus = SocBus::new(1024, 1024, [0; 6]);
+        let (out0, out1, in0, in1) = (0x3fc9_0100u32, 0x3fc9_0110u32, 0x3fc9_0200u32, 0x3fc9_0210u32);
+        let n = 5000u32;
+        for i in 0..n { bus.write8(M2M_SRC + i, m2m_pattern(i, 3)).unwrap(); }
+        m2m_desc(&mut bus, out0, (1 << 31) | (3000 << 12) | 3000, M2M_SRC, out1);
+        m2m_desc(&mut bus, out1, (1 << 30) | (2000 << 12) | 2000, M2M_SRC + 3000, 0);   // CPU-owned for now
+        m2m_desc(&mut bus, in0, (1 << 31) | 4095, M2M_DST, in1);
+        m2m_desc(&mut bus, in1, (1 << 31) | 4095, M2M_DST + 4095, 0);
+        m2m_start(&mut bus, in0, out0, true);
+        m2m_round(&mut bus);
+        let (r, o) = (bus.periph.gdma.inp[0], bus.periph.gdma.out[0]);
+        assert_eq!((o.desc, o.buf_pos, o.running, o.int_raw & 0b111), (out1, 0, true, 0b101), "first descriptor done, parked on the second");
+        assert_eq!((r.desc, r.buf_pos, r.int_raw), (in0, 3000, 0), "IN buffer part-filled, not closed");
+        let mut dirty_rounds = 0;
+        for _ in 0..100 {
+            bus.irq_dirty = false;
+            m2m_round(&mut bus);
+            dirty_rounds += usize::from(bus.irq_dirty);
+        }
+        assert_eq!(dirty_rounds, 0, "a parked pair does not re-dirty interrupts every round");
+        bus.write32(out1, (1 << 31) | (1 << 30) | (2000 << 12) | 2000).unwrap();   // software hands it over
+        m2m_round(&mut bus);
+        for i in 0..n { assert_eq!(bus.read8(M2M_DST + i).unwrap(), m2m_pattern(i, 3), "byte {i}"); }
+        let (d0, d1) = (bus.read32(in0).unwrap(), bus.read32(in1).unwrap());
+        assert_eq!(((d0 >> 12) & 0xfff, d0 >> 30), (4095, 0));
+        assert_eq!(((d1 >> 12) & 0xfff, d1 >> 30), (905, 1));
+        let (r, o) = (bus.periph.gdma.inp[0], bus.periph.gdma.out[0]);
+        assert_eq!((r.running, r.eof_desc, o.running, o.eof_desc), (false, in1, false, out1));
+    }
+
+    /// The error paths: an exhausted IN chain, a CPU-owned descriptor on either side, and a
+    /// fault writing the destination, which raises IN_DSCR_ERR and writes nothing back.
+    #[test]
+    fn gdma_m2m_descriptor_errors_and_faults() {
+        let (out0, in0) = (0x3fc9_0100u32, 0x3fc9_0200u32);
+        let run = |out_dw0: u32, in_dw0: u32, in_buf: u32| {
+            let mut bus = SocBus::new(1024, 1024, [0; 6]);
+            for i in 0..4095 {
+                bus.write8(M2M_SRC + i, m2m_pattern(i, 9)).unwrap();
+                bus.write8(M2M_DST + i, 0xee).unwrap();
+            }
+            m2m_desc(&mut bus, out0, out_dw0, M2M_SRC, 0);
+            m2m_desc(&mut bus, in0, in_dw0, in_buf, 0);
+            m2m_start(&mut bus, in0, out0, true);
+            m2m_round(&mut bus);
+            bus
+        };
+        let full_out = (1u32 << 31) | (1 << 30) | (4095 << 12) | 4095;
+
+        let bus = run(full_out, (1 << 31) | 1000, M2M_DST);                 // the only IN buffer holds 1000 bytes
+        let (r, o) = (bus.periph.gdma.inp[0], bus.periph.gdma.out[0]);
+        assert_eq!((r.int_raw & 0b1_1011, r.running), (0b1_0001, false), "IN_DONE, then IN_DSCR_EMPTY");
+        assert_eq!((o.buf_pos, o.running, o.int_raw), (1000, true, 0), "OUT waits mid-descriptor");
+
+        let mut bus = run(full_out, 4095, M2M_DST);                         // the CPU owns the IN descriptor
+        assert_eq!(bus.periph.gdma.inp[0].int_raw & (1 << 3), 1 << 3, "IN_DSCR_ERR");
+        assert_eq!((bus.periph.gdma.out[0].buf_pos, bus.read8(M2M_DST).unwrap()), (0, 0xee), "nothing copied");
+
+        let mut bus = run(full_out & !(1 << 31), (1 << 31) | 4095, M2M_DST);   // the CPU owns the OUT descriptor
+        assert_eq!(bus.periph.gdma.out[0].int_raw & (1 << 2), 1 << 2, "OUT_DSCR_ERR");
+        assert_eq!((bus.periph.gdma.inp[0].buf_pos, bus.read8(M2M_DST).unwrap()), (0, 0xee), "nothing copied");
+
+        let mut bus = run(full_out, (1 << 31) | 4095, DRAM_HIGH);           // the IN buffer is unmapped
+        let r = bus.periph.gdma.inp[0];
+        assert_eq!((r.int_raw, r.running), (1 << 3, false), "IN_DSCR_ERR alone: no IN_DONE or IN_SUC_EOF");
+        assert_eq!(bus.read32(in0).unwrap(), (1 << 31) | 4095, "the IN descriptor is not written back");
     }
 
     fn dma_bus() -> SocBus {
