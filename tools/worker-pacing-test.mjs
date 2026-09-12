@@ -70,3 +70,29 @@ await context.onmessage({ data: { op: 'stop' } });
 const stoppedCycles = cycles;
 pending.shift()();
 assert.equal(cycles, stoppedCycles, 'a pending callback cannot run a stopped emulator');
+
+// The pace report: emulated seconds per wall second over each report window. The stand-in
+// costs 1 ms per 16,000 cycles, about a fifteenth of real time, and the loop resynchronises
+// while that far behind. A resync resets `behind` but must not make the speed look real-time.
+{
+  let wall2 = 0, cycles2 = 0;
+  const paces = [], queue = [];
+  const wasm2 = { ...wasm, esp32sim_cycles: () => cycles2, esp32sim_insns: () => cycles2,
+    esp32sim_run(_emu, amount) { cycles2 += amount; wall2 += amount / 16_000; return 0; } };
+  const context2 = {
+    createPacing, createJitHost: () => ({ imports: {} }), TextEncoder, TextDecoder,
+    performance: { now: () => wall2 }, Date, postMessage(message) { if (message.pace) paces.push(message.pace); },
+    WebAssembly: { instantiate: async () => ({ instance: { exports: wasm2 } }) },
+    setTimeout: (callback) => queue.push(callback),
+  };
+  runInNewContext(source, context2);
+  await context2.onmessage({ data: { op: 'init' } });
+  await context2.onmessage({ data: { op: 'create', board: 'test' } });
+  await context2.onmessage({ data: { op: 'start' } });
+  for (let turn = 0; turn < 400 && paces.length < 3; turn++) { wall2 += 10; queue.shift()(); }
+  assert.ok(paces.length >= 3, 'pace reports arrive');
+  for (const pace of paces) assert.ok(pace.speed > 0.05 && pace.speed < 0.07, `speed ${pace.speed} reports the slow run`);
+  assert.ok(paces.some(pace => pace.resyncs > 0), 'the run resynchronised while behind');
+  await context2.onmessage({ data: { op: 'stop' } });
+  console.log('worker pace report test passed');
+}

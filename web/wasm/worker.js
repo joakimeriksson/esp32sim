@@ -8,7 +8,7 @@ const traceNow = () => performance.timeOrigin + performance.now();
 // esp32sim in a Web Worker: owns the wasm instance, paces it to wall time, and relays the UI
 // protocol (docs/web-ui.md) to the page as postMessage — text as strings, binary as ArrayBuffers.
 let CPU_HZ = 240e6;   // replaced from the module once an emulator exists: the C3 runs at 160 MHz
-let wasm = null, emu = 0, running = false, t0 = 0, resyncs = 0, lastStat = { wall: 0, insns: 0 };
+let wasm = null, emu = 0, running = false, t0 = 0, resyncs = 0, lastStat = { wall: 0, insns: 0, cycles: 0 };
 let net = 0, netNodes = 0, netT0 = 0;   // a network of motes: several emulators on one medium
 const enc = new TextEncoder(), dec = new TextDecoder();
 const mem = () => new Uint8Array(wasm.memory.buffer);
@@ -57,8 +57,10 @@ function loop() {
   const wall = performance.now();
   if (wall - lastStat.wall > 1000) {
     const insns = wasm.esp32sim_insns(emu);
-    postMessage({ pace: { behind: Math.max(0, -aheadMs / 1000), resyncs, mips: Math.max(0, (insns - lastStat.insns)) / (wall - lastStat.wall) / 1000 } });
-    lastStat = { wall, insns };
+    // Emulated seconds per wall second over the window. Unlike `behind`, a resync does not reset it.
+    const speed = Math.max(0, cur - lastStat.cycles) / CPU_HZ / ((wall - lastStat.wall) / 1000);
+    postMessage({ pace: { behind: Math.max(0, -aheadMs / 1000), resyncs, speed, mips: Math.max(0, (insns - lastStat.insns)) / (wall - lastStat.wall) / 1000 } });
+    lastStat = { wall, insns, cycles: cur };
   }
   setTimeout(loop, Math.max(0, Math.min(20, aheadMs)));
 }
@@ -112,7 +114,7 @@ onmessage = async (ev) => {
     else if (m.op === 'load') { const rc = withBytes(new Uint8Array(m.data), (p, n) => m.at !== undefined ? wasm.esp32sim_load_at(emu, m.at >>> 0, p, n) : wasm.esp32sim_load(emu, m.kind, p, n)); postMessage({ loaded: m.at !== undefined ? 'at' + m.at : m.kind, ok: rc === 0 }); }
     else if (m.op === 'stub') { withBytes(enc.encode(m.name), (p, n) => wasm.esp32sim_stub(emu, p, n, m.value >>> 0)); }
     else if (m.op === 'wifi') { withBytes(enc.encode(m.spec), (p, n) => wasm.esp32sim_wifi(emu, p, n)); }
-    else if (m.op === 'start') { const rc = wasm.esp32sim_boot(emu, m.appDirect ? 1 : 0); if (rc === 0) { running = true; t0 = performance.now(); loop(); } postMessage({ started: rc === 0 }); }
+    else if (m.op === 'start') { const rc = wasm.esp32sim_boot(emu, m.appDirect ? 1 : 0); if (rc === 0) { running = true; t0 = performance.now(); lastStat = { wall: t0, insns: wasm.esp32sim_insns(emu), cycles: wasm.esp32sim_cycles(emu) }; loop(); } postMessage({ started: rc === 0 }); }
     else if (m.op === 'net-create') {
       running = false;
       if (net) { wasm.esp32sim_net_delete(net); net = 0; }

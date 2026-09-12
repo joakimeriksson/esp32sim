@@ -46,6 +46,10 @@ pub struct Realtime {
     last_check: u64,
     pub behind: f64,
     pub resyncs: u64,
+    /// Emulated seconds per wall second over the last second or more; `None` until measured.
+    /// Unlike `behind`, a resynchronisation does not reset it, so it shows a run that cannot keep up.
+    pub speed: Option<f64>,
+    speed_mark: Option<(std::time::Instant, u64)>,
     pub log: bool,
     log_last: Option<std::time::Instant>,
     log_insns: (u64, u64),
@@ -171,7 +175,7 @@ impl<S: Soc> Machine<S> {
             script: Script { events: Vec::new(), pos: 0, log: true, knob_next: 0 }, max_cycles: u64::MAX,
             console: Console { all: Vec::new(), usb: Vec::new(), uart0: Vec::new(), mask: 3, prefix: false, capture: false },
             web: None, ws: WebState { last_push_cycles: 0, audio_sent: 0, ring_updates: 0, grid_updates: Vec::new(), px_pending: 0, px_sent: 0, px_deferred: false, cam_pushed: u64::MAX, cam_sent: false },
-            rt: Realtime { enabled: false, wall_start: None, last_check: 0, behind: 0.0, resyncs: 0, log: false, log_last: None, log_insns: (0, 0) },
+            rt: Realtime { enabled: false, wall_start: None, last_check: 0, behind: 0.0, resyncs: 0, speed: None, speed_mark: None, log: false, log_last: None, log_insns: (0, 0) },
             debug_rom: false, cost: None, model_ready_at: vec![0; S::CORES], model_stop: None, model_attach_error: None,
         }
     }
@@ -893,6 +897,16 @@ impl<S: Soc> Machine<S> {
             let start = *self.rt.wall_start.get_or_insert_with(std::time::Instant::now);
             let emulated = std::time::Duration::from_secs_f64(self.bus.cycles() as f64 / S::CPU_HZ as f64);
             let wall = start.elapsed();
+            let (now, cycles) = (std::time::Instant::now(), self.bus.cycles());
+            match self.rt.speed_mark {
+                Some((at, from)) if cycles >= from && now.duration_since(at) >= std::time::Duration::from_secs(1) => {
+                    self.rt.speed = Some((cycles - from) as f64 / S::CPU_HZ as f64 / now.duration_since(at).as_secs_f64());
+                    self.rt.speed_mark = Some((now, cycles));
+                }
+                Some((_, from)) if cycles < from => self.rt.speed_mark = Some((now, cycles)),   // the count restarted
+                None => self.rt.speed_mark = Some((now, cycles)),
+                _ => {}
+            }
             if emulated > wall + std::time::Duration::from_millis(2) { std::thread::sleep(emulated - wall); self.rt.behind = 0.0; }
             else if wall > emulated + std::time::Duration::from_millis(50) {
                 self.rt.behind = (wall - emulated).as_secs_f64();
@@ -984,7 +998,7 @@ impl<S: Soc> Machine<S> {
             for (id, leds, _) in board.led_grids() { hello.push(mk(&format!("{{\"t\":\"grid\",\"id\":\"{}\",\"leds\":[{}]}}", id, leds_json(leds)))); }
             w.set_hello(hello);
         }
-        w.send_text(&format!("{{\"t\":\"stat\",\"time\":{:.2},\"insns\":{},\"frames\":{},\"behind\":{:.2},\"resyncs\":{},\"cam\":{},\"gpio_in\":\"{:x}\"}}", self.seconds(), self.insns(), board.display_frames(), self.rt.behind, self.rt.resyncs, self.bus.camera_frames(), self.bus.gpio_input()));
+        w.send_text(&format!("{{\"t\":\"stat\",\"time\":{:.2},\"insns\":{},\"frames\":{},\"behind\":{:.2},\"resyncs\":{},\"speed\":{},\"cam\":{},\"gpio_in\":\"{:x}\"}}", self.seconds(), self.insns(), board.display_frames(), self.rt.behind, self.rt.resyncs, self.rt.speed.map_or_else(|| "null".to_string(), |s| format!("{:.3}", s)), self.bus.camera_frames(), self.bus.gpio_input()));
     }
 
     // Host input is accepted at run boundaries without advancing device time. The periodic

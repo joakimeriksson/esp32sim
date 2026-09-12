@@ -29,7 +29,7 @@
     if (m.stopped !== undefined) { started = false; setStatus('stopped: code ' + m.stopped); }
     if (m.netText) { onmessage && onmessage(JSON.stringify({ t: 'serial', src: 'node' + m.netText.node, data: m.netText.data })); }
     if (m.netStat) { onmessage && onmessage(JSON.stringify({ t: 'net', ...m.netStat })); }
-    if (m.pace) { const el = document.getElementById('pace'); if (el) el.textContent = `${(m.pace.mips || 0).toFixed(1)} Minsn/s · ` + (m.pace.behind > 0.05 ? `⚠ ${m.pace.behind.toFixed(2)} s behind` : 'real time'); }
+    if (m.pace) { const el = document.getElementById('pace'); if (el) el.textContent = `${(m.pace.mips || 0).toFixed(1)} Minsn/s · ` + (m.pace.speed < 0.95 ? `⚠ ${Math.round(m.pace.speed * 100)}% of real time` : 'real time'); }
   };
   const queue = []; const flush = () => { while (ready && queue.length) worker.postMessage(...queue.shift()); };
   const post = (msg, transfer) => { queue.push([msg, transfer || []]); flush(); };
