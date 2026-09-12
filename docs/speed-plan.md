@@ -104,6 +104,30 @@ word reads 1.9 %), and `exec_insn` dispatch into it 8 %. The kernel's instructio
 generated code for a helper call, and a helper ends a region at its next chunk head, so emitting
 them in the wasm backend should shrink the dispatch share as well as the PIE share.
 
+### Guest work: the panel's transfers take no time
+
+Host speed is half of real time; the other half is how much the guest does per emulated second.
+SPI2 transfers complete at the next device tick, so pocket-tank flushes a 368x448 frame in no
+emulated time and renders at 62.5 fps, where the board manages 25 to 30. An experiment (branch
+`exp/qspi-transfer-time`, not merged) holds completion for the transfer's clock time at the
+SH8601 driver's settings, 40 MHz with quad data. Natively over 30 guest seconds:
+
+| pocket-tank, packed PIE | transfers instant | 40 MHz quad transfer time |
+| --- | --- | --- |
+| guest instructions per emulated second | 335.8 M (core0 148 M) | 287.5 M (core0 100 M) |
+| render loop | 62.5 fps, flush 6.1 ms | 41 fps, flush 19.7 ms |
+| model | 24.3 tok/s | 24.3 tok/s |
+| real time on the same host | 0.77 | 0.87 |
+
+Modelling transfer time is worth about 14 % on this board on any host. The remaining gap to the
+board's frame rate and its 12 tok/s is memory latency (flash cache, PSRAM), which the fast paths
+do not charge.
+
+Where the next factors are, estimated from the profile above and not yet measured: the dot-product
+instructions in the wasm backend 1.2–1.4×, cheaper scheduler rounds or direct block chaining about
+1.2×. With transfer time, headless Chrome would go from 0.50 to roughly 0.85–1.0 real time and the
+native build past real time.
+
 ## Phase 0 — small, independent, do anytime
 
 - **NEON for PIE** (`pie.rs`): every `ee.*` op runs as a scalar loop over `u128` lanes with
