@@ -41,6 +41,10 @@ pub(super) fn supported(op: crate::Op, fast: bool) -> bool {
             | Mull
             | Muluh
             | Mulsh
+            | Quou
+            | Quos
+            | Remu
+            | Rems
             | Salt
             | Saltu
             | Addi
@@ -795,6 +799,7 @@ fn emit_instruction(
             g.ar(s);
             g.set_ar(t);
         }
+        Quou | Quos | Remu | Rems => emit_divide(g, bi, pc, next, last),
         Add | AddN | Sub | And | Or | Xor | Mull | Salt | Saltu => {
             g.ar(s);
             g.ar(t);
@@ -1156,6 +1161,38 @@ fn emit_instruction(
         _ => return false,
     }
     true
+}
+
+/// QUOU/QUOS/REMU/REMS. A zero divisor raises DIVIDE_BY_ZERO and QUOS of INT_MIN by -1 wraps,
+/// where wasm's `i32.div_s` would trap, so both re-execute the whole instruction in the
+/// interpreter; every other operand pair divides inline. (`i32.rem_s` of INT_MIN by -1 is 0 in
+/// wasm, as `wrapping_rem` is, so REMS needs only the zero check.)
+fn emit_divide(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
+    use crate::Op::*;
+    let i = &bi.insn;
+    g.begin_block();
+    g.begin_block();
+    g.ar(i.t);
+    g.op(0x45); // i32.eqz
+    g.bytes.extend([0x0d, 0]);
+    if i.op == Quos {
+        g.ar(i.s);
+        g.c(0x8000_0000);
+        g.op(0x46); // i32.eq
+        g.ar(i.t);
+        g.c(u32::MAX);
+        g.op(0x46);
+        g.op(0x71); // i32.and
+        g.bytes.extend([0x0d, 0]);
+    }
+    g.ar(i.s);
+    g.ar(i.t);
+    g.op(match i.op { Quos => 0x6d, Quou => 0x6e, Rems => 0x6f, _ => 0x70 }); // i32.div_s/div_u/rem_s/rem_u
+    g.set_ar(i.r);
+    g.bytes.extend([0x0c, 1]);
+    g.end();
+    g.fallback(bi, pc, next, last, false);
+    g.end();
 }
 
 fn emit_memory(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {

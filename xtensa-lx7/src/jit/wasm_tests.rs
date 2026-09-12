@@ -1424,6 +1424,20 @@ pub fn run_tests() -> u32 {
             }
         }
     }
+    // Division: ordinary operands, zero divisors (the interpreter raises DIVIDE_BY_ZERO), and
+    // INT_MIN by -1, which wraps where wasm's i32.div_s would trap.
+    for op in [Quou, Quos, Remu, Rems] {
+        for (dividend, divisor) in [(7, 2), (0xffff_fff9, 2), (5, 0), (0, 0), (0x8000_0000, 0xffff_ffff), (0x8000_0000, 1), (u32::MAX, u32::MAX), (0x7fff_ffff, 0xffff_fffe)] {
+            for budget in 1..=3 {
+                let mut block = [insn(Add), insn(op), insn(Xor)];
+                compare_configured(&mut block, 15, 0, budget, None, false, false, false, false, |c| {
+                    c.set_ar(4, dividend);
+                    c.set_ar(5, divisor);
+                });
+                tests += 1;
+            }
+        }
+    }
     for op in [
         L8ui, L16ui, L16si, L32i, L32iN, L32r, S8i, S16i, S32i, S32iN,
     ] {
