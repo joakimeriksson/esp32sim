@@ -216,7 +216,13 @@ fn compare_configured(
         )
     };
     let done = result & 0xffff;
-    let exit = result >> 16;
+    let exit = (result >> 16) & 7;
+    if exit == CODE_CUT {
+        let next = (result >> 19) as usize;
+        assert!(next < block.len(), "cut continuation must be inside the block");
+        let pc = block[..next].iter().fold(BASE, |pc, bi| pc.wrapping_add(bi.insn.len as u32));
+        assert_eq!(b.pc, pc, "cut continuation index must match the architectural PC");
+    }
     let mut count = 0;
     let mut trap = None;
     let mut pre = false;

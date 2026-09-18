@@ -265,7 +265,7 @@ fn run_block_inner<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Opt
             cpu.blocks.code = Some(cache);
             r
         };
-        let (done, exit) = (r & 0xffff, r >> 16);
+        let (done, exit) = (r & 0xffff, (r >> 16) & 7);
         cpu.blocks.jit_instructions += done as u64;
         cpu.insn_count += done as u64;
         cpu.advance_ccount(done);
@@ -275,13 +275,10 @@ fn run_block_inner<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Opt
             crate::jit::CODE_CUT => {
                 #[cfg(target_arch = "wasm32")]
                 {
-                    // A repeated hardware prefix makes retired count differ from arena offset.
-                    let e = cpu.blocks.entries[ei as usize];
-                    let mut at = e.pc;
-                    for index in e.start..end {
-                        if at == cpu.pc { cpu.blocks.resume = (ei, index, cpu.pc); break; }
-                        at = at.wrapping_add(cpu.blocks.arena[index as usize].insn.len as u32);
-                    }
+                    // The WASM wrapper accounts for repeated prefixes when returning
+                    // the next decoded index; no PC scan is needed here.
+                    let index = cpu.blocks.entries[ei as usize].start + (r >> 19);
+                    if index < end { cpu.blocks.resume = (ei, index, cpu.pc); }
                 }
                 #[cfg(not(target_arch = "wasm32"))]
                 if k + done < end { cpu.blocks.resume = (ei, k + done, cpu.pc); }

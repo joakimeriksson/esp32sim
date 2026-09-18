@@ -353,6 +353,8 @@ pub fn loop_len(cc: &CodeCache, code: u32, cpu: &Cpu) -> Option<usize> {
 }
 
 /// Execute a published block against the exclusively borrowed machine state.
+/// Returns retired count in bits 0..16 and exit code in bits 16..19. For CODE_CUT,
+/// bits 19..32 carry the next instruction index in the decoded block.
 ///
 /// # Safety
 /// `code` must be ready in this cache; `entry` must be its recorded instruction index.
@@ -507,11 +509,11 @@ pub unsafe fn run<B: Bus>(
         f(cpu, bus, h, budget.min(0xffff), entry, tlb, versions)
     };
     let done = result & 0xffff;
+    // LCOUNT changes only at the admitted hardware backedge. Subtract repeated
+    // prefixes to locate both the last retired instruction and a cut continuation.
+    let repeated = looping.map_or(0, |n| (initial_lcount - cpu.lcount) as usize * n);
+    let offset = (entry + done) as usize - repeated;
     if done > 0 {
-        // LCOUNT changes only at the admitted hardware backedge. Subtract repeated
-        // prefixes when locating the last executed instruction (including slow exits).
-        let repeated = looping.map_or(0, |n| (initial_lcount - cpu.lcount) as usize * n);
-        let offset = (entry + done) as usize - repeated;
         #[cfg(feature = "wasm-jit-profile")]
         if looping.is_some() {
             let retained = initial_lcount - cpu.lcount - u32::from(offset == 0);
@@ -524,9 +526,9 @@ pub unsafe fn run<B: Bus>(
             b.pc, b.instructions.iter().map(|i| i.insn.op).collect::<Vec<_>>(), cpu.lcount));
         bus.note_pc(pc);
     }
-    // Direct memory accesses need no peripheral callbacks. Preserve the last instruction PC
-    // for subsequent bus diagnostics just as the interpreter does.
-    result
+    // Reuse the offset already reconstructed above instead of scanning decoded PCs
+    // again in run_block_inner. Regions never return CODE_CUT.
+    if result >> 16 == CODE_CUT { result | ((offset as u32) << 19) } else { result }
 }
 
 #[path = "wasm_emit.rs"]
