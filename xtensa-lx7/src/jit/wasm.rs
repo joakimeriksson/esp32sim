@@ -261,46 +261,58 @@ fn queue(cc: &mut CodeCache, instructions: &mut [BlockInsn], pc: u32, fast: bool
     cc.by_pc.insert(key, id);
     id
 }
+#[inline]
 pub fn ready(cc: &CodeCache, code: u32) -> bool {
     let b = &cc.blocks[code as usize];
-    if b.slot.get() == NONE {
-        let hits = b.hits.get() + 1;
-        b.hits.set(hits);
-        if hits < HOT {
-            return false;
-        }
-        let bytes = generate(b);
-        // SAFETY: The host synchronously copies these bytes, installs a module using the
-        // shared memory/table, and returns a correctly typed function slot or zero.
-        let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
-        b.slot.set(slot);
-        b.bytes.set(if slot == 0 { 0 } else { bytes.len() });
-    }
-    b.slot.get() != 0
+    let slot = b.slot.get();
+    if slot == NONE { prepare(b) } else { slot != 0 }
+}
+
+#[cold]
+#[inline(never)]
+fn prepare(b: &Block) -> bool {
+    let hits = b.hits.get() + 1;
+    b.hits.set(hits);
+    if hits < HOT { return false; }
+    let bytes = generate(b);
+    // SAFETY: The host synchronously copies these bytes, installs a module using the
+    // shared memory/table, and returns a correctly typed function slot or zero.
+    let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
+    b.slot.set(slot);
+    b.bytes.set(if slot == 0 { 0 } else { bytes.len() });
+    slot != 0
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Helpers {
-    exec: usize,
-    overflow: usize,
-    fused: usize,
+    exec: *const (),
+    overflow: *const (),
+    fused: *const (),
     loop_end: u32,
     version_ptrs: [*const u32; 2],
     versions: [u32; 2],
 }
 impl Helpers {
-    pub fn new<B: Bus>() -> Self {
+    pub const fn new<B: Bus>() -> Self {
         Self {
-            exec: h_exec::<B> as *const () as usize,
-            overflow: h_overflow as *const () as usize,
-            fused: h_fused as *const () as usize,
+            exec: h_exec::<B> as *const (),
+            overflow: h_overflow as *const (),
+            fused: h_fused as *const (),
             loop_end: 0,
             version_ptrs: [std::ptr::null(); 2],
             versions: [0; 2],
         }
     }
+    pub fn shared<B: Bus>() -> &'static Self {
+        &const { Helpers::new::<B>() }
+    }
 }
+const _: () = {
+    assert!(size_of::<Helpers>() == 32);
+    assert!(offset_of!(Helpers, overflow) == 4);
+    assert!(offset_of!(Helpers, fused) == 8);
+};
 // Baseline WASM has no fused multiply-add opcode. Preserve Rust's single rounding
 // without spilling integer register locals or invoking the instruction dispatcher.
 extern "C" fn h_fused(s: u32, t: u32, r: u32, subtract: u32) -> u32 {

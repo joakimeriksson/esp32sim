@@ -216,13 +216,15 @@ fn run_block_inner<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Opt
     // find the block: a pending continuation, a cached block, or a fresh decode
     let (ei, mut k, end) = {
         let (rei, rk, rpc) = cpu.blocks.resume;
-        let e = cpu.blocks.entries[rei as usize];
-        if rpc == pc && e.pc != 1 && BlockCache::valid(&e, bus.page_versions()) && rk >= e.start && rk < e.start + e.n as u32 {
-            (rei, rk, e.start + e.n as u32)
-        } else {
+        let resumed = if rpc == pc {
+            let e = &cpu.blocks.entries[rei as usize];
+            (e.pc != 1 && BlockCache::valid(e, bus.page_versions()) && rk >= e.start && rk < e.start + e.n as u32)
+                .then_some((rei, rk, e.start + e.n as u32))
+        } else { None };
+        if let Some(hit) = resumed { hit } else {
             let ei = BlockCache::index(pc);
-            let e = cpu.blocks.entries[ei];
-            if e.pc == pc && BlockCache::valid(&e, bus.page_versions()) { (ei as u32, e.start, e.start + e.n as u32) }
+            let e = &cpu.blocks.entries[ei];
+            if e.pc == pc && BlockCache::valid(e, bus.page_versions()) { (ei as u32, e.start, e.start + e.n as u32) }
             else { match build(cpu, bus, pc) { Ok((ei, s, n)) => (ei, s, s + n as u32), Err(t) => return (1, Some(t)) } }
         }
     };
@@ -258,10 +260,10 @@ fn run_block_inner<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Opt
             // WASM needs retained block metadata during execution, so move its owning cache
             // outside Cpu before holding that shared reference alongside the exclusive CPU.
             let cache = cpu.blocks.code.take().unwrap();
-            let helpers = crate::jit::Helpers::new::<B>();
+            let helpers = crate::jit::Helpers::shared::<B>();
             // SAFETY: `code` and `entry` identify live code in this locally owned cache;
             // helpers match B and `fm` describes this exclusive bus borrow.
-            let r = unsafe { crate::jit::run(&cache, code, cpu, bus, &helpers, limit, entry, fm) };
+            let r = unsafe { crate::jit::run(&cache, code, cpu, bus, helpers, limit, entry, fm) };
             cpu.blocks.code = Some(cache);
             r
         };
