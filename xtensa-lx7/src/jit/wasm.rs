@@ -470,6 +470,14 @@ pub unsafe fn run<B: Bus>(
         // EX136: the facts the checks below would fetch through the owning block, its region and
         // three of its vectors are cached in this block while no region has been dropped.
         let hot = b.hot.get();
+        if hot.epoch == cc.region_epoch.get() && (budget < hot.len || cpu.boundary_bloom & hot.bloom != 0) {
+            // The cold lookup selects this same live chunk. Preserve its stale-page
+            // invalidation, but a current chunk cannot pass either rejected guard.
+            let pv = bus.page_versions();
+            if hot.pages[..hot.npages as usize].iter().all(|&(i, v)| pv.get(i as usize).copied().unwrap_or(0) == v) {
+                return run_block_body(cc, code, cpu, bus, h, budget, entry, tlb, versions);
+            }
+        }
         if hot.epoch == cc.region_epoch.get() && budget >= hot.len && cpu.boundary_bloom & hot.bloom == 0
             && (cpu.lcount == 0 || cpu.lend.wrapping_sub(hot.lo) > hot.span)
         {
