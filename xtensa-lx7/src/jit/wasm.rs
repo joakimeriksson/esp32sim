@@ -75,11 +75,16 @@ pub struct RegionStats {
     pub chunks: Cell<u64>,
     pub instructions: Cell<u64>,
     pub bytes: Cell<u64>,
+    /// EX153 census: [run calls, calls with budget>=64, whole calls, whole retired, tail-cut calls, tail-cut retired,
+    /// resumed calls, resumed retired, resumed-and-cut-again calls, zero-retired calls, sum of budgets]
+    pub ex153: [Cell<u64>; 12],
 }
 #[cfg(feature = "wasm-jit-profile")]
 impl RegionStats {
     pub fn report(&self) -> String {
-        format!("[wasm-region] formed={} failed={} covered={} dropped={} chunks={} instructions={} bytes={} calls={} rejected={} retired={} exits[end,left,trap,cut,pre]={:?} left_kinds[call,callx,retw,ret,jx,sr,memory,edge,budget,dirty,other]={:?}",
+        format!("[ex153] run_calls={} budget64_calls={} whole_calls={} whole_retired={} tailcut_calls={} tailcut_retired={} resumed_calls={} resumed_retired={} resumed_cut_again={} zero_retired_calls={} budget_sum={}\n[wasm-region] formed={} failed={} covered={} dropped={} chunks={} instructions={} bytes={} calls={} rejected={} retired={} exits[end,left,trap,cut,pre]={:?} left_kinds[call,callx,retw,ret,jx,sr,memory,edge,budget,dirty,other]={:?}",
+            self.ex153[0].get(), self.ex153[1].get(), self.ex153[2].get(), self.ex153[3].get(), self.ex153[4].get(), self.ex153[5].get(),
+            self.ex153[6].get(), self.ex153[7].get(), self.ex153[8].get(), self.ex153[9].get(), self.ex153[10].get(),
             self.formed.get(), self.failed.get(), self.covered.get(), self.dropped.get(), self.chunks.get(),
             self.instructions.get(), self.bytes.get(), self.calls.get(), self.rejected.get(), self.retired.get(),
             self.exits[..5].iter().map(|c| c.get()).collect::<Vec<_>>(),
@@ -481,6 +486,15 @@ pub unsafe fn run<B: Bus>(
     let budget = if cpu.icache_fill != 0 { budget.min(64) } else { budget };
     // SAFETY: preserve the caller's live code, helper and memory guarantees.
     let result = unsafe { run_inner(cc, code, cpu, bus, h, budget, entry, fm) };
+    #[cfg(feature = "wasm-jit-profile")]
+    {
+        let st = &cc.region_stats.ex153;
+        let add = |i: usize, n: u64| st[i].set(st[i].get() + n);
+        add(0, 1);
+        if budget >= 64 { add(1, 1); }
+        add(10, budget as u64);
+        if result & 0xffff == 0 { add(9, 1); }
+    }
     if priced_fetch {
         let n = cpu.fetch_n.saturating_sub(u32::from(bus.deferred()));
         assert!(n <= 64, "compiled fetch trace exceeded its instruction budget");
@@ -728,6 +742,15 @@ unsafe fn run_block_body<B: Bus>(cc: &CodeCache, code: u32, cpu: &mut Cpu, bus: 
         let pc = *b.pcs.get(last).unwrap_or_else(|| panic!("block {:x} {:?} entry {entry} done {done} budget {budget} looping {looping:?} lcount {initial_lcount}->{} result {result:#x}",
             b.pc, b.instructions.iter().map(|i| i.insn.op).collect::<Vec<_>>(), cpu.lcount));
         bus.note_pc(pc);
+    }
+    #[cfg(feature = "wasm-jit-profile")]
+    {
+        let st = &cc.region_stats.ex153;
+        let add = |i: usize, n: u64| st[i].set(st[i].get() + n);
+        let cut = result >> 16 == CODE_CUT;
+        if entry != 0 { add(6, 1); add(7, done as u64); if cut { add(8, 1); } }
+        else if cut { add(4, 1); add(5, done as u64); }
+        else { add(2, 1); add(3, done as u64); }
     }
     // Reuse the offset already reconstructed above instead of scanning decoded PCs
     // again in run_block_inner. Regions never return CODE_CUT.
