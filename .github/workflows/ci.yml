@@ -33,6 +33,7 @@ jobs:
       - name: Worker pacing tests
         run: |
           node tools/worker-pacing-test.mjs
+          node tools/worker-channel-test.mjs
           node --test tools/touch-input-test.mjs
       - name: Browser benchmark verdict tests
         run: |

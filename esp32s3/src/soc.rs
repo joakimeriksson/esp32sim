@@ -139,6 +139,9 @@ impl esp_soc::SocBus for SocBus {
     fn gpio_set_input(&mut self, pin: u8, level: bool) {
         let old_input = self.periph.gpio.input;
         self.periph.gpio.set_input(pin, level);
+        // Host edges queue PCNT work without going through the MMIO refresh hook.
+        // Recompute the threshold without dropping cycles already pending.
+        self.refresh_tick_budget();
         self.irq_dirty |= old_input != self.periph.gpio.input;
         if let Some(ev) = &mut self.gpio_events { ev.push((self.cycles, pin, level)); }
     }

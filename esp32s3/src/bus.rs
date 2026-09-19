@@ -269,6 +269,8 @@ impl SocBus {
             self.periph.gpio.set_input(pin, level);
             self.irq_dirty |= old_input != self.periph.gpio.input;
         }
+        // Restored input edges and the board's own deadline can activate device work.
+        self.refresh_tick_budget();
     }
 
     /// Time until deferred device work must run. The bounded fallback covers devices without
@@ -1215,7 +1217,9 @@ impl SocBus {
             || p.usb.int_ena & (1 << 1) != 0
     }
 
-    pub(crate) fn refresh_tick_budget(&mut self) {
+    /// Refresh the cached deadline after host-side device configuration changes.
+    /// Pending elapsed cycles are retained and count toward the new threshold.
+    pub fn refresh_tick_budget(&mut self) {
         let cap = if self.cadence_active() { MAX_TICK_DEFER } else { QUIET_TICK_DEFER };
         let mut budget = self.periph.cycles_until_timer().clamp(1, cap);
         if let Some((deadline, _)) = &self.spi2_scheduled {
@@ -2165,6 +2169,41 @@ mod gp_spi_board_tests {
         assert_eq!(Bus::tick(&mut bus, MAX_TICK_DEFER), 0, "unchanged asserted source");
         bus.irq_dirty = true;
         assert_eq!(Bus::tick(&mut bus, MAX_TICK_DEFER), 1, "preserve prior dirty flag");
+    }
+
+    #[test]
+    fn non_mmio_gpio_activation_restores_cadence_without_losing_pending_time() {
+        struct InputBoard;
+        impl crate::board::BoardModel for InputBoard {
+            fn name(&self) -> &'static str { "pcnt-input" }
+            fn input_levels(&self) -> Vec<(u8, bool)> { vec![(4, false)] }
+        }
+        for attach in [false, true] {
+            for pending in [0, 100, 300] {
+                let mut bus = SocBus::new(1024, 1024, [0; 6]);
+                bus.periph.gpio.func_in_sel[33] = 0x80 | 4;
+                bus.periph.pcnt.conf[0][0] = (1 << 16) | (1 << 14); // falling increment, threshold 0
+                bus.periph.pcnt.conf[0][1] = 1;
+                bus.periph.pcnt.int_ena = 1;
+                Bus::tick(&mut bus, 64);
+                Bus::tick(&mut bus, pending);
+                assert_eq!(bus.tick_budget, QUIET_TICK_DEFER);
+                if attach {
+                    bus.board = Box::new(InputBoard);
+                    bus.attach_board_devices();
+                } else {
+                    esp_soc::SocBus::gpio_set_input(&mut bus, 4, false);
+                }
+                assert_eq!(bus.tick_pending, pending, "activation must preserve elapsed device time");
+                assert_eq!(bus.next_deadline(), MAX_TICK_DEFER.saturating_sub(pending).max(1) as u64);
+                let until = bus.next_deadline() as u32;
+                Bus::tick(&mut bus, until);
+                assert_eq!(bus.tick_pending, 0);
+                assert_eq!(bus.periph.pcnt.cnt[0], 1, "attach={attach}, pending={pending}");
+                assert!(bus.periph.pcnt.irq());
+                assert!(bus.irq_dirty);
+            }
+        }
     }
 
     #[test]

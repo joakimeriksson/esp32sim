@@ -71,17 +71,9 @@ pub struct Machine<S: Soc> {
     pub cores: Vec<S::Core>,
     /// a secondary core held in reset by its SoC registers (reset when released)
     core_held: Vec<bool>,
-    /// EX133 virtual quanta: most scheduling quanta one core may run in a single budget while
-    /// every other core idles (1 = off). Bit-exact with the per-quantum schedule by construction.
-    pub vq_max: u64,
     /// Instructions each busy core runs per scheduling round. 64 is the reference the goldens and
     /// pinned totals hold for; a larger value changes the interleaving of two busy cores (EX047).
     pub quantum: u64,
-    /// EX133 counters: multi-quantum runs, quanta they covered, runs stopped at a device register, at waiti.
-    pub vq_stats: [u64; 4],
-    /// Rounds to leave alone after runs that a device register cut short, and the growing penalty:
-    /// firmware that touches registers every few instructions gains nothing from a long budget.
-    vq_skip: u32, vq_penalty: u32,
     pub bus: S::Bus,
     pub symbols: BTreeMap<u32, String>,
     pub dbg: Debug,
@@ -107,6 +99,15 @@ pub struct Machine<S: Soc> {
     model_ready_at: Vec<u64>,
     model_stop: Option<Stop>,
     model_attach_error: Option<&'static str>,
+    /// EX133 virtual quanta: most scheduling quanta one core may run in a single budget while
+    /// every other core idles (1 = off). Bit-exact with the per-quantum schedule by construction.
+    /// Kept at the struct tail so the scheduler's hot fields keep their offsets when quanta are off.
+    pub vq_max: u64,
+    /// EX133 counters: multi-quantum runs, quanta they covered, runs stopped at a device register, at waiti.
+    pub vq_stats: [u64; 4],
+    /// Rounds to leave alone after runs that a device register cut short, and the growing penalty:
+    /// firmware that touches registers every few instructions gains nothing from a long budget.
+    vq_skip: u32, vq_penalty: u32,
 }
 
 /// Default scheduling quantum; `Machine::quantum` can raise it (not bit-exact with the default).
@@ -579,10 +580,15 @@ impl<S: Soc> Machine<S> {
             // closed afterwards exactly as the per-quantum schedule would have closed them. A device
             // register access stops in front of its instruction and finishes its quantum the old way.
             let mut resume_at = 0u64;
-            // The one busy core, if exactly one is (EX144: any core, not only core 0).
-            let busy = { let mut b = (0..S::CORES).filter(|&i| !idle[i]); match (b.next(), b.next()) { (Some(i), None) => i, _ => usize::MAX } };
-            if self.vq_skip > 0 { self.vq_skip -= 1; }
-            else if !APPROXIMATE && self.vq_max > 1 && blocks && !slow_path && self.probes.0 == 0 && busy != usize::MAX {
+            // Find the sole busy core only when virtual quanta are eligible.
+            let busy = if !APPROXIMATE && self.vq_max > 1 && blocks && !slow_path && self.probes.0 == 0 {
+                if self.vq_skip > 0 { self.vq_skip -= 1; usize::MAX }
+                else {
+                    let mut b = (0..S::CORES).filter(|&i| !idle[i]);
+                    match (b.next(), b.next()) { (Some(i), None) => i, _ => usize::MAX }
+                }
+            } else { usize::MAX };
+            if busy != usize::MAX {
                 let k = self.vq_quanta(max_insns - n, &on, busy);
                 if k > 1 {
                     let total = (k * self.quantum) as u32;
@@ -600,10 +606,19 @@ impl<S: Soc> Machine<S> {
                     let pos = (total - left) as u64;
                     self.vq_stats[0] += 1; self.vq_stats[1] += pos / self.quantum;
                     if pos < 2 * self.quantum { self.vq_penalty = (self.vq_penalty * 2 + 1).min(255); self.vq_skip = self.vq_penalty; } else { self.vq_penalty = 0; }
-                    for _ in 0..pos / self.quantum {
+                    // A stopping instruction belongs to the unfinished round, even when it
+                    // consumes that round's last slot. The ordinary loop returns before its
+                    // device tick and credits only peers dispatched before the busy core.
+                    let completed = if stop.is_some() { pos.saturating_sub(1) / self.quantum } else { pos / self.quantum };
+                    for _ in 0..completed {
                         if let Some(s) = self.vq_close_round(&on, &mut n, busy) { return s; }
                     }
-                    if let Some(s) = stop { self.drain_console(); return s; }
+                    if let Some(s) = stop {
+                        for (core, &enabled) in self.cores.iter_mut().zip(&on).take(busy) {
+                            if enabled { core.idle_advance(self.quantum as u32); }
+                        }
+                        self.drain_console(); return s;
+                    }
                     if pos > 0 && pos.is_multiple_of(self.quantum) { continue; }
                     resume_at = pos % self.quantum;
                 }
@@ -618,7 +633,9 @@ impl<S: Soc> Machine<S> {
             for i in 0..S::CORES {
                 if !on[i] { continue; }
                 if idle[i] && !slow_path { self.cores[i].idle_advance(elapsed as u32); } else if blocks {
-                    let mut left = (quantum - if i == busy { resume_at } else { 0 }) as u32;
+                    // A partial virtual round has exactly one non-idle core. Its peers
+                    // take the idle branch above, so only that core consumes resume_at.
+                    let mut left = (quantum - resume_at) as u32;
                     while left > 0 {
                         let (used, stop) = self.step_blocks(i, left);
                         if let Some(stop) = stop { self.drain_console(); return stop; }
