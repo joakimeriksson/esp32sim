@@ -1,5 +1,5 @@
 use emu_core::Core;
-use xtensa_lx7::{Cpu, FlatRam};
+use xtensa_lx7::{Bus, Cpu, FlatRam};
 const BASE: u32 = 0x4037_0000;
 
 fn setup(program: &[u8]) -> (Cpu, FlatRam) {
@@ -9,9 +9,10 @@ fn setup(program: &[u8]) -> (Cpu, FlatRam) {
     cpu.price_control = true;
     cpu.approximate_cpi = 3;
     cpu.cpenable = 9;
-    cpu.scompare1 = 1; // Failed conditional stores still return the loaded value.
+    cpu.scompare1 = 0; // Match zero-filled RAM: the conditional store must succeed.
     cpu.ccompare = [u32::MAX; 3];
     cpu.set_ar(4, BASE + 0x100);
+    cpu.set_ar(5, 0x1234_5678);
     let mut ram = FlatRam::new(BASE, 4096);
     ram.mem[..program.len()].copy_from_slice(program);
     (cpu, ram)
@@ -47,6 +48,7 @@ fn step_block_and_mixed_prefixes_share_prices() {
             let result = (cpu.pc, cpu.ccount, cpu.insn_count, cpu.timing_extra, cpu.get_ar(6), cpu.fr);
             if let Some(expected) = reference { assert_eq!(result, expected); } else { reference = Some(result); }
             assert_eq!(cpu.ccount, n * 3);
+            if program[1] == 0xe4 { assert_eq!(ram.read32(BASE + 0x100).unwrap(), 0x1234_5678); }
         }
     }
 }
@@ -101,4 +103,16 @@ fn fetch_requires_pricing_and_counts_instruction_end() {
         assert_eq!(cpu.timing_extra, if enabled { 10 } else { 0 });
         assert_eq!(cpu.icache_misses, if enabled { 2 } else { 0 });
     } }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn default_native_execution_keeps_jit_enabled() {
+    let (mut cpu, mut ram) = setup(&[0x22, 0xa0, 1, 0x86, 0, 0]);
+    cpu.price_control = false;
+    assert_eq!(cpu.run(&mut ram, 2), (2, None));
+    if xtensa_lx7::jit::AVAILABLE {
+        assert_eq!(cpu.blocks.jit_instructions, 2);
+    }
+    assert_eq!(cpu.timing_extra, 0);
 }

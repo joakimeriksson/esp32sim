@@ -289,6 +289,11 @@ pub(super) fn emit(
             g.set_ar(r);
         }
         J => g.leave(imm),
+        Jx | Callx0 | Callx4 | Callx8 | Callx12
+            if super::super::PRICED.load(std::sync::atomic::Ordering::Relaxed) => {
+            // The helper observes the actual target before a return-address alias is overwritten.
+            g.fallback(bi, pc, next, last, false);
+        }
         Jx => {
             g.price(5);
             g.advance();

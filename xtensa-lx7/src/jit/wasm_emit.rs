@@ -615,6 +615,27 @@ fn emit_body(
         if !whole || window_changed {
             g.overflow(bi.max_ar, pc);
         }
+        // Record only instructions reached after budget and pre-instruction guards.
+        // The dispatcher caps priced calls at the ring capacity, including retained loops.
+        if super::FETCH_RING.load(std::sync::atomic::Ordering::Relaxed) {
+            g.cpu(offset_of!(Cpu, icache_fill));
+            g.begin_if();
+            for (offset, address) in [(0, pc), (4, next.wrapping_sub(1))] {
+                g.get(0);
+                g.cpu(offset_of!(Cpu, fetch_n));
+                g.c(3);
+                g.op(0x74);
+                g.op(0x6a);
+                g.c(address);
+                g.store(offset_of!(Cpu, fetch_ring) + offset);
+            }
+            g.get(0);
+            g.cpu(offset_of!(Cpu, fetch_n));
+            g.c(1);
+            g.op(0x6a);
+            g.store(offset_of!(Cpu, fetch_n));
+            g.end();
+        }
         let last = index + 1 == instructions.len();
         g.wait_price = extras[index] as u32;
         g.price(g.wait_price);

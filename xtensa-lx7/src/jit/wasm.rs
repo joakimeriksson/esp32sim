@@ -91,7 +91,7 @@ const HOT: u32 = 32;
 pub static PRICED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 /// Emit the inline data-cache probe into code generated from now on (a `cache-inline` build that
 /// runs without the timing model must not pay for it).
-/// EX147: regions generated from now on record the chunks they enter in `Cpu::fetch_ring`.
+/// EX147: generated code records reached instruction byte ranges in `Cpu::fetch_ring`.
 pub static FETCH_RING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 /// Set index mask of the inline data-cache probe: 63 for the 32 KB cache, 127 for 64 KB (64-byte lines, 8 ways).
 pub static CACHE_SET_MASK: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(63);
@@ -129,12 +129,10 @@ struct Block {
 /// Entry facts of one region chunk. `sites` points into the owning region's vector, which
 /// lives until that region is dropped, and every drop moves `CodeCache::region_epoch` on.
 #[derive(Clone, Copy)]
-struct Hot { epoch: u64, bloom: u64, slot: u32, k: u32, len: u32, lo: u32, span: u32, pages: [(u32, u32); 8], npages: u32, nsites: u32, sites: *const ExitSite, lines: *const (u32, u32), nlines: u32 }
-impl Hot { const NONE: Hot = Hot { epoch: 0, bloom: 0, slot: 0, k: 0, len: 0, lo: 0, span: 0, pages: [(0, 0); 8], npages: 0, nsites: 0, sites: std::ptr::null(), lines: std::ptr::null(), nlines: 0 }; }
+struct Hot { epoch: u64, bloom: u64, slot: u32, k: u32, len: u32, lo: u32, span: u32, pages: [(u32, u32); 8], npages: u32, nsites: u32, sites: *const ExitSite }
+impl Hot { const NONE: Hot = Hot { epoch: 0, bloom: 0, slot: 0, k: 0, len: 0, lo: 0, span: 0, pages: [(0, 0); 8], npages: 0, nsites: 0, sites: std::ptr::null() }; }
 /// Several chunks compiled as one function; see wasm_region.rs.
 struct Region {
-    /// EX147: first and last byte address of every chunk, by chunk index.
-    fetch_lines: Vec<(u32, u32)>,
     /// The generated code holds pointers to these instructions for its helper calls,
     /// so they live exactly as long as the module does.
     #[allow(dead_code)]
@@ -454,6 +452,33 @@ pub unsafe fn run<B: Bus>(
     entry: u32,
     fm: Option<FastMem>,
 ) -> u32 {
+    let priced_fetch = cpu.price_control && cpu.icache_fill != 0;
+    cpu.fetch_n = 0;
+    let budget = if cpu.icache_fill != 0 { budget.min(64) } else { budget };
+    // SAFETY: preserve the caller's live code, helper and memory guarantees.
+    let result = unsafe { run_inner(cc, code, cpu, bus, h, budget, entry, fm) };
+    if priced_fetch {
+        let n = cpu.fetch_n.saturating_sub(u32::from(bus.deferred()));
+        assert!(n <= 64, "compiled fetch trace exceeded its instruction budget");
+        for index in 0..n as usize {
+            let [lo, hi] = cpu.fetch_ring[index];
+            cpu.touch_fetch_lines(lo, hi);
+        }
+    }
+    result
+}
+
+#[allow(clippy::too_many_arguments)]
+unsafe fn run_inner<B: Bus>(
+    cc: &CodeCache,
+    code: u32,
+    cpu: &mut Cpu,
+    bus: &mut B,
+    h: &Helpers,
+    budget: u32,
+    entry: u32,
+    fm: Option<FastMem>,
+) -> u32 {
     type Run<B> =
         extern "C" fn(*mut Cpu, *mut B, *const Helpers, u32, u32, *const TlbEntry, *mut u32) -> u32;
     #[cfg(feature = "wasm-cache-inline")]
@@ -475,11 +500,9 @@ pub unsafe fn run<B: Bus>(
         {
             let pv = bus.page_versions();
             if hot.pages[..hot.npages as usize].iter().all(|&(i, v)| pv.get(i as usize).copied().unwrap_or(0) == v) {
-                cpu.fetch_n = 0;
                 // SAFETY: as for the region call below; the epoch proves slot and sites are live.
                 let f: Run<B> = unsafe { std::mem::transmute(hot.slot as usize) };
                 let result = f(cpu, bus, h, budget.min(0xffff), hot.k, tlb, versions);
-                replay_fetch_ring(cpu, hot.lines, hot.nlines);
                 let site = if (result >> 16) & 7 != CODE_REJECT {
                     assert!((result >> 19) < hot.nsites);
                     // SAFETY: index checked against the live vector's length.
@@ -527,7 +550,6 @@ pub unsafe fn run<B: Bus>(
                     let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
                     (slot != 0).then(|| Region {
                         lens: f.chunks.iter().map(|c| c.instructions.len() as u32).collect(),
-                        fetch_lines: f.chunks.iter().map(|c| { let end = c.pc + c.instructions.iter().map(|i| i.insn.len as u32).sum::<u32>().max(1) - 1; (c.pc, end) }).collect(),
                         chunks: f.chunks, slot, bytes: bytes.len(), bloom: f.bloom, lo: f.lo, hi: f.hi, loops: f.loops, pages: f.pages, sites,
                     })
                 });
@@ -583,11 +605,9 @@ pub unsafe fn run<B: Bus>(
                         let mut pages = [(0, 0); 8];
                         pages[..r.pages.len()].copy_from_slice(&r.pages);
                         b.hot.set(Hot { epoch: cc.region_epoch.get(), bloom: r.bloom, slot: r.slot, k, len: r.lens[k as usize], lo: r.lo,
-                            span: r.hi.wrapping_sub(r.lo), pages, npages: r.pages.len() as u32, nsites: r.sites.len() as u32, sites: r.sites.as_ptr(), lines: r.fetch_lines.as_ptr(), nlines: r.fetch_lines.len() as u32 });
+                            span: r.hi.wrapping_sub(r.lo), pages, npages: r.pages.len() as u32, nsites: r.sites.len() as u32, sites: r.sites.as_ptr() });
                     }
-                    cpu.fetch_n = 0;
                     let result = f(cpu, bus, h, budget.min(0xffff), k, tlb, versions);
-                    replay_fetch_ring(cpu, r.fetch_lines.as_ptr(), r.fetch_lines.len() as u32);
                     let site = if (result >> 16) & 7 != CODE_REJECT {
                         assert!(((result >> 19) as usize) < r.sites.len(), "region {:x}: result {result:#x} sites {}", rb.pc, r.sites.len());
                         Some(r.sites[(result >> 19) as usize])
@@ -602,24 +622,6 @@ pub unsafe fn run<B: Bus>(
         }
     }
     run_block_body(cc, code, cpu, bus, h, budget, entry, tlb, versions)
-}
-
-/// EX147: replay the chunks a region call entered (the last 64; with more, every chunk counts as
-/// fetched once first) into the fetch cache. `chunks` must belong to the live region just called.
-#[inline]
-fn replay_fetch_ring(cpu: &mut Cpu, chunks: *const (u32, u32), n_chunks: u32) {
-    if cpu.icache_fill == 0 { return; }
-    // SAFETY: the caller passes the fetch-line vector of the region it has just run.
-    let chunks = unsafe { std::slice::from_raw_parts(chunks, n_chunks as usize) };
-    let n = cpu.fetch_n;
-    if n > 64 { for &(lo, hi) in chunks { cpu.touch_fetch_lines(lo, hi); } }
-    let mut last = u32::MAX;
-    for i in n.saturating_sub(64)..n {
-        let k = cpu.fetch_ring[(i & 63) as usize];
-        if k == last { continue; }   // a loop over one chunk
-        last = k;
-        if let Some(&(lo, hi)) = chunks.get(k as usize) { cpu.touch_fetch_lines(lo, hi); }
-    }
 }
 
 /// Test and profile counters of one region call.

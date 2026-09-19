@@ -40,14 +40,25 @@ pub(super) fn priced_cases() -> u32 {
         compare(&mut [insn(Nop), transfer], Case { budget: 2, ..Case::default() }, |c| c.set_ar(4, 0));
         cases += 1;
     }
-    // Inline JX/CALLX dynamic-target alignment is a documented model limitation.
-    // Test their base prices with aligned targets rather than hiding a timing delta.
+    // Include indirect targets that straddle a fetch word.
     for op in [Jx, Callx0, Callx4, Callx8, Callx12] {
-        for flags in [0, ps::WOE] {
-            compare(&mut [insn(Nop), insn(op)], Case { budget: 2, ..Case::default() }, |c| { c.ps = flags; c.set_ar(4, BASE + 0x100); });
+        for flags in [0, ps::WOE] { for offset in [0x100, 0x102, 0x103] {
+            compare(&mut [insn(Nop), insn(op)], Case { budget: 2, ..Case::default() }, |c| { c.ps = flags; c.set_ar(4, BASE + offset); });
             cases += 1;
-        }
+        } }
     }
+    for op in [L32i, L32ai, L32e, S32c1i] {
+        let mut load = insn(op); load.insn.t = 5; load.insn.imm = 0;
+        load.max_ar = crate::exec::max_ar(&load.insn);
+        let mut use_loaded = insn(Add); use_loaded.insn.s = 5;
+        use_loaded.max_ar = crate::exec::max_ar(&use_loaded.insn);
+        assert_eq!(crate::exec::static_extras([load, use_loaded].iter().map(|b| &b.insn)), vec![0, 1]);
+        for entry in 0..2 { for budget in 1..=2 {
+            compare(&mut [load, use_loaded], Case { entry, budget, fast: true, ..Case::default() }, |c| c.set_ar(4, BASE + 0x1000));
+            cases += 1;
+        } }
+    }
+    cases += executed_fetch_batches();
     // A dependency wait must not survive a faulting helper when the interpreter
     // charges extras only for successful instructions.
     let mut load = insn(L32i); load.insn.t = 4; load.insn.imm = 0;
@@ -62,4 +73,34 @@ pub(super) fn priced_cases() -> u32 {
         + control::entry_and_shifts() + control::terminal_helpers() + control::special_register_blocks();
     PRICED.store(false, Relaxed);
     cases
+}
+
+fn executed_fetch_batches() -> u32 {
+    use std::sync::atomic::Ordering::Relaxed;
+    const FLASH: u32 = 0x4200_0000;
+    assert!(!FETCH_RING.swap(true, Relaxed));
+    for budget in [1, 12, 64] {
+        crate::state::reset_shared_fetch_cache();
+        let mut block = vec![insn(Op::Movi); 16];
+        let mut cache = CodeCache::new(0).unwrap();
+        let code = queue(&mut cache, &mut block, FLASH, false);
+        for _ in 0..HOT { ready(&cache, code); }
+        assert!(ready(&cache, code));
+        let mut cpu = Cpu::new(0);
+        cpu.pc = FLASH;
+        cpu.ps = 0;
+        cpu.price_control = true;
+        cpu.icache_fill = 5;
+        cpu.lbeg = FLASH;
+        cpu.lend = FLASH + 36;
+        cpu.lcount = 10;
+        let mut ram = FlatRam::new(FLASH, 4096);
+        // SAFETY: the ready code and matching helpers remain live throughout this call.
+        let result = unsafe { run(&cache, code, &mut cpu, &mut ram, Helpers::shared::<FlatRam>(), budget, 0, None) };
+        assert_eq!(result & 0xffff, budget, "fetch accounting must preserve multi-instruction loop batching");
+        assert_eq!(cpu.icache_misses, if budget == 1 { 1 } else { 2 });
+        assert_eq!(cpu.timing_extra, if budget == 1 { 5 } else { 10 });
+    }
+    FETCH_RING.store(false, Relaxed);
+    3
 }

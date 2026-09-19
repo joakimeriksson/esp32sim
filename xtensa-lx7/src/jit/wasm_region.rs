@@ -342,23 +342,6 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
             r.loop_depth = loop_depth;
             r.chunk_depth = g.ctl.len();
         }
-        if super::super::FETCH_RING.load(std::sync::atomic::Ordering::Relaxed) && (0x4200_0000..0x4400_0000).contains(&chunk.pc) {
-            // EX147: cpu.fetch_ring[cpu.fetch_n & 63] = k; cpu.fetch_n += 1
-            g.get(0);
-            g.cpu(offset_of!(Cpu, fetch_n));
-            g.c(63);
-            g.op(0x71);
-            g.c(2);
-            g.op(0x74);
-            g.op(0x6a);
-            g.c(k as u32);
-            g.store(offset_of!(Cpu, fetch_ring));
-            g.get(0);
-            g.cpu(offset_of!(Cpu, fetch_n));
-            g.c(1);
-            g.op(0x6a);
-            g.store(offset_of!(Cpu, fetch_n));
-        }
         emit_body(&mut g, chunk.pc, &chunk.instructions, fast, false, true, cp);
     }
     g.op(0x00); // every chunk leaves or branches; no fallthrough out of the last one

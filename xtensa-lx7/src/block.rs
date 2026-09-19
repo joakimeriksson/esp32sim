@@ -236,11 +236,30 @@ fn run_block_inner<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Opt
     run_decoded(cpu, bus, budget, ei, k, end)
 }
 
+/// A store may bump a code-page version without changing this block's instructions.
+/// Preserve its dependency history across a budget/step cut when the bytes still match.
+/// Changed instructions still force decoding and compilation through the normal path.
+fn refresh_priced_continuation<B: Bus>(cpu: &mut Cpu, bus: &mut B, ei: u32) {
+    let e = &cpu.blocks.entries[ei as usize];
+    if !cpu.price_control || e.pc == 1 || BlockCache::valid(e, bus.page_versions()) { return; }
+    let mut pc = e.pc;
+    for cached in &cpu.blocks.arena[e.start as usize..(e.start + e.n as u32) as usize] {
+        let Ok(bytes) = bus.fetch(pc) else { return; };
+        if decode(pc, bytes) != cached.insn { return; }
+        pc = pc.wrapping_add(cached.insn.len as u32);
+    }
+    let indices = [bus.code_page(e.pc), bus.code_page(pc.wrapping_sub(1))];
+    if indices != e.vidx { return; }
+    let pv = bus.page_versions();
+    cpu.blocks.entries[ei as usize].ver = indices.map(|i| pv.get(i as usize).copied().unwrap_or(0));
+}
+
 fn find_block<B: Bus>(cpu: &mut Cpu, bus: &mut B) -> Result<(u32, u32, u32), Trap> {
     let pc = cpu.pc;
     Ok({
         let (rei, rk, rpc) = cpu.blocks.resume;
         let resumed = if rpc == pc {
+            refresh_priced_continuation(cpu, bus, rei);
             let e = &cpu.blocks.entries[rei as usize];
             (e.pc != 1 && BlockCache::valid(e, bus.page_versions()) && rk >= e.start && rk < e.start + e.n as u32)
                 .then_some((rei, rk, e.start + e.n as u32))
@@ -279,15 +298,12 @@ fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k: 
     let code = cpu.blocks.entries[ei as usize].code;
     // Native code has no price collector or deferred-access guard. Keep its default
     // fast path, but execute opt-in pricing and deferred quanta in the interpreter.
-    // WASM already collects instruction prices. Bound fetch-priced calls to one
-    // instruction so retained loops cannot hide which fetch lines were executed.
+    // WASM records exact instruction ranges, up to 64 per compiled call.
     #[cfg(target_arch = "wasm32")]
-    if cpu.price_control && cpu.icache_fill != 0 { limit = limit.min(1); }
+    if cpu.price_control && cpu.icache_fill != 0 { limit = limit.min(64); }
     let observed_timing = cpu.price_control && cfg!(not(target_arch = "wasm32"));
     let native_deferred = cfg!(not(target_arch = "wasm32")) && bus.defer_armed();
     if !observed_timing && !native_deferred && code != crate::jit::NONE && cpu.blocks.jit_enabled && crate::jit::ready(cpu.blocks.code.as_ref().unwrap(), code) {
-        #[cfg(target_arch = "wasm32")]
-        let fetch_pc = cpu.pc;
         let entry = cpu.blocks.arena[k as usize].off;
         let fm = bus.fast_mem();
         #[cfg(not(target_arch = "wasm32"))]
@@ -318,11 +334,7 @@ fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k: 
         // EX133: the helper refused a device-register access; its instruction was counted
         // but did not run, and the pc still names it.
         if exit == crate::jit::CODE_TRAP && bus.deferred() { done -= 1; }
-        #[cfg(target_arch = "wasm32")]
-        if done != 0 && cpu.price_control && cpu.icache_fill != 0 {
-            let i = cpu.blocks.arena[k as usize].insn;
-            cpu.touch_fetch_lines(fetch_pc, fetch_pc.wrapping_add(i.len.max(1) as u32 - 1));
-        }
+
         cpu.blocks.jit_instructions += done as u64;
         cpu.insn_count += done as u64;
         cpu.advance_ccount(done * cpu.approximate_cpi);
