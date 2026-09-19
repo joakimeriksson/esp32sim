@@ -1,0 +1,135 @@
+diff --git a/esp-soc/src/machine.rs b/esp-soc/src/machine.rs
+index 4f28f738..512d1fb3 100644
+--- a/esp-soc/src/machine.rs
++++ b/esp-soc/src/machine.rs
+@@ -55,7 +55,7 @@ pub struct Realtime {
+     log_insns: (u64, u64),
+ }
+ 
+-struct WebState { last_push_cycles: u64, audio_sent: usize, ring_updates: u64, grid_updates: Vec<u64>, px_pending: u64, px_sent: u64, px_deferred: bool, cam_pushed: u64, cam_sent: bool }
++struct WebState { push_interval: u64, last_push_cycles: u64, audio_sent: usize, ring_updates: u64, grid_updates: Vec<u64>, px_pending: u64, px_sent: u64, px_deferred: bool, cam_pushed: u64, cam_sent: bool }
+ 
+ pub struct Machine<S: Soc> {
+     pub mac: [u8; 6],
+@@ -197,7 +197,7 @@ impl<S: Soc> Machine<S> {
+             exceptions: 0, interrupts: 0, irq_hist: vec![[0; 32]; S::CORES],
+             script: Script { events: Vec::new(), pos: 0, log: true, knob_next: 0 }, max_cycles: u64::MAX,
+             console: Console { all: Vec::new(), usb: Vec::new(), uart0: Vec::new(), mask: 3, prefix: false, capture: false },
+-            web: None, ws: WebState { last_push_cycles: 0, audio_sent: 0, ring_updates: 0, grid_updates: Vec::new(), px_pending: 0, px_sent: 0, px_deferred: false, cam_pushed: u64::MAX, cam_sent: false },
++            web: None, ws: WebState { push_interval: 0, last_push_cycles: 0, audio_sent: 0, ring_updates: 0, grid_updates: Vec::new(), px_pending: 0, px_sent: 0, px_deferred: false, cam_pushed: u64::MAX, cam_sent: false },
+             rt: Realtime { enabled: false, wall_start: None, last_check: 0, behind: 0.0, resyncs: 0, speed: None, speed_mark: None, log: false, log_last: None, log_insns: (0, 0) },
+             debug_rom: false, cost: None, model_accesses: Vec::new(), approximate_jit_timing: None, approximate_jit_frontiers: false, model_ready_at: vec![0; S::CORES], model_stop: None, model_attach_error: None,
+         }
+@@ -523,6 +523,8 @@ impl<S: Soc> Machine<S> {
+     /// `browser_external_block_budget`. Architectural core state must already contain the full
+     /// quantum's result.
+     pub fn finish_browser_external_quantum(&mut self) -> Option<Stop> {
++        // This execution entry bypasses web_poll_input; keep its existing input-poll timing.
++        if self.web.is_some() { self.ws.push_interval = S::CPU_HZ / self.bus.board_ref().display_push_hz(); }
+         self.after_round(self.quantum);
+         if self.bus.sw_reset() { self.drain_console(); return Some(Stop::SwReset); }
+         if self.bus.cycles() >= self.max_cycles { self.drain_console(); return Some(Stop::Halted); }
+@@ -673,7 +675,7 @@ impl<S: Soc> Machine<S> {
+             if enabled && i != busy { if let Some(wake) = core.cycles_until_wake() { k = k.min(wake.div_ceil(self.quantum)); } }
+         }
+         if let Some((at, _)) = self.script.events.get(self.script.pos) { k = k.min(at.saturating_sub(now).div_ceil(self.quantum)); }
+-        if self.web.is_some() { k = k.min((S::CPU_HZ / self.bus.board_ref().display_push_hz()).saturating_sub(now.wrapping_sub(self.ws.last_push_cycles)).div_ceil(self.quantum)); }
++        if self.web.is_some() { k = k.min(self.ws.push_interval.saturating_sub(now.wrapping_sub(self.ws.last_push_cycles)).div_ceil(self.quantum)); }
+         k.max(1)
+     }
+ 
+@@ -1084,7 +1086,7 @@ impl<S: Soc> Machine<S> {
+     #[inline]
+     fn after_round_rest(&mut self) -> bool {
+         let stopped = self.apply_script_events();
+-        if self.web.is_some() && self.bus.cycles().wrapping_sub(self.ws.last_push_cycles) >= S::CPU_HZ / self.bus.board_ref().display_push_hz() { self.ws.last_push_cycles = self.bus.cycles(); self.web_push(); self.web_poll_input(); }
++        if self.web.is_some() && self.bus.cycles().wrapping_sub(self.ws.last_push_cycles) >= self.ws.push_interval { self.ws.last_push_cycles = self.bus.cycles(); self.web_push(); self.web_poll_input(); }
+         if self.rt.enabled && self.bus.cycles().wrapping_sub(self.rt.last_check) >= 1 << 16 {
+             self.rt.last_check = self.bus.cycles();
+             let start = *self.rt.wall_start.get_or_insert_with(std::time::Instant::now);
+@@ -1199,6 +1201,9 @@ impl<S: Soc> Machine<S> {
+     // poll remains necessary for native callers that run continuously rather than in slices.
+     fn web_poll_input(&mut self) {
+         let Some(w) = self.web.clone() else { return };
++        // Board configuration is sampled at host execution entry and each page push: callers
++        // may replace the public board between runs, including after Machine::new.
++        self.ws.push_interval = S::CPU_HZ / self.bus.board_ref().display_push_hz();
+         use crate::web::json_str;
+         for b in w.poll_incoming_bin() {
+             // type 3: camera picture from the browser — [3][w u16 le][h u16 le][RGBA...]
+diff --git a/esp32s3/tests/web_cadence.rs b/esp32s3/tests/web_cadence.rs
+new file mode 100644
+index 00000000..b1879009
+--- /dev/null
++++ b/esp32s3/tests/web_cadence.rs
+@@ -0,0 +1,70 @@
++//! Web publication cadence follows the board installed at each scheduler entry.
++use esp_soc::{board::BoardModel, web::WebServer, RunUntil, Stop};
++
++struct Board(u64);
++
++impl BoardModel for Board {
++    fn name(&self) -> &'static str { "cadence-test" }
++    fn display_push_hz(&self) -> u64 { self.0 }
++}
++
++#[derive(Clone, Copy, Debug)]
++enum Entry { Run, UntilCycle, ExternalQuantum }
++
++impl Entry {
++    fn advance(self, m: &mut esp32s3::Machine) {
++        let target = m.bus.cycles + m.quantum;
++        match self {
++            Self::Run => {
++                m.cores[0].waiting = true;
++                assert!(matches!(m.run(m.quantum), Stop::MaxInsns));
++            }
++            Self::UntilCycle => {
++                m.cores[0].waiting = true;
++                assert!(matches!(m.run_until_cycle(target), RunUntil::Reached));
++            }
++            Self::ExternalQuantum => {
++                m.cores[0].waiting = false;
++                assert_eq!(m.browser_external_block_budget(1), Some(m.quantum as u32));
++                assert!(m.finish_browser_external_quantum().is_none());
++            }
++        }
++        assert_eq!(m.bus.cycles, target, "{self:?}");
++    }
++}
++
++fn stat_count(web: &WebServer) -> usize {
++    web.take_outbox().into_iter().filter(|(kind, data)| {
++        *kind == 1 && data.starts_with(b"{\"t\":\"stat\",")
++    }).count()
++}
++
++#[test]
++fn board_replacement_preserves_last_push_and_refreshes_each_scheduler_entry() {
++    let entries = [Entry::Run, Entry::UntilCycle, Entry::ExternalQuantum];
++    for start in 0..entries.len() {
++        let mut m = esp32s3::machine([1, 2, 3, 4, 5, 6]);
++        m.console.capture = true;
++        m.cores[0].ps = 0;
++        let web = WebServer::queued();
++        m.web = Some(web.clone());
++        let mut last_push = 0;
++
++        // Choose the first board after construction, then replace it between calls.
++        // Rotate entry paths so every path sees both rates and a nonzero last push.
++        for (step, hz) in [120, 50, 120, 50].into_iter().enumerate() {
++            m.bus.board = Box::new(Board(hz));
++            let entry = entries[(start + step) % entries.len()];
++            let due = last_push + 240_000_000 / hz;
++            assert_eq!(due % m.quantum, 0);
++            // Skip uneventful emulated time, keeping the two boundary quanta real.
++            m.bus.cycles = due - 2 * m.quantum;
++            entry.advance(&mut m);
++            assert_eq!(stat_count(&web), 0, "{entry:?}: {hz} Hz published early");
++            entry.advance(&mut m);
++            assert_eq!(m.bus.cycles, due);
++            assert_eq!(stat_count(&web), 1, "{entry:?}: {hz} Hz missed its deadline");
++            last_push = due;
++        }
++    }
++}

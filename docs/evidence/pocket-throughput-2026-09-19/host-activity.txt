@@ -1,0 +1,23 @@
+September 19, 2026, approximately 11:57 UTC: spot process inspection during
+the late candidate arm of fresh S8 confirmation pair 1.
+
+Command: ps -axo pid,pcpu,comm | sort -k2 -nr | head -n 12
+
+62479 133.9 Google Chrome Helper (Renderer)
+  396  60.9 /usr/libexec/opendirectoryd
+62644  58.3 /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild
+62642  55.8 /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild
+  426  44.7 WindowServer
+61702  34.8 /Applications/ChatGPT.app/Contents/Resources/codex
+  511  24.4 mds_stores
+  763  19.1 AccessibilityUIServer
+  384  11.8 mds
+62645   9.2 mdworker_shared
+62362   6.4 mdworker_shared
+62194   6.2 mdworker_shared
+
+Immediate follow-up: ps -p 62644,62642 -o pid,ppid,etime,pcpu,args
+returned only its header with exit status 1; both processes had exited.
+The task did not terminate or interrupt them. Their duration and exact
+work are unknown. Team builds/tests were paused, but this sample proves
+the host was not wholly idle. Small timing differences are inconclusive.

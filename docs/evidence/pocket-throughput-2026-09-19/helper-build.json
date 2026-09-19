@@ -1,0 +1,21 @@
+{
+  "commit": "be64c0e77372c5f487b4e38872b70d2ec424cc91",
+  "sourcePatch": "",
+  "buildCommand": "env -u RUSTFLAGS -u CARGO_ENCODED_RUSTFLAGS sh tools/wasm-build.sh",
+  "buildFeatures": [],
+  "defaultFeatures": true,
+  "defaultPackageFeatures": [
+    "cache-inline"
+  ],
+  "buildEnvironment": {
+    "RUSTFLAGS": null,
+    "CARGO_ENCODED_RUSTFLAGS": null
+  },
+  "wasmSha256": "b6f72a1a7844aa44458183a5152c4008a02d20fa6fc4666e913dd65eeb74b444",
+  "wasmBytes": 7769145,
+  "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)\nbinary: rustc\ncommit-hash: 48a229ceaefd4985c50990b14116b6d856af0985\ncommit-date: 2026-09-01\nhost: aarch64-apple-darwin\nrelease: 1.98.1\nLLVM version: 22.1.8\n",
+  "wasmOpt": "/opt/homebrew/bin/wasm-opt\nwasm-opt version 132\n",
+  "wasmOptFlags": [
+    "-O3"
+  ]
+}
