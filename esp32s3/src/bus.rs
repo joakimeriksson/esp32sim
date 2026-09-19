@@ -78,6 +78,9 @@ pub struct SocBus {
     pub cycles: u64,
     pub last_fault: Option<(u32, bool)>,
     pub spi2_dma_fault: Option<DmaDescriptorFault>,
+    /// Experimental register-derived SPI2 wire timing; disabled for baseline runs.
+    pub spi2_timing: bool,
+    spi2_scheduled: Option<(u64, Spi2DmaCompletion)>,
     /// set by any peripheral write: interrupt lines must be re-evaluated before the next instruction
     pub irq_dirty: bool,
     /// GPIO edges for observers, while one wants them: (cycle, pin, level)
@@ -95,14 +98,42 @@ pub struct SocBus {
     /// first `page_ver` index of each buffer, by `SRC_*`
     ver_base: [u32; 7],
     /// Device time is advanced lazily: cycles accumulate here and the devices see them in one
-    /// batch when a timer is due, a peripheral register is accessed, or MAX_TICK_DEFER cycles
-    /// have passed — so guest-visible time is exact while idle rounds cost nothing.
+    /// batch when a timer is due, a peripheral register is accessed, or the active-device
+    /// backstop expires. Quiet devices allow a longer backstop.
     tick_pending: u32, tick_budget: u32,
+    /// EX133 virtual quanta: stop in front of device-register accesses / one was just refused.
+    pub(crate) defer_mmio: bool, pub(crate) mmio_deferred: bool, pub vq_violations: u64,
+    approximate_cache: Option<crate::approximate_cache::CacheTiming>,
+    approximate_cache_pending: u32,
+    approximate_cache_fast_internal: bool,
+    approximate_cache_inline: bool,
+    approximate_cache_yield_miss: bool,
+    cache_resource: CacheResource,
 }
 
-/// Longest stretch of cycles device models may go without seeing time advance. Bounds the
-/// latency of everything that has no computed deadline (DMA, USB, LCD, WiFi).
+/// One shared external resource, occupied only by priced fills/writebacks.
+/// Requests within a compiled batch are serialized at its supplied start time.
+#[derive(Default)]
+struct CacheResource {
+    enabled: bool,
+    busy_until: u64,
+    cursor: u64,
+    core: usize,
+    fill_cycles: u32,
+    fill_service_cycles: u32,
+    flash_timing: Option<(u32, u32)>, // demand readiness and shared-bus occupancy
+    writeback_cycles: u32,
+    wait_cycles: [u64; 2],
+}
+
+/// Preserve the original cadence whenever an active device lacks a deadline.
 const MAX_TICK_DEFER: u32 = 256;
+/// EX134: only quiet devices may use this longer backstop. The default stays below
+/// one USB SOF period (60000 cycles); overrides are for explicit experiments.
+const QUIET_TICK_DEFER: u32 = match option_env!("ESP32SIM_DEFER_BUILD") {
+    Some(s) => { let b = s.as_bytes(); let (mut i, mut v) = (0, 0u32); while i < b.len() { v = v * 10 + (b[i] - b'0') as u32; i += 1; } v }
+    None => 32768,
+};
 
 /// Buffer identifiers for resolved addresses.
 pub const SRC_SRAM: u8 = 0; pub const SRC_IROM: u8 = 1; pub const SRC_FLASH: u8 = 2; pub const SRC_PSRAM: u8 = 3;
@@ -116,17 +147,116 @@ use xtensa_lx7::bus::{FastMem, TlbEntry};
 fn tlb_idx(addr: u32) -> usize { xtensa_lx7::bus::tlb_index(addr) }
 
 impl SocBus {
+    pub(crate) fn cancel_spi2_timing(&mut self) { self.spi2_scheduled = None; }
+
     pub fn new(flash_size: usize, psram_size: usize, mac: [u8; 6]) -> Self { Self::with_sizes(flash_size, psram_size, mac) }
     pub fn with_sizes(flash_size: usize, psram_size: usize, mac: [u8; 6]) -> Self {
         let bus_uninit = SocBus {
             sram: vec![0; SRAM_SIZE], irom: vec![0; (IROM_MASK_HIGH - IROM_MASK_LOW) as usize], drom: vec![0; (DROM_MASK_HIGH - DROM_MASK_LOW) as usize],
             rtc_fast: vec![0; 8192], rtc_slow: vec![0; 8192], flash: vec![0xff; flash_size], psram: vec![0; psram_size],
             mmu: [MMU_INVALID; MMU_ENTRIES], periph: Peripherals::new(mac), board: Box::new(crate::board::Atech14::new()), cycles: 0, last_fault: None, spi2_dma_fault: None, irq_dirty: false, gpio_events: None, debug: Default::default(),
-            tlb: vec![TlbEntry::EMPTY; TLB_SIZE], page_ver: Vec::new(), ver_base: [0; 7], tick_pending: 0, tick_budget: 0,
+            spi2_timing: false, spi2_scheduled: None,
+            tlb: vec![TlbEntry::EMPTY; TLB_SIZE], page_ver: Vec::new(), ver_base: [0; 7], tick_pending: 0, tick_budget: 0, defer_mmio: false, mmio_deferred: false, vq_violations: 0,
+            approximate_cache: None, approximate_cache_pending: 0, approximate_cache_fast_internal: false, approximate_cache_inline: false,
+            approximate_cache_yield_miss: false,
+            cache_resource: CacheResource::default(),
         };
         let mut b = bus_uninit;
         b.rebuild_page_table();
         b
+    }
+
+    /// Rough helper-path experiment. Disables direct memory access so reads and
+    /// writes visit cache state. Enable before execution. No instruction costs.
+    pub fn enable_approximate_cache(&mut self, config: crate::approximate_cache::CacheConfig) {
+        self.cache_resource.fill_cycles = config.fill_cycles;
+        self.cache_resource.fill_service_cycles = config.fill_cycles;
+        self.cache_resource.flash_timing = None;
+        self.cache_resource.writeback_cycles = config.writeback_cycles;
+        self.approximate_cache = Some(crate::approximate_cache::CacheTiming::new(config));
+        self.approximate_cache_pending = 0;
+    }
+
+    pub fn approximate_cache_stats(&self) -> Option<crate::approximate_cache::CacheAccess> {
+        self.approximate_cache.as_ref().map(|cache| cache.stats())
+    }
+    /// Keep internal SRAM on the generated direct path while external data uses priced helpers.
+    pub fn set_approximate_cache_fast_internal(&mut self, enabled: bool) {
+        self.approximate_cache_fast_internal = enabled;
+        self.invalidate_tlb();
+    }
+    /// Reuse the existing compiled helper exit to schedule the first cache miss promptly.
+    pub fn set_approximate_cache_yield_miss(&mut self, enabled: bool) {
+        self.approximate_cache_yield_miss = enabled;
+    }
+
+    pub fn set_approximate_cache_inline(&mut self) -> bool {
+        if !cfg!(all(target_arch = "wasm32", feature = "cache-inline")) { return false; }
+        if self.approximate_cache.as_mut().and_then(|c| c.inline_view()).is_none() { return false; }
+        self.approximate_cache_inline = true;
+        self.approximate_cache_fast_internal = true;
+        self.invalidate_tlb();
+        true
+    }
+
+    pub fn take_approximate_cache_penalty(&mut self) -> u32 {
+        std::mem::take(&mut self.approximate_cache_pending)
+    }
+
+    /// Enable before execution, together with the earliest-ready compiled scheduler.
+    pub fn set_approximate_cache_contention(&mut self, enabled: bool) {
+        self.cache_resource.enabled = enabled;
+        self.cache_resource.busy_until = self.cycles;
+        self.cache_resource.cursor = self.cycles;
+        self.cache_resource.wait_cycles = [0; 2];
+    }
+    pub fn approximate_cache_wait_cycles(&self) -> [u64; 2] { self.cache_resource.wait_cycles }
+    /// Hypothesis: requested data can be ready before the external line burst finishes.
+    /// CPU readiness remains CacheConfig.fill_cycles; default service equals readiness.
+    pub fn set_approximate_cache_fill_service(&mut self, cycles: u32) -> bool {
+        if cycles < self.cache_resource.fill_cycles { return false; }
+        self.cache_resource.fill_service_cycles = cycles;
+        true
+    }
+
+    /// Optional flash-only timing experiment. Configure the common cache first;
+    /// absent this override, flash and PSRAM retain the common readiness/service.
+    pub fn set_approximate_flash_timing(&mut self, ready: u32, service: u32) -> bool {
+        if self.approximate_cache.is_none() || service < ready { return false; }
+        self.cache_resource.flash_timing = Some((ready, service));
+        true
+    }
+
+    #[inline]
+    fn price_cached_data(&mut self, entry: TlbEntry, address: u32, width: u32, write: bool) {
+        if !matches!(entry.src as u8, SRC_FLASH | SRC_PSRAM) { return; }
+        if let Some(cache) = &mut self.approximate_cache {
+            // Physical offset plus resource distinguishes flash from PSRAM and
+            // recognizes virtual aliases. Both cores share this bus/cache.
+            let key = (entry.src << 28) | (entry.off + address - entry.lo);
+            let resource = &mut self.cache_resource;
+            let common = (resource.fill_cycles, resource.fill_service_cycles);
+            let (ready, service) = if entry.src as u8 == SRC_FLASH {
+                resource.flash_timing.unwrap_or(common)
+            } else { common };
+            let result = cache.access_with_fill_cycles(key, width, write, ready);
+            if resource.enabled {
+                let mut wait = 0u64;
+                // Dirty victims finish before refill. Writes do not have an early-ready split.
+                for _ in 0..result.dirty_writebacks {
+                    wait = wait.saturating_add(resource.reserve(resource.writeback_cycles, resource.writeback_cycles));
+                }
+                for _ in 0..result.line_fills {
+                    wait = wait.saturating_add(resource.reserve(ready, service));
+                }
+                resource.wait_cycles[resource.core] = resource.wait_cycles[resource.core].saturating_add(wait);
+                // Requested-data readiness is already included in extra_cycles below.
+                self.approximate_cache_pending = self.approximate_cache_pending
+                    .saturating_add(wait.min(u32::MAX as u64) as u32);
+            }
+            self.approximate_cache_pending = self.approximate_cache_pending
+                .saturating_add(result.extra_cycles.min(u32::MAX as u64) as u32);
+        }
     }
 
     /// Attach fresh peripheral-side devices and restore the levels driven by the persistent board.
@@ -139,6 +269,8 @@ impl SocBus {
             self.periph.gpio.set_input(pin, level);
             self.irq_dirty |= old_input != self.periph.gpio.input;
         }
+        // Restored input edges and the board's own deadline can activate device work.
+        self.refresh_tick_budget();
     }
 
     /// Time until deferred device work must run. The bounded fallback covers devices without
@@ -210,7 +342,12 @@ impl SocBus {
         e.vbase = self.ver_base[e.src as usize] + (e.off as usize >> VPAGE_SHIFT) as u32;
         let off = e.off as usize;
         e.base = unsafe { self.buf_mut(e.src as u8).as_mut_ptr().add(off) };
-        self.tlb[tlb_idx(addr)] = e;
+        // Do not publish external mappings to generated loads/stores while pricing cache accesses.
+        // Returning the mapping still lets the slow accessor perform this one access.
+        if !(self.approximate_cache.is_some() && self.approximate_cache_fast_internal && !self.approximate_cache_inline
+            && matches!(e.src as u8, SRC_FLASH | SRC_PSRAM)) {
+            self.tlb[tlb_idx(addr)] = e;
+        }
         Some(e)
     }
 
@@ -242,10 +379,18 @@ impl SocBus {
         if (MMU_TABLE..MMU_TABLE + (MMU_ENTRIES as u32) * 4).contains(&addr) {
             return self.mmu[((addr - MMU_TABLE) >> 2) as usize];
         }
+        self.vq_backstop(addr);
         self.flush_ticks();                                         // registers must show exact time
         self.periph.read32(addr)
     }
+    /// EX133: every device-register access must have been deferred out of a multi-quantum run.
+    /// One that was not (a PIE or MAC16 word access; nothing real does this) saw early time.
+    #[inline]
+    fn vq_backstop(&mut self, addr: u32) {
+        if self.defer_mmio { assert!(option_env!("ESP32SIM_VQ_STRICT").is_none(), "EX133: undeferred device access at {addr:#x}"); self.vq_violations += 1; if self.vq_violations == 1 { eprintln!("[emu] EX133: undeferred device access at {addr:#x}, pc {:#x}", self.periph.misc.cur_pc); } }
+    }
     fn periph_write(&mut self, addr: u32, v: u32) {
+        self.vq_backstop(addr);
         self.periph_write_inner(addr, v);
         self.refresh_tick_budget();   // the write may have armed something
     }
@@ -259,6 +404,7 @@ impl SocBus {
         let a = addr & !3;
         if a == PERIPH_BASE + 0x24_000 && v & (1 << 24) != 0 {
             self.spi2_dma_fault = None;
+            self.spi2_scheduled = None;
         }
         let old_gpio_out = self.periph.gpio.out;
         self.periph.write32(a, v);
@@ -288,21 +434,26 @@ impl SocBus {
     }
 
     fn complete_spi2_dma(&mut self) {
+        if let Some((deadline, _)) = &self.spi2_scheduled {
+            if self.cycles < *deadline { return; }
+            let (_, completion) = self.spi2_scheduled.take().unwrap();
+            self.commit_spi2_dma(completion);
+            return;
+        }
         if self.periph.spi2.dma_tx_pending.is_none() {
             return;
         }
         let channel = self.periph.gdma.out_channel_for(0);
         match self.spi2_dma_completion() {
             Ok(Some(completion)) => {
-                for (descriptor, control) in completion.descriptor_writebacks {
-                    if let Err(fault) = self.write32(descriptor, control) {
-                        self.fail_spi2_dma(completion.channel, DmaDescriptorFault::Writeback { descriptor, fault });
-                        return;
-                    }
+                if self.spi2_timing {
+                    // Rough wire-time floor, assuming the normal 80 MHz SPI source.
+                    // Payload is snapshotted at submission; no progressive SRAM reads yet.
+                    let cycles = self.periph.spi2.wire_source_cycles() * (crate::periph::CPU_HZ / 80_000_000);
+                    self.spi2_scheduled = Some((self.cycles.saturating_add(cycles), completion));
+                } else {
+                    self.commit_spi2_dma(completion);
                 }
-                self.periph.gdma.out[completion.channel] = completion.final_channel;
-                self.periph.spi2.complete_dma_tx(&completion.payload);
-                self.irq_dirty = true;
             }
             Ok(None) => {}
             Err(fault) => {
@@ -311,6 +462,18 @@ impl SocBus {
                 }
             }
         }
+    }
+
+    fn commit_spi2_dma(&mut self, completion: Spi2DmaCompletion) {
+        for (descriptor, control) in completion.descriptor_writebacks {
+            if let Err(fault) = self.write32(descriptor, control) {
+                self.fail_spi2_dma(completion.channel, DmaDescriptorFault::Writeback { descriptor, fault });
+                return;
+            }
+        }
+        self.periph.gdma.out[completion.channel] = completion.final_channel;
+        self.periph.spi2.complete_dma_tx(&completion.payload);
+        self.irq_dirty = true;
     }
 
     fn fail_spi2_dma(&mut self, channel: usize, fault: DmaDescriptorFault) {
@@ -907,16 +1070,28 @@ impl SocBus {
     }
 }
 
+impl CacheResource {
+    fn reserve(&mut self, ready: u32, service: u32) -> u64 {
+        if service == 0 { return 0; }
+        let start = self.cursor.max(self.busy_until);
+        let wait = start - self.cursor;
+        self.cursor = start.saturating_add(u64::from(ready));
+        self.busy_until = start.saturating_add(u64::from(service));
+        wait
+    }
+}
+
 impl Bus for SocBus {
     fn read8(&mut self, addr: u32) -> Result<u8, Fault> {
         if Self::is_periph(addr) { self.last_fault = Some((addr, false)); return Err(Fault::Prohibited); }
         let Some(e) = self.lookup(addr) else { self.last_fault = Some((addr, false)); return Err(Fault::Unmapped) };
+        self.price_cached_data(e, addr, 1, false);
         Ok(self.buf(e.src as u8)[e.off as usize + (addr - e.lo) as usize])
     }
     fn read16(&mut self, addr: u32) -> Result<u16, Fault> {
         if Self::is_periph(addr) { self.last_fault = Some((addr, false)); return Err(Fault::Prohibited); }
         match self.lookup(addr) {
-            Some(e) if addr.wrapping_add(2) <= e.hi => { let o = e.off as usize + (addr - e.lo) as usize; Ok(u16::from_le_bytes(self.buf(e.src as u8)[o..o + 2].try_into().unwrap())) }
+            Some(e) if addr.wrapping_add(2) <= e.hi => { self.price_cached_data(e, addr, 2, false); let o = e.off as usize + (addr - e.lo) as usize; Ok(u16::from_le_bytes(self.buf(e.src as u8)[o..o + 2].try_into().unwrap())) }
             Some(_) => Ok(u16::from_le_bytes([self.read8(addr)?, self.read8(addr + 1)?])),       // straddles a page
             None => { self.last_fault = Some((addr, false)); Err(Fault::Unmapped) }
         }
@@ -927,7 +1102,7 @@ impl Bus for SocBus {
             return Ok(self.periph_read(addr));
         }
         match self.lookup(addr) {
-            Some(e) if addr.wrapping_add(4) <= e.hi => { let o = e.off as usize + (addr - e.lo) as usize; Ok(u32::from_le_bytes(self.buf(e.src as u8)[o..o + 4].try_into().unwrap())) }
+            Some(e) if addr.wrapping_add(4) <= e.hi => { self.price_cached_data(e, addr, 4, false); let o = e.off as usize + (addr - e.lo) as usize; Ok(u32::from_le_bytes(self.buf(e.src as u8)[o..o + 4].try_into().unwrap())) }
             Some(_) => Ok(u32::from_le_bytes([self.read8(addr)?, self.read8(addr + 1)?, self.read8(addr + 2)?, self.read8(addr + 3)?])),
             None => { self.last_fault = Some((addr, false)); Err(Fault::Unmapped) }
         }
@@ -938,14 +1113,14 @@ impl Bus for SocBus {
         // This is an explicit emulator policy, not a model of optional PMS IRQs.
         if Self::is_periph(addr) { self.last_fault = Some((addr, true)); return Err(Fault::Prohibited); }
         match self.lookup(addr) {
-            Some(e) if e.writable != 0 => { let rel = (addr - e.lo) as usize; self.buf_mut(e.src as u8)[e.off as usize + rel] = v; self.bump(e.vbase, rel, 1); Ok(()) }
+            Some(e) if e.writable != 0 => { self.price_cached_data(e, addr, 1, true); let rel = (addr - e.lo) as usize; self.buf_mut(e.src as u8)[e.off as usize + rel] = v; self.bump(e.vbase, rel, 1); Ok(()) }
             _ => { self.last_fault = Some((addr, true)); Err(Fault::Prohibited) }
         }
     }
     fn write16(&mut self, addr: u32, v: u16) -> Result<(), Fault> {
         if Self::is_periph(addr) { self.last_fault = Some((addr, true)); return Err(Fault::Prohibited); }
         match self.lookup(addr) {
-            Some(e) if e.writable != 0 && addr.wrapping_add(2) <= e.hi => { let rel = (addr - e.lo) as usize; let o = e.off as usize + rel; self.buf_mut(e.src as u8)[o..o + 2].copy_from_slice(&v.to_le_bytes()); self.bump(e.vbase, rel, 2); Ok(()) }
+            Some(e) if e.writable != 0 && addr.wrapping_add(2) <= e.hi => { self.price_cached_data(e, addr, 2, true); let rel = (addr - e.lo) as usize; let o = e.off as usize + rel; self.buf_mut(e.src as u8)[o..o + 2].copy_from_slice(&v.to_le_bytes()); self.bump(e.vbase, rel, 2); Ok(()) }
             Some(e) if e.writable != 0 => { let b = v.to_le_bytes(); self.write8(addr, b[0])?; self.write8(addr + 1, b[1]) }
             _ => { self.last_fault = Some((addr, true)); Err(Fault::Prohibited) }
         }
@@ -956,7 +1131,7 @@ impl Bus for SocBus {
             self.periph_write(addr, v); return Ok(());
         }
         match self.lookup(addr) {
-            Some(e) if e.writable != 0 && addr.wrapping_add(4) <= e.hi => { let rel = (addr - e.lo) as usize; let o = e.off as usize + rel; self.buf_mut(e.src as u8)[o..o + 4].copy_from_slice(&v.to_le_bytes()); self.bump(e.vbase, rel, 4); Ok(()) }
+            Some(e) if e.writable != 0 && addr.wrapping_add(4) <= e.hi => { self.price_cached_data(e, addr, 4, true); let rel = (addr - e.lo) as usize; let o = e.off as usize + rel; self.buf_mut(e.src as u8)[o..o + 4].copy_from_slice(&v.to_le_bytes()); self.bump(e.vbase, rel, 4); Ok(()) }
             Some(e) if e.writable != 0 => { let b = v.to_le_bytes(); for i in 0..4 { self.write8(addr + i, b[i as usize])?; } Ok(()) }
             _ => { self.last_fault = Some((addr, true)); Err(Fault::Prohibited) }
         }
@@ -975,18 +1150,44 @@ impl Bus for SocBus {
     fn page_versions(&self) -> &[u32] { &self.page_ver }
     #[inline(always)]
     fn note_pc(&mut self, pc: u32) { self.periph.misc.cur_pc = pc; }
-    fn fast_mem(&mut self) -> Option<FastMem> { Some(FastMem { tlb: self.tlb.as_ptr(), page_ver: self.page_ver.as_mut_ptr() }) }
+    fn fast_mem(&mut self) -> Option<FastMem> { if self.approximate_cache.is_some() && !self.approximate_cache_fast_internal { None } else { Some(FastMem { tlb: self.tlb.as_ptr(), page_ver: self.page_ver.as_mut_ptr() }) } }
     fn read_bulk(&mut self, addr: u32, out: &mut [u8]) -> bool {
         // Only a range inside one mapped entry with no peripheral behind it: exactly what the
         // per-word reads would return, without their per-word lookups or fault reporting.
         if Self::is_periph(addr) { return false; }
         let Some(e) = self.lookup(addr) else { return false };
+        // Packed PIE falls back to its four word reads when external-cache timing
+        // is enabled, so fills, hits and queued service are accounted for normally.
+        if self.approximate_cache.is_some() && matches!(e.src as u8, SRC_FLASH | SRC_PSRAM) { return false; }
         if u64::from(addr) + out.len() as u64 > u64::from(e.hi) { return false; }
         let o = e.off as usize + (addr - e.lo) as usize;
         match self.buf(e.src as u8).get(o..o + out.len()) { Some(bytes) => { out.copy_from_slice(bytes); true } None => false }
     }
+    fn take_timing_penalty(&mut self) -> u32 { self.take_approximate_cache_penalty() }
+    fn add_timing_penalty(&mut self, cycles: u32) {
+        self.approximate_cache_pending = self.approximate_cache_pending.saturating_add(cycles);
+    }
+    fn fast_cache(&mut self) -> Option<emu_core::bus::FastCache> {
+        if self.approximate_cache_inline { self.approximate_cache.as_mut().and_then(|c| c.inline_view()) } else { None }
+    }
+    fn begin_timing_batch(&mut self, core: usize, now: u64) {
+        self.cache_resource.core = core.min(1);
+        self.cache_resource.cursor = now;
+    }
     #[inline(always)]
-    fn block_break(&self) -> bool { self.irq_dirty }
+    fn block_break(&self) -> bool { self.irq_dirty || (self.approximate_cache_yield_miss && self.approximate_cache_pending != 0) }
+    #[inline(always)]
+    fn defer_armed(&self) -> bool { self.defer_mmio }
+    #[inline(always)]
+    fn defer_access(&mut self, addr: u32) -> bool {
+        // PIE ld.qr/st.qr add [-128,112] before accessing memory; MAC16 loads
+        // add +/-4. Their conservative AR scan must also catch boundary crossings.
+        if self.defer_mmio && (PERIPH_BASE - 128..PERIPH_END + 128).contains(&addr) {
+            self.mmio_deferred = true; true
+        } else { false }
+    }
+    #[inline(always)]
+    fn deferred(&self) -> bool { self.mmio_deferred }
     fn code_page(&mut self, pc: u32) -> u32 {
         match self.lookup(pc) { Some(e) => e.vbase + ((pc - e.lo) >> VPAGE_SHIFT), None => self.page_ver.len() as u32 - 1 }
     }
@@ -1002,12 +1203,33 @@ impl Bus for SocBus {
 }
 
 impl SocBus {
-    pub(crate) fn refresh_tick_budget(&mut self) {
-        let mut budget = self.periph.cycles_until_timer().clamp(1, MAX_TICK_DEFER);
+    fn cadence_active(&self) -> bool {
+        let p = &self.periph;
+        p.i2s0.tx_running() || p.i2s1.tx_running()
+            || p.lcd_cam.running || p.lcd_cam.lcd_running()
+            || p.gdma.inp.iter().any(|c| c.running) || p.gdma.out.iter().any(|c| c.running)
+            || p.wifi.ap.is_some() || p.wifi.net.is_some() || !p.wifi.tx_pending.is_empty()
+            || p.aes.dma_pending || p.sha.dma_pending
+            || p.spi2.has_pending_transfer() || p.spi2.dma_tx_pending.is_some()
+            || p.rmt.ch.iter().any(|c| c.running) || !p.rmt.done.is_empty()
+            || !p.gpio.changes.is_empty() || !p.gpio.input_changes.is_empty()
+            || p.rtc.ram.read(0x98) & (1 << 31) != 0
+            || p.usb.int_ena & (1 << 1) != 0
+    }
+
+    /// Refresh the cached deadline after host-side device configuration changes.
+    /// Pending elapsed cycles are retained and count toward the new threshold.
+    pub fn refresh_tick_budget(&mut self) {
+        let cap = if self.cadence_active() { MAX_TICK_DEFER } else { QUIET_TICK_DEFER };
+        let mut budget = self.periph.cycles_until_timer().clamp(1, cap);
+        if let Some((deadline, _)) = &self.spi2_scheduled {
+            let until = u64::from(self.tick_pending).saturating_add(deadline.saturating_sub(self.cycles));
+            budget = budget.min(until.clamp(1, u64::from(MAX_TICK_DEFER)) as u32);
+        }
         if let Some(deadline) = self.board.next_deadline() {
             let until_deadline = u64::from(self.tick_pending)
                 .saturating_add(deadline.saturating_sub(self.cycles))
-                .clamp(1, u64::from(MAX_TICK_DEFER));
+                .clamp(1, u64::from(cap));
             budget = budget.min(until_deadline as u32);
         }
         self.tick_budget = budget;
@@ -1035,6 +1257,7 @@ impl SocBus {
             self.irq_dirty |= old_input != self.periph.gpio.input;
         }
         self.complete_spi2_dma();
+        self.deliver_spi2_transfer();
         self.dma_i2s_step(cycles as u64);
         self.dma_cam_step(cycles as u64);
         self.dma_lcd_step(cycles as u64);
@@ -1079,6 +1302,173 @@ impl SocBus {
 mod gp_spi_board_tests {
     use super::*;
     use std::sync::{Arc, Mutex};
+
+    #[test]
+    fn shared_cache_misses_queue_without_charging_hits_or_service_twice() {
+        let mut bus = SocBus::new(65536, 65536, [0; 6]);
+        bus.mmu[0] = MMU_SPIRAM;
+        bus.enable_approximate_cache(Default::default());
+        bus.set_approximate_cache_contention(true);
+        bus.begin_timing_batch(0, 100);
+        bus.read32(DBUS_LOW).unwrap();
+        assert_eq!(bus.take_timing_penalty(), 120);
+        bus.begin_timing_batch(1, 100);
+        bus.read32(DBUS_LOW).unwrap(); // hit while the other core's resource is occupied
+        assert_eq!(bus.take_timing_penalty(), 0);
+        bus.read32(DBUS_LOW + 64).unwrap();
+        assert_eq!(bus.take_timing_penalty(), 240); // 120 service + 120 queued
+        assert_eq!(bus.approximate_cache_wait_cycles(), [0, 120]);
+        bus.begin_timing_batch(0, 340);
+        bus.read32(DBUS_LOW + 128).unwrap();
+        assert_eq!(bus.take_timing_penalty(), 120);
+    }
+
+    #[test]
+    fn demand_ready_can_precede_resource_release() {
+        let mut bus = SocBus::new(65536, 65536, [0; 6]);
+        bus.mmu[0] = MMU_SPIRAM;
+        bus.enable_approximate_cache(crate::approximate_cache::CacheConfig {
+            fill_cycles: 96, ..Default::default()
+        });
+        bus.set_approximate_cache_contention(true);
+        assert!(!bus.set_approximate_cache_fill_service(95));
+        assert!(bus.set_approximate_cache_fill_service(160));
+        bus.begin_timing_batch(0, 100);
+        bus.read32(DBUS_LOW).unwrap();
+        assert_eq!(bus.take_timing_penalty(), 96);
+        // Data is ready at196. 20 cycles of CPU work hide20 of the64 remaining service.
+        bus.begin_timing_batch(0, 216);
+        bus.read32(DBUS_LOW + 64).unwrap();
+        assert_eq!(bus.take_timing_penalty(), 44 + 96);
+        // First resource burst100..260; second260..420. No extra wait after420.
+        bus.begin_timing_batch(1, 420);
+        bus.read32(DBUS_LOW + 128).unwrap();
+        assert_eq!(bus.take_timing_penalty(), 96);
+        assert_eq!(bus.approximate_cache_wait_cycles(), [44, 0]);
+    }
+
+    #[test]
+    fn packed_pie_loads_preserve_external_cache_accounting() {
+        for (psram, flash_ready) in [(false, 96), (true, 96), (false, 128), (true, 128)] {
+            let mut bus = SocBus::new(65536, 65536, [0; 6]);
+            bus.mmu[0] = if psram { MMU_SPIRAM } else { 0 };
+            let mut bulk = [0; 16];
+            assert!(bus.read_bulk(DBUS_LOW, &mut bulk), "untimed bulk remains available");
+            bus.enable_approximate_cache(crate::approximate_cache::CacheConfig {
+                fill_cycles: 96, ..Default::default()
+            });
+            if flash_ready != 96 { assert!(bus.set_approximate_flash_timing(flash_ready, 475)); }
+            // ee.vld.128.ip q0,a4,0: decode selects the packed executor.
+            let bytes = 0x0083_0044u32.to_le_bytes();
+            esp_soc::SocBus::load_bytes(&mut bus, IRAM_LOW, &bytes[..3]).unwrap();
+            let mut cpu = xtensa_lx7::Cpu::new(0);
+            cpu.pc = IRAM_LOW; cpu.ps = 0; cpu.cpenable = 8;
+            cpu.set_ar(4, DBUS_LOW);
+            xtensa_lx7::step(&mut cpu, &mut bus).unwrap();
+            assert_eq!(cpu.qr[0], if psram { 0 } else { u128::MAX });
+            let stats = bus.approximate_cache_stats().unwrap();
+            assert_eq!((stats.line_fills, stats.hits), (1, 3), "packed load must account for four words");
+            assert_eq!(bus.take_approximate_cache_penalty(), if psram { 96 } else { flash_ready });
+            assert!(bus.read_bulk(DRAM_LOW, &mut bulk), "internal bulk stays fast in timed mode");
+        }
+    }
+
+    #[test]
+    fn flash_override_keeps_psram_prices_and_shared_contention() {
+        let mut bus = SocBus::new(65536, 65536, [0; 6]);
+        bus.mmu[0] = MMU_SPIRAM;
+        bus.mmu[1] = 0;
+        bus.enable_approximate_cache(crate::approximate_cache::CacheConfig { fill_cycles: 96, writeback_cycles: 160, ..Default::default() });
+        assert!(bus.set_approximate_cache_fill_service(160));
+        assert!(!bus.set_approximate_flash_timing(128, 127));
+        assert!(bus.set_approximate_flash_timing(128, 475));
+        bus.set_approximate_cache_contention(true);
+        bus.begin_timing_batch(0, 100);
+        assert_eq!(bus.read32(DBUS_LOW + PAGE).unwrap(), u32::MAX);
+        assert_eq!(bus.take_timing_penalty(), 128);
+        // Flash occupies100..575; a simultaneous PSRAM miss waits475, then needs96.
+        bus.begin_timing_batch(1, 100);
+        bus.read32(DBUS_LOW).unwrap();
+        assert_eq!(bus.take_timing_penalty(), 475 + 96);
+        bus.begin_timing_batch(0, 228);
+        bus.read32(DBUS_LOW + PAGE).unwrap();
+        assert_eq!(bus.take_timing_penalty(), 0, "hits have no extra source charge");
+        bus.begin_timing_batch(0, 735);
+        bus.read32(DBUS_LOW + PAGE + 64).unwrap();
+        assert_eq!(bus.take_timing_penalty(), 128);
+        bus.begin_timing_batch(1, 1210);
+        bus.read32(DBUS_LOW + 64).unwrap();
+        assert_eq!(bus.take_timing_penalty(), 96);
+        let stats = bus.approximate_cache_stats().unwrap();
+        assert_eq!((stats.line_fills, stats.hits, stats.extra_cycles), (4, 1, 448));
+        assert_eq!(bus.approximate_cache_wait_cycles(), [0, 475]);
+    }
+
+    #[test]
+    fn flash_override_does_not_reprice_dirty_victims() {
+        let mut bus = SocBus::new(65536, 65536, [0; 6]);
+        bus.mmu[0] = MMU_SPIRAM;
+        bus.mmu[1] = 0;
+        bus.enable_approximate_cache(crate::approximate_cache::CacheConfig {
+            capacity_bytes: 64, ways: 1, fill_cycles: 96, writeback_cycles: 160, ..Default::default()
+        });
+        bus.set_approximate_cache_fill_service(160);
+        bus.set_approximate_flash_timing(128, 475);
+        bus.set_approximate_cache_contention(true);
+        bus.begin_timing_batch(0, 0);
+        bus.write32(DBUS_LOW, 7).unwrap();
+        assert_eq!(bus.take_timing_penalty(), 96);
+        bus.begin_timing_batch(0, 160);
+        bus.read32(DBUS_LOW + PAGE).unwrap();
+        assert_eq!(bus.take_timing_penalty(), 160 + 128);
+        assert_eq!(bus.cache_resource.busy_until, 160 + 160 + 475);
+        let stats = bus.approximate_cache_stats().unwrap();
+        assert_eq!((stats.line_fills, stats.dirty_writebacks, stats.extra_cycles), (2, 1, 384));
+    }
+
+    #[test]
+    fn flash_override_is_optional_and_reset_by_cache_configuration() {
+        let mut bus = SocBus::new(65536, 65536, [0; 6]);
+        bus.mmu[0] = 0;
+        assert!(!bus.set_approximate_flash_timing(128, 475));
+        let config = crate::approximate_cache::CacheConfig { fill_cycles: 96, ..Default::default() };
+        bus.enable_approximate_cache(config);
+        bus.set_approximate_flash_timing(64, 80);
+        bus.read32(DBUS_LOW).unwrap();
+        assert_eq!(bus.take_timing_penalty(), 64, "readiness override also works without contention");
+        bus.enable_approximate_cache(config);
+        bus.read32(DBUS_LOW).unwrap();
+        assert_eq!(bus.take_timing_penalty(), 96, "no override means the original common price");
+    }
+
+    #[test]
+    fn approximate_cache_keeps_only_internal_mappings_direct() {
+        let mut bus = SocBus::new(65536, 65536, [0; 6]);
+        bus.mmu[0] = MMU_SPIRAM;
+        bus.enable_approximate_cache(Default::default());
+        bus.set_approximate_cache_fast_internal(true);
+        assert!(bus.fast_mem().is_some());
+        bus.write32(DRAM_LOW, 42).unwrap();
+        assert_eq!(bus.tlb[tlb_idx(DRAM_LOW)].lo, DRAM_LOW);
+        bus.write32(DBUS_LOW, 43).unwrap();
+        let e = bus.tlb[tlb_idx(DBUS_LOW)];
+        assert!(!(DBUS_LOW >= e.lo && DBUS_LOW < e.hi));
+        assert_eq!(bus.take_timing_penalty(), 120);
+        assert_eq!(bus.read32(DBUS_LOW).unwrap(), 43);
+        assert_eq!(bus.take_timing_penalty(), 0);
+        let stats = bus.approximate_cache_stats().unwrap();
+        assert_eq!((stats.line_fills, stats.hits), (1, 1));
+        // Fetches do not enter the data cache even when they use external memory.
+        bus.fetch(IBUS_LOW).unwrap();
+        assert_eq!(bus.approximate_cache_stats().unwrap(), stats);
+        bus.irq_dirty = false;
+        bus.set_approximate_cache_yield_miss(true);
+        assert!(!bus.block_break());
+        bus.read32(DBUS_LOW + 64).unwrap();
+        assert!(bus.block_break());
+        assert_eq!(bus.take_timing_penalty(), 120);
+        assert!(!bus.block_break());
+    }
 
     const SPI2: u32 = 0x6002_4000;
     const GDMA: u32 = 0x6003_f000;
@@ -1391,6 +1781,33 @@ mod gp_spi_board_tests {
     }
 
     #[test]
+    fn timed_spi2_dma_keeps_owner_and_interrupt_pending_until_wire_deadline() {
+        const DATA: u32 = 0x3fc9_0200;
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let mut bus = dma_bus();
+        bus.spi2_timing = true;
+        bus.board = Box::new(ProbeBoard { events: events.clone() });
+        bus.write32(DATA, 0x4433_2211).unwrap();
+        bus.write32(FIRST_DESC, 4 | (4 << 12) | (1 << 30) | (1 << 31)).unwrap();
+        bus.write32(FIRST_DESC + 4, DATA).unwrap();
+        bus.write32(FIRST_DESC + 8, 0).unwrap();
+        bus.periph.gdma.out[0].conf0 = 1 << 2;
+        bus.write32(SPI2 + 0x0c, 1 << 12).unwrap(); // 80 MHz / 2
+        start_dma(&mut bus, 32);
+        let deadline = (32 * crate::periph::CPU_HZ).div_ceil(40_000_000);
+        bus.tick(deadline as u32 - 1);
+        assert_eq!(bus.periph.spi2.transfers, 0);
+        assert_eq!(bus.read32(FIRST_DESC).unwrap() >> 31, 1);
+        assert_eq!(bus.periph.spi2.int_raw & (1 << 12), 0);
+        assert!(events.lock().unwrap().is_empty());
+        bus.tick(1);
+        assert_eq!(bus.periph.spi2.transfers, 1);
+        assert_eq!(bus.read32(FIRST_DESC).unwrap() >> 31, 0);
+        assert_ne!(bus.periph.spi2.int_raw & (1 << 12), 0);
+        assert_eq!(&*events.lock().unwrap(), &["spi:2:[11, 22, 33, 44]:0"]);
+    }
+
+    #[test]
     fn spi2_data_phase_comes_from_gdma_descriptor() {
         const DATA: u32 = 0x3fc9_0200;
         let events = Arc::new(Mutex::new(Vec::new()));
@@ -1679,8 +2096,66 @@ mod gp_spi_board_tests {
     }
 
     #[test]
+    fn deferred_extension_bases_include_preoffset_boundary_crossings() {
+        let mut bus = SocBus::new(1024, 1024, [0; 6]);
+        for armed in [false, true] {
+            bus.defer_mmio = armed;
+            for (addr, nearby) in [(PERIPH_BASE - 129, false), (PERIPH_BASE - 128, true),
+                (PERIPH_BASE, true), (PERIPH_END - 1, true), (PERIPH_END + 127, true),
+                (PERIPH_END + 128, false), (DRAM_LOW, false)] {
+                bus.mmio_deferred = false;
+                assert_eq!(bus.defer_access(addr), armed && nearby, "base {addr:x}");
+                assert_eq!(bus.mmio_deferred, armed && nearby);
+            }
+        }
+    }
+
+    #[test]
+    fn quiet_backstop_keeps_the_original_cadence_for_active_devices() {
+        type Activation = (&'static str, fn(&mut Peripherals));
+        let cases: &[Activation] = &[
+            ("i2s0", |p| p.i2s0.tx_conf |= 1 << 2),
+            ("i2s1", |p| p.i2s1.tx_conf |= 1 << 2),
+            ("camera", |p| p.lcd_cam.running = true),
+            ("lcd", |p| { p.lcd_cam.lcd_user |= 1 << 27; p.lcd_cam.lcd_ctrl |= 1 << 31; }),
+            ("gdma-in", |p| p.gdma.inp[0].running = true),
+            ("gdma-out", |p| p.gdma.out[0].running = true),
+            ("wifi-tx", |p| p.wifi.tx_pending.push((0, 0))),
+            ("wifi-ap", |p| p.wifi.ap = Some(crate::wifi::VirtualAp::new(crate::wifi::ApConfig {
+                ssid: "test".into(), bssid: [0; 6], channel: 1, psk: None,
+            }, false))),
+            ("network", |p| p.wifi.net = Some(crate::net::VirtualNet::new(false))),
+            ("aes", |p| p.aes.dma_pending = true),
+            ("sha", |p| p.sha.dma_pending = true),
+            ("spi-dma", |p| p.spi2.dma_tx_pending = Some(8)),
+            ("spi-transfer", |p| p.spi2.write(0, 1 << 24)),
+            ("rmt", |p| p.rmt.ch[0].running = true),
+            ("rmt-done", |p| p.rmt.done.push((0, Vec::new()))),
+            ("gpio", |p| p.gpio.changes.push((0, true))),
+            ("gpio-input", |p| p.gpio.input_changes.push((0, true))),
+            ("watchdog", |p| p.rtc.ram.write(0x98, 1 << 31)),
+            ("usb-sof", |p| p.usb.int_ena = 1 << 1),
+        ];
+        for &(name, activate) in cases {
+            let mut bus = SocBus::new(1024, 1024, [0; 6]);
+            bus.refresh_tick_budget();
+            assert_eq!(bus.tick_budget, QUIET_TICK_DEFER, "{name}: initially quiet");
+            activate(&mut bus.periph);
+            bus.refresh_tick_budget();
+            assert_eq!(bus.tick_budget, MAX_TICK_DEFER, "{name}: active cadence");
+        }
+        // Real MMIO writes must switch the cap immediately in both directions.
+        let mut bus = SocBus::new(1024, 1024, [0; 6]);
+        bus.write32(0x6003_8010, 2).unwrap();
+        assert_eq!(bus.tick_budget, MAX_TICK_DEFER);
+        bus.write32(0x6003_8010, 0).unwrap();
+        assert_eq!(bus.tick_budget, QUIET_TICK_DEFER);
+    }
+
+    #[test]
     fn periodic_tick_only_requests_irq_refresh_for_events() {
         let mut bus = SocBus::new(1024, 1024, [0; 6]);
+        bus.periph.usb.int_ena = 2; // active SOF keeps the original periodic backstop
         for _ in 0..4 {
             assert_eq!(Bus::tick(&mut bus, MAX_TICK_DEFER), 0);
             assert_eq!(bus.tick_pending, 0, "quiet flush still advances time");
@@ -1694,6 +2169,41 @@ mod gp_spi_board_tests {
         assert_eq!(Bus::tick(&mut bus, MAX_TICK_DEFER), 0, "unchanged asserted source");
         bus.irq_dirty = true;
         assert_eq!(Bus::tick(&mut bus, MAX_TICK_DEFER), 1, "preserve prior dirty flag");
+    }
+
+    #[test]
+    fn non_mmio_gpio_activation_restores_cadence_without_losing_pending_time() {
+        struct InputBoard;
+        impl crate::board::BoardModel for InputBoard {
+            fn name(&self) -> &'static str { "pcnt-input" }
+            fn input_levels(&self) -> Vec<(u8, bool)> { vec![(4, false)] }
+        }
+        for attach in [false, true] {
+            for pending in [0, 100, 300] {
+                let mut bus = SocBus::new(1024, 1024, [0; 6]);
+                bus.periph.gpio.func_in_sel[33] = 0x80 | 4;
+                bus.periph.pcnt.conf[0][0] = (1 << 16) | (1 << 14); // falling increment, threshold 0
+                bus.periph.pcnt.conf[0][1] = 1;
+                bus.periph.pcnt.int_ena = 1;
+                Bus::tick(&mut bus, 64);
+                Bus::tick(&mut bus, pending);
+                assert_eq!(bus.tick_budget, QUIET_TICK_DEFER);
+                if attach {
+                    bus.board = Box::new(InputBoard);
+                    bus.attach_board_devices();
+                } else {
+                    esp_soc::SocBus::gpio_set_input(&mut bus, 4, false);
+                }
+                assert_eq!(bus.tick_pending, pending, "activation must preserve elapsed device time");
+                assert_eq!(bus.next_deadline(), MAX_TICK_DEFER.saturating_sub(pending).max(1) as u64);
+                let until = bus.next_deadline() as u32;
+                Bus::tick(&mut bus, until);
+                assert_eq!(bus.tick_pending, 0);
+                assert_eq!(bus.periph.pcnt.cnt[0], 1, "attach={attach}, pending={pending}");
+                assert!(bus.periph.pcnt.irq());
+                assert!(bus.irq_dirty);
+            }
+        }
     }
 
     #[test]
@@ -1899,8 +2409,9 @@ mod gp_spi_board_tests {
 
         assert_eq!(Bus::tick(&mut bus, 100), 0);
         esp_soc::SocBus::touch_input(&mut bus, 0, 0, false);
-        assert_eq!((bus.cycles, bus.tick_pending, bus.tick_budget), (100, 100, MAX_TICK_DEFER));
-        assert_eq!(Bus::tick(&mut bus, 155), 0);
+        let horizon = 300.min(QUIET_TICK_DEFER);
+        assert_eq!((bus.cycles, bus.tick_pending, bus.tick_budget), (100, 100, horizon));
+        assert_eq!(Bus::tick(&mut bus, horizon - 101), 0);
         assert_eq!(Bus::tick(&mut bus, 1), 0);
         assert_eq!(bus.tick_pending, 0, "the deadline still flushes device time");
     }

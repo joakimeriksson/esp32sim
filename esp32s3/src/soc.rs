@@ -46,6 +46,11 @@ impl esp_soc::SocBus for SocBus {
     fn cycles(&self) -> u64 { self.cycles }
     fn next_deadline(&self) -> Option<u64> { Some(SocBus::next_deadline(self)) }
     fn irq_dirty(&mut self) -> &mut bool { &mut self.irq_dirty }
+    // Only the WASM JIT helpers currently stop before deferred device accesses.
+    // `ESP32SIM_VQ_NATIVE` opts a native run in; it is only sound with `--no-jit`.
+    fn can_defer(&self) -> bool { cfg!(target_arch = "wasm32") || std::env::var_os("ESP32SIM_VQ_NATIVE").is_some() }
+    fn set_defer(&mut self, on: bool) { self.defer_mmio = on; self.mmio_deferred = false; }
+    fn take_deferred(&mut self) -> bool { std::mem::take(&mut self.mmio_deferred) }
     fn refresh_irq(&mut self) -> bool {
         let dirty = self.periph.lines_dirty() || self.periph.intmatrix_dirty;
         self.periph.intmatrix_dirty = false;
@@ -95,6 +100,7 @@ impl esp_soc::SocBus for SocBus {
     /// RTC-domain registers survive, as on silicon. Returns the cause the ROM will report.
     fn reboot(&mut self, mac: [u8; 6]) -> u32 {
         self.flush_ticks();
+        self.cancel_spi2_timing();
         let cause = self.periph.rtc.reset_cause;
         let old = std::mem::replace(&mut self.periph, periph::Peripherals::new(mac));
         let p = &mut self.periph;
@@ -133,6 +139,9 @@ impl esp_soc::SocBus for SocBus {
     fn gpio_set_input(&mut self, pin: u8, level: bool) {
         let old_input = self.periph.gpio.input;
         self.periph.gpio.set_input(pin, level);
+        // Host edges queue PCNT work without going through the MMIO refresh hook.
+        // Recompute the threshold without dropping cycles already pending.
+        self.refresh_tick_budget();
         self.irq_dirty |= old_input != self.periph.gpio.input;
         if let Some(ev) = &mut self.gpio_events { ev.push((self.cycles, pin, level)); }
     }

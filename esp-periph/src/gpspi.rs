@@ -24,7 +24,8 @@ impl GpSpi {
     pub fn irq(&self) -> bool { self.int_raw & self.int_ena != 0 }
     pub fn read(&self, off: u32) -> u32 {
         match off {
-            0x00 => self.regs.read(0) & !((1 << 23) | (1 << 24)),      // CMD: UPDATE and USR self-clear
+            0x00 => (self.regs.read(0) & !((1 << 23) | (1 << 24)))
+                | if self.pending.is_some() { 1 << 24 } else { 0 }, // USR stays busy until completion
             0x34 => self.int_ena, 0x3c => self.int_raw, 0x40 => self.int_raw & self.int_ena,
             0x98..=0xd4 => self.w[((off - 0x98) / 4) as usize],
             0xf0 => 0x2101_0100,
@@ -70,6 +71,34 @@ impl GpSpi {
     }
 
     pub fn has_pending_transfer(&self) -> bool { self.pending.is_some() }
+
+    /// S3 SPI_CLOCK, SPI_USER and SPI_CTRL wire clocks at the SPI source frequency.
+    /// Normal SDR command/address/data phases only; this is a wire-time floor,
+    /// without DMA setup, memory contention, CS setup/hold or source-clock changes.
+    pub fn wire_source_cycles(&self) -> u64 {
+        let user = self.regs.read(0x10);
+        let ctrl = self.regs.read(0x08);
+        let clock = self.regs.read(0x0c);
+        let divider = if clock & (1 << 31) != 0 { 1 } else {
+            (((clock >> 18) & 15) + 1) * (((clock >> 12) & 63) + 1)
+        };
+        let lanes = |quad, dual| if quad { 4u64 } else if dual { 2 } else { 1 };
+        let mut clocks = 0;
+        if user & (1 << 31) != 0 {
+            clocks += u64::from(((self.regs.read(0x18) >> 28) & 15) + 1)
+                .div_ceil(lanes(ctrl & (1 << 9) != 0, ctrl & (1 << 8) != 0));
+        }
+        if user & (1 << 30) != 0 {
+            clocks += u64::from((self.regs.read(0x14) >> 27) + 1)
+                .div_ceil(lanes(ctrl & (1 << 6) != 0, ctrl & (1 << 5) != 0));
+        }
+        if user & (1 << 29) != 0 { clocks += u64::from((self.regs.read(0x14) & 255) + 1); }
+        if user & ((1 << 27) | (1 << 28)) != 0 {
+            clocks += u64::from((self.regs.read(0x1c) & 0x3ffff) + 1)
+                .div_ceil(lanes(user & (1 << 13) != 0, user & (1 << 12) != 0));
+        }
+        (clocks * u64::from(divider)).max(1)
+    }
 
     pub fn take_transfer(&mut self) -> Option<GpSpiTransfer> {
         if self.dma_tx_pending.is_some() {
@@ -128,6 +157,22 @@ impl Device for GpSpi {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn wire_time_uses_divider_and_quad_data_lanes() {
+        let mut spi = GpSpi::new();
+        spi.write(0x0c, 1 << 12); // 80 MHz / 2
+        spi.write(0x10, (1 << 31) | (1 << 30) | (1 << 27) | (1 << 13));
+        spi.write(0x18, 7 << 28); // eight command bits
+        spi.write(0x14, 23 << 27); // 24 address bits, still single lane
+        spi.write(0x1c, 32768 * 8 - 1);
+        assert_eq!(spi.wire_source_cycles(), (8 + 24 + 32768 * 2) * 2);
+        spi.write(0x00, 1 << 24);
+        assert_ne!(spi.read(0) & (1 << 24), 0);
+        let transfer = spi.take_transfer().unwrap();
+        spi.finish_transfer(transfer, &[]);
+        assert_eq!(spi.read(0) & (1 << 24), 0);
+    }
 
     #[test]
     fn splits_phases_and_writes_the_board_response_to_miso_words() {

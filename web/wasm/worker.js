@@ -15,6 +15,8 @@ const mem = () => new Uint8Array(wasm.memory.buffer);
 function put(bytes) { const p = wasm.esp32sim_alloc(bytes.length); mem().set(bytes, p); return p; }
 function withBytes(bytes, f) { const p = put(bytes); try { return f(p, bytes.length); } finally { wasm.esp32sim_free(p, bytes.length); } }
 const blockJit = createJitHost(() => wasm);
+let experiments = [];
+let framesInFlight = 0, pendingFrame = null;
 const imports = { env: { ...blockJit.imports, host_log: (p, n) => postMessage({ log: dec.decode(mem().subarray(p, p + n)) }) } };
 
 function drain() {
@@ -23,11 +25,16 @@ function drain() {
     const kind = wasm.esp32sim_out_kind(emu, i), p = wasm.esp32sim_out_ptr(emu, i), len = wasm.esp32sim_out_len(emu, i);
     if (kind === 1) postMessage({ text: dec.decode(mem().subarray(p, p + len)) });
     else {
+      const display = mem()[p] === 1;
+      // Backpressure: a page that has not painted the last two display frames gets only the
+      // newest one once it has; a queue of 330 KB frames helps nobody.
+      if (display && framesInFlight >= 2) { pendingFrame = mem().slice(p, p + len).buffer; continue; }
       const buf = new ArrayBuffer(len);
       new Uint8Array(buf).set(mem().subarray(p, p + len));
-      const frameTrace = traceEnabled && new Uint8Array(buf)[0] === 1
+      const frameTrace = traceEnabled && display
         ? { stage: 'worker-frame', atMs: traceNow(), cycles: wasm.esp32sim_cycles(emu) } : undefined;
-      postMessage({ bin: buf, frameTrace }, [buf]);
+      if (display) { framesInFlight++; pendingFrame = null; }
+      postMessage({ bin: buf, frameTrace, ack: display }, [buf]);
     }
   }
 }
@@ -62,8 +69,15 @@ function loop() {
     postMessage({ pace: { behind: Math.max(0, -aheadMs / 1000), resyncs, speed, mips: Math.max(0, (insns - lastStat.insns)) / (wall - lastStat.wall) / 1000 } });
     lastStat = { wall, insns, cycles: cur };
   }
-  setTimeout(loop, Math.max(0, Math.min(20, aheadMs)));
+  // Only yield immediately when this turn left catch-up work unfinished. Once we reach
+  // its target, sleep even if running the guest has put us slightly behind wall time.
+  // MessageChannel avoids the nested timer clamp during expensive interactive turns.
+  if (cur < target) yieldPort.postMessage(0);
+  else setTimeout(loop, Math.max(1, Math.min(20, aheadMs)));
 }
+const yieldChannel = typeof MessageChannel === 'function' ? new MessageChannel() : null;
+const yieldPort = yieldChannel ? yieldChannel.port2 : { postMessage: () => setTimeout(loop, 0) };
+if (yieldChannel) yieldChannel.port1.onmessage = loop;
 
 // A network runs on its own clock: network time in nanoseconds paced to the wall clock, with
 // each node's console and LED drained per turn. The medium and the stepping are in the module
@@ -100,23 +114,36 @@ function netLoop() {
 onmessage = async (ev) => {
   const m = ev.data;
   try {
+    if (m.op === 'frame-ack') {
+      framesInFlight = Math.max(0, framesInFlight - 1);
+      if (pendingFrame && framesInFlight < 2) { const buf = pendingFrame; pendingFrame = null; framesInFlight++; postMessage({ bin: buf, ack: true }, [buf]); }
+      return;
+    }
     if (m.op === 'init') { traceEnabled = !!m.touchTrace; const r = await WebAssembly.instantiate(m.wasm, imports); wasm = r.instance.exports;  postMessage({ ready: true }); }
     else if (m.op === 'create') {
       running = false;
+      // Keep credits for already posted frames until their ACKs arrive, but never send
+      // a retained frame from the emulator being replaced.
+      pendingFrame = null;
       pacing = createPacing();
       pendingInputTrace = [];
       if (emu) { wasm.esp32sim_delete(emu); emu = 0; }
       emu = withBytes(enc.encode(m.board), (p, n) => wasm.esp32sim_new(p, n, m.flash_mb | 0, m.psram_mb | 0));
       if (emu !== 0) wasm.esp32sim_set_jit(emu, m.jit === false ? 0 : 1);
+      experiments = m.experiments || [];
       if (emu !== 0 && wasm.esp32sim_cpu_hz) CPU_HZ = wasm.esp32sim_cpu_hz(emu);
       postMessage({ created: emu !== 0 });
     }
     else if (m.op === 'load') { const rc = withBytes(new Uint8Array(m.data), (p, n) => m.at !== undefined ? wasm.esp32sim_load_at(emu, m.at >>> 0, p, n) : wasm.esp32sim_load(emu, m.kind, p, n)); postMessage({ loaded: m.at !== undefined ? 'at' + m.at : m.kind, ok: rc === 0 }); }
     else if (m.op === 'stub') { withBytes(enc.encode(m.name), (p, n) => wasm.esp32sim_stub(emu, p, n, m.value >>> 0)); }
     else if (m.op === 'wifi') { withBytes(enc.encode(m.spec), (p, n) => wasm.esp32sim_wifi(emu, p, n)); }
-    else if (m.op === 'start') { const rc = wasm.esp32sim_boot(emu, m.appDirect ? 1 : 0); if (rc === 0) { running = true; t0 = performance.now(); lastStat = { wall: t0, insns: wasm.esp32sim_insns(emu), cycles: wasm.esp32sim_cycles(emu) }; loop(); } postMessage({ started: rc === 0 }); }
+    else if (m.op === 'start') {
+      // Optional timing-model exports (`?timing=hw`), applied after the loads and before the first instruction.
+      for (const [name, ...args] of experiments) { if (typeof wasm[name] !== 'function' || wasm[name](emu, ...args)) postMessage({ log: '[worker] experiment export failed: ' + name }); }
+      const rc = wasm.esp32sim_boot(emu, m.appDirect ? 1 : 0); if (rc === 0) { running = true; t0 = performance.now(); lastStat = { wall: t0, insns: wasm.esp32sim_insns(emu), cycles: wasm.esp32sim_cycles(emu) }; loop(); } postMessage({ started: rc === 0 }); }
     else if (m.op === 'net-create') {
       running = false;
+      pendingFrame = null;
       if (net) { wasm.esp32sim_net_delete(net); net = 0; }
       if (emu) { wasm.esp32sim_delete(emu); emu = 0; }
       net = wasm.esp32sim_net_new(m.slice_ns || 0);

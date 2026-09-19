@@ -162,6 +162,27 @@ than bursting if it falls > 0.5 s behind). Work that costs host syscalls — rea
 sockets — runs on its own emulated-time cadence rather than every round, because at 240 MHz a
 per-round syscall costs more than the instructions it interleaves with.
 
+**Virtual quanta.** When exactly one core is busy and every other core is idle, the 64-instruction
+cut serves nobody: no other core runs between the quanta, and nothing else can change until the
+next device deadline. `run_unmodeled` then gives the busy core one budget of up to `vq_max` quanta
+(`Machine::vq_max`, 1024 in the browser build, 1 natively) and afterwards closes the rounds it
+spanned exactly as the loop would have closed them one by one. The run length is bounded so that
+no interior boundary has work: no device flush (`SocBus::next_deadline`), script event, page push,
+timer wake-up of an idle core, cycle or instruction limit. A device register is reached only at
+exact device time: while such a run is active the bus is armed (`SocBus::set_defer`), the executor
+asks `Bus::defer_access` before a word access (a 16-register scan covers PIE and MAC16 operands),
+and a hit stops in front of the instruction; the machine closes the completed rounds and finishes
+the current quantum the ordinary way, where the access executes. A run that a register cuts short
+inside two quanta doubles a skip counter, so firmware that polls registers every few instructions
+is left alone. Results are bit-identical with `vq_max = 1`: the TinyDraw and pocket-tank batteries
+keep their pinned instruction totals and console hashes, and the Atech, SID and panel goldens keep
+their WAV hashes (`ESP32SIM_VQ_NATIVE=1 ESP32SIM_VQ=1000 --no-jit`; the AArch64 JIT's helpers have
+no deferral guard, which is why the native default is off). `SocBus::vq_violations` counts any
+register access that escaped deferral; it must stay zero for the claim to hold. The S3 bus also
+lengthens its device-tick backstop from 256 to 32,768 cycles while no cadence-driven device is
+active (I2S, LCD_CAM, GDMA, WiFi, AES/SHA DMA, SPI2, RMT, GPIO changes, the RTC watchdog, USB SOF
+interrupts), which is what lets a run reach the next timer deadline.
+
 With a cost model, each core has a next-ready timestamp in the one shared device timeline. The
 machine runs the ready core with the lowest timestamp, breaking ties by core index, and advances
 devices to exact core, timer and script frontiers. Architectural and bus effects occur at the

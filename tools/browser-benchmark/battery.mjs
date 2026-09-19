@@ -22,6 +22,11 @@ export async function runBattery(load, emit, jit = true, chain = false, workload
     const rc=withBytes(await load(name),(p,n)=>w.esp32sim_load(emu,kind,p,n));
     if(rc)throw Error(`load ${name}: ${rc}`);
   }
+  for (const [name, ...args] of workload.exports ?? []) {
+    if (typeof w[name] !== 'function') throw Error(`missing experiment export: ${name}`);
+    const rc = w[name](emu, ...args);
+    if (rc) throw Error(`experiment export ${name}: ${rc}`);
+  }
   for (const [name, offset] of Object.entries(workload.flashAt || {})) {
     const rc=withBytes(await load(name),(p,n)=>w.esp32sim_load_at(emu,offset>>>0,p,n));
     if(rc)throw Error(`load ${name} at ${offset}: ${rc}`);

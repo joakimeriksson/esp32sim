@@ -98,6 +98,12 @@ pub struct Cpu {
     pub interrupt: u32,
     pub intenable: u32,
     pub ccount: u32,
+    /// Provisional uniform fast-path cost, not a calibrated silicon price.
+    pub approximate_cpi: u32,
+    /// Provisional PIE issue experiments: 1=staging memory +1, 2=SRC.Q.LD +2.
+    pub approximate_pie_mode: u32,
+    pub approximate_pie_events: u64,
+    pub approximate_pie_cycles: u64,
     pub ccompare: [u32; 3],
     pub cpenable: u32,
     pub prid: u32,
@@ -139,27 +145,58 @@ pub struct Cpu {
     pub boundary_bloom: u64,
     /// trap raised inside native code, handed back to `block::run_block`
     pub jit_trap: Option<crate::exec::Trap>,
+    /// EX138: cycles beyond one per instruction that priced control flow has accrued since the
+    /// machine last collected them; charged only while `price_control` is set.
+    pub timing_extra: u32,
+    pub price_control: bool,
+    /// EX147: instruction-fetch cache for flash-mapped code, 64 sets x 8 ways x 32-byte lines,
+    /// one for both cores; `icache_fill` cycles per missing line (0 = off). Tags hold line + 1.
+    pub icache_fill: u32, pub icache_misses: u64,
+    /// Chunk indices a region entered since it was called, newest last, modulo 64 (written by
+    /// generated code, drained by `jit::run`).
+    pub fetch_ring: [u32; 64], pub fetch_n: u32,
 }
 
 impl Default for Cpu {
     fn default() -> Self { Self::new(0) }
 }
 
+static SHARED_FETCH_CACHE: std::sync::Mutex<[[u32; 8]; 64]> = std::sync::Mutex::new([[0; 8]; 64]);
+
+/// A new machine starts with an empty fetch cache (the cache is shared by the cores of one
+/// machine; the emulator runs one machine at a time per module instance).
+pub fn reset_shared_fetch_cache() { *SHARED_FETCH_CACHE.lock().unwrap() = [[0; 8]; 64]; }
+
 impl Cpu {
+    /// EX147: fetch the 32-byte lines covering `lo..=hi` of flash-mapped code; misses are charged.
+    #[inline]
+    pub fn touch_fetch_lines(&mut self, lo: u32, hi: u32) {
+        if self.icache_fill == 0 || !(0x4200_0000..0x4400_0000).contains(&lo) { return; }
+        // One cache for both cores, as on the chip (the emulator is single-threaded).
+        let mut shared = SHARED_FETCH_CACHE.lock().unwrap();
+        for line in lo >> 5..=hi >> 5 {
+            let set = &mut shared[(line & 63) as usize];
+            if set[0] == line + 1 { continue; }   // already the most recent line of its set
+            let way = match set.iter().position(|&t| t == line + 1) { Some(w) => w, None => { self.timing_extra += self.icache_fill; self.icache_misses += 1; 7 } };
+            set.copy_within(0..way, 1);
+            set[0] = line + 1;
+        }
+    }
+
     pub fn new(prid: u32) -> Self {
         let mut c = Cpu {
             pc: RESET_VECTOR,
             ar: [0; NUM_AREGS], windowbase: 0, windowstart: 1,
             ps: 0x1f, sar: 0, lbeg: 0, lend: 0, lcount: 0, br: 0, scompare1: 0, acclo: 0, acchi: 0, m: [0; 4],
             epc: [0; 8], eps: [0; 8], excsave: [0; 8], depc: 0, vecbase: 0x4000_0000, exccause: 0, excvaddr: 0, debugcause: 0,
-            interrupt: 0, intenable: 0, ccount: 0, ccompare: [0; 3], cpenable: 0, prid, threadptr: 0, misc: [0; 4],
+            interrupt: 0, intenable: 0, ccount: 0, approximate_cpi: 1, approximate_pie_mode: 0, approximate_pie_events: 0, approximate_pie_cycles: 0, ccompare: [0; 3], cpenable: 0, prid, threadptr: 0, misc: [0; 4],
             icount: 0, icountlevel: 0, ibreakenable: 0, ibreaka: [0; 2], dbreaka: [0; 2], dbreakc: [0; 2], memctl: 0, atomctl: 0, ddr: 0,
             configid: [0xC2ECFAFE, 0x22F86EDF],   // reported by real S3 (informational)
             fr: [0; 16], fcr: 0, fsr: 0,
             qr: [0; 8], accx: [0; 2], qacc_h: [0; 5], qacc_l: [0; 5], sar_byte: 0, fft_bit_width: 0, ua_state: [0; 4], gpio_out: 0,
             waiting: false, ext_level_lines: 0, insn_count: 0,
             icache: vec![crate::decode::CacheEntry::EMPTY; crate::decode::ICACHE_SIZE],
-            blocks: crate::block::BlockCache::new(), boundary_bloom: 0, jit_trap: None,
+            blocks: crate::block::BlockCache::new(), boundary_bloom: 0, jit_trap: None, timing_extra: 0, price_control: false, icache_fill: 0, icache_misses: 0, fetch_ring: [0; 64], fetch_n: 0,
         };
         c.reset();
         c

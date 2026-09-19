@@ -12,9 +12,9 @@ use crate::decode::decode;
 use crate::exec::max_ar;
 use std::collections::HashMap;
 
-pub(super) const MAX_CHUNKS: usize = 8;
-pub(super) const MAX_INSNS: usize = 64;
-const MAX_PAGES: usize = 4;
+pub(super) const MAX_CHUNKS: usize = 64;
+pub(super) const MAX_INSNS: usize = 512;
+const MAX_PAGES: usize = 8;
 
 /// One straight-line piece of a region, decoded independently of the block cache.
 pub(in crate::jit) struct Chunk {
@@ -45,7 +45,7 @@ pub(super) struct RegionGen {
     /// control depth at the top level of the current chunk's code
     pub chunk_depth: usize,
     /// last retired PC for each exit site, indexed by the tag in the result
-    pub sites: Vec<u32>,
+    pub sites: Vec<ExitSite>,
     /// version-page index range covering every chunk (stores inside it set DIRTY)
     pub page_lo: u32,
     pub page_hi: u32,
@@ -102,7 +102,7 @@ fn chunk<B: Bus>(cpu: &Cpu, bus: &mut B, head: u32, pc0: u32, fast: bool, room: 
         let i = decode(pc, bytes);
         if i.len == 0 || !(eligible(&i, fast) || terminal(i.op)) { break }
         if pc != head && (must_start_block(&i) || cpu.boundary_bloom & pc_bit(pc) != 0) { break }
-        v.push(BlockInsn { insn: i, max_ar: max_ar(&i), off: v.len() as u32 });
+        v.push(BlockInsn { insn: i, max_ar: max_ar(&i), straddle: cpu.price_control && crate::exec::static_target(&i).is_some_and(|t| crate::exec::straddles(bus, t)), off: v.len() as u32 });
         // Includes the head: an internal backedge to it would skip a probe there.
         *bloom |= pc_bit(pc);
         pc = pc.wrapping_add(i.len as u32);
@@ -220,6 +220,21 @@ pub(super) fn region_edge(g: &mut Gen, target: u32, direct: bool) {
             g.begin_if();
             g.spill();
             g.cpu_const(PC, target);
+            #[cfg(feature = "wasm-jit-profile")]
+            {
+                // Only the diagnostic module distinguishes these runtime causes.
+                // If both hold, classify DIRTY as the reason execution must leave.
+                let saved = g.last_kind;
+                g.get(DIRTY);
+                g.begin_if();
+                g.last_kind = ExitKind::Dirty;
+                g.ret_value(CODE_LEFT);
+                g.end();
+                g.last_kind = ExitKind::Budget;
+                g.ret_value(CODE_LEFT);
+                g.last_kind = saved;
+            }
+            #[cfg(not(feature = "wasm-jit-profile"))]
             g.ret_value(CODE_LEFT);
             g.end();
             if !direct || index != current + 1 || g.depth() != chunk_depth {
@@ -233,12 +248,16 @@ pub(super) fn region_edge(g: &mut Gen, target: u32, direct: bool) {
         None => {
             g.spill();
             g.cpu_const(PC, target);
+            #[cfg(feature = "wasm-jit-profile")]
+            let saved = std::mem::replace(&mut g.last_kind, ExitKind::Edge);
             g.ret_value(CODE_LEFT);
+            #[cfg(feature = "wasm-jit-profile")]
+            { g.last_kind = saved; }
         }
     }
 }
 
-pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_loops: &[(u32, u32)], fast: bool) -> (Vec<u8>, Vec<u32>) {
+pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_loops: &[(u32, u32)], fast: bool) -> (Vec<u8>, Vec<ExitSite>) {
     let page_lo = pages.iter().map(|p| p.0).min().unwrap_or(0);
     let page_hi = pages.iter().map(|p| p.0).max().unwrap_or(0);
     let all = || chunks.iter().flat_map(|c| c.instructions.iter());
@@ -332,6 +351,23 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
             r.current = k;
             r.loop_depth = loop_depth;
             r.chunk_depth = g.ctl.len();
+        }
+        if super::super::FETCH_RING.load(std::sync::atomic::Ordering::Relaxed) && (0x4200_0000..0x4400_0000).contains(&chunk.pc) {
+            // EX147: cpu.fetch_ring[cpu.fetch_n & 63] = k; cpu.fetch_n += 1
+            g.get(0);
+            g.cpu(offset_of!(Cpu, fetch_n));
+            g.c(63);
+            g.op(0x71);
+            g.c(2);
+            g.op(0x74);
+            g.op(0x6a);
+            g.c(k as u32);
+            g.store(offset_of!(Cpu, fetch_ring));
+            g.get(0);
+            g.cpu(offset_of!(Cpu, fetch_n));
+            g.c(1);
+            g.op(0x6a);
+            g.store(offset_of!(Cpu, fetch_n));
         }
         emit_body(&mut g, chunk.pc, &chunk.instructions, fast, false, true, cp);
     }
