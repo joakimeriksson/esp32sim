@@ -278,6 +278,20 @@ macro_rules! st {
     };
 }
 
+/// The address of the 32-bit data access `i` is about to make, if it is one (EX133: only
+/// word accesses reach device registers; the bus rejects narrower ones).
+#[inline]
+pub(crate) fn word_access(cpu: &Cpu, i: &Insn) -> Option<u32> {
+    use Op::*;
+    match i.op {
+        L32i | L32iN | L32ai | S32i | S32iN | S32ri | S32nb | L32e | S32e | S32c1i | Lsi | Lsip | Ssi | Ssip
+            => Some(cpu.get_ar(i.s).wrapping_add(i.imm as u32)),
+        Lsx | Lsxp | Ssx | Ssxp => Some(cpu.get_ar(i.s).wrapping_add(cpu.get_ar(i.t))),
+        L32r => Some(i.imm as u32),
+        _ => None,
+    }
+}
+
 pub(crate) fn exec_insn<B: Bus>(cpu: &mut Cpu, bus: &mut B, i: &Insn) -> Result<(), Trap> {
     use Op::*;
     let pc = cpu.pc;

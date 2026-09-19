@@ -95,14 +95,21 @@ pub struct SocBus {
     /// first `page_ver` index of each buffer, by `SRC_*`
     ver_base: [u32; 7],
     /// Device time is advanced lazily: cycles accumulate here and the devices see them in one
-    /// batch when a timer is due, a peripheral register is accessed, or MAX_TICK_DEFER cycles
-    /// have passed — so guest-visible time is exact while idle rounds cost nothing.
+    /// batch when a timer is due, a peripheral register is accessed, or the active-device
+    /// backstop expires. Quiet devices allow a longer backstop.
     tick_pending: u32, tick_budget: u32,
+    /// EX133 virtual quanta: stop in front of device-register accesses / one was just refused.
+    pub(crate) defer_mmio: bool, pub(crate) mmio_deferred: bool, pub vq_violations: u64,
 }
 
-/// Longest stretch of cycles device models may go without seeing time advance. Bounds the
-/// latency of everything that has no computed deadline (DMA, USB, LCD, WiFi).
+/// Preserve the original cadence whenever an active device lacks a deadline.
 const MAX_TICK_DEFER: u32 = 256;
+/// EX134: only quiet devices may use this longer backstop. The default stays below
+/// one USB SOF period (60000 cycles); overrides are for explicit experiments.
+const QUIET_TICK_DEFER: u32 = match option_env!("ESP32SIM_DEFER_BUILD") {
+    Some(s) => { let b = s.as_bytes(); let (mut i, mut v) = (0, 0u32); while i < b.len() { v = v * 10 + (b[i] - b'0') as u32; i += 1; } v }
+    None => 32768,
+};
 
 /// Buffer identifiers for resolved addresses.
 pub const SRC_SRAM: u8 = 0; pub const SRC_IROM: u8 = 1; pub const SRC_FLASH: u8 = 2; pub const SRC_PSRAM: u8 = 3;
@@ -122,7 +129,7 @@ impl SocBus {
             sram: vec![0; SRAM_SIZE], irom: vec![0; (IROM_MASK_HIGH - IROM_MASK_LOW) as usize], drom: vec![0; (DROM_MASK_HIGH - DROM_MASK_LOW) as usize],
             rtc_fast: vec![0; 8192], rtc_slow: vec![0; 8192], flash: vec![0xff; flash_size], psram: vec![0; psram_size],
             mmu: [MMU_INVALID; MMU_ENTRIES], periph: Peripherals::new(mac), board: Box::new(crate::board::Atech14::new()), cycles: 0, last_fault: None, spi2_dma_fault: None, irq_dirty: false, gpio_events: None, debug: Default::default(),
-            tlb: vec![TlbEntry::EMPTY; TLB_SIZE], page_ver: Vec::new(), ver_base: [0; 7], tick_pending: 0, tick_budget: 0,
+            tlb: vec![TlbEntry::EMPTY; TLB_SIZE], page_ver: Vec::new(), ver_base: [0; 7], tick_pending: 0, tick_budget: 0, defer_mmio: false, mmio_deferred: false, vq_violations: 0,
         };
         let mut b = bus_uninit;
         b.rebuild_page_table();
@@ -242,10 +249,18 @@ impl SocBus {
         if (MMU_TABLE..MMU_TABLE + (MMU_ENTRIES as u32) * 4).contains(&addr) {
             return self.mmu[((addr - MMU_TABLE) >> 2) as usize];
         }
+        self.vq_backstop(addr);
         self.flush_ticks();                                         // registers must show exact time
         self.periph.read32(addr)
     }
+    /// EX133: every device-register access must have been deferred out of a multi-quantum run.
+    /// One that was not (a PIE or MAC16 word access; nothing real does this) saw early time.
+    #[inline]
+    fn vq_backstop(&mut self, addr: u32) {
+        if self.defer_mmio { assert!(option_env!("ESP32SIM_VQ_STRICT").is_none(), "EX133: undeferred device access at {addr:#x}"); self.vq_violations += 1; if self.vq_violations == 1 { eprintln!("[emu] EX133: undeferred device access at {addr:#x}, pc {:#x}", self.periph.misc.cur_pc); } }
+    }
     fn periph_write(&mut self, addr: u32, v: u32) {
+        self.vq_backstop(addr);
         self.periph_write_inner(addr, v);
         self.refresh_tick_budget();   // the write may have armed something
     }
@@ -987,6 +1002,14 @@ impl Bus for SocBus {
     }
     #[inline(always)]
     fn block_break(&self) -> bool { self.irq_dirty }
+    #[inline(always)]
+    fn defer_armed(&self) -> bool { self.defer_mmio }
+    #[inline(always)]
+    fn defer_access(&mut self, addr: u32) -> bool {
+        if self.defer_mmio && Self::is_periph(addr) { self.mmio_deferred = true; true } else { false }
+    }
+    #[inline(always)]
+    fn deferred(&self) -> bool { self.mmio_deferred }
     fn code_page(&mut self, pc: u32) -> u32 {
         match self.lookup(pc) { Some(e) => e.vbase + ((pc - e.lo) >> VPAGE_SHIFT), None => self.page_ver.len() as u32 - 1 }
     }
@@ -1002,12 +1025,27 @@ impl Bus for SocBus {
 }
 
 impl SocBus {
+    fn cadence_active(&self) -> bool {
+        let p = &self.periph;
+        p.i2s0.tx_running() || p.i2s1.tx_running()
+            || p.lcd_cam.running || p.lcd_cam.lcd_running()
+            || p.gdma.inp.iter().any(|c| c.running) || p.gdma.out.iter().any(|c| c.running)
+            || p.wifi.ap.is_some() || p.wifi.net.is_some() || !p.wifi.tx_pending.is_empty()
+            || p.aes.dma_pending || p.sha.dma_pending
+            || p.spi2.has_pending_transfer() || p.spi2.dma_tx_pending.is_some()
+            || p.rmt.ch.iter().any(|c| c.running) || !p.rmt.done.is_empty()
+            || !p.gpio.changes.is_empty() || !p.gpio.input_changes.is_empty()
+            || p.rtc.ram.read(0x98) & (1 << 31) != 0
+            || p.usb.int_ena & (1 << 1) != 0
+    }
+
     pub(crate) fn refresh_tick_budget(&mut self) {
-        let mut budget = self.periph.cycles_until_timer().clamp(1, MAX_TICK_DEFER);
+        let cap = if self.cadence_active() { MAX_TICK_DEFER } else { QUIET_TICK_DEFER };
+        let mut budget = self.periph.cycles_until_timer().clamp(1, cap);
         if let Some(deadline) = self.board.next_deadline() {
             let until_deadline = u64::from(self.tick_pending)
                 .saturating_add(deadline.saturating_sub(self.cycles))
-                .clamp(1, u64::from(MAX_TICK_DEFER));
+                .clamp(1, u64::from(cap));
             budget = budget.min(until_deadline as u32);
         }
         self.tick_budget = budget;
@@ -1679,8 +1717,50 @@ mod gp_spi_board_tests {
     }
 
     #[test]
+    fn quiet_backstop_keeps_the_original_cadence_for_active_devices() {
+        let cases: &[(&str, fn(&mut Peripherals))] = &[
+            ("i2s0", |p| p.i2s0.tx_conf |= 1 << 2),
+            ("i2s1", |p| p.i2s1.tx_conf |= 1 << 2),
+            ("camera", |p| p.lcd_cam.running = true),
+            ("lcd", |p| { p.lcd_cam.lcd_user |= 1 << 27; p.lcd_cam.lcd_ctrl |= 1 << 31; }),
+            ("gdma-in", |p| p.gdma.inp[0].running = true),
+            ("gdma-out", |p| p.gdma.out[0].running = true),
+            ("wifi-tx", |p| p.wifi.tx_pending.push((0, 0))),
+            ("wifi-ap", |p| p.wifi.ap = Some(crate::wifi::VirtualAp::new(crate::wifi::ApConfig {
+                ssid: "test".into(), bssid: [0; 6], channel: 1, psk: None,
+            }, false))),
+            ("network", |p| p.wifi.net = Some(crate::net::VirtualNet::new(false))),
+            ("aes", |p| p.aes.dma_pending = true),
+            ("sha", |p| p.sha.dma_pending = true),
+            ("spi-dma", |p| p.spi2.dma_tx_pending = Some(8)),
+            ("spi-transfer", |p| p.spi2.write(0, 1 << 24)),
+            ("rmt", |p| p.rmt.ch[0].running = true),
+            ("rmt-done", |p| p.rmt.done.push((0, Vec::new()))),
+            ("gpio", |p| p.gpio.changes.push((0, true))),
+            ("gpio-input", |p| p.gpio.input_changes.push((0, true))),
+            ("watchdog", |p| p.rtc.ram.write(0x98, 1 << 31)),
+            ("usb-sof", |p| p.usb.int_ena = 1 << 1),
+        ];
+        for &(name, activate) in cases {
+            let mut bus = SocBus::new(1024, 1024, [0; 6]);
+            bus.refresh_tick_budget();
+            assert_eq!(bus.tick_budget, QUIET_TICK_DEFER, "{name}: initially quiet");
+            activate(&mut bus.periph);
+            bus.refresh_tick_budget();
+            assert_eq!(bus.tick_budget, MAX_TICK_DEFER, "{name}: active cadence");
+        }
+        // Real MMIO writes must switch the cap immediately in both directions.
+        let mut bus = SocBus::new(1024, 1024, [0; 6]);
+        bus.write32(0x6003_8010, 2).unwrap();
+        assert_eq!(bus.tick_budget, MAX_TICK_DEFER);
+        bus.write32(0x6003_8010, 0).unwrap();
+        assert_eq!(bus.tick_budget, QUIET_TICK_DEFER);
+    }
+
+    #[test]
     fn periodic_tick_only_requests_irq_refresh_for_events() {
         let mut bus = SocBus::new(1024, 1024, [0; 6]);
+        bus.periph.usb.int_ena = 2; // active SOF keeps the original periodic backstop
         for _ in 0..4 {
             assert_eq!(Bus::tick(&mut bus, MAX_TICK_DEFER), 0);
             assert_eq!(bus.tick_pending, 0, "quiet flush still advances time");
@@ -1899,8 +1979,9 @@ mod gp_spi_board_tests {
 
         assert_eq!(Bus::tick(&mut bus, 100), 0);
         esp_soc::SocBus::touch_input(&mut bus, 0, 0, false);
-        assert_eq!((bus.cycles, bus.tick_pending, bus.tick_budget), (100, 100, MAX_TICK_DEFER));
-        assert_eq!(Bus::tick(&mut bus, 155), 0);
+        let horizon = 300.min(QUIET_TICK_DEFER);
+        assert_eq!((bus.cycles, bus.tick_pending, bus.tick_budget), (100, 100, horizon));
+        assert_eq!(Bus::tick(&mut bus, horizon - 101), 0);
         assert_eq!(Bus::tick(&mut bus, 1), 0);
         assert_eq!(bus.tick_pending, 0, "the deadline still flushes device time");
     }

@@ -65,6 +65,18 @@ pub trait Bus {
     /// and let the machine re-derive the CPU's interrupt inputs before the next instruction.
     #[inline(always)]
     fn block_break(&self) -> bool { false }
+    /// Virtual quanta (EX133): true while the machine runs one core across several scheduling
+    /// quanta. Device registers must then be reached at exact device time, so the executor asks
+    /// `defer_access` before a word access and stops in front of the instruction when it says yes.
+    #[inline(always)]
+    fn defer_armed(&self) -> bool { false }
+    /// True, and remembered for the machine, when `addr` is a device register and a
+    /// multi-quantum run is active. The instruction must not execute in this dispatch.
+    #[inline(always)]
+    fn defer_access(&mut self, addr: u32) -> bool { let _ = addr; false }
+    /// True when this dispatch stopped in front of a deferred access (not cleared by reading).
+    #[inline(always)]
+    fn deferred(&self) -> bool { false }
     /// Direct memory access for generated code, if the bus has a `TlbEntry` table.
     fn fast_mem(&mut self) -> Option<FastMem> { None }
     /// Copy guest memory at `addr` into `out` in one piece when the whole range is plain

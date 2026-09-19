@@ -267,7 +267,10 @@ fn run_block_inner<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Opt
             cpu.blocks.code = Some(cache);
             r
         };
-        let (done, exit) = (r & 0xffff, (r >> 16) & 7);
+        let (mut done, exit) = (r & 0xffff, (r >> 16) & 7);
+        // EX133: the helper refused a device-register access; its instruction was counted
+        // but did not run, and the pc still names it.
+        if exit == crate::jit::CODE_TRAP && bus.deferred() { done -= 1; }
         cpu.blocks.jit_instructions += done as u64;
         cpu.insn_count += done as u64;
         cpu.advance_ccount(done);
@@ -296,6 +299,7 @@ fn run_block_inner<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Opt
         let e = cpu.blocks.arena[k as usize];
         if let Some(t) = cpu.check_overflow(e.max_ar) { trap = Some(t); pre = true; break; }
         let at = cpu.pc;
+        if bus.defer_armed() && crate::exec::word_access(cpu, &e.insn).is_some_and(|a| bus.defer_access(a)) { break; }
         bus.note_pc(at);
         let expected = at.wrapping_add(e.insn.len as u32);
         let r = exec_insn(cpu, bus, &e.insn);
