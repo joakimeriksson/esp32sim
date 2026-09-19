@@ -1,0 +1,68 @@
+{
+  "host": {
+    "model": "MacBookPro18,3",
+    "memoryBytes": 34359738368,
+    "logicalCpuCount": 10,
+    "os": {
+      "name": "macOS",
+      "version": "27.0",
+      "build": "26A428"
+    },
+    "source": "sysctl -n hw.model hw.memsize hw.ncpu; sw_vers",
+    "date": "2026-09-19"
+  },
+  "rawCaptureRoot": "/Users/alice/src/a/esp32sim/work/pocket-perf-runs",
+  "artifacts": {
+    "baseline": {
+      "path": "/Users/alice/src/a/esp32sim/work/pocket-baseline-0919/web/wasm/esp32sim.wasm",
+      "bytes": 7769112,
+      "sha256": "d9b9c8a3635a7aecaf1b2901238247443e70cb2d4a1b828869469e75991c9174"
+    },
+    "arithmetic": {
+      "path": "/Users/alice/src/a/esp32sim/work/pocket-perf-0919/web/wasm/esp32sim.wasm",
+      "bytes": 7768056,
+      "sha256": "b81bf1a262ca6377754c3dfa7ad1a0829b9db4c7c903b809d4a220321ebb514d"
+    },
+    "cadence": {
+      "path": "/Users/alice/src/a/esp32sim/work/pocket-perf-runs/cadence/esp32sim.wasm",
+      "bytes": 7769175,
+      "sha256": "34788e03973f07aad842fa3586398c6d7f25d98c0437b1d1ccaaacbc58dd4f2f"
+    },
+    "s8Only": {
+      "path": "/Users/alice/src/a/esp32sim/work/pocket-perf-runs/s8-screen/candidate/main.wasm",
+      "bytes": 7773657,
+      "sha256": "48c5d5d36b71035da026be9f5ecaa7e2117c3784efce219cad641d63f45c794a"
+    }
+  },
+  "commits": {
+    "baseline": "cfa669c4461e6c5b06f9740b2554686830c8d8de",
+    "arithmetic": "e1233676cf5c40265f8260acd9d47ae2cdf6adab",
+    "cadence": "608b9621bae504f7f629dbf94bfdbf907bebd6a1",
+    "s8Only": "203615fbc5305ba8102a44ee580d9350abc815cf"
+  },
+  "builds": {
+    "rustc": "1.98.1 (48a229cea 2026-09-01)",
+    "wasmOpt": "132 -O3",
+    "diagnosticFeatures": false,
+    "timingModel": "instruction clock",
+    "explicitRustflags": []
+  },
+  "validation": {
+    "arithmeticDifferentialCases": 79009,
+    "arithmeticDirectedCases": 176,
+    "cadenceNativeTests": 23
+  },
+  "scope": "Frozen all-open-PR baseline; later correctness integration requires separate validation.",
+  "s8SourceNote": "The initial S8-only artifact was built from cfa669c4 plus the source patch. Reconstructed s8Only commit has byte-identical wasm_pie.rs (SHA256 486433a26b384a8a861c97a67b9776ad84e0bfa9099aaa13dd9d2ef98172e2c5). The original build.json remains authoritative for artifact provenance.",
+  "trees": {
+    "baseline": "/Users/alice/src/a/esp32sim/work/pocket-baseline-0919",
+    "arithmetic": "/Users/alice/src/a/esp32sim/work/pocket-perf-0919",
+    "cadence": "/Users/alice/src/a/esp32sim/work/pocket-cadence-0919",
+    "s8Only": "/Users/alice/src/a/esp32sim/work/pocket-s8-only-0919"
+  },
+  "decisions": {
+    "s8Only": "Inconclusive; no adoption. Fresh pair reductions -0.371% and +7.001%, external activity observed. Original positive pair kept separate.",
+    "arithmetic": "Flat one-pair screen; parked.",
+    "cadence": "Failed one-pair screen; parked."
+  }
+}

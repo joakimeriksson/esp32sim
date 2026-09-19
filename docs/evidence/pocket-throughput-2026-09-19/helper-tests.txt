@@ -1,0 +1,24 @@
+   Compiling xtensa-lx7 v0.2.0 (/Users/alice/src/a/esp32sim/work/pocket-helpers-0919/xtensa-lx7)
+   Compiling esp32sim-wasm v0.2.0 (/Users/alice/src/a/esp32sim/work/pocket-helpers-0919/wasm)
+warning: output of `xcrun` while finding MacOSX.sdk
+  |
+  = note: xcrun: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+
+warning: linker stderr: cc: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `esp32sim-wasm` (build script) generated 2 warnings
+warning: function `movi` is never used
+    --> xtensa-lx7/src/jit/wasm_tests.rs:1275:12
+     |
+1275 |     pub fn movi(t: u32, imm: u32) -> Vec<u8> { w24(0x2 | (t << 4) | (((imm >> 8) & 0xf) << 8) | (0xa << 12) | ((imm & 0xff) << 16)) }
+     |            ^^^^
+     |
+     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling esp32s3 v0.2.0 (/Users/alice/src/a/esp32sim/work/pocket-helpers-0919/esp32s3)
+   Compiling esp32sim-wasm-jit v0.2.0 (/Users/alice/src/a/esp32sim/work/pocket-helpers-0919/wasm-jit)
+warning: `xtensa-lx7` (lib) generated 1 warning
+    Finished `release` profile [optimized + debuginfo] target(s) in 18.93s
+PASS: 78833 WASM differential cases (ALU, helper continuation, memory, faults, loops, windows, budget/resume, invalidation, timer, script stop, peer-state MMIO); 76321 compiled modules released

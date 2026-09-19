@@ -1,0 +1,79 @@
+{
+  "baseline": {
+    "sidecarPath": "/Users/alice/src/a/esp32sim/work/pocket-baseline-0919/web/wasm/build.json",
+    "sidecarSha256": "18a7bc05d0caef3d0efb3ec73a7bc53ffa23d7da1981596083af6877212fa3e9",
+    "record": {
+      "commit": "cfa669c4461e6c5b06f9740b2554686830c8d8de",
+      "sourcePatch": "",
+      "buildCommand": "env -u RUSTFLAGS -u CARGO_ENCODED_RUSTFLAGS sh tools/wasm-build.sh",
+      "buildFeatures": [],
+      "wasmSha256": "d9b9c8a3635a7aecaf1b2901238247443e70cb2d4a1b828869469e75991c9174",
+      "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)\nbinary: rustc\ncommit-hash: 48a229ceaefd4985c50990b14116b6d856af0985\ncommit-date: 2026-09-01\nhost: aarch64-apple-darwin\nrelease: 1.98.1\nLLVM version: 22.1.8\n",
+      "wasmOpt": "/opt/homebrew/bin/wasm-opt\nwasm-opt version 132\n"
+    }
+  },
+  "combined": {
+    "sidecarPath": "/Users/alice/src/a/esp32sim/work/pocket-perf-0919/web/wasm/build.json",
+    "sidecarSha256": "dd8b58cb2e8064b9ef8fad86ac5583dd79c1764d1636bb2feeed4c49575e3039",
+    "record": {
+      "commit": "e1233676cf5c40265f8260acd9d47ae2cdf6adab",
+      "sourcePatch": "",
+      "buildCommand": "env -u RUSTFLAGS -u CARGO_ENCODED_RUSTFLAGS sh tools/wasm-build.sh",
+      "buildFeatures": [],
+      "wasmSha256": "b81bf1a262ca6377754c3dfa7ad1a0829b9db4c7c903b809d4a220321ebb514d",
+      "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)\nbinary: rustc\ncommit-hash: 48a229ceaefd4985c50990b14116b6d856af0985\ncommit-date: 2026-09-01\nhost: aarch64-apple-darwin\nrelease: 1.98.1\nLLVM version: 22.1.8\n",
+      "wasmOpt": "/opt/homebrew/bin/wasm-opt\nwasm-opt version 132\n"
+    }
+  },
+  "cadence": {
+    "sidecarPath": "/Users/alice/src/a/esp32sim/work/pocket-perf-runs/cadence/build.json",
+    "sidecarSha256": "5d82124afff6b358e1c412729ad7f6e2144a56e8c503ac51af6f2a64b6894e14",
+    "record": {
+      "commit": "608b9621bae504f7f629dbf94bfdbf907bebd6a1",
+      "baselineCommit": "cfa669c4",
+      "sourcePatch": "",
+      "buildCommand": "sh tools/wasm-build.sh",
+      "buildFeatures": [],
+      "rustflags": "",
+      "cargoEncodedRustflags": "",
+      "wasmSha256": "34788e03973f07aad842fa3586398c6d7f25d98c0437b1d1ccaaacbc58dd4f2f",
+      "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)\nbinary: rustc\ncommit-hash: 48a229ceaefd4985c50990b14116b6d856af0985\ncommit-date: 2026-09-01\nhost: aarch64-apple-darwin\nrelease: 1.98.1\nLLVM version: 22.1.8",
+      "wasmOpt": "/opt/homebrew/bin/wasm-opt\nwasm-opt version 132",
+      "wasmOptArguments": [
+        "-O3"
+      ],
+      "mechanism": "Cache CPU_HZ / board.display_push_hz at host execution entry and existing web input polls. Preserve existing 50/120Hz thresholds, last-push phase, publication rules and input-poll timing. This does not reduce the publication rate described in EX117/EX128.",
+      "validation": {
+        "nativeMachineTests": "22 passed",
+        "cadenceBoundaryRegression": "1 passed, covers all three execution entries with 120/50Hz board replacements",
+        "performance": "not measured"
+      },
+      "buildLog": "../cadence-production-build.log",
+      "testLog": "../cadence-native-tests.log"
+    }
+  },
+  "s8Only": {
+    "sidecarPath": "/Users/alice/src/a/esp32sim/work/pocket-perf-runs/s8-screen/candidate/build.json",
+    "sidecarSha256": "9b1384c023de96989f05a257a5ed197aff8610387543f336d5644e6cb8ad8aac",
+    "record": {
+      "tree": "/Users/alice/src/a/esp32sim/work/pocket-perf-0919",
+      "commit": "cfa669c4461e6c5b06f9740b2554686830c8d8de",
+      "suppliedWasm": "/Users/alice/src/a/esp32sim/work/pocket-perf-0919/web/wasm/esp32sim.wasm",
+      "rustflags": null,
+      "buildFeatures": "external artifact; inspect provenance",
+      "artifactBuild": {
+        "commit": "cfa669c4461e6c5b06f9740b2554686830c8d8de",
+        "sourcePatch": "diff --git a/xtensa-lx7/src/jit/wasm_pie.rs b/xtensa-lx7/src/jit/wasm_pie.rs\nindex aaa118d7..2cee2571 100644\n--- a/xtensa-lx7/src/jit/wasm_pie.rs\n+++ b/xtensa-lx7/src/jit/wasm_pie.rs\n@@ -154,9 +154,9 @@ fn add_i32_lanes(g: &mut Gen) {\n \n /// ACCX += \u03a3 x\u00b7y over the signed `w`-bit lanes of Q registers `x` and `y`, saturated to 40\n /// bits: exactly `pie::exec_packed`. The products are widening vector multiplies over the low\n-/// and high halves; the lane sums and ACCX itself are 64-bit, so no intermediate can wrap.\n+/// and high halves. Signed-8 products sum in 32 bits (at most 16 * 128 * 128);\n+/// signed-16 products and ACCX need 64 bits.\n fn accumulate(g: &mut Gen, w: u8, x: i32, y: i32) {\n-    i64_const(g, 0);\n     if w == 8 {\n         // i8\u00b7i8 fits i16; two products per i32 lane after the pairwise add.\n         for high in [false, true] {\n@@ -164,11 +164,21 @@ fn accumulate(g: &mut Gen, w: u8, x: i32, y: i32) {\n             q(g, y);\n             g.bytes.extend([0xfd, if high { 0x9d } else { 0x9c }, 0x01]); // i16x8.extmul_{low,high}_i8x16_s\n             g.bytes.extend([0xfd, 0x7e]); // i32x4.extadd_pairwise_i16x8_s\n+            if high {\n+                g.get(V128);\n+                g.bytes.extend([0xfd, 0xae, 0x01]); // i32x4.add\n+            }\n             g.set(V128);\n-            add_i32_lanes(g);\n         }\n+        for lane in 0..4 {\n+            g.get(V128);\n+            g.bytes.extend([0xfd, 0x1b, lane]); // i32x4.extract_lane\n+            if lane != 0 { g.op(0x6a); } // i32.add\n+        }\n+        g.op(0xac); // i64.extend_i32_s\n     } else {\n         // i16\u00b7i16 fits i32; eight products, summed in 64 bits.\n+        i64_const(g, 0);\n         for high in [false, true] {\n             q(g, x);\n             q(g, y);\n",
+        "buildCommand": "env -u RUSTFLAGS -u CARGO_ENCODED_RUSTFLAGS sh tools/wasm-build.sh",
+        "buildFeatures": [],
+        "wasmSha256": "48c5d5d36b71035da026be9f5ecaa7e2117c3784efce219cad641d63f45c794a",
+        "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)\nbinary: rustc\ncommit-hash: 48a229ceaefd4985c50990b14116b6d856af0985\ncommit-date: 2026-09-01\nhost: aarch64-apple-darwin\nrelease: 1.98.1\nLLVM version: 22.1.8\n",
+        "wasmOpt": "/opt/homebrew/bin/wasm-opt\nwasm-opt version 132\n"
+      },
+      "wasmSha256": "48c5d5d36b71035da026be9f5ecaa7e2117c3784efce219cad641d63f45c794a"
+    },
+    "changedSourceSha256": {
+      "xtensa-lx7/src/jit/wasm_pie.rs": "486433a26b384a8a861c97a67b9776ad84e0bfa9099aaa13dd9d2ef98172e2c5"
+    }
+  }
+}

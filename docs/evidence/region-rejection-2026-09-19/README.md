@@ -4,7 +4,7 @@ Candidate: `a5b251ef` on `codex/region-rejection-0919`, based on `d549d4b27b927e
 
 The [existing EX136 active-loop experiment](../../experiments.md#ex136), commit `6b844713`, cached an admitted `(LEND, LBEG)` pair and showed no gain. This candidate leaves that loop test unchanged. It bypasses the cold owner lookup after a cached entry's budget or boundary guard rejects it, but only when its epoch and every code-page version still match.
 
-Static proof in [the dispatcher](../../../xtensa-lx7/src/jit/wasm.rs):
+Static proof in [the dispatcher](https://github.com/joakimeriksson/esp32sim/blob/a5b251ef/xtensa-lx7/src/jit/wasm.rs):
 
 - `Hot` is filled only from the cold path's selected owner/chunk after successful admission. Its length and bloom are exact copies of that region's guards.
 - Region removal and block reindexing advance `region_epoch`. New regions use `covered.entry(...).or_insert(...)`; they cannot replace a live covering entry. A block with a live covering region cannot form its own region on that path.
