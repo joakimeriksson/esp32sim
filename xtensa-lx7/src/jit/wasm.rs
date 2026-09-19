@@ -82,8 +82,8 @@ struct Block {
 /// Entry facts of one region chunk. `sites` points into the owning region's vector, which
 /// lives until that region is dropped, and every drop moves `CodeCache::region_epoch` on.
 #[derive(Clone, Copy)]
-struct Hot { epoch: u64, bloom: u64, slot: u32, k: u32, len: u32, lo: u32, span: u32, pages: [(u32, u32); 3], npages: u32, nsites: u32, sites: *const u32 }
-impl Hot { const NONE: Hot = Hot { epoch: 0, bloom: 0, slot: 0, k: 0, len: 0, lo: 0, span: 0, pages: [(0, 0); 3], npages: 0, nsites: 0, sites: std::ptr::null() }; }
+struct Hot { epoch: u64, bloom: u64, slot: u32, k: u32, len: u32, lo: u32, span: u32, pages: [(u32, u32); 8], npages: u32, nsites: u32, sites: *const u32 }
+impl Hot { const NONE: Hot = Hot { epoch: 0, bloom: 0, slot: 0, k: 0, len: 0, lo: 0, span: 0, pages: [(0, 0); 8], npages: 0, nsites: 0, sites: std::ptr::null() }; }
 /// Several chunks compiled as one function; see wasm_region.rs.
 struct Region {
     /// The generated code holds pointers to these instructions for its helper calls,
@@ -514,8 +514,8 @@ pub unsafe fn run<B: Bus>(
                     // SAFETY: the region was installed with the block signature; its
                     // entry parameter is the chunk index.
                     let f: Run<B> = unsafe { std::mem::transmute(r.slot as usize) };
-                    if r.pages.len() <= 3 {
-                        let mut pages = [(0, 0); 3];
+                    if r.pages.len() <= 8 {
+                        let mut pages = [(0, 0); 8];
                         pages[..r.pages.len()].copy_from_slice(&r.pages);
                         b.hot.set(Hot { epoch: cc.region_epoch.get(), bloom: r.bloom, slot: r.slot, k, len: r.lens[k as usize], lo: r.lo,
                             span: r.hi.wrapping_sub(r.lo), pages, npages: r.pages.len() as u32, nsites: r.sites.len() as u32, sites: r.sites.as_ptr() });
