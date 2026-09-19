@@ -1,0 +1,22 @@
+diff --git a/xtensa-lx7/src/jit/wasm.rs b/xtensa-lx7/src/jit/wasm.rs
+index f8573a1f..33ca90e5 100644
+--- a/xtensa-lx7/src/jit/wasm.rs
++++ b/xtensa-lx7/src/jit/wasm.rs
+@@ -466,9 +466,15 @@ pub unsafe fn run<B: Bus>(
+     #[cfg(feature = "wasm-cache-inline")]
+     let cache_view = if CACHE_PROBES.load(std::sync::atomic::Ordering::Relaxed) { bus.fast_cache() } else { None };
+     #[cfg(feature = "wasm-cache-inline")]
+-    let hinted = Helpers { cache: cache_view.as_ref().map_or(std::ptr::null(), |v| v), ..*h };
++    let hinted;
+     #[cfg(feature = "wasm-cache-inline")]
+-    let h = &hinted;
++    let h = if let Some(cache) = cache_view.as_ref() {
++        hinted = Helpers { cache, ..*h };
++        &hinted
++    } else {
++        // Constructors leave cache null; only this call installs a view.
++        h
++    };
+     let (tlb, versions) = fm
+         .map(|m| (m.tlb, m.page_ver))
+         .unwrap_or((std::ptr::null(), std::ptr::null_mut()));
