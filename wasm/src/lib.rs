@@ -31,6 +31,7 @@ trait MachineApi {
     fn observer(&mut self, name: &str, arg: &str) -> u32;
     fn reports(&mut self) -> String;
     fn set_jit(&mut self, enabled: bool);
+    fn approximate_jit_timing(&mut self, cpi: u32, quantum: u32) -> u32;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
@@ -92,6 +93,9 @@ impl<S: Soc> MachineApi for Machine<S> {
         }
     }
     fn reports(&mut self) -> String { Machine::reports(self) }
+    fn approximate_jit_timing(&mut self, cpi: u32, quantum: u32) -> u32 {
+        match self.set_approximate_jit_timing(cpi, quantum) { Ok(()) => 0, Err(reason) => { log(&reason); 1 } }
+    }
     fn set_jit(&mut self, enabled: bool) { for core in &mut self.cores { xtensa_lx7::Core::set_jit(core, enabled); } }
     fn as_any_mut(&mut self) -> &mut dyn Any { self }
 }
@@ -193,6 +197,8 @@ unsafe fn text<'a>(ptr: *const u8, len: usize) -> &'a str {
 /// # Safety
 /// For nonzero `board_len`, `board` must be non-null and readable for `board_len` bytes throughout
 /// this call. A null pointer is accepted only when `board_len` is 0.
+/// On WASM, destroy the previous emulator before creating another: timing emitter
+/// configuration is module-wide, not isolated between simultaneously live emulators.
 #[no_mangle]
 pub unsafe extern "C" fn esp32sim_new(board: *const u8, board_len: usize, flash_mb: u32, psram_mb: u32) -> *mut Emu {
     std::panic::set_hook(Box::new(|info| log(&format!("[emu] panic: {}", info))));
@@ -225,6 +231,17 @@ pub unsafe extern "C" fn esp32sim_new(board: *const u8, board_len: usize, flash_
         prepare(&mut m);
         Box::new(m)
     };
+    // A worker reuses this WASM instance after deleting its previous emulator.
+    // No generated code is shared: it was owned by the old CPUs and dropped with them.
+    #[cfg(target_arch = "wasm32")]
+    {
+        use std::sync::atomic::Ordering::Relaxed;
+        xtensa_lx7::jit::PRICED.store(false, Relaxed);
+        xtensa_lx7::jit::CACHE_PROBES.store(false, Relaxed);
+        xtensa_lx7::jit::FETCH_RING.store(false, Relaxed);
+        xtensa_lx7::jit::CACHE_SET_MASK.store(63, Relaxed);
+    }
+    xtensa_lx7::state::reset_shared_fetch_cache();
     Box::into_raw(Box::new(Emu {
         m,
         out: Vec::new(),
@@ -369,6 +386,20 @@ pub unsafe extern "C" fn esp32sim_boot(e: *mut Emu, app_direct: u32) -> u32 {
     let name = e.m.board_name();
     if let Some(w) = e.m.web() { w.send_text(&format!("{{\"t\":\"board\",\"name\":\"{}\"}}", name)); }
     e.booted = true; 0
+}
+
+/// Enable provisional per-instruction timing before ROM boot. Returns 1 on rejection.
+/// This selects the modeled interpreter, not the production browser JIT.
+/// # Safety
+/// `e` must point to a live emulator to which the caller has exclusive access.
+#[no_mangle]
+pub unsafe extern "C" fn esp32sim_set_approximate_timing(e: *mut Emu) -> u32 {
+    let e = unsafe { &mut *e };
+    let Some(m) = e.m.as_any_mut().downcast_mut::<esp32s3::Machine>() else { return 1; };
+    match m.set_cost_model(Box::new(esp32s3::ApproximateCostModel::default())) {
+        Ok(()) => { log("[emu] APPROXIMATE timing enabled; accuracy unvalidated; ROM boot required"); 0 }
+        Err(reason) => { log(&format!("[emu] approximate timing: {reason}")); 1 }
+    }
 }
 
 /// Run for `cycles` more emulated cycles. Returns 0 while the machine can go on; otherwise a stop
@@ -766,6 +797,38 @@ pub unsafe extern "C" fn esp32sim_in_bin(e: *mut Emu, ptr: *const u8, len: usize
     if let Some(w) = e.m.web() { w.push_incoming_bin(input.to_vec()); }
 }
 
+/// Configure experimental SPI2 wire timing before boot. Returns 1 for unsupported chips or after boot.
+///
+/// # Safety
+/// `e` must be a live exclusively borrowed emulator.
+#[no_mangle]
+pub unsafe extern "C" fn esp32sim_set_spi2_timing(e: *mut Emu, enabled: u32) -> u32 {
+    let e = unsafe { &mut *e };
+    if e.booted { return 1; }
+    let Some(m) = e.m.as_any_mut().downcast_mut::<esp32s3::Machine>() else { return 1 };
+    m.bus.spi2_timing = enabled != 0;
+    0
+}
+
+/// Select the measured CO5300 TE waveform before boot. Returns 1 for other boards or after boot.
+///
+/// # Safety
+/// `e` must be a live exclusively borrowed emulator.
+#[no_mangle]
+pub unsafe extern "C" fn esp32sim_set_measured_te(e: *mut Emu, enabled: u32) -> u32 {
+    let e = unsafe { &mut *e };
+    if e.booted { return 1; }
+    let Some(m) = e.m.as_any_mut().downcast_mut::<esp32s3::Machine>() else { return 1 };
+    if m.bus.board.name() != "waveshare-amoled18-v2" { return 1; }
+    m.bus.board = Box::new(if enabled != 0 {
+        esp32s3::board::WaveshareAmoled18V2::with_measured_te()
+    } else {
+        esp32s3::board::WaveshareAmoled18V2::new()
+    });
+    m.bus.attach_board_devices();
+    0
+}
+
 /// Enable or disable the scheduler-integrated block JIT. The interpreter remains available.
 ///
 /// # Safety
@@ -774,6 +837,173 @@ pub unsafe extern "C" fn esp32sim_in_bin(e: *mut Emu, ptr: *const u8, len: usize
 pub unsafe extern "C" fn esp32sim_set_jit(e: *mut Emu, enabled: u32) {
     // SAFETY: The ABI caller guarantees a live exclusive handle.
     unsafe { &mut *e }.m.set_jit(enabled != 0);
+}
+
+/// Configure provisional uniform CPU cost and deadline-bounded batches before execution.
+/// # Safety
+/// `e` must be a live exclusively borrowed emulator.
+#[no_mangle]
+pub unsafe extern "C" fn esp32sim_set_approximate_jit_timing(e: *mut Emu, cpi: u32, quantum: u32) -> u32 {
+    unsafe { &mut *e }.m.approximate_jit_timing(cpi, quantum)
+}
+
+/// Select independent per-core completion times: 1 batches blocks, 2 also exits on first cache miss.
+/// # Safety
+/// `e` must be a live exclusively borrowed emulator.
+#[no_mangle]
+pub unsafe extern "C" fn esp32sim_set_approximate_jit_frontiers(e: *mut Emu, enabled: u32) -> u32 {
+    let e = unsafe { &mut *e };
+    e.m.as_any_mut().downcast_mut::<esp32s3::Machine>()
+        .map(|m| {
+            if m.set_approximate_jit_frontiers(enabled != 0).is_err() { return 1; }
+            m.bus.set_approximate_cache_yield_miss(enabled >= 2);
+            0
+        }).unwrap_or(1)
+}
+
+/// Configure the rough shared data cache after approximate JIT timing, before execution.
+/// `fast_internal`=1 retains direct SRAM, 2 tries feature-gated inline cache hits.
+/// # Safety
+/// `e` must be a live exclusively borrowed emulator.
+#[no_mangle]
+pub unsafe extern "C" fn esp32sim_set_approximate_jit_cache(e: *mut Emu, fill: u32, writeback: u32, fast_internal: u32) -> u32 {
+    let e = unsafe { &mut *e };
+    let Some(m) = e.m.as_any_mut().downcast_mut::<esp32s3::Machine>() else { return 1 };
+    if m.insns() != 0 { return 1; }
+    // `fast_internal` values 2 and 3 both select the inline probe; 3 also selects the 64 KB data
+    // cache some firmware configures (EXTMEM_DCACHE_CTRL size mode 1; pocket-tank does).
+    let capacity_bytes = if fast_internal == 3 { 65536 } else { 32768 };
+    let fast_internal = fast_internal.min(2);
+    m.bus.enable_approximate_cache(esp32s3::approximate_cache::CacheConfig { fill_cycles: fill, writeback_cycles: writeback, capacity_bytes, ..Default::default() });
+    #[cfg(all(target_arch = "wasm32", feature = "cache-inline"))]
+    xtensa_lx7::jit::CACHE_SET_MASK.store(capacity_bytes as u32 / (64 * 8) - 1, std::sync::atomic::Ordering::Relaxed);
+    m.bus.set_approximate_cache_fast_internal(fast_internal != 0);
+    if fast_internal == 2 {
+        if !m.bus.set_approximate_cache_inline() { return 1; }
+        #[cfg(all(target_arch = "wasm32", feature = "cache-inline"))]
+        xtensa_lx7::jit::CACHE_PROBES.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+    0
+}
+
+/// Select an uncalibrated PIE instruction-cost hypothesis before execution.
+/// # Safety
+/// `e` must be a live exclusively borrowed emulator, before execution.
+#[no_mangle]
+pub unsafe extern "C" fn esp32sim_set_approximate_pie_timing(e: *mut Emu, mode: u32) -> u32 {
+    let e = unsafe { &mut *e };
+    let Some(m) = e.m.as_any_mut().downcast_mut::<esp32s3::Machine>() else { return 1 };
+    if m.insns() != 0 || mode > 2 { return 1; }
+    for cpu in &mut m.cores { cpu.approximate_pie_mode = mode; }
+    0
+}
+
+/// EX138: charge the measured control-flow prices (taken branch 3, J 3, JX 6, LOOP 5, QUO 4,
+/// REM 5; calls and returns derived) on top of one cycle per instruction. Before execution only.
+/// # Safety
+/// `e` must be a live exclusively borrowed emulator.
+#[no_mangle]
+pub unsafe extern "C" fn esp32sim_set_control_prices(e: *mut Emu, on: u32) -> u32 {
+    let e = unsafe { &mut *e };
+    let Some(m) = e.m.as_any_mut().downcast_mut::<esp32s3::Machine>() else { return 1 };
+    if m.insns() != 0 { return 1; }
+    for cpu in &mut m.cores { cpu.price_control = on != 0; }
+    #[cfg(target_arch = "wasm32")]
+    xtensa_lx7::jit::PRICED.store(on != 0, std::sync::atomic::Ordering::Relaxed);
+    0
+}
+
+/// Scheduling quantum of the exact-clock scheduler (default 64). Larger values interleave two
+/// busy cores more coarsely: faster, deterministic, but not bit-identical with the default.
+/// # Safety
+/// `e` must be a live exclusively borrowed emulator.
+#[no_mangle]
+pub unsafe extern "C" fn esp32sim_set_quantum(e: *mut Emu, instructions: u32) -> u32 {
+    let e = unsafe { &mut *e };
+    let Some(m) = e.m.as_any_mut().downcast_mut::<esp32s3::Machine>() else { return 1 };
+    if m.insns() != 0 || !(64..=4096).contains(&instructions) || !instructions.is_multiple_of(64) { return 1; }
+    m.quantum = u64::from(instructions);
+    0
+}
+
+/// EX147 (diagnostic): instruction-fetch cache fill price for flash-mapped code, per 32-byte line.
+/// # Safety
+/// `e` must be a live exclusively borrowed emulator.
+#[no_mangle]
+pub unsafe extern "C" fn esp32sim_set_icache_fill(e: *mut Emu, cycles: u32) -> u32 {
+    let e = unsafe { &mut *e };
+    let Some(m) = e.m.as_any_mut().downcast_mut::<esp32s3::Machine>() else { return 1 };
+    if m.insns() != 0 { return 1; }
+    xtensa_lx7::state::reset_shared_fetch_cache();
+    for cpu in &mut m.cores { cpu.icache_fill = cycles; }
+    #[cfg(target_arch = "wasm32")]
+    xtensa_lx7::jit::FETCH_RING.store(cycles != 0, std::sync::atomic::Ordering::Relaxed);
+    0
+}
+
+/// Provisional PIE counts: charged events (0), additional cycles (1).
+/// # Safety
+/// `e` must be a live exclusively borrowed emulator.
+#[no_mangle]
+pub unsafe extern "C" fn esp32sim_approximate_pie_counter(e: *mut Emu, counter: u32) -> f64 {
+    let e = unsafe { &mut *e };
+    e.m.as_any_mut().downcast_mut::<esp32s3::Machine>()
+        .map(|m| m.cores.iter().map(|c| if counter == 0 { c.approximate_pie_events } else { c.approximate_pie_cycles }).sum::<u64>() as f64).unwrap_or(0.0)
+}
+
+/// Cache experiment counters: hits, line fills, writebacks and extra cycles.
+/// # Safety
+/// `e` must be a live exclusively borrowed emulator, before execution begins.
+#[no_mangle]
+pub unsafe extern "C" fn esp32sim_set_approximate_cache_contention(e: *mut Emu, enabled: u32) -> u32 {
+    let e = unsafe { &mut *e };
+    let Some(m) = e.m.as_any_mut().downcast_mut::<esp32s3::Machine>() else { return 1 };
+    if m.insns() != 0 { return 1; }
+    m.bus.set_approximate_cache_contention(enabled != 0);
+    0
+}
+
+/// Set full refill service separately from requested-data readiness.
+/// # Safety
+/// `e` must be a live exclusively borrowed emulator, configured before execution.
+#[no_mangle]
+pub unsafe extern "C" fn esp32sim_set_approximate_cache_fill_service(e: *mut Emu, cycles: u32) -> u32 {
+    let e = unsafe { &mut *e };
+    let Some(m) = e.m.as_any_mut().downcast_mut::<esp32s3::Machine>() else { return 1 };
+    if m.insns() != 0 { return 1; }
+    u32::from(!m.bus.set_approximate_cache_fill_service(cycles))
+}
+
+/// Override flash demand readiness and service; common cache timing still applies to PSRAM.
+/// Configure the cache first. This optional probe does not select prices by default.
+/// # Safety
+/// `e` must be a live exclusively borrowed emulator, configured before execution.
+#[no_mangle]
+pub unsafe extern "C" fn esp32sim_set_approximate_flash_timing(e: *mut Emu, ready: u32, service: u32) -> u32 {
+    let e = unsafe { &mut *e };
+    let Some(m) = e.m.as_any_mut().downcast_mut::<esp32s3::Machine>() else { return 1 };
+    if m.insns() != 0 { return 1; }
+    u32::from(!m.bus.set_approximate_flash_timing(ready, service))
+}
+
+/// Per-core queued wait in provisional shared memory service.
+/// # Safety
+/// `e` must be a live exclusively borrowed emulator.
+#[no_mangle]
+pub unsafe extern "C" fn esp32sim_approximate_cache_wait(e: *mut Emu, core: u32) -> f64 {
+    let e = unsafe { &mut *e };
+    e.m.as_any_mut().downcast_mut::<esp32s3::Machine>()
+        .map(|m| m.bus.approximate_cache_wait_cycles()[core.min(1) as usize] as f64).unwrap_or(0.0)
+}
+
+/// Cache experiment counters: hits, line fills, writebacks and extra cycles.
+/// # Safety
+/// `e` must be a live exclusively borrowed emulator.
+#[no_mangle]
+pub unsafe extern "C" fn esp32sim_approximate_cache_counter(e: *mut Emu, counter: u32) -> f64 {
+    let e = unsafe { &mut *e };
+    e.m.as_any_mut().downcast_mut::<esp32s3::Machine>().and_then(|m| m.bus.approximate_cache_stats())
+        .map(|s| match counter { 0 => s.hits, 1 => s.line_fills, 2 => s.dirty_writebacks, _ => s.extra_cycles } as f64).unwrap_or(0.0)
 }
 
 /// Guest instructions retired by compiled blocks, including interpreter helpers.

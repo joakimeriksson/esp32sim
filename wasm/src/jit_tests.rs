@@ -83,6 +83,59 @@ fn solo_core_one() -> u32 {
     4
 }
 
+#[cfg(feature = "cache-inline")]
+fn sequential_emulators_reset_timing_state() -> u32 {
+    use std::sync::atomic::Ordering::Relaxed;
+    use xtensa_lx7::jit::{CACHE_PROBES, CACHE_SET_MASK, FETCH_RING, PRICED};
+    let name = b"none";
+    let exercise = |m: &mut esp32s3::Machine| {
+        SocBus::load_bytes(&mut m.bus, BASE, &LOOP).unwrap();
+        let c = &mut m.cores[0];
+        c.pc = BASE; c.ps = 0;
+        c.set_ar(4, BASE + 0x400); c.set_ar(5, 0);
+        m.max_cycles = 4096;
+        assert!(matches!(m.run(u64::MAX), Stop::Halted));
+        assert!(m.cores[0].blocks.jit_instructions > 100);
+    };
+    // Exercise the real C ABI in one WASM instance, as worker create/delete does.
+    unsafe {
+        let first = super::esp32sim_new(name.as_ptr(), name.len(), 1, 0);
+        assert!(!first.is_null());
+        assert_eq!(super::esp32sim_set_approximate_jit_cache(first, 96, 160, 3), 0);
+        assert_eq!(super::esp32sim_set_control_prices(first, 1), 0);
+        assert_eq!(super::esp32sim_set_icache_fill(first, 404), 0);
+        assert!(PRICED.load(Relaxed) && CACHE_PROBES.load(Relaxed) && FETCH_RING.load(Relaxed));
+        assert_eq!(CACHE_SET_MASK.load(Relaxed), 127);
+        let m = (*first).m.as_any_mut().downcast_mut::<esp32s3::Machine>().unwrap();
+        m.cores[0].touch_fetch_lines(0x4200_0000, 0x4200_0000);
+        assert_eq!(m.cores[0].icache_misses, 1);
+        exercise(m);
+        assert!(m.cores[0].blocks.code_bytes() > 0);
+        assert!(m.cores[0].timing_extra > 404, "the first emulator must execute priced instructions");
+        super::esp32sim_delete(first);
+
+        let second = super::esp32sim_new(name.as_ptr(), name.len(), 1, 0);
+        assert!(!second.is_null());
+        assert!(!PRICED.load(Relaxed) && !CACHE_PROBES.load(Relaxed) && !FETCH_RING.load(Relaxed));
+        assert_eq!(CACHE_SET_MASK.load(Relaxed), 63);
+        let m = (*second).m.as_any_mut().downcast_mut::<esp32s3::Machine>().unwrap();
+        assert!(m.cores.iter().all(|c| !c.price_control && c.icache_fill == 0 && c.blocks.code_bytes() == 0));
+        // Do not call the icache setter here: it itself clears the cache and would
+        // hide a missing reset in esp32sim_new.
+        m.cores[0].icache_fill = 404;
+        m.cores[0].touch_fetch_lines(0x4200_0000, 0x4200_0000);
+        assert_eq!(m.cores[0].icache_misses, 1, "new emulator must start with a cold fetch cache");
+        m.cores[1].icache_fill = 404;
+        m.cores[1].touch_fetch_lines(0x4200_0000, 0x4200_0000);
+        assert_eq!(m.cores[1].icache_misses, 0, "the two new cores still share their fetch cache");
+        for c in &mut m.cores { c.icache_fill = 0; c.timing_extra = 0; }
+        exercise(m);
+        assert_eq!(m.cores[0].timing_extra, 0, "old priced code must not survive recreation");
+        super::esp32sim_delete(second);
+    }
+    1
+}
+
 pub fn run() -> u32 {
     let (mut a, mut b) = (machine(false), machine(true));
     for m in [&mut a, &mut b] {
@@ -127,5 +180,8 @@ pub fn run() -> u32 {
         }
         same(&a, &b);
     }
-    3 + solo_core_one()
+    let cases = 3 + solo_core_one();
+    #[cfg(feature = "cache-inline")]
+    let cases = cases + sequential_emulators_reset_timing_state();
+    cases
 }

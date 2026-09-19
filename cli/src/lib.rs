@@ -21,11 +21,16 @@ fn pair(s: &str, dflt: usize) -> (u32, usize) { match s.split_once(',') { Some((
 /// Everything the command line can say, chip-agnostic; `None` means "the chip's default".
 #[derive(Default)]
 pub struct Opts {
+    pub approximate_timing: bool,
+    pub approximate_memory: Option<u32>,
+    pub memory_contention: bool,
+    pub approximate_cache: bool,
     pub chip: String,
     pub rom: Option<PathBuf>, pub bootloader: Option<String>, pub ptable: Option<String>, pub app: Option<String>, pub elfs: Vec<String>,
     pub flash_image: Option<String>, pub flash_at: Vec<String>, pub boot: Option<String>, pub flash_mb: Option<usize>, pub psram_mb: Option<usize>,
     pub mac: Option<[u8; 6]>, pub strap: Option<u32>, pub reset_cause: Option<u32>, pub efuse_regs: Option<String>, pub regs_init: Option<String>,
     pub board: String, pub wifi: Option<String>, pub net: String, pub cam_image: Option<String>, pub cam_fps: f64,
+    pub spi2_timing: bool, pub measured_te: bool,
     pub max_insns: u64, pub max_seconds: Option<f64>, pub script: Option<String>, pub serial: Option<String>,
     pub console: Option<String>, pub console_prefix: bool, pub realtime: bool, pub web_port: Option<u16>, pub web_dir: Option<String>, pub no_reboot: bool,
     pub wav: Option<String>, pub tft_png: Option<String>, pub gram_png: Option<String>, pub dump: bool,
@@ -44,6 +49,10 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
         let a = args[i].as_str();
         let mut next = || { i += 1; args.get(i).cloned().unwrap_or_else(|| usage(default_chip)) };
         match a {
+            "--approximate-timing" => o.approximate_timing = true,
+            "--approximate-memory" => { o.approximate_timing = true; o.approximate_memory = Some(next().parse().expect("memory extra cycles")); }
+            "--memory-contention" => o.memory_contention = true,
+            "--approximate-cache" => { o.approximate_timing = true; o.approximate_cache = true; },
             "--chip" => o.chip = next().to_ascii_lowercase(),
             "--rom" => o.rom = Some(PathBuf::from(next())),
             "--bootloader" => o.bootloader = Some(next()),
@@ -61,6 +70,8 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
             "--efuse-regs" => o.efuse_regs = Some(next()),
             "--regs-init" => o.regs_init = Some(next()),
             "--board" => o.board = next(),
+            "--spi2-timing" => o.spi2_timing = true,
+            "--measured-te" => o.measured_te = true,
             "--wifi" => o.wifi = Some(next()),
             "--net" => o.net = next(),
             "--cam-image" => o.cam_image = Some(next()),
@@ -166,6 +177,11 @@ fn run_cooja(o: &mut Opts) {
 fn setup_s3(o: &Opts) -> esp32s3::Machine {
     let mut m = esp32s3::machine(o.mac.unwrap_or([0x44, 0x1b, 0xf6, 0x75, 0xdc, 0xe0]));
     m.bus.board = esp32s3::board::make_board(&o.board).unwrap_or_else(|| { eprintln!("unknown board '{}' (atech14, waveshare-cam, waveshare-lcd4b, waveshare-amoled18-v2, none)", o.board); std::process::exit(2) });
+    if o.measured_te {
+        assert_eq!(m.bus.board.name(), "waveshare-amoled18-v2", "--measured-te requires the AMOLED V2 board");
+        m.bus.board = Box::new(esp32s3::board::WaveshareAmoled18V2::with_measured_te());
+    }
+    m.bus.spi2_timing = o.spi2_timing;
     m.bus.attach_board_devices();
     if !o.debug.is_empty() { let mut f = esp_soc::DebugFlags::from_env(); for d in &o.debug { f.parse(d); } m.set_debug(&f); }
     if let Some(spec) = &o.wifi {
@@ -243,6 +259,31 @@ fn setup_c6(o: &Opts) -> esp32c6::Machine {
 
 /// Everything after the chip is set up: images, boot, observers, the run, the reports.
 fn run<S: Soc>(mut m: Machine<S>, o: &Opts) {
+    let approximate = o.approximate_timing.then(|| {
+        let mut config = esp32s3::ApproximateTimingConfig::default();
+        if o.approximate_cache && o.approximate_memory.is_none() {
+            let mut cache = esp32s3::approximate_cache::CacheConfig::default();
+            if let Ok(value) = std::env::var("ESP32SIM_CACHE_FILL") { cache.fill_cycles = value.parse().expect("ESP32SIM_CACHE_FILL cycles"); }
+            if let Ok(value) = std::env::var("ESP32SIM_CACHE_WRITEBACK") { cache.writeback_cycles = value.parse().expect("ESP32SIM_CACHE_WRITEBACK cycles"); }
+            config.data_cache = Some(cache);
+        }
+        esp32s3::ApproximateCostModel::new(config)
+    });
+    let memory_model = o.approximate_memory.map(|extra| {
+        use esp32s3::rough_memory::{MemoryConfig, MemoryPrice};
+        assert_eq!(o.boot.as_deref(), Some("rom"), "memory MMU shadow requires --boot rom");
+        let external = MemoryPrice { latency: extra, ..MemoryPrice::FREE };
+        let model = esp32s3::memory_cost_model::MemoryCostModel::new(approximate.as_ref().unwrap().clone(),
+            MemoryConfig { flash: external, psram: external, contention: o.memory_contention, ..Default::default() });
+        if o.approximate_cache { model.with_cache(esp32s3::approximate_cache::CacheConfig::default()) } else { model }
+    });
+    if let Some(model) = &approximate {
+        let cost: Box<dyn emu_core::CostModel> = match &memory_model {
+            Some(memory) => Box::new(memory.clone()), None => Box::new(model.clone()),
+        };
+        m.set_cost_model(cost).expect("approximate timing attachment");
+        eprintln!("[emu] APPROXIMATE timing: {:?}; use --boot rom; accuracy unvalidated", model.config);
+    }
     let boot = prepare(&mut m, o);
     let t0 = std::time::Instant::now();
     let stop = loop {
@@ -258,6 +299,11 @@ fn run<S: Soc>(mut m: Machine<S>, o: &Opts) {
     };
     let dt = t0.elapsed().as_secs_f64();
     report(&mut m, o, stop, dt);
+    if let Some(model) = approximate { eprintln!("[emu] approximate timing totals: {:?}", model.stats()); }
+    if let Some(model) = memory_model {
+        eprintln!("[emu] approximate memory totals [internal, ROM, flash, PSRAM, MMIO]: {:?}", model.memory.borrow().stats);
+        if let Some(cache) = &model.cache { eprintln!("[emu] approximate physical data cache: {:?}", cache.borrow().stats()); }
+    }
 }
 
 /// Images, boot, observers, scripts: everything before the first instruction. Returns the boot mode.

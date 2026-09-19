@@ -140,7 +140,8 @@ fn st<B: Bus>(cpu: &mut Cpu, bus: &mut B, a: u32, bytes: u32, v: u128) -> Result
 
 pub fn exec<B: Bus>(cpu: &mut Cpu, bus: &mut B, i: &Insn) -> Result<(), Trap> {
     if cpu.cpenable & (1 << 3) == 0 { return Err(cpu.raise(exc::COPROCESSOR0_DISABLED + 3)); }
-    if i.r & PACKED != 0 { return exec_packed(cpu, bus, i); }
+    // The optional PIE cost hypotheses are charged in the table executor only.
+    if i.r & PACKED != 0 && cpu.approximate_pie_mode == 0 { return exec_packed(cpu, bus, i); }
     exec_table(cpu, bus, i)
 }
 
@@ -252,6 +253,17 @@ fn exec_table<B: Bus>(cpu: &mut Cpu, bus: &mut B, i: &Insn) -> Result<(), Trap> 
         Kind::StQr => { st(cpu, bus, ar!(As).wrapping_add(o.get(Imm) as u32), 16, q!(Qs))?; }
         Kind::MvQr => { let s = if o.has(Qs) { q!(Qs) } else { q!(Qx) }; let dst = if o.has(Qu) { Qu } else { Qa }; setq!(dst, s); }
         Kind::Unimpl => return Err(Trap::Unimplemented(cpu.pc, w)),
+    }
+    let extra = match cpu.approximate_pie_mode {
+        1 if matches!(p.kind, Kind::Vld128(_) | Kind::Vst128(_) | Kind::LdUsar(_)
+            | Kind::SrcQ { ld: Mode::Ip | Mode::Xp, .. } | Kind::LdQr | Kind::StQr) => 1,
+        2 if matches!(p.kind, Kind::SrcQ { ld: Mode::Ip | Mode::Xp, .. }) => 2,
+        _ => 0,
+    };
+    if extra != 0 {
+        bus.add_timing_penalty(extra);
+        cpu.approximate_pie_events += 1;
+        cpu.approximate_pie_cycles += u64::from(extra);
     }
     Ok(())
 }
@@ -541,5 +553,42 @@ mod tests {
         assert_eq!(dot_s8(&[0x80; 16], &[0x7f; 16]), -16 * 128 * 127);
         let min16: [u8; 16] = [0x00, 0x80].repeat(8).try_into().unwrap();
         assert_eq!(dot_s16(&min16, &min16), 8 * (1i64 << 30));
+    }
+}
+
+#[cfg(test)]
+mod timing_tests {
+    use super::*;
+    struct Ram { inner: emu_core::FlatRam, penalty: u32 }
+    impl Bus for Ram {
+        fn read8(&mut self, a: u32) -> Result<u8, crate::Fault> { self.inner.read8(a) }
+        fn read16(&mut self, a: u32) -> Result<u16, crate::Fault> { self.inner.read16(a) }
+        fn read32(&mut self, a: u32) -> Result<u32, crate::Fault> { self.inner.read32(a) }
+        fn write8(&mut self, a: u32, v: u8) -> Result<(), crate::Fault> { self.inner.write8(a, v) }
+        fn write16(&mut self, a: u32, v: u16) -> Result<(), crate::Fault> { self.inner.write16(a, v) }
+        fn write32(&mut self, a: u32, v: u32) -> Result<(), crate::Fault> { self.inner.write32(a, v) }
+        fn fetch(&mut self, a: u32) -> Result<[u8; 4], crate::Fault> { self.inner.fetch(a) }
+        fn add_timing_penalty(&mut self, cycles: u32) { self.penalty += cycles; }
+    }
+    #[test]
+    fn selective_pie_costs_only_charge_successful_selected_instructions() {
+        for (name, costs) in [("ee.vld.128.ip", [0, 1, 0]), ("ee.vst.128.ip", [0, 1, 0]),
+            ("ee.ld.128.usar.ip", [0, 1, 0]), ("ee.src.q.ld.ip", [0, 1, 2]), ("ee.src.q", [0, 0, 0])] {
+            let p = OPS.iter().find(|p| p.name == name).unwrap();
+            let i = crate::decode::decode(0, p.value.to_le_bytes());
+            for (mode, expected) in costs.into_iter().enumerate() {
+                let mut cpu = Cpu::new(0);
+                cpu.cpenable = 8;
+                cpu.approximate_pie_mode = mode as u32;
+                let mut ram = Ram { inner: emu_core::FlatRam::new(0, 64), penalty: 0 };
+                exec(&mut cpu, &mut ram, &i).unwrap();
+                assert_eq!(ram.penalty, expected, "{name} mode {mode}");
+                assert_eq!(cpu.approximate_pie_cycles, u64::from(expected));
+                assert_eq!(cpu.approximate_pie_events, u64::from(expected != 0));
+                cpu.cpenable = 0;
+                assert!(exec(&mut cpu, &mut ram, &i).is_err());
+                assert_eq!(ram.penalty, expected);
+            }
+        }
     }
 }

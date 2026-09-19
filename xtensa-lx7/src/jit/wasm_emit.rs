@@ -167,10 +167,18 @@ const WINDOWS: u8 = 29;
 /// Region locals: a helper or code-page store happened (leave at the next head); next chunk.
 const DIRTY: u8 = 30;
 const NEXT: u8 = 31;
-/// Typed scratch locals declared after the 25 i32 locals: a vector and a 64-bit integer
+#[cfg(feature = "wasm-cache-inline")]
+const CACHE: u8 = 32;
+#[cfg(feature = "wasm-cache-inline")]
+const CACHE_TAG: u8 = 33;
+#[cfg(feature = "wasm-cache-inline")]
+const CACHE_SET: u8 = 34;
+#[cfg(feature = "wasm-cache-inline")]
+const CACHE_LINE: u8 = 35;
+/// Typed scratch locals declared after the i32 locals: a vector and a 64-bit integer
 /// (PIE lane sums and the 40-bit ACCX). `module` must declare them in this order.
-const V128: u8 = 32;
-const WIDE: u8 = 33;
+const V128: u8 = if cfg!(feature = "wasm-cache-inline") { 36 } else { 32 };
+const WIDE: u8 = V128 + 1;
 const PC: usize = offset_of!(Cpu, pc);
 const AR: usize = offset_of!(Cpu, ar);
 const WINDOWBASE: usize = offset_of!(Cpu, windowbase);
@@ -187,6 +195,12 @@ enum Ctl { If(u32), Block(u32), Loop(u32) }
 
 #[derive(Default)]
 struct Gen {
+    /// The next `leave` is a skipped LOOPNEZ/LOOPGTZ body: its setup price already covers it.
+    free_leave: bool,
+    /// EX141: the instruction being emitted has a static target that straddles a fetch word
+    straddle: bool,
+    /// Static wait prepaid for the current instruction, refundable on helper failure.
+    wait_price: u32,
     /// module body bytes
     bytes: Vec<u8>,
     /// registers written so far (spilled on exit)
@@ -394,8 +408,26 @@ impl Gen {
         }
         self.pending = 0;
     }
+    /// EX138: charge `cycles` beyond the instruction's own to `Cpu::timing_extra`.
+    fn price(&mut self, cycles: u32) {
+        if cycles == 0 || !super::PRICED.load(std::sync::atomic::Ordering::Relaxed) { return; }
+        self.get(0);
+        self.cpu(offset_of!(Cpu, timing_extra));
+        self.c(cycles);
+        self.op(0x6a);
+        self.store(offset_of!(Cpu, timing_extra));
+    }
+    fn refund_wait(&mut self) {
+        if self.wait_price == 0 || !super::PRICED.load(std::sync::atomic::Ordering::Relaxed) { return; }
+        self.get(0);
+        self.cpu(offset_of!(Cpu, timing_extra));
+        self.c(self.wait_price);
+        self.op(0x6b);
+        self.store(offset_of!(Cpu, timing_extra));
+    }
     /// Retire the current instruction and continue at a statically known `target`.
     fn leave(&mut self, target: u32) {
+        if !std::mem::take(&mut self.free_leave) { self.price(2 + self.straddle as u32); }
         self.advance();
         if self.region.is_some() {
             region_edge(self, target, false);
@@ -459,6 +491,9 @@ impl Gen {
         self.c(1);
         self.op(0x71);
         self.begin_if();
+        // Match the interpreter: an instruction that faults or is deferred does
+        // not retain its dependency wait. The executed prefix remains priced.
+        self.refund_wait();
         if continue_block {
             self.ret(CODE_TRAP);
         } else {
@@ -677,6 +712,7 @@ fn emit_body(
 ) {
     let mut pc = pc0;
     let mut window_changed = false;
+    let extras = if super::PRICED.load(std::sync::atomic::Ordering::Relaxed) { crate::exec::static_extras(instructions.iter().map(|b| &b.insn)) } else { vec![0; instructions.len()] };
     for (index, bi) in instructions.iter().enumerate() {
         let next = pc.wrapping_add(bi.insn.len as u32);
         g.last_pc = pc;
@@ -700,6 +736,9 @@ fn emit_body(
             g.overflow(bi.max_ar, pc);
         }
         let last = index + 1 == instructions.len();
+        g.wait_price = extras[index] as u32;
+        g.price(g.wait_price);
+        g.straddle = bi.straddle;
         if emit_instruction(g, bi, fast, pc, next, last, cp) {
             if whole {
                 g.advance();
@@ -1072,6 +1111,7 @@ fn emit_instruction(
         }
         J => g.leave(imm),
         Jx => {
+            g.price(5);
             g.advance();
             g.get(0);
             g.ar(s);
@@ -1097,6 +1137,7 @@ fn emit_instruction(
                 g.end();
             }
             let indirect = matches!(i.op, Callx0 | Callx4 | Callx8 | Callx12);
+            g.price(if indirect { 5 } else { 2 + g.straddle as u32 });
             if indirect {
                 // The target may alias the return-address destination.
                 g.ar(s);
@@ -1144,6 +1185,7 @@ fn emit_instruction(
             g.end();
         }
         Loop | Loopnez | Loopgtz => {
+            g.price(4);
             // Review spike. Mirrors exec.rs: LCOUNT = AR[s] - 1, LBEG = next, LEND = target;
             // LOOPNEZ/LOOPGTZ skip the body when the count is zero / non-positive. Blocks
             // containing these never receive a retained loop prefix (see queue), so the
@@ -1164,6 +1206,7 @@ fn emit_instruction(
                     g.op(0x4c); // i32.le_s
                 }
                 g.begin_if();
+                g.free_leave = true;
                 g.leave(imm);
                 g.end();
             }
@@ -1223,6 +1266,8 @@ fn emit_divide(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
     g.ar(i.t);
     g.op(match i.op { Quos => 0x6d, Quou => 0x6e, Rems => 0x6f, _ => 0x70 }); // i32.div_s/div_u/rem_s/rem_u
     g.set_ar(i.r);
+    // The helper below prices its own path; only the inline quotient is charged here.
+    g.price(if matches!(i.op, Quou | Quos) { 3 } else { 4 });
     g.bytes.extend([0x0c, 1]);
     g.end();
     g.fallback(bi, pc, next, last, false);
@@ -1298,6 +1343,8 @@ fn emit_memory(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
     g.load(offset_of!(TlbEntry, lo));
     g.op(0x6b);
     g.set(REL);
+    #[cfg(feature = "wasm-cache-inline")]
+    emit_cache_hit(g, store, 1);
     g.get(TLB);
     g.load(offset_of!(TlbEntry, base));
     g.get(REL);
@@ -1341,6 +1388,78 @@ fn emit_memory(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
     g.bytes.extend([0x0c, 1]);
     g.end();
     g.fallback(bi, pc, next, last, false);
+    g.end();
+}
+
+/// The ordinary TLB checks already established a successful aligned access.
+/// Preserve the reference cache's four-way round-robin policy: hit does not
+/// update replacement; miss leaves before touching state and uses the helper.
+#[cfg(feature = "wasm-cache-inline")]
+fn emit_cache_hit(g: &mut Gen, store: bool, accesses: u8) {
+    use emu_core::bus::{FastCache, FastCacheLine};
+    if !super::CACHE_PROBES.load(std::sync::atomic::Ordering::Relaxed) { return; }
+    g.begin_block(); // No cache view or internal memory: keep ordinary fast path.
+    g.get(2);
+    g.load(offset_of!(Helpers, cache));
+    g.tee(CACHE);
+    g.op(0x45);
+    g.bytes.extend([0x0d, 0]);
+    g.get(TLB);
+    g.load(offset_of!(TlbEntry, src));
+    g.c(!1);
+    g.op(0x71);
+    g.c(2); // Flash=2, PSRAM=3 in the experimental S3 adapter.
+    g.op(0x47);
+    g.bytes.extend([0x0d, 0]);
+
+    g.get(TLB);
+    g.load(offset_of!(TlbEntry, src));
+    g.c(28);
+    g.op(0x74);
+    g.get(TLB);
+    g.load(offset_of!(TlbEntry, off));
+    g.get(REL);
+    g.op(0x6a);
+    g.op(0x72);
+    g.c(6);
+    g.op(0x76);
+    g.set(CACHE_TAG);
+    g.get(CACHE);
+    g.load(offset_of!(FastCache, lines));
+    g.get(CACHE_TAG);
+    g.c(super::CACHE_SET_MASK.load(std::sync::atomic::Ordering::Relaxed));   // 64-byte lines, 8 ways: 64 sets at 32 KB, 128 at 64 KB
+    g.op(0x71);
+    g.c((8 * size_of::<FastCacheLine>()) as u32);
+    g.op(0x6c);
+    g.op(0x6a);
+    g.set(CACHE_SET);
+    g.begin_block(); // Find a way. Invalid tags are MAX, impossible for 64B keys.
+    for way in 0..8 {
+        g.get(CACHE_SET);
+        g.c((way * size_of::<FastCacheLine>()) as u32);
+        g.op(0x6a);
+        g.tee(CACHE_LINE);
+        g.load(offset_of!(FastCacheLine, tag));
+        g.get(CACHE_TAG);
+        g.op(0x46);
+        g.begin_if();
+        g.bytes.extend([0x0c, 1]);
+        g.end();
+    }
+    g.bytes.extend([0x0c, 2]); // No match: leave to this instruction's slow path.
+    g.end();
+    if store {
+        g.get(CACHE_LINE);
+        g.c(1);
+        g.store(offset_of!(FastCacheLine, dirty));
+    }
+    g.get(CACHE);
+    g.load(offset_of!(FastCache, hits));
+    g.tee(CACHE_SET);
+    g.get(CACHE_SET);
+    g.bytes.extend([0x29, 3, 0]); // i64.load
+    g.bytes.extend([0x42, accesses, 0x7c]); // i64.const accesses; i64.add
+    g.bytes.extend([0x37, 3, 0]); // i64.store
     g.end();
 }
 
@@ -1415,7 +1534,7 @@ fn module(body: &[u8]) -> Vec<u8> {
     name(&mut exports, "run");
     exports.extend([0, 0]);
     section(&mut out, 7, &exports);
-    let mut func = vec![3, 25, 0x7f, 1, 0x7b, 1, 0x7e];   // 25 i32, then V128 and WIDE
+    let mut func = vec![3, if cfg!(feature = "wasm-cache-inline") { 29 } else { 25 }, 0x7f, 1, 0x7b, 1, 0x7e];   // i32 locals, then V128 and WIDE
     func.extend(body);
     let mut code = vec![1];
     uleb(&mut code, func.len());

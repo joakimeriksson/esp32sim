@@ -8,6 +8,7 @@ pub mod exec;
 pub mod operands;
 pub mod state;
 pub mod pie;
+pub mod pie_timing;
 pub mod pie_table;
 
 pub mod block;

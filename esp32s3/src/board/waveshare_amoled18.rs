@@ -115,6 +115,8 @@ pub struct WaveshareAmoled18V2 {
     cycle: VirtualCycle,
     next_te_cycle: Option<VirtualCycle>,
     te_level: bool,
+    te_high_cycles: VirtualCycle,
+    te_low_cycles: VirtualCycle,
     touch_irq_level: bool,
     /// At most two touch IRQ transitions: the first observable edge and a coalesced final level.
     pending_touch_irq: Option<(VirtualCycle, bool)>,
@@ -133,11 +135,23 @@ impl WaveshareAmoled18V2 {
             cycle: 0,
             next_te_cycle: Some(Self::APPROXIMATE_TE_HALF_PERIOD),
             te_level: true,
+            te_high_cycles: Self::APPROXIMATE_TE_HALF_PERIOD,
+            te_low_cycles: Self::APPROXIMATE_TE_HALF_PERIOD,
             touch_irq_level: true,
             pending_touch_irq: None,
             pending_touch_final: None,
             edges: Vec::new(),
         }
+    }
+
+    /// Fixed waveform from TinyDraw's 2026-08-15 CO5300 hardware receipt:
+    /// 16,773 us period, 578 us high. Phase starts high at reset; no jitter model.
+    pub fn with_measured_te() -> Self {
+        let mut board = Self::new();
+        board.te_high_cycles = 578 * (crate::periph::CPU_HZ / 1_000_000);
+        board.te_low_cycles = (16_773 - 578) * (crate::periph::CPU_HZ / 1_000_000);
+        board.next_te_cycle = Some(board.te_high_cycles);
+        board
     }
 
     fn queue_touch(&mut self, cycle: VirtualCycle, x: u16, y: u16, down: bool) {
@@ -207,7 +221,7 @@ impl BoardModel for WaveshareAmoled18V2 {
             if self.next_te_cycle == Some(deadline) {
                 self.te_level = !self.te_level;
                 self.edges.push(BoardEdge { cycle: deadline, pin: PIN_AMOLED_TE, level: self.te_level });
-                self.next_te_cycle = deadline.checked_add(Self::APPROXIMATE_TE_HALF_PERIOD);
+                self.next_te_cycle = deadline.checked_add(if self.te_level { self.te_high_cycles } else { self.te_low_cycles });
             }
             if self.pending_touch_irq.is_some_and(|(touch_cycle, _)| touch_cycle == deadline) {
                 let (_, level) = self.pending_touch_irq.take().expect("due touch interrupt must remain pending");
@@ -330,6 +344,18 @@ mod amoled_tests {
         assert_eq!(crate::board::make_board("waveshare-amoled18-v2").unwrap().name(), "waveshare-amoled18-v2");
         assert_eq!(crate::board::make_board("amoled18-v2").unwrap().name(), "waveshare-amoled18-v2");
         assert!(crate::board::make_board("waveshare-amoled18").is_none());
+    }
+
+    #[test]
+    fn measured_te_matches_hardware_period_and_high_width() {
+        let mut board = WaveshareAmoled18V2::with_measured_te();
+        let us = crate::periph::CPU_HZ / 1_000_000;
+        board.advance_to(16_773 * us + 578 * us);
+        assert_eq!(board.take_edges(), [
+            BoardEdge { cycle: 578 * us, pin: PIN_AMOLED_TE, level: false },
+            BoardEdge { cycle: 16_773 * us, pin: PIN_AMOLED_TE, level: true },
+            BoardEdge { cycle: (16_773 + 578) * us, pin: PIN_AMOLED_TE, level: false },
+        ]);
     }
 
     #[test]

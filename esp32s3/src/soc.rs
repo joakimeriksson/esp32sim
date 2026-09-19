@@ -100,6 +100,7 @@ impl esp_soc::SocBus for SocBus {
     /// RTC-domain registers survive, as on silicon. Returns the cause the ROM will report.
     fn reboot(&mut self, mac: [u8; 6]) -> u32 {
         self.flush_ticks();
+        self.cancel_spi2_timing();
         let cause = self.periph.rtc.reset_cause;
         let old = std::mem::replace(&mut self.periph, periph::Peripherals::new(mac));
         let p = &mut self.periph;

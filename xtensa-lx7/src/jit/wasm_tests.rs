@@ -17,6 +17,10 @@ struct Ram {
     slow: [u8; 256],
     defer_armed: bool,
     deferred: bool,
+    #[cfg(feature = "wasm-cache-inline")]
+    inline_cache: Option<(Vec<emu_core::bus::FastCacheLine>, u64)>,
+    #[cfg(feature = "wasm-cache-inline")]
+    helper_accesses: u32,
 }
 impl Ram {
     fn new(fast: bool, readonly: bool) -> Self {
@@ -44,6 +48,10 @@ impl Ram {
             slow: [0x5a; 256],
             defer_armed: false,
             deferred: false,
+            #[cfg(feature = "wasm-cache-inline")]
+            inline_cache: None,
+            #[cfg(feature = "wasm-cache-inline")]
+            helper_accesses: 0,
         }
     }
     fn wrote(&mut self, a: u32, n: u32) {
@@ -61,6 +69,8 @@ impl Bus for Ram {
         self.ram.read16(a)
     }
     fn read32(&mut self, a: u32) -> Result<u32, Fault> {
+        #[cfg(feature = "wasm-cache-inline")]
+        if self.inline_cache.is_some() { self.helper_accesses += 1; }
         self.ram.read32(a)
     }
     fn write8(&mut self, a: u32, v: u8) -> Result<(), Fault> {
@@ -81,6 +91,8 @@ impl Bus for Ram {
         Ok(())
     }
     fn write32(&mut self, a: u32, v: u32) -> Result<(), Fault> {
+        #[cfg(feature = "wasm-cache-inline")]
+        if self.inline_cache.is_some() { self.helper_accesses += 1; }
         if self.readonly {
             return Err(Fault::Prohibited);
         }
@@ -113,6 +125,52 @@ impl Bus for Ram {
         } else { false }
     }
     fn deferred(&self) -> bool { self.deferred }
+    #[cfg(feature = "wasm-cache-inline")]
+    fn fast_cache(&mut self) -> Option<emu_core::bus::FastCache> {
+        self.inline_cache.as_mut().map(|(lines, hits)| emu_core::bus::FastCache { lines: lines.as_mut_ptr(), hits })
+    }
+}
+
+#[cfg(feature = "wasm-cache-inline")]
+fn inline_cache_hits() -> u32 {
+    use emu_core::bus::FastCacheLine;
+    super::CACHE_PROBES.store(true, std::sync::atomic::Ordering::Relaxed);
+    let mut tests = 0;
+    for store in [false, true] {
+        for way in 0..9 { // Every way, then a miss that must run the helper.
+            let mut ram = Ram::new(true, false);
+            ram.tlb[tlb_index(BASE)].src = 3;
+            let tag = (0x3000_0000u32 | 0x100) >> 6;
+            let slot = ((tag & 63) * 8) as usize;
+            let mut lines = vec![FastCacheLine::default(); 512];
+            if way < 8 { lines[slot + way] = FastCacheLine { tag, dirty: 0, valid: 1 }; }
+            ram.inline_cache = Some((lines, 0));
+            let mut block = [insn(if store { Op::S32i } else { Op::L32i })];
+            block[0].insn.imm = 0;
+            let mut cc = CodeCache::new(0).unwrap();
+            let code = queue(&mut cc, &mut block, BASE, true);
+            for _ in 0..HOT { ready(&cc, code); }
+            assert!(ready(&cc, code));
+            let mut c = cpu(0);
+            c.set_ar(4, BASE + 0x100);
+            c.set_ar(5, 0x1234_5678);
+            let fm = ram.fast_mem();
+            let result = unsafe { run(&cc, code, &mut c, &mut ram, &Helpers::new::<Ram>(), 1, 0, fm) };
+            assert_eq!(result & 0xffff, 1);
+            let (lines, hits) = ram.inline_cache.as_ref().unwrap();
+            assert_eq!(*hits, u64::from(way < 8));
+            assert_eq!(ram.helper_accesses, u32::from(way == 8));
+            if store {
+                if way < 8 { assert_eq!(lines[slot + way].dirty, 1); }
+                assert_eq!(ram.versions[1], 1);
+                assert_eq!(ram.ram.read32(BASE + 0x100).unwrap(), 0x1234_5678);
+            } else {
+                assert_eq!(c.get_ar(5), ram.ram.read32(BASE + 0x100).unwrap());
+            }
+            tests += 1;
+        }
+    }
+    tests
 }
 fn cpu(seed: u32) -> Cpu {
     let mut c = Cpu::new(0);
@@ -151,6 +209,7 @@ fn same(a: &Cpu, b: &Cpu) {
     assert_eq!(a.exccause, b.exccause);
     assert_eq!(a.insn_count, b.insn_count);
     assert_eq!(a.ccount, b.ccount);
+    assert_eq!(a.timing_extra, b.timing_extra, "timing extras [{cx}]");
     assert_eq!(a.excvaddr, b.excvaddr, "EXCVADDR [{cx}]");
     assert_eq!(a.qr, b.qr, "PIE Q registers [{cx}]");
     assert_eq!(a.accx, b.accx, "PIE ACCX [{cx}]");
@@ -170,6 +229,7 @@ fn insn(op: Op) -> BlockInsn {
     BlockInsn {
         insn: i,
         max_ar: crate::exec::max_ar(&i),
+        straddle: false,
         off: 0,
     }
 }
@@ -190,8 +250,14 @@ fn compare_configured(
     block: &mut [BlockInsn], seed: u32, entry: u32, budget: u32, addr: Option<u32>,
     fast: bool, readonly: bool, loop_end: bool, overflow: bool, configure: impl Fn(&mut Cpu),
 ) {
-    CONTEXT.with(|c| *c.borrow_mut() = format!("{:?} seed={seed} entry={entry} budget={budget} fast={fast} loop_end={loop_end} overflow={overflow}",
+    let priced = PRICED.load(std::sync::atomic::Ordering::Relaxed);
+    CONTEXT.with(|c| *c.borrow_mut() = format!("{:?} seed={seed} entry={entry} budget={budget} fast={fast} loop_end={loop_end} overflow={overflow} priced={priced}",
         block.iter().map(|b| b.insn.op).collect::<Vec<_>>()));
+    let (mut ra, mut rb) = (Ram::new(fast, readonly), Ram::new(fast, readonly));
+    for bi in block.iter_mut() {
+        bi.straddle = priced && crate::exec::static_target(&bi.insn).is_some_and(|pc| crate::exec::straddles(&mut ra, pc));
+    }
+    let extras = crate::exec::static_extras(block.iter().map(|bi| &bi.insn));
     let mut cc = CodeCache::new(0).unwrap();
     let code = queue(&mut cc, block, BASE, fast);
     for _ in 0..HOT {
@@ -199,8 +265,8 @@ fn compare_configured(
     }
     assert!(ready(&cc, code), "compiled module must execute");
     let (mut a, mut b) = (cpu(seed), cpu(seed));
-    let (mut ra, mut rb) = (Ram::new(fast, readonly), Ram::new(fast, readonly));
     for c in [&mut a, &mut b] {
+        c.price_control = priced;
         c.pc = BASE + entry * 3;
         if let Some(addr) = addr {
             c.set_ar(4, addr.wrapping_sub(3));
@@ -253,6 +319,14 @@ fn compare_configured(
         ra.note_pc(pc);
         let r = exec_insn(&mut a, &mut ra, &instruction.insn);
         count += 1;
+        if priced && r.is_ok() {
+            // The same accounting boundary as the ordinary block interpreter.
+            // h_exec prices helper control flow; the emitter must not charge it twice.
+            let taken = crate::exec::control_taken(&a, &instruction.insn);
+            a.timing_extra += crate::exec::control_price(instruction.insn.op, taken)
+                + u32::from(extras[index as usize])
+                + u32::from(taken && crate::exec::transfers(instruction.insn.op) && crate::exec::straddles(&mut ra, a.pc));
+        }
         if let Err(t) = r {
             trap = Some(t);
             break;
@@ -272,6 +346,76 @@ fn compare_configured(
     if done > 0 {
         assert_eq!(ra.noted, rb.noted);
     }
+}
+
+fn priced_cases() -> u32 {
+    use Op::*;
+    use std::sync::atomic::Ordering::Relaxed;
+    assert!(!PRICED.swap(true, Relaxed));
+    let mut cases = 0;
+    // Shared-table goldens are needed in addition to backend parity: both backends
+    // could otherwise agree on the same incorrect readiness calculation.
+    let mut producer = insn(AddS); producer.insn.r = 0; producer.insn.s = 1; producer.insn.t = 2;
+    let mut overwrite = insn(Wfr); overwrite.insn.r = 0;
+    let mut reader = insn(Rfr); reader.insn.s = 0;
+    for middle in [overwrite, insn(Quou)] {
+        let block = [producer, middle, reader];
+        assert_eq!(crate::exec::static_extras(block.iter().map(|b| &b.insn)), vec![0, 0, 0]);
+        cases += 1;
+    }
+    let mut consumer = insn(AddS); consumer.insn.s = 0;
+    assert_eq!(crate::exec::static_extras([producer, consumer].iter().map(|b| &b.insn)), vec![0, 3]);
+    cases += 1;
+    for op in [Quou, Quos, Remu, Rems] {
+        for (left, right) in [(7, 2), (0x8000_0000, u32::MAX), (5, 0)] {
+            for entry in 0..2 { for budget in 1..=2 {
+                compare_configured(&mut [insn(Nop), insn(op)], 0, entry, budget, None,
+                    false, false, false, false, |c| { c.set_ar(4, left); c.set_ar(5, right); });
+                cases += 1;
+            } }
+        }
+    }
+    for op in [Loop, Loopnez, Loopgtz, Beqz, Bnez, Bltz, Bgez] {
+        for value in [0, 1, u32::MAX] { for loop_end in [false, true] {
+            let mut transfer = insn(op); transfer.insn.imm = (BASE + 0x100) as i32;
+            compare_configured(&mut [insn(Nop), transfer], 0, 0, 2, None,
+                false, false, loop_end, false, |c| c.set_ar(4, value));
+            cases += 1;
+        } }
+    }
+    // An actual taken transfer can target the fall-through PC; pc!=next alone
+    // must not determine whether it gets its branch/alignment price.
+    for op in [J, Call0, Beqz] {
+        let mut transfer = insn(op); transfer.insn.imm = (BASE + 6) as i32;
+        compare_configured(&mut [insn(Nop), transfer], 0, 0, 2, None,
+            false, false, false, false, |c| c.set_ar(4, 0));
+        cases += 1;
+    }
+    // Inline JX/CALLX dynamic-target alignment is a documented model limitation.
+    // Test their base prices with aligned targets rather than hiding a timing delta.
+    for op in [Jx, Callx0, Callx4, Callx8, Callx12] {
+        for flags in [0, ps::WOE] {
+            compare_configured(&mut [insn(Nop), insn(op)], 0, 0, 2, None,
+                false, false, false, false, |c| { c.ps = flags; c.set_ar(4, BASE + 0x100); });
+            cases += 1;
+        }
+    }
+    // A dependency wait must not survive a faulting helper when the interpreter
+    // charges extras only for successful instructions.
+    let mut load = insn(L32i); load.insn.t = 4; load.insn.imm = 0;
+    load.max_ar = crate::exec::max_ar(&load.insn);
+    compare_configured(&mut [load, insn(FloatS)], 0, 0, 2, None,
+        true, false, false, false, |c| { c.set_ar(4, BASE + 0x1000); c.cpenable = 0; });
+    cases += 1;
+    let mut store = insn(Ssi); store.insn.t = 0; store.insn.imm = 0;
+    store.max_ar = crate::exec::max_ar(&store.insn);
+    compare_configured(&mut [producer, store], 0, 0, 2, None,
+        true, true, false, false, |c| { c.set_ar(4, BASE + 0x1000); c.cpenable = 1; });
+    cases += 1;
+    cases += integer_ops() + floating_point() + floating_point_guard_proof()
+        + entry_and_shifts() + terminal_helpers() + special_register_blocks();
+    PRICED.store(false, Relaxed);
+    cases
 }
 
 fn special_register_blocks() -> u32 {
@@ -446,7 +590,7 @@ fn extension_deferral() -> u32 {
     // execution paths must defer before that partial architectural mutation.
     let bytes = 0xf002_000eu32.to_le_bytes();
     let i = crate::decode::decode(BASE, bytes);
-    let bi = BlockInsn { insn: i, max_ar: crate::exec::max_ar(&i), off: 0 };
+    let bi = BlockInsn { insn: i, max_ar: crate::exec::max_ar(&i), straddle: false, off: 0 };
     ram.deferred = false;
     assert_eq!(h_exec::<Ram>(&mut c, &mut ram, &bi, BASE), 1);
     assert!(ram.deferred);
@@ -1230,7 +1374,7 @@ fn regions() -> u32 {
         let mut ram = Ram::new(true, false);
         ram.ram.mem[..p.len()].copy_from_slice(&p);
         let c = cpu(0);
-        let head: Vec<BlockInsn> = (0..6).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, off: 0 }) }).collect();
+        let head: Vec<BlockInsn> = (0..6).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, straddle: false, off: 0 }) }).collect();
         let formed = emitter::region::form(&c, &mut ram, BASE, &head, true).expect("memmove region");
         assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(), vec![(0, 6), (17, 1)]);
         let (bytes, sites) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, true);
@@ -1320,7 +1464,7 @@ fn regions() -> u32 {
         let mut ram = Ram::new(true, false);
         ram.ram.mem[..p.len()].copy_from_slice(&p);
         let c = cpu(0);
-        let head: Vec<BlockInsn> = (0..3).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, off: 0 }) }).collect();
+        let head: Vec<BlockInsn> = (0..3).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, straddle: false, off: 0 }) }).collect();
         let formed = emitter::region::form(&c, &mut ram, BASE, &head, true).expect("hwloop region");
         assert_eq!(formed.loops, vec![(BASE + 17, BASE + 7)]);
         assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(),
@@ -1355,7 +1499,7 @@ fn regions() -> u32 {
         let mut ram = Ram::new(true, false);
         ram.ram.mem[..p.len()].copy_from_slice(&p);
         let c = cpu(0);
-        let head: Vec<BlockInsn> = (0..4).scan(BASE + 12, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, off: 0 }) }).collect();
+        let head: Vec<BlockInsn> = (0..4).scan(BASE + 12, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, straddle: false, off: 0 }) }).collect();
         let formed = emitter::region::form(&c, &mut ram, BASE + 12, &head, true).expect("entry region");
         assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(),
             vec![(12, 4), (24, 2), (22, 1)]);
@@ -1392,7 +1536,7 @@ fn regions() -> u32 {
         let mut ram = Ram::new(true, false);
         ram.ram.mem[..p.len()].copy_from_slice(&p);
         let c0 = cpu(0);
-        let head: Vec<BlockInsn> = (0..4).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: crate::exec::max_ar(&i), off: 0 }) }).collect();
+        let head: Vec<BlockInsn> = (0..4).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: crate::exec::max_ar(&i), straddle: false, off: 0 }) }).collect();
         let formed = emitter::region::form(&c0, &mut ram, BASE, &head, true).expect("entry-interior region");
         let interior = formed.chunks.iter().position(|c| c.pc == BASE + 3).expect("interior chunk") as u32;
         let (bytes, _) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, true);
@@ -1537,7 +1681,7 @@ fn regions() -> u32 {
     let mut ram = Ram::new(true, false);
     ram.ram.mem[..tp.len()].copy_from_slice(&tp);
     let c = cpu(0);
-    let head: Vec<BlockInsn> = (0..2).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, off: 0 }) }).collect();
+    let head: Vec<BlockInsn> = (0..2).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, straddle: false, off: 0 }) }).collect();
     let formed = emitter::region::form(&c, &mut ram, BASE, &head, true).expect("tile region");
     assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(),
         vec![(0, 2), (35, 1), (6, 3), (41, 2), (13, 6), (43, 1)]);
@@ -1556,6 +1700,8 @@ pub fn run_tests() -> u32 {
         Bltui, Bgeui, Beq, Bne, Blt, Bge, Bltu, Bgeu, Bbci, Bbsi, Bbc, Bbs,
     ];
     let mut tests = 0;
+    #[cfg(feature = "wasm-cache-inline")]
+    { tests += inline_cache_hits(); }
     for op in ops {
         for seed in [0, 1, 15, 0xffff_ffff] {
             for entry in 0..3 {
@@ -1631,5 +1777,5 @@ pub fn run_tests() -> u32 {
     retention();
     hardware_loop_scheduler();
     crate::block::ownership_tests::compiled_helpers_follow_the_current_bus_type();
-    tests + integer_ops() + floating_point() + floating_point_guard_proof() + 4 + hardware_loops() + window_masks() + terminal_helpers() + special_register_blocks() + whole_block_guards() + entry_and_shifts()
+    tests + integer_ops() + floating_point() + floating_point_guard_proof() + 4 + hardware_loops() + window_masks() + terminal_helpers() + special_register_blocks() + whole_block_guards() + entry_and_shifts() + priced_cases()
 }

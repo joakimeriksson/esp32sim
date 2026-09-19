@@ -102,7 +102,7 @@ fn chunk<B: Bus>(cpu: &Cpu, bus: &mut B, head: u32, pc0: u32, fast: bool, room: 
         let i = decode(pc, bytes);
         if i.len == 0 || !(eligible(&i, fast) || terminal(i.op)) { break }
         if pc != head && (must_start_block(&i) || cpu.boundary_bloom & pc_bit(pc) != 0) { break }
-        v.push(BlockInsn { insn: i, max_ar: max_ar(&i), off: v.len() as u32 });
+        v.push(BlockInsn { insn: i, max_ar: max_ar(&i), straddle: cpu.price_control && crate::exec::static_target(&i).is_some_and(|t| crate::exec::straddles(bus, t)), off: v.len() as u32 });
         // Includes the head: an internal backedge to it would skip a probe there.
         *bloom |= pc_bit(pc);
         pc = pc.wrapping_add(i.len as u32);
@@ -351,6 +351,23 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
             r.current = k;
             r.loop_depth = loop_depth;
             r.chunk_depth = g.ctl.len();
+        }
+        if super::super::FETCH_RING.load(std::sync::atomic::Ordering::Relaxed) && (0x4200_0000..0x4400_0000).contains(&chunk.pc) {
+            // EX147: cpu.fetch_ring[cpu.fetch_n & 63] = k; cpu.fetch_n += 1
+            g.get(0);
+            g.cpu(offset_of!(Cpu, fetch_n));
+            g.c(63);
+            g.op(0x71);
+            g.c(2);
+            g.op(0x74);
+            g.op(0x6a);
+            g.c(k as u32);
+            g.store(offset_of!(Cpu, fetch_ring));
+            g.get(0);
+            g.cpu(offset_of!(Cpu, fetch_n));
+            g.c(1);
+            g.op(0x6a);
+            g.store(offset_of!(Cpu, fetch_n));
         }
         emit_body(&mut g, chunk.pc, &chunk.instructions, fast, false, true, cp);
     }
