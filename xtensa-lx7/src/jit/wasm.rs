@@ -87,7 +87,8 @@ impl RegionStats {
     }
 }
 pub static CENSUS: [std::sync::atomic::AtomicU64; 8] = [const { std::sync::atomic::AtomicU64::new(0) }; 8];
-fn census(i: usize, n: u64) { CENSUS[i].fetch_add(n, std::sync::atomic::Ordering::Relaxed); }
+#[inline(always)]
+fn census(i: usize, n: u64) { if cfg!(feature = "wasm-cpu-profile") { CENSUS[i].fetch_add(n, std::sync::atomic::Ordering::Relaxed); } }
 const HOT: u32 = 32;
 /// EX138: emit control-flow prices into code generated from now on.
 pub static PRICED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
