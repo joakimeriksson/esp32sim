@@ -67,7 +67,10 @@ worker.onmessage = ({data: message}) => {
   for (let i = waiters.length - 1; i >= 0; i--) {
     if (message[waiters[i].key] !== undefined) { const [pending] = waiters.splice(i, 1); pending.resolve(message); }
   }
-  if (message.bin) frame(message.bin);
+  if (message.bin) {
+    frame(message.bin);
+    if (message.ack) worker.postMessage({op: 'frame-ack'});
+  }
   if (message.text) {
     const event = JSON.parse(message.text);
     if (event.t === 'serial' && event.src === 'usb') {
