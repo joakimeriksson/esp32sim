@@ -20,7 +20,7 @@ pub use emu_core::jit_a64 as a64;
 mod native {
     use super::a64::{Asm, Cond, Label, Reg, SP, ZR};
     use crate::block::BlockInsn;
-    use crate::bus::{Bus, FastMem, TLB_ENTRIES};
+    use crate::bus::{Bus, FastMem, TlbEntry, TLB_ENTRIES, TLB_INDEX_SHIFT, TLB_XOR_SHIFT, VPAGE_SHIFT};
     use crate::decode::Op;
     use crate::exec::{exec_insn, Trap};
     use crate::state::{exc, Cpu};
@@ -215,6 +215,25 @@ mod native {
     const OFF_LCOUNT: u32 = std::mem::offset_of!(Cpu, lcount) as u32;
     const OFF_BR: u32 = std::mem::offset_of!(Cpu, br) as u32;
 
+    const TLB_INDEX_BITS: u32 = TLB_ENTRIES.ilog2();
+    const TLB_ENTRY_SHIFT: u32 = std::mem::size_of::<TlbEntry>().ilog2();
+    const TLB_LO: u32 = std::mem::offset_of!(TlbEntry, lo) as u32;
+    const TLB_HI: u32 = std::mem::offset_of!(TlbEntry, hi) as u32;
+    const TLB_BASE: u32 = std::mem::offset_of!(TlbEntry, base) as u32;
+    const TLB_VBASE: u32 = std::mem::offset_of!(TlbEntry, vbase) as u32;
+    const TLB_WRITABLE: u32 = std::mem::offset_of!(TlbEntry, writable) as u32;
+    // Generated instructions require power-of-two indexing and encodable shifts/offsets.
+    const _: () = {
+        assert!(TLB_ENTRIES.is_power_of_two() && TLB_INDEX_BITS > 0 && TLB_INDEX_BITS < 32);
+        assert!(std::mem::size_of::<TlbEntry>().is_power_of_two() && TLB_ENTRY_SHIFT < 64);
+        assert!(TLB_INDEX_SHIFT < 32 && TLB_XOR_SHIFT < 32);
+        assert!(VPAGE_SHIFT >= 3 && VPAGE_SHIFT <= 12); // page edge test uses a 12-bit immediate
+        assert!(TLB_LO.is_multiple_of(4) && TLB_LO < 16384 && TLB_HI.is_multiple_of(4) && TLB_HI < 16384);
+        assert!(TLB_BASE.is_multiple_of(8) && TLB_BASE < 32768);
+        assert!(TLB_VBASE.is_multiple_of(4) && TLB_VBASE < 16384);
+        assert!(TLB_WRITABLE.is_multiple_of(4) && TLB_WRITABLE < 16384);
+    };
+
     const CPU: Reg = 19; const BUS: Reg = 20; const AR: Reg = 21; const WB4: Reg = 22; const LEFT: Reg = 23;
     const TLB: Reg = 24; const HELP: Reg = 25; const LEND: Reg = 26; const PVER: Reg = 27; const LOFF: Reg = 28;
     const FRAME: i32 = 112; const BUDGET_SLOT: u32 = 96;
@@ -256,14 +275,15 @@ mod native {
         /// Probe the software TLB for `size` bytes at `w_addr`. On a hit: x9 = &entry,
         /// x12 = host base of the entry, w10 = offset of the access within it. Otherwise jumps to `slow`.
         fn tlb_probe(&mut self, addr: Reg, size: u32, slow: Label) {
-            let _ = TLB_ENTRIES;                                                  // index() below assumes 512
-            self.a.lsr_imm(9, addr, 16); self.a.eor_lsr(9, 9, addr, 24); self.a.and_mask(9, 9, 9, 0);
-            self.a.add_x_lsl(9, TLB, 9, 5);                                       // 32-byte entries
-            self.a.ldr(10, 9, 0); self.a.ldr(11, 9, 4);                           // lo, hi
+            self.a.lsr_imm(9, addr, TLB_INDEX_SHIFT); self.a.eor_lsr(9, 9, addr, TLB_XOR_SHIFT); self.a.and_mask(9, 9, TLB_INDEX_BITS, 0);
+            self.a.add_x_lsl(9, TLB, 9, TLB_ENTRY_SHIFT);
+            self.a.ldr(10, 9, TLB_LO); self.a.ldr(11, 9, TLB_HI);
             self.a.cmp(addr, 10); self.a.b_cond(Cond::Lo, slow);
-            self.a.add_imm(13, addr, size); self.a.cmp(13, 11); self.a.b_cond(Cond::Hi, slow);
+            self.a.cmp(addr, 11); self.a.b_cond(Cond::Hs, slow);
+            // Subtract only after ordering the endpoints: addr + size could wrap at 4 GiB.
+            self.a.sub(13, 11, addr); self.a.cmp_imm(13, size); self.a.b_cond(Cond::Lo, slow);
             self.a.sub(10, addr, 10);                                             // offset
-            self.a.ldr_x(12, 9, 8);                                               // base
+            self.a.ldr_x(12, 9, TLB_BASE);
         }
         fn reload_after_helper(&mut self) { self.a.ldr(WB4, CPU, OFF_WB); self.a.lsl_imm(WB4, WB4, 2); self.a.ldr(LEND, CPU, OFF_LEND); self.load_loff(); }
     }
@@ -428,12 +448,12 @@ mod native {
                     let (slow, done) = (g.a.label(), g.a.label());
                     if fast {
                         g.tlb_probe(1, size, slow);                               // x12 = entry base, w10 = offset, x9 = entry
-                        g.a.ldr(11, 9, 20); g.a.cbz(11, slow);                    // writable?
+                        g.a.ldr(11, 9, TLB_WRITABLE); g.a.cbz(11, slow);
                         // stay on the fast path only when the write-version bump touches one page
                         // and not its first three bytes (an instruction may straddle into it)
-                        g.a.and_mask(13, 10, 8, 0); g.a.sub_imm(13, 13, 3); g.a.cmp_imm(13, 253 - size); g.a.b_cond(Cond::Hi, slow);
+                        g.a.and_mask(13, 10, VPAGE_SHIFT, 0); g.a.sub_imm(13, 13, 3); g.a.cmp_imm(13, (1 << VPAGE_SHIFT) - 3 - size); g.a.b_cond(Cond::Hi, slow);
                         match i.op { S8i => g.a.strb_u(2, 12, 10), S16i => g.a.strh_u(2, 12, 10), _ => g.a.str_u(2, 12, 10) }
-                        g.a.ldr(11, 9, 16); g.a.add_lsr(11, 11, 10, 8);           // vbase + (offset >> 8)
+                        g.a.ldr(11, 9, TLB_VBASE); g.a.add_lsr(11, 11, 10, VPAGE_SHIFT);
                         g.a.ldr_idx(13, PVER, 11); g.a.add_imm(13, 13, 1); g.a.str_idx(13, PVER, 11);
                         g.a.movz(12, 0, 0);
                         g.a.b(done);

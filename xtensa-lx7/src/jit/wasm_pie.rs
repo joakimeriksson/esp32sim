@@ -18,40 +18,6 @@ fn table(i: &crate::Insn) -> (&'static PieInsn, Ops) {
     (p, extract(i.raw, p))
 }
 
-pub(super) fn supported(i: &crate::Insn, fast: bool) -> bool {
-    if i.op != crate::Op::Pie {
-        return false;
-    }
-    match OPS[i.imm as usize].kind {
-        Kind::Andq | Kind::Orq | Kind::Xorq | Kind::Notq | Kind::MoviQ | Kind::ZeroQ => true,
-        Kind::Vcmp { w, .. } => matches!(w, 8 | 16 | 32),
-        Kind::Vld128(Mode::Ip) | Kind::Vst128(Mode::Ip) => fast,
-        Kind::ZeroAccx => true,
-        Kind::Vmulas { signed: true, w: 8 | 16, accx: true, ld: LdKind::None, qup: false } => true,
-        Kind::Vmulas { signed: true, w: 8 | 16, accx: true, ld: LdKind::Ip, qup: false } => fast,
-        _ => false,
-    }
-}
-
-/// The CP3-disabled check can be proved once for a body whose PIE instructions are all
-/// emitted; a helper in between could disable the coprocessor.
-pub(super) fn can_hoist(instructions: &[BlockInsn], fast: bool) -> bool {
-    instructions.iter().any(|bi| bi.insn.op == crate::Op::Pie)
-        && instructions.iter().enumerate().all(|(n, bi)| {
-            supported_insn(&bi.insn, fast) || (n + 1 == instructions.len() && terminal_helper(bi.insn.op))
-        })
-}
-
-pub(super) fn guard(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
-    g.cpu(offset_of!(Cpu, cpenable));
-    g.c(CP3);
-    g.op(0x71);
-    g.op(0x45);
-    g.begin_if();
-    g.fallback(bi, pc, next, last, false);
-    g.end();
-}
-
 fn v128_load(g: &mut Gen, offset: usize) {
     g.bytes.extend([0xfd, 0x00]);
     uleb(&mut g.bytes, 0);
@@ -75,7 +41,7 @@ fn set_q(g: &mut Gen, n: i32) {
 pub(super) fn emit(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool, cp_enabled: bool) {
     let (p, o) = table(&bi.insn);
     if !cp_enabled {
-        guard(g, bi, pc, next, last);
+        g.guard_coprocessor(CP3, bi, pc, next, last);
     }
     match p.kind {
         Kind::Andq | Kind::Orq | Kind::Xorq => {
@@ -250,50 +216,9 @@ fn vmem(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool, o: &Ops, st
     g.get(5);
     g.op(0x45);
     g.bytes.extend([0x0d, 0]);
-    g.get(5);
-    g.get(ADDR);
-    g.c(16);
-    g.op(0x76);
-    g.get(ADDR);
-    g.c(24);
-    g.op(0x76);
-    g.op(0x73);
-    g.c(511);
-    g.op(0x71);
-    g.c(size_of::<TlbEntry>() as u32);
-    g.op(0x6c);
-    g.op(0x6a);
-    g.set(TLB);
-    g.get(ADDR);
-    g.get(TLB);
-    g.load(offset_of!(TlbEntry, lo));
-    g.op(0x49);
-    g.bytes.extend([0x0d, 0]);
-    g.get(TLB);
-    g.load(offset_of!(TlbEntry, hi));
-    g.get(ADDR);
-    g.op(0x6b);
-    g.c(16);
-    g.op(0x49);
-    g.bytes.extend([0x0d, 0]);
-    g.get(ADDR);
-    g.get(TLB);
-    g.load(offset_of!(TlbEntry, hi));
-    g.op(0x4f);
-    g.bytes.extend([0x0d, 0]);
-    if store {
-        g.get(TLB);
-        g.load(offset_of!(TlbEntry, writable));
-        g.op(0x45);
-        g.bytes.extend([0x0d, 0]);
-    }
-    g.get(ADDR);
-    g.get(TLB);
-    g.load(offset_of!(TlbEntry, lo));
-    g.op(0x6b);
-    g.set(REL);
+    memory::probe(g, 16, store);
     #[cfg(feature = "wasm-cache-inline")]
-    emit_cache_hit(g, store, 4); // The reference PIE helper performs four words.
+    memory::emit_cache_hit(g, store, 4); // The reference PIE helper performs four words.
     if store {
         g.get(TLB);
         g.load(offset_of!(TlbEntry, base));
@@ -304,23 +229,7 @@ fn vmem(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool, o: &Ops, st
         // One version page: a 16-byte aligned access never crosses a 256-byte page. The
         // interpreter stores four words, bumping the version four times; match it exactly
         // so version arrays stay identical, not merely both changed.
-        g.get(6);
-        g.get(TLB);
-        g.load(offset_of!(TlbEntry, vbase));
-        g.get(REL);
-        g.c(8);
-        g.op(0x76);
-        g.op(0x6a);
-        g.c(2);
-        g.op(0x74);
-        g.op(0x6a);
-        g.tee(TMP);
-        g.get(TMP);
-        g.load(0);
-        g.c(4);
-        g.op(0x6a);
-        g.store(0);
-        region_store_check(g);
+        memory::record_store(g, 4);
     } else {
         if let Some((w, x, y)) = accumulate_first {
             accumulate(g, w, x, y);

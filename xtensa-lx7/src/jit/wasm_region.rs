@@ -53,11 +53,6 @@ pub(super) struct RegionGen {
     pub loops: HashMap<u32, u32>,
 }
 
-/// May appear anywhere in a chunk.
-fn eligible(i: &crate::Insn, fast: bool) -> bool {
-    supported_insn(i, fast) && !terminal(i.op)
-}
-
 /// Ends a chunk and leaves the region by itself: calls, returns and computed jumps.
 /// Direct calls and JX are emitted; returns run through the terminal helper.
 fn terminal(op: crate::Op) -> bool {
@@ -100,7 +95,7 @@ fn chunk<B: Bus>(cpu: &Cpu, bus: &mut B, head: u32, pc0: u32, fast: bool, room: 
     while v.len() < room.min(MAX_LEN) {
         let Ok(bytes) = bus.fetch(pc) else { break };
         let i = decode(pc, bytes);
-        if i.len == 0 || !(eligible(&i, fast) || terminal(i.op)) { break }
+        if i.len == 0 || !(supported_insn(&i, fast) || terminal(i.op)) { break }
         if pc != head && (must_start_block(&i) || cpu.boundary_bloom & pc_bit(pc) != 0) { break }
         v.push(BlockInsn { insn: i, max_ar: max_ar(&i), straddle: cpu.price_control && crate::exec::static_target(&i).is_some_and(|t| crate::exec::straddles(bus, t)), off: v.len() as u32 });
         // Includes the head: an internal backedge to it would skip a probe there.
@@ -276,8 +271,7 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
     let entry_head = chunks[0].instructions[0].insn.op == crate::Op::Entry;
     let guard_max_ar = if entry_head { chunks[0].instructions[0].max_ar } else { max_ar };
     // Every instruction is emitted, so both coprocessor bits can be proved at entry.
-    let cp = (all().any(|bi| float::requires_coprocessor(bi.insn.op)) as u32)
-        | if all().any(|bi| bi.insn.op == crate::Op::Pie) { pie::CP3 } else { 0 };
+    let cp = all().fold(0, |mask, bi| mask | policy::required_coprocessors(bi.insn.op));
     let heads = chunks.iter().enumerate().map(|(i, c)| (c.pc, (i, c.instructions.len() as u32))).collect();
     let loops = formed_loops.iter().copied().collect();
     let mut g = Gen {
@@ -292,9 +286,7 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
     // state are proved here. Anything else takes a block module, which handles cuts.
     g.reload();
     if guard_max_ar >= 4 {
-        g.get(WINDOWS);
-        g.c((1 << (guard_max_ar / 4)) - 1);
-        g.op(0x71);
+        g.window_collision(guard_max_ar);
         g.begin_if();
         g.c(CODE_REJECT << 16);
         g.op(0x0f);
@@ -305,9 +297,7 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
         g.get(4);
         g.c(0);
         g.op(0x47);
-        g.get(WINDOWS);
-        g.c((1 << (max_ar / 4)) - 1);
-        g.op(0x71);
+        g.window_collision(max_ar);
         g.c(0);
         g.op(0x47);
         g.op(0x71);
