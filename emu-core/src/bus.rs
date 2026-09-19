@@ -16,11 +16,14 @@ pub enum Fault {
 /// because generated code indexes both directly.
 pub const TLB_ENTRIES: usize = 512;
 pub const VPAGE_SHIFT: u32 = 8;
+/// Address hash shared by the bus and generated memory-access probes.
+pub const TLB_INDEX_SHIFT: u32 = 16;
+pub const TLB_XOR_SHIFT: u32 = 24;
 #[inline(always)]
-pub fn tlb_index(addr: u32) -> usize { (((addr >> 16) ^ (addr >> 24)) as usize) & (TLB_ENTRIES - 1) }
+pub fn tlb_index(addr: u32) -> usize { (((addr >> TLB_INDEX_SHIFT) ^ (addr >> TLB_XOR_SHIFT)) as usize) & (TLB_ENTRIES - 1) }
 
 /// One software-TLB entry: guest `[lo, hi)` is host memory starting at `base`; `vbase` is the
-/// write-version index of `lo`. Layout is fixed (32 bytes) because the JIT reads it. Copying or
+/// write-version index of `lo`. The JIT uses this C layout's field offsets and entry size. Copying or
 /// sharing an entry never dereferences `base`; a JIT owner must separately keep its backing buffer
 /// alive and unmoved, and serialize generated access to it.
 #[repr(C)]

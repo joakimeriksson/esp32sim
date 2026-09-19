@@ -2,95 +2,13 @@
 //! the exact FMA helper and existing exception/memory helpers see committed bits.
 use super::*;
 
-pub(super) fn supported(op: crate::Op) -> bool {
-    use crate::Op::*;
-    matches!(
-        op,
-        AddS | SubS
-            | MulS
-            | MaddS
-            | MsubS
-            | MovS
-            | AbsS
-            | NegS
-            | Rfr
-            | Wfr
-            | ConstS
-            | FloatS
-            | UfloatS
-            | RoundS
-            | TruncS
-            | FloorS
-            | CeilS
-            | UtruncS
-            | UnS
-            | OeqS
-            | UeqS
-            | OltS
-            | UltS
-            | OleS
-            | UleS
-            | MoveqzS
-            | MovnezS
-            | MovltzS
-            | MovgezS
-            | MovfS
-            | MovtS
-            | MaddnS
-            | DivnS
-            | Div0S
-            | Nexp01S
-            | Recip0S
-            | Rsqrt0S
-            | Sqrt0S
-            | AddexpS
-            | MkdadjS
-            | MksadjS
-            | AddexpmS
-            | Movf
-            | Movt
-            | Bf
-            | Bt
-    )
-}
-
-// CPENABLE cannot change within an entirely supported block. A final call/return
-// helper may change machine state, but exits immediately. Do not extend this proof
-// across arbitrary interpreter helpers: they may write CPENABLE before later FP.
-pub(super) fn can_hoist_guard(instructions: &[BlockInsn], fast: bool) -> bool {
-    instructions
-        .iter()
-        .any(|bi| requires_coprocessor(bi.insn.op))
-        && instructions.iter().enumerate().all(|(n, bi)| {
-            super::supported_insn(&bi.insn, fast)
-                || (n + 1 == instructions.len() && terminal_helper(bi.insn.op))
-        })
-}
-
-pub(super) fn requires_coprocessor(op: crate::Op) -> bool {
-    use crate::Op::*;
-    (supported(op) && !matches!(op, Movf | Movt | Bf | Bt)) || matches!(op, Lsi | Ssi)
-}
-
-pub(super) fn guard(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
-    // Keep the check at the instruction boundary: prefixes and budget cuts must
-    // complete before a disabled-coprocessor exception is delivered.
-    g.cpu(offset_of!(Cpu, cpenable));
-    g.c(1);
-    g.op(0x71);
-    g.op(0x45);
-    g.begin_if();
-    g.fallback(bi, pc, next, last, false);
-    g.end();
-}
-
 pub(super) fn emit(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool, cp_enabled: bool) {
     use crate::Op::*;
     let i = &bi.insn;
     let (r, s, t) = (i.r, i.s, i.t);
     let imm = i.imm as u32;
-    if !cp_enabled && requires_coprocessor(i.op) {
-        guard(g, bi, pc, next, last);
+    if !cp_enabled && policy::requires_coprocessor(i.op) {
+        g.guard_coprocessor(1, bi, pc, next, last);
     }
     match i.op {
         MaddnS | DivnS | Div0S | Nexp01S | Recip0S | Rsqrt0S | Sqrt0S | AddexpS => {}
