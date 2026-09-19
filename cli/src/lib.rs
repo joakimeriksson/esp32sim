@@ -384,7 +384,7 @@ fn prepare<S: Soc>(m: &mut Machine<S>, o: &Opts) -> String {
     }
     if o.realtime { m.rt.enabled = true; }
     if o.profile { m.add_observer(Box::new(PcHist::new(12))); }
-    if let Some(wa) = o.watch { let v = m.bus.read32(wa).unwrap_or(0); m.add_observer(Box::new(Watch { addr: wa, value: v })); }
+    if let Some(wa) = o.watch { let v = m.bus.read32_unpriced(wa).unwrap_or(0); m.add_observer(Box::new(Watch { addr: wa, value: v })); }
     if o.profile_blocks { m.add_observer(Box::new(BlockProfile::new(20))); }
     if let Some(path) = &o.coverage { m.add_observer(Box::new(Coverage::new(path.clone()))); }
     if o.irq_latency { m.add_observer(Box::new(IrqLatency::new(S::CORES))); }

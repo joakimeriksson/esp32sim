@@ -992,3 +992,123 @@ fn non_mmio_gpio_activation_restores_cadence_without_losing_pending_time() {
     }
 }
 
+
+#[test]
+fn timed_spi2_dma_accounts_for_both_half_duplex_phases() {
+    for (user, ctrl, clocks) in [
+        ((1 << 27) | (1 << 28), 0, 64),
+        ((1 << 27) | (1 << 28) | 1, 0, 32),
+        ((1 << 27) | (1 << 28) | (1 << 13), 0, 40),
+        ((1 << 27) | (1 << 28), 1 << 15, 40),
+    ] {
+        let mut bus = dma_bus();
+        bus.spi2_timing = true;
+        bus.write32(FIRST_DESC, 4 | (4 << 12) | (1 << 30) | (1 << 31)).unwrap();
+        bus.write32(FIRST_DESC + 4, FIRST_DESC + 16).unwrap();
+        bus.write32(FIRST_DESC + 8, 0).unwrap();
+        bus.write32(SPI2 + 0x30, 1 << 28).unwrap();
+        bus.write32(SPI2 + 0x0c, 1 << 31).unwrap();
+        bus.write32(SPI2 + 0x08, ctrl).unwrap();
+        bus.write32(SPI2 + 0x10, user).unwrap();
+        bus.write32(SPI2 + 0x1c, 31).unwrap();
+        bus.write32(SPI2, 1 << 24).unwrap();
+        let deadline = clocks * (crate::periph::CPU_HZ / 80_000_000);
+        bus.tick(deadline as u32 - 1);
+        assert_eq!(bus.periph.spi2.transfers, 0, "USER={user:#x} CTRL={ctrl:#x}");
+        assert_ne!(bus.read32(SPI2).unwrap() & (1 << 24), 0);
+        bus.tick(1);
+        assert_eq!(bus.periph.spi2.transfers, 1);
+        assert_eq!(bus.read32(SPI2).unwrap() & (1 << 24), 0);
+    }
+}
+
+#[test]
+fn timed_spi2_dma_preserves_live_gdma_configuration_and_irq_clear() {
+    let mut bus = dma_bus();
+    bus.spi2_timing = true;
+    bus.write32(FIRST_DESC, 4 | (4 << 12) | (1 << 30) | (1 << 31)).unwrap();
+    bus.write32(FIRST_DESC + 4, FIRST_DESC + 16).unwrap();
+    bus.write32(FIRST_DESC + 8, 0).unwrap();
+    bus.periph.gdma.out[0].int_raw = 1 << 2; // an older descriptor error
+    start_dma(&mut bus, 32);
+    bus.write32(GDMA + 0x74, 1 << 2).unwrap();
+    bus.write32(GDMA + 0x70, 1 << 1).unwrap();
+    bus.write32(GDMA + 0x60, 1 << 2).unwrap();
+    bus.write32(GDMA + 0x64, 7).unwrap();
+    bus.write32(GDMA + 0xa4, 3).unwrap();
+    bus.tick(32 * (crate::periph::CPU_HZ / 80_000_000) as u32);
+    let channel = bus.periph.gdma.out[0];
+    assert_eq!(channel.int_raw, (1 << 0) | (1 << 1) | (1 << 3));
+    assert_eq!(channel.int_ena, 1 << 1);
+    assert_eq!((channel.conf0, channel.conf1, channel.pri), (1 << 2, 7, 3));
+    assert!(channel.irq());
+}
+
+#[test]
+fn timed_spi2_dma_completion_yields_to_out_reset() {
+    let mut bus = dma_bus();
+    bus.spi2_timing = true;
+    bus.write32(FIRST_DESC, 4 | (4 << 12) | (1 << 30) | (1 << 31)).unwrap();
+    bus.write32(FIRST_DESC + 4, FIRST_DESC + 16).unwrap();
+    bus.write32(FIRST_DESC + 8, 0).unwrap();
+    start_dma(&mut bus, 32);
+    bus.tick(4);
+    bus.write32(GDMA + 0x60, 1).unwrap(); // OUT_RST while the data phase is on the wire
+    bus.tick(128); // past the original deadline
+    assert_eq!(bus.periph.spi2.transfers, 0, "reset discards the scheduled completion");
+    assert_eq!(bus.read32(SPI2).unwrap() & (1 << 24), 0, "USR must report idle after reset");
+    let channel = &bus.periph.gdma.out[0];
+    assert_eq!((channel.desc, channel.buf_pos, channel.running), (0, 0, false));
+    assert_eq!(channel.int_raw & ((1 << 0) | (1 << 1) | (1 << 3)), 0, "reset raises no done events");
+    assert_eq!(bus.periph.spi2.dma_tx_pending, None);
+}
+
+#[test]
+fn timed_spi2_dma_completion_yields_to_out_rebind() {
+    const SECOND: u32 = FIRST_DESC + 32;
+    let mut bus = dma_bus();
+    bus.spi2_timing = true;
+    bus.write32(FIRST_DESC, 4 | (4 << 12) | (1 << 30) | (1 << 31)).unwrap();
+    bus.write32(FIRST_DESC + 4, FIRST_DESC + 16).unwrap();
+    bus.write32(FIRST_DESC + 8, 0).unwrap();
+    start_dma(&mut bus, 32);
+    bus.tick(4);
+    bus.write32(SECOND, 4 | (4 << 12) | (1 << 30) | (1 << 31)).unwrap();
+    bus.write32(SECOND + 4, FIRST_DESC + 16).unwrap();
+    bus.write32(SECOND + 8, 0).unwrap();
+    bus.write32(GDMA + 0x80, (SECOND & 0xF_FFFF) | (1 << 21)).unwrap(); // OUT_LINK START on the live channel
+    bus.tick(128);
+    assert_eq!(bus.periph.spi2.transfers, 0, "rebinding aborts the in-flight transaction");
+    let channel = &bus.periph.gdma.out[0];
+    assert_eq!(channel.desc, SECOND, "the new descriptor chain must survive completion");
+    assert!(channel.running);
+    assert_eq!(bus.periph.spi2.dma_tx_pending, None);
+}
+
+#[test]
+fn timed_spi2_dma_stop_survives_completion_and_gates_the_next_usr() {
+    const SECOND_DESC: u32 = 0x3fc9_0140;
+    let mut bus = dma_bus();
+    bus.spi2_timing = true;
+    bus.write32(FIRST_DESC, 4 | (4 << 12) | (1 << 30) | (1 << 31)).unwrap();
+    bus.write32(FIRST_DESC + 4, FIRST_DESC + 16).unwrap();
+    bus.write32(FIRST_DESC + 8, SECOND_DESC).unwrap(); // nonterminal: the snapshot stays running
+    bus.write32(SECOND_DESC, 4 | (4 << 12) | (1 << 30) | (1 << 31)).unwrap();
+    bus.write32(SECOND_DESC + 4, FIRST_DESC + 16).unwrap();
+    bus.write32(SECOND_DESC + 8, 0).unwrap();
+    start_dma(&mut bus, 32);
+    bus.tick(4);
+    bus.write32(GDMA + 0x80, 1 << 20).unwrap(); // OUT_LINK STOP on the live channel
+    assert!(!bus.periph.gdma.out[0].running);
+    bus.tick(128); // the captured payload still completes
+    assert_eq!(bus.periph.spi2.transfers, 1);
+    assert!(!bus.periph.gdma.out[0].running, "completion must not resurrect the stopped channel");
+    assert_eq!(bus.periph.gdma.out[0].desc, SECOND_DESC, "the next descriptor stays unfetched");
+    start_dma(&mut bus, 32);
+    bus.tick(128);
+    assert_eq!(bus.periph.spi2.transfers, 1, "a stopped channel cannot serve a later USR");
+    bus.write32(GDMA + 0x80, (SECOND_DESC & 0xF_FFFF) | (1 << 22)).unwrap(); // RESTART
+    bus.tick(128);
+    assert_eq!(bus.periph.spi2.transfers, 2, "RESTART lets the pending USR complete");
+}
+

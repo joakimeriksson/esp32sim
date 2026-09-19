@@ -219,9 +219,9 @@ impl<S: Soc> Machine<S> {
         if let (Some(ds), Some(de)) = (start, end) {
             let mut t = ds; let mut n = 0;
             while t + S::ROM_DATA_TABLE_STRIDE <= de {
-                let (Ok(d0), Ok(d1), Ok(src)) = (self.bus.read32(t), self.bus.read32(t + 4), self.bus.read32(t + 8)) else { break };
+                let (Ok(d0), Ok(d1), Ok(src)) = (self.bus.read32_unpriced(t), self.bus.read32_unpriced(t + 4), self.bus.read32_unpriced(t + 8)) else { break };
                 if d1 > d0 && d1 - d0 < 0x20000 {
-                    let bytes: Vec<u8> = (d0..d1).map(|a| self.bus.read8(a).unwrap_or(0)).collect();
+                    let bytes: Vec<u8> = (d0..d1).map(|a| self.bus.read8_unpriced(a).unwrap_or(0)).collect();
                     if self.bus.load_bytes(src, &bytes).is_ok() { n += 1; }
                 }
                 t += S::ROM_DATA_TABLE_STRIDE;
@@ -790,7 +790,7 @@ impl<S: Soc> Machine<S> {
                 ScriptAction::Uart(n, text) => self.bus.uart_input(n, text.as_bytes()),
                 ScriptAction::Stop => { self.max_cycles = 0; stopped = true; }
                 ScriptAction::Touch(x, y, d) => { self.bus.touch_input(x, y, d); }
-                ScriptAction::Poke(a, v) => { let _ = self.bus.write32(a, v); }
+                ScriptAction::Poke(a, v) => { let _ = self.bus.write32_unpriced(a, v); }
             }
         }
         stopped
@@ -928,7 +928,7 @@ impl<S: Soc> Machine<S> {
 
     pub fn peek(&mut self, addr: u32, words: usize) -> String {
         let mut s = String::new();
-        for i in 0..words { let a = addr.wrapping_add((i * 4) as u32); s += &format!("{:08x}: {}\n", a, match self.bus.read32(a) { Ok(v) => format!("{:08x}", v), Err(_) => "--------".into() }); }
+        for i in 0..words { let a = addr.wrapping_add((i * 4) as u32); s += &format!("{:08x}: {}\n", a, match self.bus.read32_unpriced(a) { Ok(v) => format!("{:08x}", v), Err(_) => "--------".into() }); }
         s
     }
 

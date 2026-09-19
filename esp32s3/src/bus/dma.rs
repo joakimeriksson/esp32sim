@@ -8,7 +8,7 @@ pub(super) const SPI2_DMA_DESCRIPTOR_STEP_BUDGET: usize = 1024;
 const GDMA_DESCRIPTOR_STEP_BUDGET: usize = 4096;
 
 /// Which end of a memory-to-memory copy faulted.
-enum M2mFault { Source, Destination }
+pub(super) enum M2mFault { Source, Destination }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DmaDescriptorWord {
@@ -29,8 +29,12 @@ pub enum DmaDescriptorFault {
 }
 
 pub(super) struct Spi2DmaCompletion {
-    channel: usize,
-    final_channel: crate::periph::GdmaOutCh,
+    pub(super) channel: usize,
+    desc: u32,
+    buf_pos: u32,
+    running: bool,
+    eof_desc: Option<u32>,
+    raised_interrupts: u32,
     descriptor_writebacks: Vec<(u32, u32)>,
     payload: Vec<u8>,
 }
@@ -82,12 +86,21 @@ impl SocBus {
 
     fn commit_spi2_dma(&mut self, completion: Spi2DmaCompletion) {
         for (descriptor, control) in completion.descriptor_writebacks {
-            if let Err(fault) = self.write32(descriptor, control) {
+            if let Err(fault) = self.write32_unpriced(descriptor, control) {
                 self.fail_spi2_dma(completion.channel, DmaDescriptorFault::Writeback { descriptor, fault });
                 return;
             }
         }
-        self.periph.gdma.out[completion.channel] = completion.final_channel;
+        // Publish only this transfer's effects, not a stale copy of writable registers
+        // or interrupt status that software may have cleared while it was on the wire.
+        let channel = &mut self.periph.gdma.out[completion.channel];
+        channel.desc = completion.desc;
+        channel.buf_pos = completion.buf_pos;
+        // Descriptor progress publishes as captured, but an OUT_LINK STOP during the
+        // wire delay must keep the channel stopped: completion never resurrects it.
+        channel.running = channel.running && completion.running;
+        if let Some(descriptor) = completion.eof_desc { channel.eof_desc = descriptor; }
+        channel.int_raw |= completion.raised_interrupts;
         self.periph.spi2.complete_dma_tx(&completion.payload);
         self.irq_dirty = true;
     }
@@ -131,6 +144,7 @@ impl SocBus {
         let mut payload = Vec::with_capacity(wanted);
         let mut visited = HashSet::new();
         let mut channel = self.periph.gdma.out[channel_index];
+        channel.int_raw = 0; // Accumulate only new completion events.
         let mut descriptor_writebacks = Vec::new();
         let mut walk = DescriptorWalk::new(SPI2_DMA_DESCRIPTOR_STEP_BUDGET);
         while payload.len() < wanted {
@@ -190,7 +204,12 @@ impl SocBus {
         if payload.len() != wanted {
             return Err(DmaDescriptorFault::PayloadTooShort { expected: wanted, actual: payload.len() });
         }
-        Ok(Some(Spi2DmaCompletion { channel: channel_index, final_channel: channel, descriptor_writebacks, payload }))
+        Ok(Some(Spi2DmaCompletion {
+            channel: channel_index, desc: channel.desc, buf_pos: channel.buf_pos,
+            running: channel.running,
+            eof_desc: (channel.int_raw & (1 << 1) != 0).then_some(channel.eof_desc),
+            raised_interrupts: channel.int_raw, descriptor_writebacks, payload,
+        }))
     }
 
     /// Append a memory range a mapping at a time. Peripheral and unmapped addresses use the
@@ -211,7 +230,7 @@ impl SocBus {
                     }
                 }
             }
-            match self.read8(address) {
+            match self.read8_unpriced(address) {
                 Ok(byte) => out.push(byte),
                 Err(fault) => return Err((address, fault)),
             }
@@ -243,7 +262,7 @@ impl SocBus {
             if remaining == 0 {
                 // descriptor complete: hand back to software, raise EOF/DONE, advance
                 let ch_ref = &mut self.periph.gdma.out[ch];
-                if ch_ref.conf0 & (1 << 2) != 0 { let dw0 = self.read32(d.addr).unwrap_or(0) & !(1 << 31); let _ = self.write32(d.addr, dw0); }   // AUTO_WRBACK: owner -> cpu
+                if ch_ref.conf0 & (1 << 2) != 0 { let dw0 = self.read32_unpriced(d.addr).unwrap_or(0) & !(1 << 31); let _ = self.write32_unpriced(d.addr, dw0); }   // AUTO_WRBACK: owner -> cpu
                 let ch_ref = &mut self.periph.gdma.out[ch];
                 self.irq_dirty = true;
                 ch_ref.int_raw |= 1 << 0;                                                     // OUT_DONE
@@ -259,9 +278,9 @@ impl SocBus {
             while i + bpf <= take {
                 let addr = start.wrapping_add(i as u32);
                 let sample = if sample_bytes == 1 {
-                    self.read8(addr).map(|v| (v as i8 as i16) << 8)
+                    self.read8_unpriced(addr).map(|v| (v as i8 as i16) << 8)
                 } else {
-                    self.read16(addr.wrapping_add((sample_bytes - 2) as u32)).map(|v| v as i16)
+                    self.read16_unpriced(addr.wrapping_add((sample_bytes - 2) as u32)).map(|v| v as i16)
                 };
                 let Ok(sample) = sample else { self.fail_dma_out(ch); break 'transfer };
                 samples.push(sample);
@@ -275,7 +294,7 @@ impl SocBus {
 
     /// One DMA descriptor as the engines see it, with its first word, or the fault reading it.
     fn try_dma_desc(&mut self, addr: u32) -> Result<(u32, crate::periph::DmaDesc), DmaDescriptorFault> {
-        let mut word = |offset, word| self.read32(addr.wrapping_add(offset))
+        let mut word = |offset, word| self.read32_unpriced(addr.wrapping_add(offset))
             .map_err(|fault| DmaDescriptorFault::Read { descriptor: addr, word, fault });
         let dw0 = word(0, DmaDescriptorWord::Control)?;
         let (buf, next) = (word(4, DmaDescriptorWord::Buffer)?, word(8, DmaDescriptorWord::Next)?);
@@ -295,18 +314,18 @@ impl SocBus {
     }
 
     /// Copy `n` guest bytes for the memory-to-memory engine, a word at a time where both ends are aligned.
-    fn dma_copy(&mut self, src: u32, dst: u32, n: u32) -> Result<(), M2mFault> {
+    pub(super) fn dma_copy(&mut self, src: u32, dst: u32, n: u32) -> Result<(), M2mFault> {
         let mut i = 0u32;
         if (src | dst) & 3 == 0 {
             while i + 4 <= n {
-                let v = self.read32(src.wrapping_add(i)).map_err(|_| M2mFault::Source)?;
-                self.write32(dst.wrapping_add(i), v).map_err(|_| M2mFault::Destination)?;
+                let v = self.read32_unpriced(src.wrapping_add(i)).map_err(|_| M2mFault::Source)?;
+                self.write32_unpriced(dst.wrapping_add(i), v).map_err(|_| M2mFault::Destination)?;
                 i += 4;
             }
         }
         while i < n {
-            let v = self.read8(src.wrapping_add(i)).map_err(|_| M2mFault::Source)?;
-            self.write8(dst.wrapping_add(i), v).map_err(|_| M2mFault::Destination)?;
+            let v = self.read8_unpriced(src.wrapping_add(i)).map_err(|_| M2mFault::Source)?;
+            self.write8_unpriced(dst.wrapping_add(i), v).map_err(|_| M2mFault::Destination)?;
             i += 1;
         }
         Ok(())
@@ -316,7 +335,7 @@ impl SocBus {
     /// move the channel to the next one. False when the write-back faults.
     fn dma_close_in(&mut self, r: &mut crate::periph::GdmaInCh, dw0: u32, next: u32, eof: bool) -> bool {
         let v = (dw0 & !(0xfff << 12) & !(3 << 30)) | (r.buf_pos << 12) | if eof { 1 << 30 } else { 0 };
-        if self.write32(r.desc, v).is_err() { return false; }
+        if self.write32_unpriced(r.desc, v).is_err() { return false; }
         r.int_raw |= 1 << 0;                                                  // IN_DONE
         if eof { r.int_raw |= 1 << 1; r.eof_desc = r.desc; }                  // IN_SUC_EOF
         r.desc = next; r.buf_pos = 0;
@@ -376,7 +395,7 @@ impl SocBus {
                     }
                     if o.buf_pos < od.length { continue; }                                 // the IN buffer filled first
                 }
-                if o.conf0 & AUTO_WRBACK != 0 && self.write32(od.addr, out_dw0 & !(1 << 31)).is_err() {
+                if o.conf0 & AUTO_WRBACK != 0 && self.write32_unpriced(od.addr, out_dw0 & !(1 << 31)).is_err() {
                     o.int_raw |= OUT_DSCR_ERR; o.running = false; break;
                 }
                 o.int_raw |= OUT_DONE;
@@ -479,7 +498,7 @@ impl SocBus {
             let take = (d.length as usize).min(limit - input.len());
             self.append_mapped_bytes(d.buf, take, &mut input).map_err(|(address, fault)|
                 DmaDescriptorFault::BufferRead { descriptor: desc, address, fault })?;
-            self.write32(desc, control & !(1 << 31)).map_err(|fault|
+            self.write32_unpriced(desc, control & !(1 << 31)).map_err(|fault|
                 DmaDescriptorFault::Writeback { descriptor: desc, fault })?;
             self.periph.gdma.out[ch].int_raw |= 1 << 0;
             if d.eof {
@@ -509,11 +528,11 @@ impl SocBus {
             let mut i = 0;
             while i + 4 <= n {
                 let word = u32::from_le_bytes(data[pos + i..pos + i + 4].try_into().unwrap());
-                self.write32(d.buf.wrapping_add(i as u32), word).map_err(|_| ())?;
+                self.write32_unpriced(d.buf.wrapping_add(i as u32), word).map_err(|_| ())?;
                 i += 4;
             }
             while i < n {
-                self.write8(d.buf.wrapping_add(i as u32), data[pos + i]).map_err(|_| ())?;
+                self.write8_unpriced(d.buf.wrapping_add(i as u32), data[pos + i]).map_err(|_| ())?;
                 i += 1;
             }
             pos += n;

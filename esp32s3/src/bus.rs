@@ -147,6 +147,17 @@ impl SocBus {
         self.approximate_cache_pending = 0;
     }
 
+    /// Chip reset drops shared cache contents and timing debt, not experiment settings.
+    /// Reset in place so an inline cache view retains its backing allocation.
+    pub(crate) fn reset_approximate_cache(&mut self) {
+        if let Some(cache) = &mut self.approximate_cache { cache.reset(); }
+        self.approximate_cache_pending = 0;
+        self.cache_resource.busy_until = self.cycles;
+        self.cache_resource.cursor = self.cycles;
+        self.cache_resource.core = 0;
+        self.cache_resource.wait_cycles = [0; 2];
+    }
+
     pub fn approximate_cache_stats(&self) -> Option<crate::approximate_cache::CacheAccess> {
         self.approximate_cache.as_ref().map(|cache| cache.stats())
     }
@@ -259,8 +270,10 @@ impl SocBus {
     /// Forget every cached mapping. Anything that re-points the flash MMU must call this.
     /// A remap changes which bytes a cache-window pc refers to without any write happening, so
     /// the flash and PSRAM page versions are bumped too: that is what invalidates decoded
-    /// instructions and blocks that were built through the old mapping.
+    /// instructions and blocks that were built through the old mapping. Shared fetch tags
+    /// are virtual, so remapping also makes the shared instruction cache cold.
     pub fn invalidate_tlb(&mut self) {
+        xtensa_lx7::state::reset_shared_fetch_cache();
         for e in self.tlb.iter_mut() { *e = TlbEntry::EMPTY; }
         let (a, b) = (self.ver_base[SRC_FLASH as usize] as usize, self.ver_base[SRC_DROM as usize] as usize);
         for v in &mut self.page_ver[a..b] { *v = v.wrapping_add(1); }          // flash then psram
@@ -376,6 +389,24 @@ impl SocBus {
             self.spi2_dma_fault = None;
             self.spi2_scheduled = None;
         }
+        // GDMA block: OUT_RST (0x60) or an OUT_LINK START/RESTART (0x80) on the
+        // scheduled SPI2 source channel discards the transaction: the payload was
+        // snapshotted for a chain that no longer exists, so hardware-model semantics
+        // are abort without TRANS_DONE. OUT_LINK STOP only stops later fetches and
+        // plain W1C interrupt clears or configuration writes never cancel.
+        if let Some((_, completion)) = &self.spi2_scheduled {
+            if a >= PERIPH_BASE + 0x3f_000 && a < PERIPH_BASE + 0x3f_000 + crate::periph::GDMA_CH_STRIDE * crate::periph::GDMA_CHANNELS as u32 {
+                let offset = a & 0xfff;
+                let (channel, register) = ((offset / crate::periph::GDMA_CH_STRIDE) as usize, offset % crate::periph::GDMA_CH_STRIDE);
+                if channel == completion.channel
+                    && ((register == 0x60 && v & 1 != 0) || (register == 0x80 && v & ((1 << 21) | (1 << 22)) != 0))
+                {
+                    if self.periph.spi2.log { eprintln!("[spi2] DMA source reset/rebound: aborting scheduled transfer"); }
+                    self.spi2_scheduled = None;
+                    self.periph.spi2.abort_transfer();
+                }
+            }
+        }
         let old_gpio_out = self.periph.gpio.out;
         self.periph.write32(a, v);
         self.complete_spi2_dma();
@@ -407,10 +438,10 @@ impl SocBus {
     fn wifi_tx_step(&mut self) {
         let pending = std::mem::take(&mut self.periph.wifi.tx_pending);
         for (slot, desc) in pending {
-            let dw0 = self.read32(desc).unwrap_or(0); let pkt = self.read32(desc + 4).unwrap_or(0);
+            let dw0 = self.read32_unpriced(desc).unwrap_or(0); let pkt = self.read32_unpriced(desc + 4).unwrap_or(0);
             let len = ((dw0 >> 12) & 0xfff) as usize;
             let mut frame = Vec::with_capacity(len);
-            for i in 0..len { frame.push(self.read8(pkt + i as u32).unwrap_or(0)); }
+            for i in 0..len { frame.push(self.read8_unpriced(pkt + i as u32).unwrap_or(0)); }
             if self.periph.wifi.log || self.debug.has("wifi-frames") { eprintln!("[wifi] TX slot {} desc {:#010x} pkt {:#010x} {}", slot, desc, pkt, crate::wifi::describe(&frame)); }
             self.periph.wifi.tx_done(slot);
             self.irq_dirty = true;
@@ -434,7 +465,7 @@ impl SocBus {
         if now_us.wrapping_sub(self.periph.wifi.last_rx_us) < 400 { return; }
         // ... but if software stops recycling altogether, don't stall the air forever: after 50 ms
         // the frame is dropped, exactly as a real ring would overflow.
-        let busy = { let d = self.periph.wifi.last_rx_desc; d != 0 && self.read32(d).unwrap_or(0) & (1 << 30) != 0 };
+        let busy = { let d = self.periph.wifi.last_rx_desc; d != 0 && self.read32_unpriced(d).unwrap_or(0) & (1 << 30) != 0 };
         if busy && now_us.wrapping_sub(self.periph.wifi.last_rx_us) < 50_000 { return; }
         let mut due = { let ap = self.periph.wifi.ap.as_mut().unwrap(); ap.step(now_us) };
         let eth_in = std::mem::take(&mut self.periph.wifi.eth_rx);
@@ -454,7 +485,7 @@ impl SocBus {
     fn wifi_rx_deliver(&mut self, frame: &[u8], now_us: u64) {
         let desc = self.periph.wifi.rx_next | crate::periph::DMA_ADDR_BASE;
         if desc == 0 { self.periph.wifi.rx_dropped += 1; return; }
-        let dw0 = self.read32(desc).unwrap_or(0); let buf = self.read32(desc + 4).unwrap_or(0); let next = self.read32(desc + 8).unwrap_or(0);
+        let dw0 = self.read32_unpriced(desc).unwrap_or(0); let buf = self.read32_unpriced(desc + 4).unwrap_or(0); let next = self.read32_unpriced(desc + 8).unwrap_or(0);
         let size = (dw0 & 0xfff) as usize;
         let total = 48 + frame.len() + 4;
         if dw0 & (1 << 31) == 0 || buf == 0 || size < total { self.periph.wifi.rx_dropped += 1; return; }
@@ -477,10 +508,10 @@ impl SocBus {
         for w in [w0, 0, w2, now_us as u32, 0, w5, 0, 0, 0, 0, 0, w11] { b.extend_from_slice(&w.to_le_bytes()); }
         b.extend_from_slice(frame); b.extend_from_slice(&crate::wifi::fcs(frame).to_le_bytes());
         let mut i = 0usize;
-        while i + 4 <= b.len() { let v = u32::from_le_bytes([b[i], b[i + 1], b[i + 2], b[i + 3]]); let _ = self.write32(buf + i as u32, v); i += 4; }
-        while i < b.len() { let _ = self.write8(buf + i as u32, b[i]); i += 1; }
+        while i + 4 <= b.len() { let v = u32::from_le_bytes([b[i], b[i + 1], b[i + 2], b[i + 3]]); let _ = self.write32_unpriced(buf + i as u32, v); i += 4; }
+        while i < b.len() { let _ = self.write8_unpriced(buf + i as u32, b[i]); i += 1; }
         let ndw0 = (dw0 & !(0xfff << 12)) | ((total as u32) << 12) | (1 << 30) | (1 << 31);   // length; owner AND has_data set (verified on silicon 2026-08-25: dw0=0xc0..)
-        let _ = self.write32(desc, ndw0);
+        let _ = self.write32_unpriced(desc, ndw0);
         let w = &mut self.periph.wifi;
         w.rx_last = (desc & 0xf_ffff) | (1 << 24); w.rx_next = next & 0xf_ffff; w.last_rx_desc = desc; w.rx_frames += 1; w.events |= (1 << 14) | (1 << 24);   // RX data (wDev_ProcessFiq tests 0x1004000)   // registers hold masked descriptor addrs; rx_last has a 0x01 prefix (silicon)
         if log { let d = crate::wifi::describe(frame); if d.contains("auth")||d.contains("assoc") { eprintln!("[wifi] RX AUTH/ASSOC -> desc {:#010x} buf {:#010x} {}", desc, buf, d); } else { eprintln!("[wifi] RX -> desc {:#010x} {}", desc, d); } }
@@ -510,61 +541,83 @@ impl CacheResource {
     }
 }
 
-impl Bus for SocBus {
-    fn read8(&mut self, addr: u32) -> Result<u8, Fault> {
+impl SocBus {
+    // Const specialization keeps origin checks and CPU pricing out of DMA/host accessors.
+    fn read8_access<const CPU: bool>(&mut self, addr: u32) -> Result<u8, Fault> {
         if Self::is_periph(addr) { self.last_fault = Some((addr, false)); return Err(Fault::Prohibited); }
         let Some(e) = self.lookup(addr) else { self.last_fault = Some((addr, false)); return Err(Fault::Unmapped) };
-        self.price_cached_data(e, addr, 1, false);
+        if CPU { self.price_cached_data(e, addr, 1, false); }
         Ok(self.buf(e.src as u8)[e.off as usize + (addr - e.lo) as usize])
     }
-    fn read16(&mut self, addr: u32) -> Result<u16, Fault> {
+    fn read16_access<const CPU: bool>(&mut self, addr: u32) -> Result<u16, Fault> {
         if Self::is_periph(addr) { self.last_fault = Some((addr, false)); return Err(Fault::Prohibited); }
         match self.lookup(addr) {
-            Some(e) if addr.wrapping_add(2) <= e.hi => { self.price_cached_data(e, addr, 2, false); let o = e.off as usize + (addr - e.lo) as usize; Ok(u16::from_le_bytes(self.buf(e.src as u8)[o..o + 2].try_into().unwrap())) }
-            Some(_) => Ok(u16::from_le_bytes([self.read8(addr)?, self.read8(addr + 1)?])),       // straddles a page
+            Some(e) if addr.wrapping_add(2) <= e.hi => { if CPU { self.price_cached_data(e, addr, 2, false); } let o = e.off as usize + (addr - e.lo) as usize; Ok(u16::from_le_bytes(self.buf(e.src as u8)[o..o + 2].try_into().unwrap())) }
+            Some(_) => Ok(u16::from_le_bytes([self.read8_access::<CPU>(addr)?, self.read8_access::<CPU>(addr + 1)?])),       // straddles a page
             None => { self.last_fault = Some((addr, false)); Err(Fault::Unmapped) }
         }
     }
-    fn read32(&mut self, addr: u32) -> Result<u32, Fault> {
+    fn read32_access<const CPU: bool>(&mut self, addr: u32) -> Result<u32, Fault> {
         if Self::is_periph(addr) {
             if addr & 3 != 0 { self.last_fault = Some((addr, false)); return Err(Fault::Misaligned); }
             return Ok(self.periph_read(addr));
         }
         match self.lookup(addr) {
-            Some(e) if addr.wrapping_add(4) <= e.hi => { self.price_cached_data(e, addr, 4, false); let o = e.off as usize + (addr - e.lo) as usize; Ok(u32::from_le_bytes(self.buf(e.src as u8)[o..o + 4].try_into().unwrap())) }
-            Some(_) => Ok(u32::from_le_bytes([self.read8(addr)?, self.read8(addr + 1)?, self.read8(addr + 2)?, self.read8(addr + 3)?])),
+            Some(e) if addr.wrapping_add(4) <= e.hi => { if CPU { self.price_cached_data(e, addr, 4, false); } let o = e.off as usize + (addr - e.lo) as usize; Ok(u32::from_le_bytes(self.buf(e.src as u8)[o..o + 4].try_into().unwrap())) }
+            Some(_) => Ok(u32::from_le_bytes([self.read8_access::<CPU>(addr)?, self.read8_access::<CPU>(addr + 1)?, self.read8_access::<CPU>(addr + 2)?, self.read8_access::<CPU>(addr + 3)?])),
             None => { self.last_fault = Some((addr, false)); Err(Fault::Unmapped) }
         }
     }
-    fn write8(&mut self, addr: u32, v: u8) -> Result<(), Fault> {
+    fn write8_access<const CPU: bool>(&mut self, addr: u32, v: u8) -> Result<(), Fault> {
         // S3 register writes are modelled only as aligned words (TRM §15.6.6).
         // Reject unsupported widths before reading a device or advancing its time.
         // This is an explicit emulator policy, not a model of optional PMS IRQs.
         if Self::is_periph(addr) { self.last_fault = Some((addr, true)); return Err(Fault::Prohibited); }
         match self.lookup(addr) {
-            Some(e) if e.writable != 0 => { self.price_cached_data(e, addr, 1, true); let rel = (addr - e.lo) as usize; self.buf_mut(e.src as u8)[e.off as usize + rel] = v; self.bump(e.vbase, rel, 1); Ok(()) }
+            Some(e) if e.writable != 0 => { if CPU { self.price_cached_data(e, addr, 1, true); } let rel = (addr - e.lo) as usize; self.buf_mut(e.src as u8)[e.off as usize + rel] = v; self.bump(e.vbase, rel, 1); Ok(()) }
             _ => { self.last_fault = Some((addr, true)); Err(Fault::Prohibited) }
         }
     }
-    fn write16(&mut self, addr: u32, v: u16) -> Result<(), Fault> {
+    fn write16_access<const CPU: bool>(&mut self, addr: u32, v: u16) -> Result<(), Fault> {
         if Self::is_periph(addr) { self.last_fault = Some((addr, true)); return Err(Fault::Prohibited); }
         match self.lookup(addr) {
-            Some(e) if e.writable != 0 && addr.wrapping_add(2) <= e.hi => { self.price_cached_data(e, addr, 2, true); let rel = (addr - e.lo) as usize; let o = e.off as usize + rel; self.buf_mut(e.src as u8)[o..o + 2].copy_from_slice(&v.to_le_bytes()); self.bump(e.vbase, rel, 2); Ok(()) }
-            Some(e) if e.writable != 0 => { let b = v.to_le_bytes(); self.write8(addr, b[0])?; self.write8(addr + 1, b[1]) }
+            Some(e) if e.writable != 0 && addr.wrapping_add(2) <= e.hi => { if CPU { self.price_cached_data(e, addr, 2, true); } let rel = (addr - e.lo) as usize; let o = e.off as usize + rel; self.buf_mut(e.src as u8)[o..o + 2].copy_from_slice(&v.to_le_bytes()); self.bump(e.vbase, rel, 2); Ok(()) }
+            Some(e) if e.writable != 0 => { let b = v.to_le_bytes(); self.write8_access::<CPU>(addr, b[0])?; self.write8_access::<CPU>(addr + 1, b[1]) }
             _ => { self.last_fault = Some((addr, true)); Err(Fault::Prohibited) }
         }
     }
-    fn write32(&mut self, addr: u32, v: u32) -> Result<(), Fault> {
+    fn write32_access<const CPU: bool>(&mut self, addr: u32, v: u32) -> Result<(), Fault> {
         if Self::is_periph(addr) {
             if addr & 3 != 0 { self.last_fault = Some((addr, true)); return Err(Fault::Misaligned); }
             self.periph_write(addr, v); return Ok(());
         }
         match self.lookup(addr) {
-            Some(e) if e.writable != 0 && addr.wrapping_add(4) <= e.hi => { self.price_cached_data(e, addr, 4, true); let rel = (addr - e.lo) as usize; let o = e.off as usize + rel; self.buf_mut(e.src as u8)[o..o + 4].copy_from_slice(&v.to_le_bytes()); self.bump(e.vbase, rel, 4); Ok(()) }
-            Some(e) if e.writable != 0 => { let b = v.to_le_bytes(); for i in 0..4 { self.write8(addr + i, b[i as usize])?; } Ok(()) }
+            Some(e) if e.writable != 0 && addr.wrapping_add(4) <= e.hi => { if CPU { self.price_cached_data(e, addr, 4, true); } let rel = (addr - e.lo) as usize; let o = e.off as usize + rel; self.buf_mut(e.src as u8)[o..o + 4].copy_from_slice(&v.to_le_bytes()); self.bump(e.vbase, rel, 4); Ok(()) }
+            Some(e) if e.writable != 0 => { let b = v.to_le_bytes(); for i in 0..4 { self.write8_access::<CPU>(addr + i, b[i as usize])?; } Ok(()) }
             _ => { self.last_fault = Some((addr, true)); Err(Fault::Prohibited) }
         }
     }
+}
+
+impl Bus for SocBus {
+    #[inline]
+    fn read8(&mut self, addr: u32) -> Result<u8, Fault> { self.read8_access::<true>(addr) }
+    fn read8_unpriced(&mut self, addr: u32) -> Result<u8, Fault> { self.read8_access::<false>(addr) }
+    #[inline]
+    fn read16(&mut self, addr: u32) -> Result<u16, Fault> { self.read16_access::<true>(addr) }
+    fn read16_unpriced(&mut self, addr: u32) -> Result<u16, Fault> { self.read16_access::<false>(addr) }
+    #[inline]
+    fn read32(&mut self, addr: u32) -> Result<u32, Fault> { self.read32_access::<true>(addr) }
+    fn read32_unpriced(&mut self, addr: u32) -> Result<u32, Fault> { self.read32_access::<false>(addr) }
+    #[inline]
+    fn write8(&mut self, addr: u32, v: u8) -> Result<(), Fault> { self.write8_access::<true>(addr, v) }
+    fn write8_unpriced(&mut self, addr: u32, v: u8) -> Result<(), Fault> { self.write8_access::<false>(addr, v) }
+    #[inline]
+    fn write16(&mut self, addr: u32, v: u16) -> Result<(), Fault> { self.write16_access::<true>(addr, v) }
+    fn write16_unpriced(&mut self, addr: u32, v: u16) -> Result<(), Fault> { self.write16_access::<false>(addr, v) }
+    #[inline]
+    fn write32(&mut self, addr: u32, v: u32) -> Result<(), Fault> { self.write32_access::<true>(addr, v) }
+    fn write32_unpriced(&mut self, addr: u32, v: u32) -> Result<(), Fault> { self.write32_access::<false>(addr, v) }
     fn fetch(&mut self, pc: u32) -> Result<[u8; 4], Fault> {
         let Some(e) = self.lookup(pc) else { self.last_fault = Some((pc, false)); return Err(Fault::Unmapped) };
         let o = e.off as usize + (pc - e.lo) as usize;
@@ -736,3 +789,7 @@ mod gp_spi_board_tests;
 #[cfg(test)]
 #[path = "bus/dma_tests.rs"]
 mod dma_tests;
+
+#[cfg(test)]
+#[path = "bus/memory_origin_tests.rs"]
+mod memory_origin_regressions;

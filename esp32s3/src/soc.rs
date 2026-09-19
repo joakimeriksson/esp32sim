@@ -120,6 +120,7 @@ impl esp_soc::SocBus for SocBus {
         p.i2s0.pcm = old.i2s0.pcm; p.i2s0.frames_out = old.i2s0.frames_out; p.i2s1.pcm = old.i2s1.pcm; p.i2s1.frames_out = old.i2s1.frames_out;   // keep the captured audio continuous
         self.mmu = [MMU_INVALID; MMU_ENTRIES];
         self.invalidate_tlb();
+        self.reset_approximate_cache();
         self.attach_board_devices();
         self.refresh_tick_budget();
         self.irq_dirty = true;

@@ -93,10 +93,15 @@ impl GpSpi {
                 .div_ceil(lanes(ctrl & (1 << 6) != 0, ctrl & (1 << 5) != 0));
         }
         if user & (1 << 29) != 0 { clocks += u64::from((self.regs.read(0x14) & 255) + 1); }
-        if user & ((1 << 27) | (1 << 28)) != 0 {
-            clocks += u64::from((self.regs.read(0x1c) & 0x3ffff) + 1)
-                .div_ceil(lanes(user & (1 << 13) != 0, user & (1 << 12) != 0));
-        }
+        let data_bits = u64::from((self.regs.read(0x1c) & 0x3ffff) + 1);
+        let mosi = if user & (1 << 27) != 0 {
+            data_bits.div_ceil(lanes(user & (1 << 13) != 0, user & (1 << 12) != 0))
+        } else { 0 };
+        let miso = if user & (1 << 28) != 0 {
+            data_bits.div_ceil(lanes(ctrl & (1 << 15) != 0, ctrl & (1 << 14) != 0))
+        } else { 0 };
+        // DOUTDIN overlaps the data phases; otherwise MOSI precedes MISO.
+        clocks += if user & 1 != 0 { mosi.max(miso) } else { mosi + miso };
         (clocks * u64::from(divider)).max(1)
     }
 
@@ -157,6 +162,25 @@ impl Device for GpSpi {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn wire_time_uses_read_lanes_and_duplex_phase_order() {
+        let mut spi = GpSpi::new();
+        spi.write(0x0c, 1 << 31);
+        spi.write(0x1c, 31);
+        for (user, ctrl, expected) in [
+            ((1 << 28) | (1 << 13), 0, 32), // FWRITE must not shorten MISO
+            (1 << 28, 1 << 15, 8),
+            (1 << 28, 1 << 14, 16),
+            ((1 << 27) | (1 << 28), 0, 64), // sequential half duplex
+            ((1 << 27) | (1 << 28) | 1, 0, 32), // concurrent full duplex
+            ((1 << 27) | (1 << 28) | (1 << 13), 1 << 14, 24),
+        ] {
+            spi.write(0x10, user);
+            spi.write(0x08, ctrl);
+            assert_eq!(spi.wire_source_cycles(), expected, "USER={user:#x} CTRL={ctrl:#x}");
+        }
+    }
 
     #[test]
     fn wire_time_uses_divider_and_quad_data_lanes() {

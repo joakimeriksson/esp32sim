@@ -64,6 +64,14 @@ pub trait Bus {
     fn write8(&mut self, addr: u32, v: u8) -> Result<(), Fault>;
     fn write16(&mut self, addr: u32, v: u16) -> Result<(), Fault>;
     fn write32(&mut self, addr: u32, v: u32) -> Result<(), Fault>;
+    /// DMA and host accesses retain functional effects but bypass CPU cache timing.
+    /// Buses without CPU-specific accounting can use the ordinary accessors.
+    fn read8_unpriced(&mut self, addr: u32) -> Result<u8, Fault> { self.read8(addr) }
+    fn read16_unpriced(&mut self, addr: u32) -> Result<u16, Fault> { self.read16(addr) }
+    fn read32_unpriced(&mut self, addr: u32) -> Result<u32, Fault> { self.read32(addr) }
+    fn write8_unpriced(&mut self, addr: u32, v: u8) -> Result<(), Fault> { self.write8(addr, v) }
+    fn write16_unpriced(&mut self, addr: u32, v: u16) -> Result<(), Fault> { self.write16(addr, v) }
+    fn write32_unpriced(&mut self, addr: u32, v: u32) -> Result<(), Fault> { self.write32(addr, v) }
     /// Fetch up to 4 instruction bytes at `pc` (any alignment). Bytes past the
     /// end of a mapped region may be zero.
     fn fetch(&mut self, pc: u32) -> Result<[u8; 4], Fault>;
