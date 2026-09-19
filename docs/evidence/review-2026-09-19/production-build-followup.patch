@@ -1,0 +1,45 @@
+diff --git a/esp32s3/src/bus/dma.rs b/esp32s3/src/bus/dma.rs
+index f18950ad..421de084 100644
+--- a/esp32s3/src/bus/dma.rs
++++ b/esp32s3/src/bus/dma.rs
+@@ -371,8 +371,8 @@ impl SocBus {
+                         r.buf_pos += n;
+                     }
+                     let eof_now = o.buf_pos == od.length && od.eof;
+-                    if r.buf_pos == id.size || eof_now {
+-                        if !self.dma_close_in(&mut r, in_dw0, id.next, eof_now) { r.int_raw |= IN_DSCR_ERR; r.running = false; break; }
++                    if (r.buf_pos == id.size || eof_now) && !self.dma_close_in(&mut r, in_dw0, id.next, eof_now) {
++                        r.int_raw |= IN_DSCR_ERR; r.running = false; break;
+                     }
+                     if o.buf_pos < od.length { continue; }                                 // the IN buffer filled first
+                 }
+diff --git a/esp32s3/src/nat.rs b/esp32s3/src/nat.rs
+index ef7d05f5..1d1eabb5 100644
+--- a/esp32s3/src/nat.rs
++++ b/esp32s3/src/nat.rs
+@@ -303,7 +303,7 @@ impl Nat {
+                 if c.to_host.len() < queued { out.push(c.segment(ACK, &[], c.our_seq)); } // reopen the receive window
+                 // One byte at a zero window becomes a persist probe. The same retransmission
+                 // queue retries it, recovering even when the guest's window-update ACK is lost.
+-                let send_window = usize::from(c.guest_window.min(WINDOW).max(1));
++                let send_window = usize::from(c.guest_window.clamp(1, WINDOW));
+                 while !c.host_closed && c.in_flight() < send_window {
+                     let room = send_window - c.in_flight();
+                     let mut buf = [0; MSS];
+diff --git a/esp32s3/src/net/packet.rs b/esp32s3/src/net/packet.rs
+index c52e553b..516b36a3 100644
+--- a/esp32s3/src/net/packet.rs
++++ b/esp32s3/src/net/packet.rs
+@@ -4,9 +4,9 @@ pub(crate) const GATEWAY_MAC: [u8; 6] = [0x02, 0x53, 0x49, 0x4d, 0x00, 0x02];
+ 
+ pub(crate) fn checksum(data: &[u8], init: u32) -> u16 {
+     let mut sum = init;
+-    let mut words = data.chunks_exact(2);
+-    for word in &mut words { sum += u16::from_be_bytes([word[0], word[1]]) as u32; }
+-    if let [last] = words.remainder() { sum += (*last as u32) << 8; }
++    let (words, tail) = data.as_chunks::<2>();
++    for word in words { sum += u16::from_be_bytes(*word) as u32; }
++    if let [last] = tail { sum += (*last as u32) << 8; }
+     while sum >> 16 != 0 { sum = (sum & 0xffff) + (sum >> 16); }
+     !(sum as u16)
+ }
