@@ -79,6 +79,71 @@ pub(super) fn emit(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool, 
             g.bytes.extend([0xfd, base + match cmp { Cmp::Eq => 0, Cmp::Lt => 2, Cmp::Gt => 4 }]);
             set_q(g, o.get(Role::Qa));
         }
+        Kind::SrcQ { qup, ld: Mode::None } => {
+            // Bytes k of the result are bytes k+n of Qs0:Qs1, n = SAR_BYTE & 15. A swizzle yields
+            // zero for an index above 15, so each half selects only its own bytes.
+            g.cpu(offset_of!(Cpu, sar_byte));
+            g.c(15);
+            g.op(0x71);
+            g.bytes.extend([0xfd, 0x0f]); // i8x16.splat
+            g.bytes.extend([0xfd, 0x0c]);
+            g.bytes.extend(0u8..16);
+            g.bytes.extend([0xfd, 0x6e]); // i8x16.add
+            g.set(V128);
+            q(g, o.get(Role::Qs0));
+            g.get(V128);
+            g.bytes.extend([0xfd, 0x0e]); // i8x16.swizzle
+            q(g, o.get(Role::Qs1));
+            g.get(V128);
+            g.bytes.extend([0xfd, 0x0c]);
+            g.bytes.extend([16u8; 16]);
+            g.bytes.extend([0xfd, 0x71]); // i8x16.sub
+            g.bytes.extend([0xfd, 0x0e]);
+            g.bytes.extend([0xfd, 0x50]); // v128.or
+            g.set(V128);
+            if qup {
+                // Qs0 takes the old Qs1 after Qa is written, in the interpreter's order.
+                g.get(0);
+                q(g, o.get(Role::Qs1));
+            }
+            g.get(0);
+            g.get(V128);
+            set_q(g, o.get(Role::Qa));
+            if qup {
+                set_q(g, o.get(Role::Qs0));
+            }
+        }
+        Kind::Vsr32 | Kind::Vsl32 => {
+            // Lane shift by SAR & 63; 32 and above clears. WASM takes the count modulo 32.
+            g.get(0);
+            q(g, o.get(Role::Qs));
+            g.cpu(SAR);
+            g.bytes.extend([0xfd, if p.kind == Kind::Vsr32 { 0xad } else { 0xab }, 0x01]); // i32x4.shr_u / shl
+            g.c(0);
+            g.cpu(SAR);
+            g.c(0x20);
+            g.op(0x71);
+            g.op(0x45);
+            g.op(0x6b);
+            g.bytes.extend([0xfd, 0x11]); // i32x4.splat
+            g.bytes.extend([0xfd, 0x4e]);
+            set_q(g, o.get(Role::Qa));
+        }
+        Kind::Arith { op, w, .. } => {
+            g.get(0);
+            q(g, o.get(Role::Qx));
+            q(g, o.get(Role::Qy));
+            use crate::pie::ArithOp::*;
+            let code: u32 = match (op, w) {
+                (Adds, 8) => 0x6f, (Subs, 8) => 0x72, (Min, 8) => 0x76, (Max, 8) => 0x78,
+                (Adds, 16) => 0x8f, (Subs, 16) => 0x92, (Min, 16) => 0x96, (Max, 16) => 0x98,
+                (Min, 32) => 0xb6, (Max, 32) => 0xb8,
+                _ => unreachable!("PIE arithmetic was checked before emission"),
+            };
+            g.bytes.push(0xfd);
+            uleb(&mut g.bytes, code as usize);
+            set_q(g, if o.has(Role::Qz) { o.get(Role::Qz) } else { o.get(Role::Qa) });
+        }
         Kind::Vld128(Mode::Ip) => vmem(g, bi, pc, next, last, &o, false, None),
         Kind::Vst128(Mode::Ip) => vmem(g, bi, pc, next, last, &o, true, None),
         Kind::ZeroAccx => {

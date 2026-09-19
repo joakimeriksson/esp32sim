@@ -270,7 +270,9 @@ pub unsafe extern "C" fn esp32sim_profile_report(e: *mut Emu) {
         for (i, core) in m.cores.iter().enumerate() {
             log(&format!("core={i}\n{}", core.blocks.profile.report()));
             if let Some(r) = core.blocks.region_report() { log(&format!("core={i} {r}")); }
+            log(&format!("[census] core={i} insn_count={} jit_instructions={} builds={} compiled={}", core.insn_count, core.blocks.jit_instructions, core.blocks.builds, core.blocks.compiled));
         }
+        log(&xtensa_lx7::census::report());
     }
 }
 

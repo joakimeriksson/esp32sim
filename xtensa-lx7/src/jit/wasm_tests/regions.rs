@@ -388,6 +388,49 @@ pub(super) fn regions() -> u32 {
         assert!(!whole || max >= 20, "{label}: region retired at most {max} per call");
         cases += 1;
     }
+    // EX155: the 4-bit weight unpack of pocket-tank's matmul: WUR/RUR SAR_BYTE, the byte shift
+    // across two Q registers (every count 0..15, with and without QUP, destination aliasing either
+    // source), 32-bit lane shifts for SAR 0..32, and saturating/min/max lane arithmetic.
+    let mut up = Vec::new();
+    up.extend(asm::pie("ee.vld.128.ip", &[(Qu, 0), (As, 8), (Imm, 16)]));   // 0
+    up.extend(asm::pie("ee.vld.128.ip", &[(Qu, 1), (As, 8), (Imm, 16)]));   // 3
+    up.extend(asm::addi_n(11, 11, 1));                                      // 6
+    up.extend(asm::wur(11, 13));                                            // 8
+    up.extend(asm::shift_setup(1, 11));                                     // 11 ssl: SAR 1..32
+    up.extend(asm::pie("ee.src.q", &[(Qa, 2), (Qs0, 0), (Qs1, 1)]));        // 14
+    up.extend(asm::pie("ee.src.q.qup", &[(Qa, 3), (Qs0, 0), (Qs1, 1)]));    // 17
+    up.extend(asm::pie("ee.vsr.32", &[(Qa, 4), (Qs, 2)]));                  // 20
+    up.extend(asm::pie("ee.vsl.32", &[(Qa, 5), (Qs, 3)]));                  // 23
+    up.extend(asm::shift_setup(0, 11));                                     // 26 ssr: SAR 0..31
+    up.extend(asm::pie("ee.vsr.32", &[(Qa, 6), (Qs, 2)]));                  // 29
+    up.extend(asm::pie("ee.vsl.32", &[(Qa, 7), (Qs, 3)]));                  // 32
+    up.extend(asm::pie("ee.vsubs.s8", &[(Qa, 4), (Qx, 4), (Qy, 5)]));       // 35
+    up.extend(asm::pie("ee.vadds.s8", &[(Qa, 5), (Qx, 6), (Qy, 2)]));       // 38
+    up.extend(asm::pie("ee.vsubs.s16", &[(Qa, 6), (Qx, 6), (Qy, 3)]));      // 41
+    up.extend(asm::pie("ee.vadds.s16", &[(Qa, 7), (Qx, 7), (Qy, 2)]));      // 44
+    up.extend(asm::pie("ee.vmin.s8", &[(Qa, 2), (Qx, 4), (Qy, 5)]));        // 47
+    up.extend(asm::pie("ee.vmax.s8", &[(Qa, 3), (Qx, 4), (Qy, 5)]));        // 50
+    up.extend(asm::pie("ee.vmin.s16", &[(Qa, 4), (Qx, 6), (Qy, 7)]));       // 53
+    up.extend(asm::pie("ee.vmax.s16", &[(Qa, 5), (Qx, 6), (Qy, 7)]));       // 56
+    up.extend(asm::pie("ee.vmin.s32", &[(Qa, 6), (Qx, 2), (Qy, 3)]));       // 59
+    up.extend(asm::pie("ee.vmax.s32", &[(Qa, 7), (Qx, 2), (Qy, 3)]));       // 62
+    up.extend(asm::pie("ee.src.q.qup", &[(Qa, 0), (Qs0, 0), (Qs1, 1)]));    // 65 Qa is Qs0
+    up.extend(asm::pie("ee.src.q.qup", &[(Qa, 1), (Qs0, 0), (Qs1, 1)]));    // 68 Qa is Qs1
+    up.extend(asm::pie("ee.src.q", &[(Qa, 1), (Qs0, 1), (Qs1, 0)]));        // 71
+    up.extend(asm::rur(14, 13));                                            // 74
+    up.extend(asm::mov_n(8, 12));                                           // 77
+    up.extend(asm::j(BASE + 79, BASE));                                     // 79
+    let unpack = [(0, Pie, 0), (6, AddiN, 0), (8, Wur, 0), (11, Ssl, 0), (14, Pie, 0), (17, Pie, 0), (26, Ssr, 0), (35, Pie, 0), (65, Pie, 0),
+                  (74, Rur, 0), (77, MovN, 0), (79, J, 0)];
+    let edges: Vec<u8> = (0..0x100u32).map(|i| [0x80u8, 0x7f, 0xff, 0x00, 0x01, 0x81][(i as usize * 7 + i as usize / 16) % 6]).collect();
+    for (label, cp3, data, turns) in [("unpack", 8, &mixed, 900), ("unpack-edges", 8, &edges, 900), ("unpack-cp3-off", 0, &mixed, 40)] {
+        let max = region_program_on(label, &up, &unpack, data, 28, 14, false, |c| {
+            c.cpenable = cp3;
+            c.set_ar(8, BASE + 0x1000); c.set_ar(12, BASE + 0x1000); c.set_ar(11, 0xffff_fff0);
+        }, turns);
+        assert!(cp3 == 0 || max >= 20, "{label}: region retired at most {max} per call");
+        cases += 1;
+    }
     // Region formation itself for the tile scan: every static successor, nothing past RSR.
     let mut ram = Ram::new(true, false);
     ram.ram.mem[..tp.len()].copy_from_slice(&tp);

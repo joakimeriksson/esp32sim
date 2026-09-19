@@ -1,12 +1,14 @@
 //! Admission and proof policy for the WASM backend. Opcode families stay explicit;
 //! decoded PIE kinds and special-register operands retain their own legality checks.
 use super::*;
-use crate::pie::{Kind, LdKind, Mode, OPS};
+use crate::pie::{ArithOp, Kind, LdKind, Mode, OPS};
 
 /// `supported` for a decoded instruction: PIE eligibility depends on the table entry, and RUR
 /// is emitted for ACCX_0/ACCX_1, which inference kernels read after every dot product.
 pub(in crate::jit) fn supported_insn(i: &crate::Insn, fast: bool) -> bool {
-    supported(i.op, fast) || pie(i, fast) || (i.op == crate::Op::Rur && matches!(i.imm, 0 | 1))
+    supported(i.op, fast) || pie(i, fast) || (i.op == crate::Op::Rur && matches!(i.imm, 0 | 1 | 13))
+        // EX155: WUR SAR_BYTE precedes every ee.src.q of the 4-bit unpack kernels.
+        || (i.op == crate::Op::Wur && i.imm == 13)
         || (i.op == crate::Op::Rsr && rsr_field(i.imm as u32).is_some())
 }
 
@@ -232,6 +234,11 @@ pub(in crate::jit) fn pie(i: &crate::Insn, fast: bool) -> bool {
         Kind::Vcmp { w, .. } => matches!(w, 8 | 16 | 32),
         Kind::Vld128(Mode::Ip) | Kind::Vst128(Mode::Ip) => fast,
         Kind::ZeroAccx => true,
+        // EX155: the 4-bit weight unpack (byte shift across two Q registers, lane shift, saturating
+        // subtract of the zero point); none of these touch memory or an optional PIE price.
+        Kind::SrcQ { ld: Mode::None, .. } | Kind::Vsr32 | Kind::Vsl32 => true,
+        Kind::Arith { op: ArithOp::Adds | ArithOp::Subs, w: 8 | 16, ld: false, st: false } => true,
+        Kind::Arith { op: ArithOp::Max | ArithOp::Min, w: 8 | 16 | 32, ld: false, st: false } => true,
         Kind::Vmulas { signed: true, w: 8 | 16, accx: true, ld: LdKind::None, qup: false } => true,
         Kind::Vmulas { signed: true, w: 8 | 16, accx: true, ld: LdKind::Ip, qup: false } => fast,
         _ => false,

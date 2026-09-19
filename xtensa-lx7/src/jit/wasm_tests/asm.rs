@@ -12,6 +12,10 @@ pub fn xor(r: u32, s: u32, t: u32) -> Vec<u8> { w24((t << 4) | (s << 8) | (r << 
 pub fn rsr(t: u32, sr: u32) -> Vec<u8> { w24((3 << 16) | (sr << 8) | (t << 4)) }
 /// RUR: op2 = 14, op1 = 3; the user register number is s:t.
 pub fn rur(r: u32, ur: u32) -> Vec<u8> { w24((0xe3 << 16) | (r << 12) | (ur << 4)) }
+/// WUR: op2 = 15, op1 = 3; the user register number is r:s.
+pub fn wur(t: u32, ur: u32) -> Vec<u8> { w24((0xf3 << 16) | (ur << 8) | (t << 4)) }
+/// ssr=0 ssl=1
+pub fn shift_setup(kind: u32, s: u32) -> Vec<u8> { w24((4 << 20) | (kind << 12) | (s << 8)) }
 /// loop=8 loopnez=9 loopgtz=10; the end is pc + 4 + imm8
 pub fn lp(r: u32, pc: u32, s: u32, end: u32) -> Vec<u8> { w24(0x76 | (s << 8) | (r << 12) | ((end - pc - 4) << 16)) }
 pub fn entry(s: u32, frame: u32) -> Vec<u8> { w24(0x36 | (s << 8) | ((frame >> 3) << 12)) }

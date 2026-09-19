@@ -141,7 +141,7 @@ async function runManifest(name) {
   if (m.nodes) return runNetwork(name, m);
   const logs = [];
   const blockJit = createJitHost(() => w);
-  const { instance } = await WebAssembly.instantiate(wasmBytes, { env: { ...blockJit.imports, host_log: (p, n) => logs.push(dec.decode(mem().subarray(p, p + n))) } });
+  const { instance } = await WebAssembly.instantiate(wasmBytes, { env: { ...blockJit.imports, host_profile_now: () => performance.now(), host_log: (p, n) => logs.push(dec.decode(mem().subarray(p, p + n))) } });
   const w = instance.exports;
   const mem = () => new Uint8Array(w.memory.buffer);
   const withBytes = (bytes, f) => { const p = w.esp32sim_alloc(bytes.length); mem().set(bytes, p); try { return f(p, bytes.length); } finally { w.esp32sim_free(p, bytes.length); } };
@@ -189,6 +189,7 @@ async function runManifest(name) {
   if (!board) problems.push('no board message');
   if (!text.includes(m.expect || EXPECT.console)) problems.push(`console never showed ${JSON.stringify(m.expect || EXPECT.console)}; got ${text.length} bytes`);
   const insns = w.esp32sim_insns(emu);
+  if (w.esp32sim_profile_report && process.env.CENSUS_OUT) { const at = logs.length; w.esp32sim_profile_report(emu); (await import('node:fs')).writeFileSync(process.env.CENSUS_OUT, logs.slice(at).join('\n')); }
   w.esp32sim_delete(emu);
   const wall = (Date.now() - t0) / 1000;
   if (problems.length) { failures++; console.error(`FAIL ${name}: ${problems.join('; ')}\n  logs: ${logs.slice(0, 5).join('\n        ')}\n  console tail: ${text.slice(-400)}`); }

@@ -396,6 +396,22 @@ extern "C" fn h_exec<B: Bus>(
     // owned by its live CodeCache. No Rust execution overlaps generated access.
     let (cpu, bus, instruction) = unsafe { (&mut *cpu, &mut *bus, &*instruction) };
     cpu.pc = pc;
+    #[cfg(feature = "wasm-jit-profile")]
+    {
+        let c = crate::census::get();
+        let core = crate::census::core(cpu);
+        let i = &instruction.insn;
+        use crate::Op::*;
+        let addr = match i.op {
+            L8ui | L16ui | L16si | L32i | L32iN | S8i | S16i | S32i | S32iN | Lsi | Ssi => Some(cpu.get_ar(i.s).wrapping_add(i.imm as u32)),
+            L32r => Some(i.imm as u32),
+            Pie => { let p = &crate::pie::OPS[i.imm as usize]; let o = crate::pie::extract(i.raw, p); o.has(crate::pie::Role::As).then(|| cpu.get_ar(o.get(crate::pie::Role::As) as u8)) }
+            _ => None,
+        };
+        let nm = crate::census::name(i);
+        *c.helpers.entry((core, nm.clone(), addr.map_or(0, |a| a >> 16))).or_default() += 1;
+        if let Some(a) = addr { *c.slowmem.entry((core, nm, crate::census::region(a))).or_default() += 1; }
+    }
     if crate::exec::defer_instruction(cpu, bus, &instruction.insn) {
         cpu.jit_trap = None;
         return 1;
@@ -718,6 +734,10 @@ unsafe fn run_block_body<B: Bus>(cc: &CodeCache, code: u32, cpu: &mut Cpu, bus: 
     if result >> 16 == CODE_CUT { result | ((offset as u32) << 19) } else { result }
 }
 
+#[cfg(feature = "wasm-jit-profile")]
+pub fn census_supported(i: &crate::Insn, fast: bool) -> bool { emitter::supported_insn(i, fast) }
+#[cfg(feature = "wasm-jit-profile")]
+pub fn census_terminal(op: crate::Op) -> bool { emitter::terminal_helper(op) }
 #[path = "wasm_emit.rs"]
 mod emitter;
 use emitter::generate;

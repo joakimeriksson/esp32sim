@@ -26,13 +26,23 @@ pub(super) fn emit(
         return true;
     }
     if i.op == Rur {
-        if !matches!(imm, 0 | 1) {
+        if !matches!(imm, 0 | 1 | 13) {
             return false;
         }
-        // RUR ACCX_0 / ACCX_1: `Cpu::read_ur` returns the word as stored and, unlike FCR and
-        // FSR, checks no coprocessor enable.
-        g.cpu(offset_of!(Cpu, accx) + 4 * imm as usize);
+        // RUR ACCX_0 / ACCX_1 / SAR_BYTE: `Cpu::read_ur` returns the word as stored and, unlike
+        // FCR and FSR, checks no coprocessor enable.
+        g.cpu(if imm == 13 { offset_of!(Cpu, sar_byte) } else { offset_of!(Cpu, accx) + 4 * imm as usize });
         g.set_ar(r);
+        return true;
+    }
+    if i.op == Wur {
+        if imm != 13 {
+            return false;
+        }
+        // EX155: WUR SAR_BYTE stores the register unmasked, as `Cpu::write_ur` does.
+        g.get(0);
+        g.ar(t);
+        g.store(offset_of!(Cpu, sar_byte));
         return true;
     }
     if i.op == Rsr {

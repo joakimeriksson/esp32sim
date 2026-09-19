@@ -11,6 +11,8 @@ pub mod pie;
 pub mod pie_timing;
 pub mod pie_table;
 
+#[cfg(feature = "wasm-jit-profile")]
+pub mod census;
 pub mod block;
 pub mod jit;
 pub use emu_core::{Bus, Core, Fault, FlatRam};
