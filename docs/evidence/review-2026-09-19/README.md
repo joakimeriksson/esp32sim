@@ -14,3 +14,5 @@ The scope has explicit limits:
 - The checks establish the recorded emulator behavior, not silicon timing fidelity or a Pocket Tank speedup.
 
 These limits and counts are recorded in [validation.json](validation.json). Full logs remain in the ignored local `work/validation-final-0919/` directory. The receipt preserves their SHA-256 hashes and byte lengths, but there is no public raw-log archive yet. Retain the local copies until any required external archive is accessible, following the [evidence retention policy](../README.md).
+
+A [subsequent default production rebuild](production-rebuild.json) includes the three lint rewrites and passed hello, panel and JIT-handoff smoke checks. Its artifact is recorded separately from the earlier eight-manifest run.

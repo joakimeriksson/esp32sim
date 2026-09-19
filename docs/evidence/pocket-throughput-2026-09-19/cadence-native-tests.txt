@@ -1,0 +1,60 @@
+   Compiling emu-core v0.2.0 (/Users/sarah/src/a/esp32sim/work/pocket-cadence-0919/emu-core)
+   Compiling esp-periph v0.2.0 (/Users/sarah/src/a/esp32sim/work/pocket-cadence-0919/esp-periph)
+   Compiling xtensa-lx7 v0.2.0 (/Users/sarah/src/a/esp32sim/work/pocket-cadence-0919/xtensa-lx7)
+   Compiling esp-soc v0.2.0 (/Users/sarah/src/a/esp32sim/work/pocket-cadence-0919/esp-soc)
+   Compiling esp32s3 v0.2.0 (/Users/sarah/src/a/esp32sim/work/pocket-cadence-0919/esp32s3)
+warning: output of `xcrun` while finding MacOSX.sdk
+  |
+  = note: xcrun: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+
+warning: linker stderr: cc: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `esp32s3` (test "machine") generated 2 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.38s
+     Running tests/machine.rs (target-native/debug/deps/machine-e1bbddef22f5559e)
+
+running 22 tests
+test browser_touch_reaches_the_amoled_controller_and_gpio ... ok
+test idle_cores_skip_time ... ok
+test browser_external_blocks_are_single_core_scheduler_transactions ... ok
+test light_grid_reports_the_glass_not_the_chain ... ok
+test host_touch_is_delivered_on_the_next_fast_path_bus_tick ... ok
+test console_capture_and_backlog ... ok
+test peripheral_block_names_cover_aes_neighbors ... ok
+test idle_scripts_fire_at_their_deadlines_in_both_entry_paths ... ok
+test due_script_stop_precedes_execution_and_observes_edits_between_runs ... ok
+test knob_input_preserves_pending_scripts_at_the_current_horizon ... ok
+test browser_external_finish_honors_halt_and_drains_console ... ok
+test idle_cut_includes_each_enabled_cores_timer ... ok
+test idle_stops_at_requested_cycle_and_instruction_limits ... ok
+test queued_display_output_does_not_build_an_unused_socket_snapshot ... ok
+test reboot_keeps_what_silicon_keeps ... ok
+test queued_web_input_is_ordered_and_does_not_advance_guest_time ... ok
+test observers_count_the_same_instructions_either_way ... ok
+test core1_runs_when_released ... ok
+test scripts_use_the_board ... ok
+test quiet_display_publication_remains_live_during_continuous_changes ... ok
+test ordinary_trap_observers_keep_block_execution_and_post_trap_state ... ok
+test precise_trap_observer_reports_fault_after_resumed_hardware_loop ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+   Compiling esp32s3 v0.2.0 (/Users/sarah/src/a/esp32sim/work/pocket-cadence-0919/esp32s3)
+warning: output of `xcrun` while finding MacOSX.sdk
+  |
+  = note: xcrun: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+
+warning: linker stderr: cc: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `esp32s3` (test "web_cadence") generated 2 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.48s
+     Running tests/web_cadence.rs (target/native-tests/debug/deps/web_cadence-b19492a201c23ca6)
+
+running 1 test
+test board_replacement_preserves_last_push_and_refreshes_each_scheduler_entry ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
