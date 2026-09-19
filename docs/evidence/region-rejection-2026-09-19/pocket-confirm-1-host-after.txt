@@ -1,0 +1,9 @@
+18:28  up 6 days,  4:41, 2 users, load averages: 8.30 7.97 10.11
+ %CPU COMM
+ 38.4 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/FSEvents.framework/Versions/A/Support/fseventsd
+ 37.8 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+ 28.6 /System/Library/PrivateFrameworks/MediaAnalysis.framework/Versions/A/mediaanalysisd
+ 17.8 /usr/libexec/duetexpertd
+ 17.0 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mds
+ 10.6 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mds_stores
+  8.8 /System/Library/CoreServices/Finder.app/Contents/MacOS/Finder

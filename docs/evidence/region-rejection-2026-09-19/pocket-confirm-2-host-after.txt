@@ -1,0 +1,9 @@
+19:45  up 6 days,  5:58, 2 users, load averages: 9.66 10.15 11.26
+ %CPU COMM
+ 40.0 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+ 33.0 /Applications/Helium.app/Contents/Frameworks/Helium Framework.framework/Versions/153.0.8010.52/Helpers/Helium Helper (Renderer).app/Contents/MacOS/Helium Helper (Renderer)
+ 27.1 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/FSEvents.framework/Versions/A/Support/fseventsd
+ 18.9 /Applications/Helium.app/Contents/MacOS/Helium
+ 17.1 /System/Library/CoreServices/AccessibilityUIServer.app/Contents/MacOS/AccessibilityUIServer
+ 12.6 /usr/libexec/duetexpertd
+ 12.1 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mds
