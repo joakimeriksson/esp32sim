@@ -8,7 +8,8 @@ ROLES = set()
 def role_of(name):
     n = name.lower()
     if n.startswith('imm'): r = 'Imm'
-    elif n.startswith(('sel','upd')): r = 'Sel'
+    elif n.startswith('sel'): r = 'Sel'
+    elif n.startswith('upd'): r = 'Upd'
     elif n.startswith('sar'): r = 'Sar'
     else: r = n[0].upper() + n[1:]
     ROLES.add(r); return r

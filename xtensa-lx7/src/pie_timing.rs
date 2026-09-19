@@ -57,11 +57,12 @@ pub fn effects(p: &PieInsn, o: &Ops) -> QEffects {
         Kind::Vsmulas { ld, .. } => {
             e.reads = bits(&[Qx, Qy]); e.writes = if ld { bits(&[Qu]) } else { 0 };
         }
-        Kind::Cmul { store } => {
+        Kind::Cmul { store: false } => {
             e.reads = bits(&[Qx, Qy]);
-            if o.get(Sel) as u32 / 2 < 3 { e.reads |= bits(&[dst]); e.writes |= bits(&[dst]); }
-            if store { e.reads |= bits(&[Qv]); } else { e.writes |= bits(&[Qu]); }
+            if o.get(Sel) < 6 { e.reads |= bits(&[Qz]); e.writes |= bits(&[Qz]); }
+            e.writes |= bits(&[Qu]);
         }
+        Kind::Cmul { store: true } => e.reads = bits(&[Qx, Qy, Qv]),
         Kind::MvQr => { e.reads = bits(&[Qs, Qx]); e.writes = bits(&[Qu, Qa]); }
         Kind::Ldqa { .. } | Kind::LdAccx | Kind::StAccx | Kind::LdQacc { .. }
         | Kind::StQacc { .. } | Kind::LdUa | Kind::StUa | Kind::Ldf { .. }

@@ -45,27 +45,27 @@ impl Cpu {
     /// Unmasked pending interrupts (non-zero if `check_interrupts` would deliver one).
     #[inline]
     pub fn check_interrupts_pending(&self) -> u32 {
-        let pending = self.interrupt & self.intenable;
+        // NMI ignores both INTENABLE and PS.INTLEVEL (Xtensa ISA, section 4.4.6).
+        let pending = self.interrupt & (self.intenable | INTTYPE_NMI);
         if pending == 0 { return 0; }
         let mask_level = if self.excm() { self.intlevel().max(EXCM_LEVEL) } else { self.intlevel() };
-        pending & INT_ABOVE[mask_level as usize]
+        pending & (INT_ABOVE[mask_level as usize] | INTTYPE_NMI)
     }
 
-    /// Deliver the highest-priority enabled pending interrupt, if any is unmasked.
+    /// Deliver the highest-priority unmasked interrupt and acknowledge the NMI edge, if taken.
     pub fn check_interrupts(&mut self) -> Option<Trap> {
-        let pending = self.interrupt & self.intenable;
+        let pending = self.check_interrupts_pending();
         if pending == 0 { return None; }
-        let mask_level = if self.excm() { self.intlevel().max(EXCM_LEVEL) } else { self.intlevel() };
-        if pending & INT_ABOVE[mask_level as usize] == 0 { return None; }
         let mut best: Option<(u32, u32)> = None;   // (level, irq)
         let mut p = pending;
         while p != 0 {
             let irq = p.trailing_zeros();
             p &= p - 1;
             let level = INT_LEVEL[irq as usize] as u32;
-            if level > mask_level && best.is_none_or(|(l, _)| level > l) { best = Some((level, irq)); }
+            if best.is_none_or(|(l, _)| level > l) { best = Some((level, irq)); }
         }
         let (level, irq) = best?;
+        if irq == NMI_INTERRUPT { self.interrupt &= !INTTYPE_NMI; }
         self.waiting = false;
         if level == 1 {
             self.exccause = exc::LEVEL1_INTERRUPT;
