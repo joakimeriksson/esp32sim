@@ -134,16 +134,16 @@ fn software_reset_stops_before_the_siblings_store_and_charges_only_executed_time
     use esp_soc::observers::PcHist;
     const STORE: [u8; 3] = [0x22, 0x63, 0x00]; // s32i a2,a3,0
     const SRAM: u32 = 0x3fc9_0000;
-    for mode in 0..4 {
+    for (mode, cpi) in [(0, 1), (1, 1), (2, 1), (2, 3), (3, 1), (3, 3)] {
         let mut m = machine();
         m.vq_max = 1;
         if mode == 1 { m.add_observer(Box::new(PcHist::new(1))); }
-        if mode >= 2 { m.set_approximate_jit_timing(1, 64).unwrap(); }
+        if mode >= 2 { m.set_approximate_jit_timing(cpi, 64).unwrap(); }
         if mode == 3 { m.set_approximate_jit_frontiers(true).unwrap(); }
         park(&mut m, 0, IRAM, &SPIN);
         esp_soc::SocBus::load_bytes(&mut m.bus, RESET, &SPIN).unwrap();
         m.bus.write32(0x600c_0000, 0b010).unwrap();
-        m.max_cycles = 64;
+        m.max_cycles = 64 * u64::from(cpi);
         m.run(u64::MAX);
         m.max_cycles = u64::MAX;
         park(&mut m, 0, IRAM + 16, &STORE);
@@ -152,10 +152,11 @@ fn software_reset_stops_before_the_siblings_store_and_charges_only_executed_time
         m.cores[0].set_ar(3, 0x6000_8000); // RTC_CNTL_OPTIONS0.SW_SYS_RST
         m.cores[1].set_ar(2, 0xdead_beef);
         m.cores[1].set_ar(3, SRAM);
-        let before = (m.bus.cycles, m.cores[1].insn_count(), m.run_steps());
+        let before = (m.bus.cycles, m.cores[1].insn_count(), m.run_steps(), m.cores[0].ccount);
         assert!(matches!(m.run(128), Stop::SwReset), "mode={mode}");
         assert_eq!(m.bus.read32(SRAM).unwrap(), 0, "core 1 must not store after core 0 resets, mode={mode}");
-        assert_eq!((m.bus.cycles, m.cores[1].insn_count()), (before.0 + 1, before.1), "only the reset instruction's time, mode={mode}");
+        assert_eq!((m.bus.cycles, m.cores[1].insn_count()), (before.0 + u64::from(cpi), before.1), "only the reset instruction's time, mode={mode}");
+        assert_eq!(m.cores[0].ccount - before.3, cpi);
         assert_eq!(m.run_steps() - before.2, 1);
         m.reboot();
         assert_eq!(m.run_steps(), before.2 + 1, "run budget survives chip reset");
