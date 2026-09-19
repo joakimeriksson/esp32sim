@@ -134,8 +134,8 @@ pub struct Cpu {
     pub gpio_out: u32,
     /// halted by WAITI until an interrupt arrives
     pub waiting: bool,
-    /// external interrupt lines currently asserted (level-triggered sources)
-    pub ext_level_lines: u32,
+    /// Previous external interrupt input levels, used to detect rising edges.
+    pub ext_irq_lines: u32,
     pub insn_count: u64,
     /// decoded-instruction cache: direct-mapped on pc, validated by the page write-version
     pub icache: Vec<crate::decode::CacheEntry>,
@@ -194,7 +194,7 @@ impl Cpu {
             configid: [0xC2ECFAFE, 0x22F86EDF],   // reported by real S3 (informational)
             fr: [0; 16], fcr: 0, fsr: 0,
             qr: [0; 8], accx: [0; 2], qacc_h: [0; 5], qacc_l: [0; 5], sar_byte: 0, fft_bit_width: 0, ua_state: [0; 4], gpio_out: 0,
-            waiting: false, ext_level_lines: 0, insn_count: 0,
+            waiting: false, ext_irq_lines: 0, insn_count: 0,
             icache: vec![crate::decode::CacheEntry::EMPTY; crate::decode::ICACHE_SIZE],
             blocks: crate::block::BlockCache::new(), boundary_bloom: 0, jit_trap: None, timing_extra: 0, price_control: false, icache_fill: 0, icache_misses: 0, fetch_ring: [0; 64], fetch_n: 0,
         };
@@ -211,6 +211,7 @@ impl Cpu {
         self.vecbase = 0x4000_0000;
         self.intenable = 0;
         self.interrupt = 0;
+        self.ext_irq_lines = 0;
         self.lcount = 0;
         self.cpenable = 0;
         self.icountlevel = 0;

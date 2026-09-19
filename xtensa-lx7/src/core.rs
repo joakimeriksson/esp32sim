@@ -3,21 +3,25 @@
 //! write itself.
 use crate::bus::Bus;
 use crate::exec::Trap;
-use crate::state::{Cpu, EXCM_LEVEL, INT_ABOVE, INTTYPE_LEVEL, TIMER_INTERRUPT};
+use crate::state::{Cpu, EXCM_LEVEL, INT_ABOVE, INTTYPE_EDGE, INTTYPE_LEVEL, INTTYPE_NMI, TIMER_INTERRUPT};
 use emu_core::StepOutcome;
 
 const AR: [&str; 16] = ["a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9", "a10", "a11", "a12", "a13", "a14", "a15"];
 
 impl emu_core::Core for Cpu {
-    /// The 32 interrupt lines after the interrupt matrix; only the level-triggered ones are the
-    /// SoC's to set, the timer/software/edge bits belong to the core.
+    /// The 32 interrupt lines after the interrupt matrix. External level inputs follow the
+    /// line state; external edge and NMI inputs latch rising edges inside the core.
     type Irq = u32;
     fn reset(&mut self) { Cpu::reset(self) }
     fn pc(&self) -> u32 { self.pc }
     fn set_pc(&mut self, pc: u32) { self.pc = pc; }
     fn waiting(&self) -> bool { self.waiting }
     fn insn_count(&self) -> u64 { self.insn_count }
-    fn set_irq(&mut self, lines: u32) { self.interrupt = (self.interrupt & !INTTYPE_LEVEL) | (lines & INTTYPE_LEVEL); }
+    fn set_irq(&mut self, lines: u32) {
+        let rising = lines & !self.ext_irq_lines & (INTTYPE_EDGE | INTTYPE_NMI);
+        self.interrupt = (self.interrupt & !INTTYPE_LEVEL) | (lines & INTTYPE_LEVEL) | rising;
+        self.ext_irq_lines = lines;
+    }
     fn irq_pending(&self) -> bool { self.check_interrupts_pending() != 0 }
     fn irq_bits(irq: &u32) -> u32 { *irq }
     fn advance_cycles(&mut self, cycles: u32) { self.advance_ccount(cycles) }
@@ -104,6 +108,76 @@ impl Cpu {
 mod tests {
     use emu_core::{Bus, CacheOperation, ControlEventKind, Core, Fault, FlatRam, StepKind, TlbOperation, Trap};
     use crate::state::{exc, TIMER_INTERRUPT};
+
+    #[test]
+    fn external_lines_preserve_core_interrupts_and_track_levels() {
+        use crate::state::{INTTYPE_LEVEL, INTTYPE_PROFILING, INTTYPE_SOFTWARE, INTTYPE_TIMER};
+        let mut cpu = crate::Cpu::new(0);
+        let internal = INTTYPE_SOFTWARE | INTTYPE_TIMER | INTTYPE_PROFILING;
+        // The interrupt matrix cannot manufacture internal timer/software/profiling requests.
+        cpu.set_irq(internal);
+        assert_eq!(cpu.interrupt, 0);
+        cpu.interrupt = internal;
+        cpu.set_irq(INTTYPE_LEVEL);
+        assert_eq!(cpu.interrupt, internal | INTTYPE_LEVEL);
+        cpu.set_irq(0);
+        assert_eq!(cpu.interrupt, internal);
+    }
+
+    #[test]
+    fn external_edges_latch_until_cleared_and_require_a_new_rising_edge() {
+        use crate::state::{sr, INTTYPE_EDGE};
+        let mut cpu = crate::Cpu::new(0);
+        cpu.set_irq(INTTYPE_EDGE);
+        cpu.set_irq(0);
+        assert_eq!(cpu.interrupt, INTTYPE_EDGE, "deasserting the input keeps the edge latch");
+        cpu.write_sr(sr::INTCLEAR, INTTYPE_EDGE);
+        assert_eq!(cpu.interrupt, 0);
+        cpu.set_irq(INTTYPE_EDGE);
+        assert_eq!(cpu.interrupt, INTTYPE_EDGE);
+        cpu.write_sr(sr::INTCLEAR, INTTYPE_EDGE);
+        cpu.set_irq(INTTYPE_EDGE);
+        assert_eq!(cpu.interrupt, 0, "a held input does not retrigger a cleared latch");
+        cpu.set_irq(0);
+        cpu.set_irq(INTTYPE_EDGE);
+        assert_eq!(cpu.interrupt, INTTYPE_EDGE);
+    }
+
+    #[test]
+    fn nmi_bypasses_masks_wakes_waiti_and_acknowledges_its_edge() {
+        use crate::state::{ps, sr, vec, INTTYPE_NMI, NMI_INTERRUPT};
+        for intlevel in [0, 3, 7, 15] {
+            let mut cpu = crate::Cpu::new(0);
+            cpu.ps = ps::EXCM | intlevel;
+            cpu.intenable = 0;
+            cpu.waiting = true;
+            let (pc, saved_ps) = (cpu.pc, cpu.ps);
+            cpu.set_irq(INTTYPE_NMI);
+            cpu.write_sr(sr::INTCLEAR, INTTYPE_NMI);
+            assert!(cpu.irq_pending());
+            assert_eq!(cpu.check_interrupts(), Some(Trap::Interrupt(NMI_INTERRUPT)));
+            assert_eq!((cpu.epc[7], cpu.eps[7], cpu.pc), (pc, saved_ps, cpu.vecbase + vec::NMI));
+            assert!(!cpu.waiting);
+            assert!(!cpu.irq_pending());
+            cpu.set_irq(INTTYPE_NMI);
+            assert_eq!(cpu.check_interrupts(), None, "a held NMI fires only once");
+            cpu.set_irq(0);
+            cpu.set_irq(INTTYPE_NMI);
+            assert_eq!(cpu.check_interrupts(), Some(Trap::Interrupt(NMI_INTERRUPT)));
+        }
+    }
+
+    #[test]
+    fn reset_rearms_external_edge_detection() {
+        use crate::state::{INTTYPE_EDGE, INTTYPE_NMI};
+        let mut cpu = crate::Cpu::new(0);
+        let edges = INTTYPE_EDGE | INTTYPE_NMI;
+        cpu.set_irq(edges);
+        cpu.reset();
+        assert_eq!(cpu.interrupt, 0);
+        cpu.set_irq(edges);
+        assert_eq!(cpu.interrupt, edges);
+    }
     /// `movi a2, 5; j .` through the trait, on the block path and the step path.
     #[test]
     fn approximate_block_cost_charges_ccount_and_cuts_at_timer() {
