@@ -1,0 +1,25 @@
+60576  55.8 /System/Library/PrivateFrameworks/MediaAnalysis.framework/Versions/A/mediaanalysisd
+  426  40.8 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+  695  15.0 /System/Library/PrivateFrameworks/CloudKitDaemon.framework/Support/cloudd
+71428  14.3 /Applications/Helium.app/Contents/Frameworks/Helium Framework.framework/Versions/153.0.8010.52/Helpers/Helium Helper (Renderer).app/Contents/MacOS/Helium Helper (Renderer)
+61702  14.1 /Applications/ChatGPT.app/Contents/Resources/codex
+  982  12.7 /Applications/Dropbox.app/Contents/MacOS/Dropbox
+ 8855  10.0 /Applications/Ghostty.app/Contents/MacOS/ghostty
+  763   9.7 /System/Library/CoreServices/AccessibilityUIServer.app/Contents/MacOS/AccessibilityUIServer
+  600   6.9 /usr/sbin/coreaudiod
+61714   6.8 /Applications/ChatGPT.app/Contents/Frameworks/Codex Framework.framework/Versions/153.0.8010.48/Helpers/Codex (Renderer).app/Contents/MacOS/Codex (Renderer)
+  560   5.2 /System/Library/DriverExtensions/com.apple.DriverKit-AppleBCMWLAN.dext/com.apple.DriverKit-AppleBCMWLAN
+ 8477   5.0 pi
+94594   4.7 /Users/alice/.local/bin/herdr
+10989   4.1 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mdworker_shared
+ 8655   3.7 /Applications/Signal Beta.app/Contents/Frameworks/Signal Beta Helper (Renderer).app/Contents/MacOS/Signal Beta Helper (Renderer)
+71323   3.6 /Applications/Helium.app/Contents/MacOS/Helium
+94593   2.9 herdr
+71166   2.8 /Applications/ChatGPT.app/Contents/Frameworks/Codex Framework.framework/Versions/153.0.8010.48/Helpers/Codex (Renderer).app/Contents/MacOS/Codex (Renderer)
+95973   2.4 pi
+71330   2.2 /Applications/Helium.app/Contents/Frameworks/Helium Framework.framework/Versions/153.0.8010.52/Helpers/Helium Helper.app/Contents/MacOS/Helium Helper
+ 1571   2.1 /usr/libexec/spotlightknowledged.importer
+10990   2.0 /bin/zsh
+57394   1.9 /Applications/zoom.us.app/Contents/MacOS/zoom.us
+ 8667   1.5 /Applications/Telegram.app/Contents/MacOS/Telegram
+ 8695   1.4 /Applications/Discord.app/Contents/Frameworks/Discord Helper (Renderer).app/Contents/MacOS/Discord Helper (Renderer)
