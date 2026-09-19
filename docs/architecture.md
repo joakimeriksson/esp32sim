@@ -1,10 +1,11 @@
 # Architecture
 
-esp32sim emulates two ESP32 SoCs across both of Espressif's CPU architectures: the **ESP32-S3**
-(two Xtensa LX7 cores) and the **ESP32-C3** (one RISC-V RV32IMC core, see
-[esp32c3.md](esp32c3.md)). They share the SoC peripheral models wherever the IP is identical, and
+esp32sim emulates three ESP32 SoCs across both of Espressif's CPU architectures: the **ESP32-S3**
+(two Xtensa LX7 cores), **ESP32-C3** (one RISC-V RV32IMC core, see
+[esp32c3.md](esp32c3.md)) and **ESP32-C6** (one RISC-V RV32IMAC core, see
+[esp32c6.md](esp32c6.md)). They share the SoC peripheral models wherever the IP is identical and
 differ in their CPU crate, memory map and interrupt controller. This document describes the S3,
-which is the more complete of the two; the C3 follows the same shape.
+which has the most complete model; the C3 and C6 follow the same shape.
 
 esp32sim is an instruction-level emulator of the ESP32-S3: it executes the real mask ROM, the
 real second-stage bootloader and an unmodified application image on two emulated Xtensa LX7
@@ -14,8 +15,8 @@ licensed, and contains no third-party emulator code (QEMU was consulted for inst
 *semantics* only).
 
 ```
-cli/          esp32sim binary, both chips: argument parsing, image loading, run loop, reports
-              (`--chip s3|c3`; the setup that is chip-specific is one function per chip)
+cli/          esp32sim binary, all three chips: argument parsing, image loading, run loop, reports
+              (`--chip s3|c3|c6`; the setup that is chip-specific is one function per chip)
 esp-soc/      Machine<S: Soc>, written once for every chip: the scheduler (64-instruction quanta,
               idle skipping, per-core reset state), lazy device time, console capture, action
               scripts, function stubs/probes, tracing and watchpoints, the web UI protocol,
@@ -34,10 +35,7 @@ esp32s3/      the SoC and boards
   wifi.rs     virtual 802.11 access point: beacons, probe/auth/assoc, WPA2 four-way handshake
   net.rs      the emulated subnet 10.0.2.0/24: ARP, DHCP, ICMP, DNS, SNTP
   nat.rs      user-mode NAT: guest TCP/UDP relayed over ordinary host sockets
-  crypto.rs   SHA-1/2, HMAC, PBKDF2, the 802.11 PRF, AES, AES key wrap, bignum arithmetic
   board/      one file per board: Atech14, WaveshareCam, WaveshareLcd4b, WaveshareAmoled18V2 (BoardModel from esp-soc)
-  web.rs      dependency-free HTTP + WebSocket server
-  elf.rs / image.rs / picture.rs   loaders (ELF symbols/segments, ESP app images, BMP/PPM)
 esp-periph/   the peripheral IP Espressif chips share, one file each (UART, USB-Serial/JTAG,
               systimer, TIMG, GPIO, RTC_CNTL, efuse, SYSTEM, SPI_MEM, GDMA, SHA/AES/RSA, I2S, RMT,
               I2C), the `Device` trait they implement, and `device_set!`: the one table per chip
@@ -62,9 +60,10 @@ wasm-jit/     receipt-priced wasm emitter; first SRAM opcode slice, shared-memor
 ## CPU core (`xtensa-lx7`)
 
 - **Decoder**: `decode(pc, bytes) -> Insn` with fields `op, r, s, t, imm, imm2, len, raw`.
-  Verified against `xtensa-esp32s3-elf-objdump` over the Pocket Synth app, the mask ROM, the
-  IDF 5.5 bootloader, `hello_world` and the autopling image (977 544 instructions, 0
-  mismatches, `xtensa-lx7/tests/objdump_diff.rs`).
+  Earlier full-listing runs reported 977,544 instructions with zero mismatches over the
+  Pocket Synth app, mask ROM, IDF 5.5 bootloader, `hello_world` and autopling image.
+  CI checks sampled corpora; the optional full-listing test requires external inputs.
+  PIE operand comparisons are excluded by [the decoder test](../xtensa-lx7/tests/objdump_diff.rs).
 - **PIE**: all 217 `ee.*` encodings come from the TRM chapter-1 "Instruction Word" layouts
   (`tools/gen_pie_table.py` + `tools/pie_trm.json` → `pie_table.rs`), cross-checked against
   the ESP-IDF 5.5 assembler. Execution follows the TRM "Operation" pseudo-code; PIE is
@@ -120,8 +119,8 @@ wasm-jit/     receipt-priced wasm emitter; first SRAM opcode slice, shared-memor
   the MAC's TSF timestamp, the FE's IQ-done bit) are handled in `DeviceSet::pre_access`.
 - **Interrupts**: every source has a level computed by its model (`Peripherals::source_status`);
   the per-core interrupt matrix maps sources to the 32 Xtensa interrupt lines. Lines are
-  recomputed when a register write flags `irq_dirty` or every 32 cycles, then written into
-  `cpu.interrupt` so the next `step()` sees them.
+  recomputed after delivered device ticks or a change flags `irq_dirty`, then presented to
+  the core before execution continues. The scheduler does not poll them every 32 cycles.
 - **DMA**: GDMA out-channels feed I2S0/I2S1 (audio → `pcm` samples at the configured rate),
   in-channels are fed by the LCD_CAM camera engine (one frame per sensor period). Descriptor
   chains are walked in guest memory exactly as the driver builds them.
