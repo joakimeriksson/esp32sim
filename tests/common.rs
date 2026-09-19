@@ -49,10 +49,12 @@ pub fn insn_count(stderr: &str) -> Option<u64> {
 
 fn tail(s: &str) -> String { let n = s.len(); s[n.saturating_sub(1500)..].to_string() }
 
+fn update_goldens() -> bool { matches!(std::env::var("UPDATE_GOLDENS").as_deref(), Ok("1" | "true")) }
+
 /// Compare `actual` with the golden file; `UPDATE_GOLDENS=1` rewrites it instead.
 pub fn expect_text(name: &str, actual: &str) {
     let p = golden(name);
-    if std::env::var("UPDATE_GOLDENS").is_ok() { std::fs::write(&p, actual).unwrap(); return; }
+    if update_goldens() { std::fs::write(&p, actual).unwrap(); return; }
     let want = std::fs::read_to_string(&p).unwrap_or_else(|e| panic!("{}: {} (run with UPDATE_GOLDENS=1 to create it)", p.display(), e));
     if want != actual {
         let got = p.with_extension("actual");
@@ -71,21 +73,25 @@ pub fn expect_text(name: &str, actual: &str) {
 pub fn expect_sha(name: &str, data: &[u8]) {
     let p = golden(name);
     let hex = sha256_hex(data);
-    if std::env::var("UPDATE_GOLDENS").is_ok() { std::fs::write(&p, format!("{}\n", hex)).unwrap(); return; }
+    if update_goldens() { std::fs::write(&p, format!("{}\n", hex)).unwrap(); return; }
     let want = std::fs::read_to_string(&p).unwrap_or_else(|e| panic!("{}: {} (run with UPDATE_GOLDENS=1 to create it)", p.display(), e));
     assert_eq!(want.trim(), hex, "{}: {} bytes hash differently", name, data.len());
 }
 
 pub fn expect_u64(name: &str, v: u64) {
     let p = golden(name);
-    if std::env::var("UPDATE_GOLDENS").is_ok() { std::fs::write(&p, format!("{}\n", v)).unwrap(); return; }
+    if update_goldens() { std::fs::write(&p, format!("{}\n", v)).unwrap(); return; }
     let want: u64 = std::fs::read_to_string(&p).unwrap_or_else(|e| panic!("{}: {}", p.display(), e)).trim().parse().unwrap();
     assert_eq!(want, v, "{}", name);
 }
 
-/// Where a test may write its outputs.
+/// A fresh output path on each call, including concurrent calls with the same filename.
 pub fn tmp(name: &str) -> PathBuf {
-    let d = std::env::temp_dir().join(format!("esp32sim-test-{}", std::process::id())); std::fs::create_dir_all(&d).unwrap(); d.join(name)
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let id = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let d = std::env::temp_dir().join(format!("esp32sim-test-{}/{id}", std::process::id()));
+    std::fs::create_dir_all(&d).unwrap();
+    d.join(name)
 }
 
 pub fn sha256_hex(data: &[u8]) -> String { sha256(data).iter().map(|b| format!("{:02x}", b)).collect() }
@@ -115,3 +121,17 @@ pub fn sha256(data: &[u8]) -> [u8; 32] {
 
 #[test]
 fn sha256_known_answer() { assert_eq!(sha256_hex(b"abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"); }
+
+#[test]
+fn concurrent_outputs_with_the_same_name_are_independent() {
+    let workers: Vec<_> = (0u8..8).map(|value| std::thread::spawn(move || {
+        let path = tmp("same.wav");
+        std::fs::write(&path, [value]).unwrap();
+        (path, value)
+    })).collect();
+    for worker in workers {
+        let (path, value) = worker.join().unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), [value]);
+        std::fs::remove_file(path).unwrap();
+    }
+}

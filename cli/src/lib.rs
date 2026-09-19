@@ -18,6 +18,26 @@ fn usage(chip: &str) -> ! {
 fn hex(s: &str, what: &str) -> u32 { u32::from_str_radix(s.trim_start_matches("0x"), 16).unwrap_or_else(|_| { eprintln!("--{}: bad hex {}", what, s); std::process::exit(2) }) }
 fn pair(s: &str, dflt: usize) -> (u32, usize) { match s.split_once(',') { Some((a, n)) => (hex(a, "addr"), n.parse().unwrap_or(dflt)), None => (hex(s, "addr"), dflt) } }
 
+fn stub_spec(spec: &str) -> Result<(&str, u32), String> {
+    let (name, value) = spec.split_once('=').unwrap_or((spec, "0"));
+    let value = match value {
+        "true" => 1,
+        "false" => 0,
+        value => match value.strip_prefix("0x") {
+            Some(hex) => u32::from_str_radix(hex, 16),
+            None => value.parse(),
+        }.map_err(|_| format!("invalid return value in {spec:?}: expected u32, true or false"))?,
+    };
+    Ok((name, value))
+}
+
+fn console_mask(name: &str) -> u32 {
+    esp_soc::Console::parse_mask(name).unwrap_or_else(|| {
+        eprintln!("--console: unknown source {name:?}; expected usb, uart0, both, all or none");
+        std::process::exit(2)
+    })
+}
+
 /// Everything the command line can say, chip-agnostic; `None` means "the chip's default".
 #[derive(Default)]
 pub struct Opts {
@@ -150,6 +170,7 @@ pub fn run_cli(default_chip: &str) {
 /// reaches stdout: it goes to csim as `log` events. The usual report goes to stderr at the end.
 fn run_cooja(o: &mut Opts) {
     if !matches!(o.chip.as_str(), "c6" | "esp32c6") { eprintln!("--cooja: only the ESP32-C6 speaks the Cooja-NG lock-step protocol"); std::process::exit(2); }
+    if o.max_insns != u64::MAX { eprintln!("--cooja: --max-insns is unsupported; use --max-seconds"); std::process::exit(2); }
     let stdin = std::io::stdin();
     let mut input = stdin.lock();
     let hello = match cooja::read_hello(&mut input) { Ok(h) => h, Err(e) => { eprintln!("[cooja] {}", e); std::process::exit(2) } };
@@ -158,10 +179,11 @@ fn run_cooja(o: &mut Opts) {
     let mut m = setup_c6(o);
     let boot = prepare(&mut m, o);
     let cfg = cooja::Config {
-        slice_ns: o.cooja_slice_us.max(1) * 1000,
-        console_mask: match o.console.as_deref().unwrap_or("uart0") { "usb" => 1, "uart0" | "uart" => 2, "both" => 3, "all" => 7, "none" => 0, _ => 2 },
+        slice_ns: o.cooja_slice_us.max(1).saturating_mul(1000),
+        console_mask: console_mask(o.console.as_deref().unwrap_or("uart0")),
         rx_on_air: !o.cooja_rx_at_end,
         verbose: o.cooja_verbose,
+        reboot: !o.no_reboot && boot == "rom",
     };
     eprintln!("[cooja] node {} ({}), mac {}, slice {} µs", hello.id, boot, o.mac.map(|m| m.iter().map(|b| format!("{:02x}", b)).collect::<Vec<_>>().join(":")).unwrap_or_default(), cfg.slice_ns / 1000);
     let t0 = std::time::Instant::now();
@@ -185,16 +207,7 @@ fn setup_s3(o: &Opts) -> esp32s3::Machine {
     m.bus.attach_board_devices();
     if !o.debug.is_empty() { let mut f = esp_soc::DebugFlags::from_env(); for d in &o.debug { f.parse(d); } m.set_debug(&f); }
     if let Some(spec) = &o.wifi {
-        let mut cfg = esp32s3::wifi::ApConfig { ssid: "esp32sim".into(), bssid: [0x02, 0x53, 0x49, 0x4d, 0x00, 0x01], channel: 6, psk: None };
-        for kv in spec.split(',') {
-            match kv.split_once('=') {
-                Some(("ssid", v)) => cfg.ssid = v.to_string(),
-                Some(("chan", v)) | Some(("channel", v)) => cfg.channel = v.parse().unwrap_or(6),
-                Some(("psk", v)) | Some(("password", v)) => cfg.psk = Some(v.to_string()),
-                Some(("bssid", v)) => { let b: Vec<u8> = v.split(':').filter_map(|x| u8::from_str_radix(x, 16).ok()).collect(); if b.len() == 6 { cfg.bssid.copy_from_slice(&b); } }
-                _ => {}
-            }
-        }
+        let cfg = esp32s3::wifi::ApConfig::parse(spec).unwrap_or_else(|e| { eprintln!("--wifi: {e}"); std::process::exit(2) });
         eprintln!("[emu] virtual AP '{}' bssid {} channel {} ({})", cfg.ssid, esp32s3::wifi::mac_str(&cfg.bssid), cfg.channel, if cfg.psk.is_some() { "WPA2-PSK" } else { "open" });
         m.bus.periph.wifi.ap = Some(esp32s3::wifi::VirtualAp::new(cfg, m.bus.debug.has("wifi-frames")));
         let mut net = esp32s3::net::VirtualNet::new(m.bus.debug.has("net"));
@@ -205,6 +218,7 @@ fn setup_s3(o: &Opts) -> esp32s3::Machine {
         }
         eprintln!("[emu] virtual network: station {}.{}.{}.{}, gateway {}.{}.{}.{} (DHCP, ARP, ICMP, DNS, NTP)", net.sta_ip[0], net.sta_ip[1], net.sta_ip[2], net.sta_ip[3], net.gw_ip[0], net.gw_ip[1], net.gw_ip[2], net.gw_ip[3]);
         m.bus.periph.wifi.net = Some(net);
+        m.bus.refresh_tick_budget();
     }
     if let Some(p) = &o.cam_image { match esp_soc::picture::load(p) { Ok(pic) => { eprintln!("[emu] camera picture {} ({}x{})", p, pic.w, pic.h); m.bus.board.set_camera_picture(pic); } Err(e) => { eprintln!("[emu] {}", e); std::process::exit(2); } } }
     m.bus.periph.lcd_cam.frame_cycles = (esp32s3::periph::CPU_HZ as f64 / o.cam_fps) as u64;
@@ -286,23 +300,28 @@ fn run<S: Soc>(mut m: Machine<S>, o: &Opts) {
     }
     let boot = prepare(&mut m, o);
     let t0 = std::time::Instant::now();
-    let stop = loop {
-        let stop = m.run(o.max_insns);
-        if let Stop::SwReset = stop {
-            let cause = m.bus.reset_cause();
-            eprintln!("[emu] chip reset at t={:.3}s: cause {:#x} ({})", m.seconds(), cause, esp_periph::reset_cause_name(cause));
-            if o.no_reboot || boot != "rom" { break stop; }
-            m.reboot();
-            continue;
-        }
-        break stop;
-    };
+    let stop = run_with_reboots(&mut m, o.max_insns, !o.no_reboot && boot == "rom");
     let dt = t0.elapsed().as_secs_f64();
     report(&mut m, o, stop, dt);
     if let Some(model) = approximate { eprintln!("[emu] approximate timing totals: {:?}", model.stats()); }
     if let Some(model) = memory_model {
         eprintln!("[emu] approximate memory totals [internal, ROM, flash, PSRAM, MMIO]: {:?}", model.memory.borrow().stats);
         if let Some(cache) = &model.cache { eprintln!("[emu] approximate physical data cache: {:?}", cache.borrow().stats()); }
+    }
+}
+
+fn run_with_reboots<S: Soc>(m: &mut Machine<S>, mut remaining: u64, reboot: bool) -> Stop {
+    loop {
+        let before = m.run_steps();
+        let stop = m.run(remaining);
+        remaining = remaining.saturating_sub(m.run_steps().saturating_sub(before));
+        if let Stop::SwReset = stop {
+            let cause = m.bus.reset_cause();
+            eprintln!("[emu] chip reset at t={:.3}s: cause {:#x} ({})", m.seconds(), cause, esp_periph::reset_cause_name(cause));
+            if !reboot { return stop; }
+            if remaining == 0 { return Stop::MaxInsns; }
+            m.reboot();
+        } else { return stop; }
     }
 }
 
@@ -339,8 +358,8 @@ fn prepare<S: Soc>(m: &mut Machine<S>, o: &Opts) -> String {
         eprintln!("[emu] --trace-fn {}: {} functions", pre, n);
     }
     for st in &o.stubs {
-        let (name, val) = match st.split_once('=') { Some((n, v)) => (n, u32::from_str_radix(v.trim_start_matches("0x"), if v.starts_with("0x") { 16 } else { 10 }).unwrap_or(0)), None => (st.as_str(), 0) };
-        let addr = if let Some(a) = m.sym_addr(name) { a } else if let Ok(a) = u32::from_str_radix(name.trim_start_matches("0x"), 16) { a } else { eprintln!("--stub: unknown symbol {}", name); std::process::exit(2) };
+        let (name, val) = stub_spec(st).unwrap_or_else(|e| { eprintln!("--stub: {e}"); std::process::exit(2) });
+        let addr = m.resolve_stub(name).unwrap_or_else(|| { eprintln!("--stub: unknown symbol {}", name); std::process::exit(2) });
         eprintln!("[emu] stub {} @ {:#010x} -> returns {:#x}", name, addr, val);
         m.stubs.insert(addr, val);
     }
@@ -355,7 +374,7 @@ fn prepare<S: Soc>(m: &mut Machine<S>, o: &Opts) -> String {
     if let Some(v) = o.strap { m.bus.set_strap(v); }
     for &(a, n) in &o.peeks { eprintln!("[peek before run]\n{}", m.peek(a, n)); }
     m.dbg.stop_after_exceptions = o.stop_exc;
-    m.console.mask = match console.as_str() { "usb" => 1, "uart0" => 2, "uart" => 2, "both" => 3, "all" => 7, "none" => 0, _ => 3 };
+    m.console.mask = console_mask(&console);
     m.console.prefix = o.console_prefix;
     if let Some(p) = &o.regtrace { m.add_observer(Box::new(RegTrace::new(std::fs::File::create(p).expect("regtrace file"), o.regtrace_max, o.regtrace_from_pc))); }
     if let Some(port) = o.web_port {
@@ -400,3 +419,6 @@ fn report<S: Soc>(m: &mut Machine<S>, o: &Opts, stop: Stop, dt: f64) {
     if let Some(p) = &o.gram_png { match m.write_gram_png(p) { Ok(()) => eprintln!("[emu] wrote {}", p), Err(e) => eprintln!("[emu] png: {}", e) } }
     if o.dump { eprintln!("{}", m.dump_regs()); }
 }
+
+#[cfg(test)]
+mod tests;

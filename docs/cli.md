@@ -26,8 +26,8 @@ register presets).
 | `--strap HEX`, `--reset-cause HEX`, `--efuse-regs F`, `--regs-init F` | reproduce a real chip's boot state (used by the differential tests) |
 | `--no-reboot` | stop at the first chip reset instead of rebooting from ROM |
 | `--flash-at OFFSET=FILE` (repeatable) | write a file into flash at a hex offset — a data partition's contents (the panel's `demo` partition takes `energydata.json`) |
-| `--stub SYMBOL[=value]` (repeatable) | return `value` (default 0) immediately when execution reaches the function's entry |
-| `--wifi SPEC` | attach a virtual access point the WiFi blob hears, plus a virtual network (DHCP/ARP/ICMP/DNS/SNTP; station 10.0.2.15, gateway 10.0.2.2) — `ssid=NAME,chan=N,psk=PASS,bssid=xx:..`. Open and WPA2-PSK networks both join end to end (docs/wifi-plan.md) |
+| `--stub SYMBOL[=value]` (repeatable) | return `value` (default 0) immediately when execution reaches the function's entry; accepts decimal, `0x` hex, `true` (1) or `false` (0); rejects invalid values |
+| `--wifi SPEC` | attach a virtual access point the WiFi blob hears, plus a virtual network (DHCP/ARP/ICMP/DNS/SNTP; station 10.0.2.15, gateway 10.0.2.2) — for example `ssid=demo,chan=6,psk=demo-password,bssid=02:00:00:00:00:01`. `password` and `pass` alias `psk`; unknown keys and invalid values are rejected. Open and WPA2-PSK networks both join end to end (docs/wifi-plan.md) |
 | `--net nat\|none` | what the virtual network does with traffic it is not itself answering: `nat` (default) forwards TCP and UDP to the host's own network through ordinary sockets, `none` refuses it |
 | `--trace-fn PREFIX` (repeatable) | log every call to functions whose name starts with PREFIX, with args and caller |
 | `--regstat FILE` | write per-register access statistics (count, pc, symbol) at exit — for reverse-engineering |
@@ -35,16 +35,24 @@ register presets).
 ## Running
 | Flag | Meaning |
 | --- | --- |
-| `--max-seconds S`, `--max-insns N` | stop after emulated time / instructions |
+| `--max-seconds S` | stop after this much emulated time, including all reboots; also applies to `--cooja` |
+| `--max-insns N` | cap scheduler work across all reboots (details below); unavailable with `--cooja`, which uses `--max-seconds` |
 | `--script F` | host actions at emulated times (below) |
 | `--console usb\|uart0\|both\|all\|none`, `--console-prefix` | which consoles to print |
 | `--realtime` | pace to wall time without the UI |
 | `--web PORT [--web-dir DIR]` | browser UI (implies real time) |
 | `--cam-image F`, `--cam-fps N` | camera source for boards with a camera |
-| `--cooja` (C6) | run as a Cooja-NG external mote: the lock-step NDJSON protocol on stdin/stdout, the guest console as `log` events, the 802.15.4 frames as `tx`/`rx` (see [esp32c6.md](esp32c6.md), "Cooja-NG lock-step") |
+| `--cooja` (C6) | run as a Cooja-NG external mote: the lock-step NDJSON protocol on stdin/stdout, the guest console as `log` events, the 802.15.4 frames as `tx`/`rx`. Honors `--no-reboot` and `--max-seconds` (see [esp32c6.md](esp32c6.md), "Cooja-NG lock-step") |
 | `--cooja-slice-us N` | how long a busy guest runs before asking csim to step it again (default 100; `hello.args.slice_us` overrides). A transmission reaches csim's medium at the end of the slice it started in, so this bounds how late it is |
 | `--cooja-rx-timing start\|end` | what an `rx` at `t` is: the frame's start (default — csim hands a frame-consuming mote the frame when it starts: `t` is the first preamble byte, the SFD five byte times later, RX_DONE after the whole PPDU, the ACK 192 µs after that) or its end, complete at `t` |
 | `--cooja-verbose` | narrate the exchange on stderr |
+
+The legacy name `--max-insns` counts scheduler work, not total retired instructions. The
+default scheduler charges one unit per core 0 instruction or idle cycle advanced; another
+core does not add to that count. It checks the cap between scheduling rounds, so it may finish
+the current round past the requested number. With an approximate cost model, it counts
+scheduled events. Use `--max-seconds` for a predictable duration. The final execution report
+separately lists the actual instruction count for each core.
 
 ## Outputs
 | Flag | Meaning |
