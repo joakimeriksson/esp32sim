@@ -23,6 +23,42 @@ const REGION_TRIES: u8 = 8;
 #[cfg(feature = "wasm-jit-tests")]
 pub(crate) static REGION_STATS: [std::sync::atomic::AtomicU32; 12] = [const { std::sync::atomic::AtomicU32::new(0) }; 12];
 
+#[cfg(not(feature = "wasm-jit-profile"))]
+type ExitSite = u32;
+#[cfg(feature = "wasm-jit-profile")]
+type ExitSite = (u32, ExitKind);
+
+#[cfg(feature = "wasm-jit-profile")]
+#[derive(Clone, Copy, Default)]
+enum ExitKind {
+    Call, Callx, Retw, Ret, Jx, Sr, Memory, Edge, Budget, Dirty,
+    #[default]
+    Other,
+}
+#[cfg(feature = "wasm-jit-profile")]
+impl ExitKind {
+    fn for_op(op: crate::Op) -> Self {
+        use crate::Op::*;
+        match op {
+            Call0 | Call4 | Call8 | Call12 => Self::Call,
+            Callx0 | Callx4 | Callx8 | Callx12 => Self::Callx,
+            Retw | RetwN => Self::Retw,
+            Ret | RetN => Self::Ret,
+            Jx => Self::Jx,
+            Wsr | Xsr | Rsil => Self::Sr,
+            L8ui | L16ui | L16si | L32i | L32iN | L32r | S8i | S16i | S32i | S32iN | Lsi | Ssi | Pie => Self::Memory,
+            _ => Self::Other,
+        }
+    }
+}
+#[inline(always)]
+fn site_pc(site: ExitSite) -> u32 {
+    #[cfg(feature = "wasm-jit-profile")]
+    { site.0 }
+    #[cfg(not(feature = "wasm-jit-profile"))]
+    { site }
+}
+
 /// Region counters for the opt-in profile build; absent from production.
 #[cfg(feature = "wasm-jit-profile")]
 #[derive(Default)]
@@ -35,6 +71,7 @@ pub struct RegionStats {
     pub rejected: Cell<u64>,
     pub retired: Cell<u64>,
     pub exits: [Cell<u64>; 8],
+    pub left_kinds: [Cell<u64>; 11],
     pub chunks: Cell<u64>,
     pub instructions: Cell<u64>,
     pub bytes: Cell<u64>,
@@ -42,10 +79,11 @@ pub struct RegionStats {
 #[cfg(feature = "wasm-jit-profile")]
 impl RegionStats {
     pub fn report(&self) -> String {
-        format!("[wasm-region] formed={} failed={} covered={} dropped={} chunks={} instructions={} bytes={} calls={} rejected={} retired={} exits[end,left,trap,cut,pre]={:?}",
+        format!("[wasm-region] formed={} failed={} covered={} dropped={} chunks={} instructions={} bytes={} calls={} rejected={} retired={} exits[end,left,trap,cut,pre]={:?} left_kinds[call,callx,retw,ret,jx,sr,memory,edge,budget,dirty,other]={:?}",
             self.formed.get(), self.failed.get(), self.covered.get(), self.dropped.get(), self.chunks.get(),
             self.instructions.get(), self.bytes.get(), self.calls.get(), self.rejected.get(), self.retired.get(),
-            self.exits[..5].iter().map(|c| c.get()).collect::<Vec<_>>())
+            self.exits[..5].iter().map(|c| c.get()).collect::<Vec<_>>(),
+            self.left_kinds.iter().map(|c| c.get()).collect::<Vec<_>>())
     }
 }
 const HOT: u32 = 32;
@@ -82,7 +120,7 @@ struct Block {
 /// Entry facts of one region chunk. `sites` points into the owning region's vector, which
 /// lives until that region is dropped, and every drop moves `CodeCache::region_epoch` on.
 #[derive(Clone, Copy)]
-struct Hot { epoch: u64, bloom: u64, slot: u32, k: u32, len: u32, lo: u32, span: u32, pages: [(u32, u32); 8], npages: u32, nsites: u32, sites: *const u32 }
+struct Hot { epoch: u64, bloom: u64, slot: u32, k: u32, len: u32, lo: u32, span: u32, pages: [(u32, u32); 8], npages: u32, nsites: u32, sites: *const ExitSite }
 impl Hot { const NONE: Hot = Hot { epoch: 0, bloom: 0, slot: 0, k: 0, len: 0, lo: 0, span: 0, pages: [(0, 0); 8], npages: 0, nsites: 0, sites: std::ptr::null() }; }
 /// Several chunks compiled as one function; see wasm_region.rs.
 struct Region {
@@ -97,7 +135,7 @@ struct Region {
     hi: u32,
     loops: Vec<(u32, u32)>,
     pages: Vec<(u32, u32)>,
-    sites: Vec<u32>,
+    sites: Vec<ExitSite>,
     /// instructions per chunk, for the credit check at an entry
     lens: Vec<u32>,
 }
@@ -419,11 +457,14 @@ pub unsafe fn run<B: Bus>(
                 // SAFETY: as for the region call below; the epoch proves slot and sites are live.
                 let f: Run<B> = unsafe { std::mem::transmute(hot.slot as usize) };
                 let result = f(cpu, bus, h, budget.min(0xffff), hot.k, tlb, versions);
-                region_stats(cc, result, budget);
-                if (result >> 16) & 7 != CODE_REJECT {
+                let site = if (result >> 16) & 7 != CODE_REJECT {
                     assert!((result >> 19) < hot.nsites);
                     // SAFETY: index checked against the live vector's length.
-                    bus.note_pc(unsafe { *hot.sites.add((result >> 19) as usize) });
+                    Some(unsafe { *hot.sites.add((result >> 19) as usize) })
+                } else { None };
+                region_stats(cc, result, budget, site);
+                if let Some(site) = site {
+                    bus.note_pc(site_pc(site));
                     return result & 0x7ffff;
                 }
                 return run_block_body(cc, code, cpu, bus, h, budget, entry, tlb, versions);
@@ -521,10 +562,13 @@ pub unsafe fn run<B: Bus>(
                             span: r.hi.wrapping_sub(r.lo), pages, npages: r.pages.len() as u32, nsites: r.sites.len() as u32, sites: r.sites.as_ptr() });
                     }
                     let result = f(cpu, bus, h, budget.min(0xffff), k, tlb, versions);
-                    region_stats(cc, result, budget);
-                    if (result >> 16) & 7 != CODE_REJECT {
+                    let site = if (result >> 16) & 7 != CODE_REJECT {
                         assert!(((result >> 19) as usize) < r.sites.len(), "region {:x}: result {result:#x} sites {}", rb.pc, r.sites.len());
-                        bus.note_pc(r.sites[(result >> 19) as usize]);
+                        Some(r.sites[(result >> 19) as usize])
+                    } else { None };
+                    region_stats(cc, result, budget, site);
+                    if let Some(site) = site {
+                        bus.note_pc(site_pc(site));
                         return result & 0x7ffff;
                     }
                 }
@@ -537,7 +581,7 @@ pub unsafe fn run<B: Bus>(
 /// Test and profile counters of one region call.
 #[inline(always)]
 #[allow(unused_variables)]
-fn region_stats(cc: &CodeCache, result: u32, budget: u32) {
+fn region_stats(cc: &CodeCache, result: u32, budget: u32, site: Option<ExitSite>) {
     #[cfg(feature = "wasm-jit-tests")]
     {
         use std::sync::atomic::Ordering::Relaxed;
@@ -555,6 +599,10 @@ fn region_stats(cc: &CodeCache, result: u32, budget: u32) {
         } else {
             st.retired.set(st.retired.get() + (result & 0xffff) as u64);
             st.exits[exit].set(st.exits[exit].get() + 1);
+            if exit == CODE_LEFT as usize {
+                let kind = site.expect("a region LEFT exit has a site").1 as usize;
+                st.left_kinds[kind].set(st.left_kinds[kind].get() + 1);
+            }
         }
     }
 }

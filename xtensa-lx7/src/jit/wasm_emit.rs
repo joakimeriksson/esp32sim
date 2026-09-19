@@ -205,6 +205,8 @@ struct Gen {
     region: Option<RegionGen>,
     /// PC of the most recently emitted guest instruction, for exit-site attribution.
     last_pc: u32,
+    #[cfg(feature = "wasm-jit-profile")]
+    last_kind: ExitKind,
 }
 impl Gen {
     fn op(&mut self, op: u8) {
@@ -352,7 +354,10 @@ impl Gen {
     fn tag(&mut self, code: u32) -> u32 {
         let site = match &mut self.region {
             Some(r) => {
+                #[cfg(not(feature = "wasm-jit-profile"))]
                 r.sites.push(self.last_pc);
+                #[cfg(feature = "wasm-jit-profile")]
+                r.sites.push((self.last_pc, self.last_kind));
                 (r.sites.len() - 1) as u32
             }
             None => 0,
@@ -675,6 +680,8 @@ fn emit_body(
     for (index, bi) in instructions.iter().enumerate() {
         let next = pc.wrapping_add(bi.insn.len as u32);
         g.last_pc = pc;
+        #[cfg(feature = "wasm-jit-profile")]
+        { g.last_kind = ExitKind::for_op(bi.insn.op); }
         if !whole {
             g.flush();
             g.get(4);

@@ -45,7 +45,7 @@ pub(super) struct RegionGen {
     /// control depth at the top level of the current chunk's code
     pub chunk_depth: usize,
     /// last retired PC for each exit site, indexed by the tag in the result
-    pub sites: Vec<u32>,
+    pub sites: Vec<ExitSite>,
     /// version-page index range covering every chunk (stores inside it set DIRTY)
     pub page_lo: u32,
     pub page_hi: u32,
@@ -220,6 +220,21 @@ pub(super) fn region_edge(g: &mut Gen, target: u32, direct: bool) {
             g.begin_if();
             g.spill();
             g.cpu_const(PC, target);
+            #[cfg(feature = "wasm-jit-profile")]
+            {
+                // Only the diagnostic module distinguishes these runtime causes.
+                // If both hold, classify DIRTY as the reason execution must leave.
+                let saved = g.last_kind;
+                g.get(DIRTY);
+                g.begin_if();
+                g.last_kind = ExitKind::Dirty;
+                g.ret_value(CODE_LEFT);
+                g.end();
+                g.last_kind = ExitKind::Budget;
+                g.ret_value(CODE_LEFT);
+                g.last_kind = saved;
+            }
+            #[cfg(not(feature = "wasm-jit-profile"))]
             g.ret_value(CODE_LEFT);
             g.end();
             if !direct || index != current + 1 || g.depth() != chunk_depth {
@@ -233,12 +248,16 @@ pub(super) fn region_edge(g: &mut Gen, target: u32, direct: bool) {
         None => {
             g.spill();
             g.cpu_const(PC, target);
+            #[cfg(feature = "wasm-jit-profile")]
+            let saved = std::mem::replace(&mut g.last_kind, ExitKind::Edge);
             g.ret_value(CODE_LEFT);
+            #[cfg(feature = "wasm-jit-profile")]
+            { g.last_kind = saved; }
         }
     }
 }
 
-pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_loops: &[(u32, u32)], fast: bool) -> (Vec<u8>, Vec<u32>) {
+pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_loops: &[(u32, u32)], fast: bool) -> (Vec<u8>, Vec<ExitSite>) {
     let page_lo = pages.iter().map(|p| p.0).min().unwrap_or(0);
     let page_hi = pages.iter().map(|p| p.0).max().unwrap_or(0);
     let all = || chunks.iter().flat_map(|c| c.instructions.iter());
