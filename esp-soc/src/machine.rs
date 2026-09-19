@@ -7,16 +7,11 @@ use crate::soc::{CoreState, RunUntil, Soc, SocBus, Stop};
 use crate::web::WebServer;
 use crate::{elf, png};
 use emu_core::core::pc_bit;
-use emu_core::{
-    Bus, Core, CostModel, ExecutionFacts, Fault, LifecycleFacts, LifecycleKind,
-    MemoryAccess, MemoryAccessKind, StepKind, Trap,
-};
+use emu_core::{Bus, Core, CostModel, LifecycleFacts, LifecycleKind, MemoryAccess, Trap};
 use std::collections::{BTreeMap, HashMap};
 
-/// `[[r,g,b],…]` for the web protocol.
-fn leds_json(leds: &[[u8; 3]]) -> String {
-    leds.iter().map(|c| format!("[{},{},{}]", c[0], c[1], c[2])).collect::<Vec<_>>().join(",")
-}
+mod modeled;
+mod web;
 
 #[derive(Clone, Debug)]
 pub enum ScriptAction { Gpio(u8, bool), Serial(String), Uart(usize, String), Stop, Touch(u16, u16, bool), Poke(u32, u32) }
@@ -71,17 +66,9 @@ pub struct Machine<S: Soc> {
     pub cores: Vec<S::Core>,
     /// a secondary core held in reset by its SoC registers (reset when released)
     core_held: Vec<bool>,
-    /// EX133 virtual quanta: most scheduling quanta one core may run in a single budget while
-    /// every other core idles (1 = off). Bit-exact with the per-quantum schedule by construction.
-    pub vq_max: u64,
     /// Instructions each busy core runs per scheduling round. 64 is the reference the goldens and
     /// pinned totals hold for; a larger value changes the interleaving of two busy cores (EX047).
     pub quantum: u64,
-    /// EX133 counters: multi-quantum runs, quanta they covered, runs stopped at a device register, at waiti.
-    pub vq_stats: [u64; 4],
-    /// Rounds to leave alone after runs that a device register cut short, and the growing penalty:
-    /// firmware that touches registers every few instructions gains nothing from a long budget.
-    vq_skip: u32, vq_penalty: u32,
     pub bus: S::Bus,
     pub symbols: BTreeMap<u32, String>,
     pub dbg: Debug,
@@ -107,6 +94,15 @@ pub struct Machine<S: Soc> {
     model_ready_at: Vec<u64>,
     model_stop: Option<Stop>,
     model_attach_error: Option<&'static str>,
+    /// EX133 virtual quanta: most scheduling quanta one core may run in a single budget while
+    /// every other core idles (1 = off). Bit-exact with the per-quantum schedule by construction.
+    /// Keep optional scheduling state at the tail to preserve the hot fields' offsets.
+    pub vq_max: u64,
+    /// EX133 counters: multi-quantum runs, quanta they covered, runs stopped at a device register, at waiti.
+    pub vq_stats: [u64; 4],
+    /// Backoff after runs cut short by frequent device-register accesses.
+    vq_skip: u32, vq_penalty: u32,
+    run_steps: u64,
 }
 
 /// Default scheduling quantum; `Machine::quantum` can raise it (not bit-exact with the default).
@@ -117,80 +113,11 @@ const VQ_DEFAULT: u64 = match option_env!("ESP32SIM_VQ_BUILD") {
     None => if cfg!(target_arch = "wasm32") { 1024 } else { 1 },
 };
 
-/// Records only accesses made synchronously by `Core::step`. Generated direct-memory access is
-/// disabled so every load and store passes through one of the typed methods below.
-struct RecordingBus<'a, B> { bus: &'a mut B, accesses: Vec<MemoryAccess> }
-
-impl<'a, B> RecordingBus<'a, B> {
-    fn new(bus: &'a mut B, mut accesses: Vec<MemoryAccess>) -> Self {
-        accesses.clear();
-        Self { bus, accesses }
-    }
-
-    fn finish(mut self, bytes: Option<[u8; 4]>, pc: u32) -> Vec<MemoryAccess> {
-        if let Some(bytes) = bytes {
-            self.accesses.retain(|access| access.kind != MemoryAccessKind::Fetch);
-            self.accesses.insert(0, MemoryAccess {
-                kind: MemoryAccessKind::Fetch, address: pc, width: 4,
-                value: u32::from_le_bytes(bytes), fault: None,
-            });
-        }
-        self.accesses
-    }
-}
-
-impl<B: Bus> Bus for RecordingBus<'_, B> {
-    fn read8(&mut self, address: u32) -> Result<u8, Fault> {
-        let result = self.bus.read8(address);
-        self.accesses.push(MemoryAccess { kind: MemoryAccessKind::Read, address, width: 1, value: result.unwrap_or(0) as u32, fault: result.err() });
-        result
-    }
-    fn read16(&mut self, address: u32) -> Result<u16, Fault> {
-        let result = self.bus.read16(address);
-        self.accesses.push(MemoryAccess { kind: MemoryAccessKind::Read, address, width: 2, value: result.unwrap_or(0) as u32, fault: result.err() });
-        result
-    }
-    fn read32(&mut self, address: u32) -> Result<u32, Fault> {
-        let result = self.bus.read32(address);
-        self.accesses.push(MemoryAccess { kind: MemoryAccessKind::Read, address, width: 4, value: result.unwrap_or(0), fault: result.err() });
-        result
-    }
-    fn write8(&mut self, address: u32, value: u8) -> Result<(), Fault> {
-        let result = self.bus.write8(address, value);
-        self.accesses.push(MemoryAccess { kind: MemoryAccessKind::Write, address, width: 1, value: value as u32, fault: result.err() });
-        result
-    }
-    fn write16(&mut self, address: u32, value: u16) -> Result<(), Fault> {
-        let result = self.bus.write16(address, value);
-        self.accesses.push(MemoryAccess { kind: MemoryAccessKind::Write, address, width: 2, value: value as u32, fault: result.err() });
-        result
-    }
-    fn write32(&mut self, address: u32, value: u32) -> Result<(), Fault> {
-        let result = self.bus.write32(address, value);
-        self.accesses.push(MemoryAccess { kind: MemoryAccessKind::Write, address, width: 4, value, fault: result.err() });
-        result
-    }
-    fn fetch(&mut self, pc: u32) -> Result<[u8; 4], Fault> {
-        let result = self.bus.fetch(pc);
-        self.accesses.push(MemoryAccess {
-            kind: MemoryAccessKind::Fetch, address: pc, width: 4,
-            value: result.map(u32::from_le_bytes).unwrap_or(0), fault: result.err(),
-        });
-        result
-    }
-    fn page_versions(&self) -> &[u32] { self.bus.page_versions() }
-    fn code_page(&mut self, pc: u32) -> u32 { self.bus.code_page(pc) }
-    fn note_pc(&mut self, pc: u32) { self.bus.note_pc(pc); }
-    fn block_break(&self) -> bool { self.bus.block_break() }
-    fn fast_mem(&mut self) -> Option<emu_core::bus::FastMem> { None }
-    fn tick(&mut self, cycles: u32) -> u32 { self.bus.tick(cycles) }
-}
-
 impl<S: Soc> Machine<S> {
     pub fn new(mac: [u8; 6], bus: S::Bus) -> Self {
         Machine {
             mac, reboots: 0, stubs: HashMap::new(), stub_bloom: 0, probe_bloom: 0, stub_hits: 0, fn_probes: HashMap::new(),
-            cores: (0..S::CORES).map(S::new_core).collect(), core_held: (0..S::CORES).map(|i| i > 0).collect(), quantum: QUANTUM, vq_stats: [0; 4], vq_skip: 0, vq_penalty: 0, vq_max: std::env::var("ESP32SIM_VQ").ok().and_then(|v| v.parse().ok()).unwrap_or(VQ_DEFAULT),
+            cores: (0..S::CORES).map(S::new_core).collect(), core_held: (0..S::CORES).map(|i| i > 0).collect(), quantum: QUANTUM, run_steps: 0, vq_stats: [0; 4], vq_skip: 0, vq_penalty: 0, vq_max: std::env::var("ESP32SIM_VQ").ok().and_then(|v| v.parse().ok()).unwrap_or(VQ_DEFAULT),
             bus, symbols: BTreeMap::new(),
             dbg: Debug { stop_on_unimplemented: true, stop_after_exceptions: u64::MAX },
             observers: Vec::new(), probes: Wants::NONE, prev_irq: vec![0; S::CORES],
@@ -207,6 +134,9 @@ impl<S: Soc> Machine<S> {
     pub fn set_debug(&mut self, f: &crate::debug::DebugFlags) { self.rt.log = f.has("rt"); self.debug_rom = f.has("rom"); self.bus.set_debug(f); }
     pub fn seconds(&self) -> f64 { self.bus.cycles() as f64 / S::CPU_HZ as f64 }
     pub fn insns(&self) -> u64 { self.cores.iter().map(|c| c.insn_count()).sum() }
+    /// Scheduling steps consumed by `run`, including idle skips, retained across reboots.
+    /// This is the budget unit accepted by `run`, not the sum of retired core instructions.
+    pub fn run_steps(&self) -> u64 { self.run_steps }
 
     // ------------------------------------------------------------------ observers
     pub fn add_observer(&mut self, o: Box<dyn Observer<S>>) {
@@ -420,6 +350,16 @@ impl<S: Soc> Machine<S> {
             if let Some(&ret) = self.stubs.get(&pc) { cpu.return_from_stub(&mut self.bus, ret); self.stub_hits += 1; return (1, None); }
         }
         let (used, trap) = cpu.run(&mut self.bus, budget);
+        if let Some(stop) = self.observe_execution(core, pc, used, trap) { return (used, Some(stop)); }
+        self.refresh_irq();
+        if self.exceptions >= self.dbg.stop_after_exceptions { return (used, Some(Stop::Exceptions(self.exceptions))); }
+        (used, None)
+    }
+
+    /// Common completion boundary for blocks and individual instructions. Keeping block
+    /// callbacks here makes BLOCK observers compose with observers that force single-stepping.
+    #[inline]
+    fn observe_execution(&mut self, core: usize, pc: u32, used: u32, trap: Option<Trap>) -> Option<Stop> {
         if self.probes.contains(Wants::BLOCK | Wants::TRAP | Wants::TRAP_PC) {
             let cx = Ctx { symbols: &self.symbols, cycles: self.bus.cycles(), cpu_hz: S::CPU_HZ };
             let cpu = &self.cores[core];
@@ -433,13 +373,11 @@ impl<S: Soc> Machine<S> {
             None => {}
             Some(Trap::Exception(_)) => { self.exceptions += 1; }
             Some(Trap::Interrupt(irq)) => { self.interrupts += 1; self.irq_hist[core][(irq & 31) as usize] += 1; }
-            Some(Trap::Unimplemented(p, raw)) => { if self.dbg.stop_on_unimplemented { return (used, Some(Stop::Unimplemented(p, raw))); } }
-            Some(Trap::Simcall) => return (used, Some(Stop::Simcall(pc))),
-            Some(Trap::Ebreak(p)) => { self.exceptions += 1; if !self.cores[core].has_trap_handler() { return (used, Some(Stop::Ebreak(p))); } }
+            Some(Trap::Unimplemented(p, raw)) => { if self.dbg.stop_on_unimplemented { return Some(Stop::Unimplemented(p, raw)); } }
+            Some(Trap::Simcall) => return Some(Stop::Simcall(pc)),
+            Some(Trap::Ebreak(p)) => { self.exceptions += 1; if !self.cores[core].has_trap_handler() { return Some(Stop::Ebreak(p)); } }
         }
-        self.refresh_irq();
-        if self.exceptions >= self.dbg.stop_after_exceptions { return (used, Some(Stop::Exceptions(self.exceptions))); }
-        (used, None)
+        None
     }
 
     /// Execute one instruction on `core` with every per-instruction observer; returns Some(stop) if the run must end.
@@ -463,21 +401,7 @@ impl<S: Soc> Machine<S> {
         let cpu = &mut self.cores[core];
         self.bus.note_pc(pc);
         let outcome = cpu.step(&mut self.bus);
-        let r = outcome.result();
-        if let (true, Err(t)) = (self.probes.contains(Wants::TRAP | Wants::TRAP_PC), &r) {
-            let cx = Ctx { symbols: &self.symbols, cycles: self.bus.cycles(), cpu_hz: S::CPU_HZ };
-            let cpu = &self.cores[core];
-            for o in &mut self.observers { if o.wants().contains(Wants::TRAP | Wants::TRAP_PC) { o.on_trap(&cx, core, cpu, pc, t); } }
-        }
-        let cpu = &self.cores[core];
-        match r {
-            Ok(()) => {}
-            Err(Trap::Exception(_)) => { self.exceptions += 1; }
-            Err(Trap::Interrupt(irq)) => { self.interrupts += 1; self.irq_hist[core][(irq & 31) as usize] += 1; }
-            Err(Trap::Unimplemented(p, raw)) => { if self.dbg.stop_on_unimplemented { return Some(Stop::Unimplemented(p, raw)); } }
-            Err(Trap::Simcall) => return Some(Stop::Simcall(pc)),
-            Err(Trap::Ebreak(p)) => { self.exceptions += 1; if !cpu.has_trap_handler() { return Some(Stop::Ebreak(p)); } }
-        }
+        if let Some(stop) = self.observe_execution(core, pc, 1, outcome.trap()) { return Some(stop); }
         self.refresh_irq();
         {
             let cx = Ctx { symbols: &self.symbols, cycles: self.bus.cycles(), cpu_hz: S::CPU_HZ };
@@ -498,10 +422,11 @@ impl<S: Soc> Machine<S> {
     /// The complete unmodelled core-0 quantum a browser-side straight-line block may retire at
     /// the current scheduling boundary. External execution is deliberately limited to the
     /// single-core, unobserved case; returning a partial quantum would move device events relative
-    /// to instructions. The caller still has to enforce architectural boundaries such as
+    /// to instructions, so a request smaller than a full quantum is rejected. The caller
+    /// still has to enforce architectural boundaries such as
     /// CCOMPARE and register-window overflow for the block it proposes.
     pub fn browser_external_block_budget(&self, requested: u32) -> Option<u32> {
-        if requested == 0
+        if u64::from(requested) < self.quantum
             || self.cost.is_some()
             || self.approximate_jit_timing.is_some()
             || self.probes.0 != 0
@@ -549,6 +474,7 @@ impl<S: Soc> Machine<S> {
             if n >= max_insns { self.drain_console(); return Stop::MaxInsns; }
             self.apply_script_events();
             self.refresh_irq();
+            if self.bus.sw_reset() { self.drain_console(); return Stop::SwReset; }
             if self.bus.cycles() >= self.max_cycles { self.drain_console(); return Stop::Halted; }
             for (i, state) in on.iter_mut().enumerate().take(S::CORES).skip(1) {
                 *state = match S::core_state(&self.bus, i) {
@@ -568,6 +494,7 @@ impl<S: Soc> Machine<S> {
                 let chunk = self.idle_budget(limit, &on);
                 for (i, &enabled) in on.iter().enumerate().take(S::CORES) { if enabled { self.cores[i].idle_advance(chunk as u32); } }
                 n += chunk;
+                self.run_steps += chunk;
                 self.after_round(chunk);
                 if self.bus.sw_reset() { self.drain_console(); return Stop::SwReset; }
                 if self.bus.cycles() >= self.max_cycles { self.drain_console(); return Stop::Halted; }
@@ -579,10 +506,15 @@ impl<S: Soc> Machine<S> {
             // closed afterwards exactly as the per-quantum schedule would have closed them. A device
             // register access stops in front of its instruction and finishes its quantum the old way.
             let mut resume_at = 0u64;
-            // The one busy core, if exactly one is (EX144: any core, not only core 0).
-            let busy = { let mut b = (0..S::CORES).filter(|&i| !idle[i]); match (b.next(), b.next()) { (Some(i), None) => i, _ => usize::MAX } };
-            if self.vq_skip > 0 { self.vq_skip -= 1; }
-            else if !APPROXIMATE && self.vq_max > 1 && blocks && !slow_path && self.probes.0 == 0 && busy != usize::MAX {
+            // Find the sole busy core only when virtual quanta are eligible.
+            let busy = if !APPROXIMATE && self.vq_max > 1 && blocks && !slow_path && self.probes.0 == 0 {
+                if self.vq_skip > 0 { self.vq_skip -= 1; usize::MAX }
+                else {
+                    let mut b = (0..S::CORES).filter(|&i| !idle[i]);
+                    match (b.next(), b.next()) { (Some(i), None) => i, _ => usize::MAX }
+                }
+            } else { usize::MAX };
+            if busy != usize::MAX {
                 let k = self.vq_quanta(max_insns - n, &on, busy);
                 if k > 1 {
                     let total = (k * self.quantum) as u32;
@@ -600,10 +532,20 @@ impl<S: Soc> Machine<S> {
                     let pos = (total - left) as u64;
                     self.vq_stats[0] += 1; self.vq_stats[1] += pos / self.quantum;
                     if pos < 2 * self.quantum { self.vq_penalty = (self.vq_penalty * 2 + 1).min(255); self.vq_skip = self.vq_penalty; } else { self.vq_penalty = 0; }
-                    for _ in 0..pos / self.quantum {
+                    // A stopping instruction belongs to the unfinished round, even when it
+                    // consumes its last slot. Preserve the ordinary path's pre-tick return.
+                    let completed = if stop.is_some() { pos.saturating_sub(1) / self.quantum } else { pos / self.quantum };
+                    if busy == 0 { self.run_steps += pos - completed * self.quantum; }
+                    for _ in 0..completed {
                         if let Some(s) = self.vq_close_round(&on, &mut n, busy) { return s; }
                     }
-                    if let Some(s) = stop { self.drain_console(); return s; }
+                    if let Some(s) = stop {
+                        for (core, &enabled) in self.cores.iter_mut().zip(&on).take(busy) {
+                            if enabled { core.idle_advance(self.quantum as u32); }
+                        }
+                        if busy > 0 && on[0] { self.run_steps += self.quantum; }
+                        self.drain_console(); return s;
+                    }
                     if pos > 0 && pos.is_multiple_of(self.quantum) { continue; }
                     resume_at = pos % self.quantum;
                 }
@@ -612,37 +554,65 @@ impl<S: Soc> Machine<S> {
                 // An instruction can overrun the deadline by at most CPI-1 cycles.
                 self.idle_budget(u64::from(max_quantum) * u64::from(cpi), &on)
                     .min(self.max_cycles - self.bus.cycles()).div_ceil(u64::from(cpi)).max(1)
-            } else { self.quantum };
+            } else {
+                // A sleeping peer's local timer bounds the entire round. Advancing only that
+                // peer by a shorter interval would leave its CCOUNT behind shared device time.
+                self.cores.iter().zip(&on).filter(|(_, enabled)| **enabled)
+                    .filter_map(|(core, _)| core.cycles_until_wake())
+                    .fold(self.quantum, |limit, wake| limit.min(wake.max(1)))
+            };
             let elapsed = quantum * u64::from(cpi);
             let mut stalls = [0u64; 4];
+            let mut round_elapsed = 0;
             for i in 0..S::CORES {
                 if !on[i] { continue; }
-                if idle[i] && !slow_path { self.cores[i].idle_advance(elapsed as u32); } else if blocks {
-                    let mut left = (quantum - if i == busy { resume_at } else { 0 }) as u32;
+                if idle[i] && !slow_path {
+                    self.cores[i].idle_advance(elapsed as u32);
+                    if i == 0 { self.run_steps += quantum; }
+                } else if blocks {
+                    // Only the sole busy core can resume an incomplete virtual round.
+                    let budget = (quantum - resume_at) as u32;
+                    let mut left = budget;
                     while left > 0 {
                         let (used, stop) = self.step_blocks(i, left);
-                        if let Some(stop) = stop { self.drain_console(); return stop; }
+                        left -= used.min(left);
+                        if let Some(stop) = stop {
+                            if i == 0 { self.run_steps += u64::from(budget - left); }
+                            self.drain_console(); return stop;
+                        }
                         if APPROXIMATE {
                             let penalty = self.bus.take_timing_penalty();
                             self.cores[i].advance_cycles(penalty);
                             stalls[i] += u64::from(penalty);
                         }
-                        left -= used.min(left);
                         // a reset takes effect at the instruction that requested it: the core's
                         // run already stopped there (the register write broke the block)
-                        if self.bus.sw_reset() { break; }
+                        if self.bus.sw_reset() {
+                            if i == 0 { self.run_steps += u64::from(budget - left); }
+                            return self.finish_reset(round_elapsed.max((quantum - u64::from(left)) * u64::from(cpi) + stalls[i]));
+                        }
                     }
+                    if i == 0 { self.run_steps += u64::from(budget); }
                 } else {
-                    for _ in 0..quantum {
-                        if let Some(stop) = self.step_core(i) { self.drain_console(); return stop; }
+                    for used in 1..=quantum {
+                        let stop = self.step_core(i);
+                        if let Some(stop) = stop {
+                            if i == 0 { self.run_steps += used; }
+                            self.drain_console(); return stop;
+                        }
                         if APPROXIMATE {
                             let penalty = self.bus.take_timing_penalty();
                             self.cores[i].advance_cycles(cpi - 1 + penalty);
                             stalls[i] += u64::from(penalty);
                         }
-                        if self.bus.sw_reset() { break; }
+                        if self.bus.sw_reset() {
+                            if i == 0 { self.run_steps += used; }
+                            return self.finish_reset(round_elapsed.max(used * u64::from(cpi) + stalls[i]));
+                        }
                     }
+                    if i == 0 { self.run_steps += quantum; }
                 }
+                round_elapsed = round_elapsed.max(elapsed + stalls[i]);
                 if i == 0 { n += quantum; }
             }
             let stall = if APPROXIMATE { *stalls[..S::CORES].iter().max().unwrap() } else { 0 };
@@ -660,6 +630,14 @@ impl<S: Soc> Machine<S> {
         }
     }
 
+    /// A reset ends the current round immediately. Charge the work already executed, without
+    /// dispatching another core or running post-round host actions in the resetting machine.
+    fn finish_reset(&mut self, cycles: u64) -> Stop {
+        self.bus.tick(cycles as u32);
+        self.drain_console();
+        Stop::SwReset
+    }
+
     /// EX133/EX144: how many quanta the sole busy core may run in one budget. Every bound keeps the boundaries
     /// inside the run free of work: no device flush, script event, page push, peer wake-up,
     /// cycle or instruction limit may fall due before the last of them.
@@ -670,7 +648,7 @@ impl<S: Soc> Machine<S> {
         let mut k = self.vq_max.min(deadline.div_ceil(self.quantum)).min(insns_left.div_ceil(self.quantum))
             .min(self.max_cycles.saturating_sub(now).div_ceil(self.quantum));
         for (i, (core, &enabled)) in self.cores.iter().zip(on).enumerate() {
-            if enabled && i != busy { if let Some(wake) = core.cycles_until_wake() { k = k.min(wake.div_ceil(self.quantum)); } }
+            if enabled && i != busy { if let Some(wake) = core.cycles_until_wake() { k = k.min(wake / self.quantum); } }
         }
         if let Some((at, _)) = self.script.events.get(self.script.pos) { k = k.min(at.saturating_sub(now).div_ceil(self.quantum)); }
         if self.web.is_some() { k = k.min((S::CPU_HZ / self.bus.board_ref().display_push_hz()).saturating_sub(now.wrapping_sub(self.ws.last_push_cycles)).div_ceil(self.quantum)); }
@@ -681,6 +659,7 @@ impl<S: Soc> Machine<S> {
     fn vq_close_round(&mut self, on: &[bool], n: &mut u64, busy: usize) -> Option<Stop> {
         for (i, (core, &enabled)) in self.cores.iter_mut().zip(on).enumerate() { if enabled && i != busy { core.idle_advance(self.quantum as u32); } }
         *n += self.quantum;
+        self.run_steps += self.quantum;
         self.after_round(self.quantum);
         if self.bus.sw_reset() { self.drain_console(); return Some(Stop::SwReset); }
         if self.bus.cycles() >= self.max_cycles { self.drain_console(); return Some(Stop::Halted); }
@@ -702,274 +681,6 @@ impl<S: Soc> Machine<S> {
         budget
     }
 
-    fn run_approximate_jit_frontiers(&mut self, max_insns: u64) -> Stop {
-        let (cpi, quantum) = self.approximate_jit_timing.unwrap();
-        self.stub_bloom = self.stubs.keys().fold(0, |m, &pc| m | pc_bit(pc));
-        self.probe_bloom = self.fn_probes.keys().fold(0, |m, &pc| m | pc_bit(pc));
-        for core in &mut self.cores {
-            core.set_boundaries(self.stub_bloom | self.probe_bloom);
-            core.set_block_observation(self.probes.contains(Wants::BLOCK | Wants::TRAP_PC));
-        }
-        let trace = self.has_observer("trace");
-        let force_idle = self.probes.contains(Wants::NO_IDLE_SKIP);
-        let blocks = !self.probes.contains(Wants::INSN);
-        let mut on = [false; 4];
-        let mut instructions = 0;
-        loop {
-            if instructions >= max_insns { self.drain_console(); return Stop::MaxInsns; }
-            if let Err(stop) = self.settle_modeled_time(&mut on, trace, force_idle) { self.drain_console(); return stop; }
-            let now = self.bus.cycles();
-            let Some(core) = (0..S::CORES)
-                .filter(|&i| on[i] && (force_idle || !self.cores[i].waiting() || self.cores[i].irq_pending()))
-                .filter(|&i| self.model_ready_at[i] <= now)
-                .min_by_key(|&i| (self.model_ready_at[i], i))
-            else { self.drain_console(); return Stop::Halted; };
-            // EX139: a core running alone may batch up to the next deadline; device registers are
-            // then reached only at settled time (the batch stops in front of them).
-            let solo = self.vq_max > 1 && self.bus.can_defer() && (0..S::CORES).all(|i| i == core || !on[i] || (self.cores[i].waiting() && !self.cores[i].irq_pending()));
-            let mut cycles = u64::from(if solo { quantum.max(4096) } else { quantum }) * u64::from(cpi);
-            if let Some(delta) = self.bus.next_deadline() { cycles = cycles.min(delta.max(1)); }
-            if let Some(&(at, _)) = self.script.events.get(self.script.pos) { cycles = cycles.min(at.saturating_sub(now).max(1)); }
-            for (i, &enabled) in on.iter().enumerate().take(S::CORES) {
-                if i != core && enabled && self.model_ready_at[i] > now {
-                    cycles = cycles.min(self.model_ready_at[i] - now);
-                }
-            }
-            cycles = cycles.min(self.max_cycles - now);
-            let budget = cycles.div_ceil(u64::from(cpi)).max(1) as u32;
-            // Keep cheap blocks together. A priced memory access yields immediately after its
-            // block, exposing the stall to the other CPU without settling devices per ALU block.
-            let (mut used, mut extras) = (0, 0u32);
-            let penalty = loop {
-                self.bus.begin_timing_batch(core, now + u64::from(used) * u64::from(cpi));
-                if solo { self.bus.set_defer(used > 0); }
-                let (done, stop) = if blocks { self.step_blocks(core, budget - used) } else {
-                    let stop = self.step_core(core);
-                    self.cores[core].advance_cycles(cpi - 1);
-                    (1, stop)
-                };
-                if let Some(stop) = stop { self.bus.set_defer(false); self.drain_console(); return stop; }
-                let deferred = solo && self.bus.take_deferred();
-                // EX138: priced control flow spends the batch's cycles without ending it.
-                let extra = self.cores[core].take_timing_extra();
-                extras += extra;
-                used += if deferred { done } else { done.max(1) } + extra;
-                let penalty = self.bus.take_timing_penalty();
-                if penalty != 0 || used >= budget || self.cores[core].waiting() || deferred { break penalty; }
-            };
-            if solo { self.bus.set_defer(false); }
-            self.cores[core].advance_cycles(penalty + extras);
-            self.model_ready_at[core] = now + u64::from(used.max(1)) * u64::from(cpi) + u64::from(penalty);
-            instructions += u64::from(used.max(1));
-            if instructions & 0xffff < u64::from(used.max(1)) { self.drain_console(); }
-        }
-    }
-
-    fn run_modeled(&mut self, max_insns: u64) -> Stop {
-        if let Some(stop) = &self.model_stop { return stop.clone(); }
-        self.stub_bloom = self.stubs.keys().fold(0, |mask, &pc| mask | pc_bit(pc));
-        self.probe_bloom = self.fn_probes.keys().fold(0, |mask, &pc| mask | pc_bit(pc));
-        for core in &mut self.cores { core.set_boundaries(self.stub_bloom | self.probe_bloom); core.flush_caches(); }
-        for observer in &mut self.observers { observer.on_modeled_run(); }
-
-        let trace = self.has_observer("trace");
-        let force_idle = self.probes.contains(Wants::NO_IDLE_SKIP);
-        let mut on = [false; 4];
-        let mut events = 0u64;
-        loop {
-            if let Some(stop) = self.refresh_modeled_core_states(&mut on, trace) {
-                self.model_stop = Some(stop.clone()); self.drain_console(); return stop;
-            }
-            if events >= max_insns { self.drain_console(); return Stop::MaxInsns; }
-            if let Err(stop) = self.settle_modeled_time(&mut on, trace, force_idle) {
-                if matches!(stop, Stop::CostModelLifecycle { .. }) { self.model_stop = Some(stop.clone()); }
-                self.drain_console(); return stop;
-            }
-
-            let now = self.bus.cycles();
-            let Some(core) = (0..S::CORES)
-                .filter(|&i| on[i] && (force_idle || !self.cores[i].waiting() || self.cores[i].irq_pending()))
-                .filter(|&i| self.model_ready_at[i] <= now)
-                .min_by_key(|&i| (self.model_ready_at[i], i))
-            else { self.drain_console(); return Stop::Halted };
-
-            let start = now;
-            let pc = self.cores[core].pc();
-            let cost = match self.step_core_modeled(core) {
-                Ok(cost) => cost,
-                Err(stop) => {
-                    if matches!(stop, Stop::CostModel { .. } | Stop::CostModelLifecycle { .. }) { self.model_stop = Some(stop.clone()); }
-                    self.drain_console(); return stop;
-                }
-            };
-            let Some(ready) = start.checked_add(cost as u64) else {
-                let stop = Stop::CostModel { core, pc, reason: "cost model cycle frontier overflow".into() };
-                self.model_stop = Some(stop.clone());
-                self.drain_console();
-                return stop;
-            };
-            if cost > 1 { self.cores[core].advance_cycles(cost - 1); }
-            self.model_ready_at[core] = ready;
-            events += 1;
-
-            if let Err(stop) = self.settle_modeled_time(&mut on, trace, force_idle) {
-                if matches!(stop, Stop::CostModelLifecycle { .. }) { self.model_stop = Some(stop.clone()); }
-                self.drain_console(); return stop;
-            }
-            if events & 0xffff == 0 { self.drain_console(); }
-        }
-    }
-
-    fn refresh_modeled_core_states(&mut self, on: &mut [bool; 4], trace: bool) -> Option<Stop> {
-        for (i, state) in on.iter_mut().enumerate().take(S::CORES) {
-            *state = match S::core_state(&self.bus, i) {
-                CoreState::Reset => { self.core_held[i] = true; false }
-                CoreState::Held => false,
-                CoreState::Running => {
-                    if self.core_held[i] {
-                        self.core_held[i] = false;
-                        S::reset_core(&mut self.cores[i], i);
-                        self.model_ready_at[i] = self.bus.cycles();
-                        if trace { eprintln!("          ** core{} released from reset", i); }
-                        let facts = LifecycleFacts { kind: LifecycleKind::CoreReset(i), chip: S::NAME, cores: S::CORES, cpu_hz: S::CPU_HZ };
-                        if let Some(model) = &mut self.cost {
-                            if let Err(reason) = model.lifecycle(&facts) { return Some(Stop::CostModelLifecycle { kind: facts.kind, reason }); }
-                        }
-                    }
-                    true
-                }
-            };
-        }
-        None
-    }
-
-    /// Advance the shared device horizon until at least one active core can start an event.
-    fn settle_modeled_time(&mut self, on: &mut [bool; 4], trace: bool, force_idle: bool) -> Result<(), Stop> {
-        loop {
-            if let Some(stop) = self.refresh_modeled_core_states(on, trace) { return Err(stop); }
-            self.after_round_rest();
-            self.refresh_irq();
-            if self.bus.sw_reset() { return Err(Stop::SwReset); }
-            let now = self.bus.cycles();
-            if now >= self.max_cycles { return Err(Stop::Halted); }
-
-            let next_core = (0..S::CORES)
-                .filter(|&i| on[i] && (force_idle || !self.cores[i].waiting() || self.cores[i].irq_pending()))
-                .map(|i| self.model_ready_at[i].max(now))
-                .min();
-            if next_core == Some(now) { return Ok(()); }
-
-            let mut target = next_core;
-            if let Some(delta) = self.bus.next_deadline() {
-                let deadline = now.saturating_add(delta.max(1));
-                target = Some(target.map_or(deadline, |current| current.min(deadline)));
-            }
-            if let Some(&(deadline, _)) = self.script.events.get(self.script.pos) {
-                let deadline = deadline.max(now.saturating_add(1));
-                target = Some(target.map_or(deadline, |current| current.min(deadline)));
-            }
-            for (i, &enabled) in on.iter().enumerate().take(S::CORES) {
-                if enabled && self.cores[i].waiting() && !self.cores[i].irq_pending() {
-                    if let Some(delta) = self.cores[i].cycles_until_wake() {
-                        let deadline = self.model_ready_at[i].max(now).saturating_add(delta.max(1));
-                        target = Some(target.map_or(deadline, |current| current.min(deadline)));
-                    }
-                }
-            }
-            let Some(target) = target.map(|target| target.min(self.max_cycles)) else { return Err(Stop::Halted); };
-            if target <= now { return Err(Stop::Halted); }
-            self.advance_modeled_time(target, on);
-        }
-    }
-
-    fn advance_modeled_time(&mut self, target: u64, on: &[bool; 4]) {
-        for (i, &enabled) in on.iter().enumerate().take(S::CORES) {
-            if enabled && self.cores[i].waiting() && !self.cores[i].irq_pending() && self.model_ready_at[i] < target {
-                let mut remaining = target - self.model_ready_at[i];
-                while remaining != 0 {
-                    let step = remaining.min(u32::MAX as u64) as u32;
-                    self.cores[i].advance_cycles(step);
-                    remaining -= step as u64;
-                }
-                self.model_ready_at[i] = target;
-            }
-        }
-        while self.bus.cycles() < target {
-            let step = (target - self.bus.cycles()).min(u32::MAX as u64);
-            self.after_round(step);
-        }
-    }
-
-    fn step_core_modeled(&mut self, core: usize) -> Result<u32, Stop> {
-        let pc = self.cores[core].pc();
-        if self.probe_bloom & pc_bit(pc) != 0 && !self.cores[core].waiting() {
-            if let Some(name) = self.fn_probes.get(&pc) {
-                let cpu = &self.cores[core];
-                let (args, ret) = (cpu.probe_args(&mut self.bus), cpu.return_address(&mut self.bus));
-                eprintln!("[fn] i={} t={:.4}s c{} {}({}) ret={:#x}", cpu.insn_count(), self.bus.cycles() as f64 / S::CPU_HZ as f64, core, name, args, ret);
-            }
-        }
-        if self.stub_bloom & pc_bit(pc) != 0 && !self.cores[core].waiting() && self.stubs.contains_key(&pc) {
-            return Err(Stop::CostModel { core, pc, reason: "function stubs are unsupported by modeled execution".into() });
-        }
-        {
-            let cx = Ctx { symbols: &self.symbols, cycles: self.bus.cycles(), cpu_hz: S::CPU_HZ };
-            for observer in &mut self.observers {
-                if observer.wants().contains(Wants::INSN) {
-                    if let Some(stop) = observer.on_insn(&cx, core, &self.cores[core], &mut self.bus, pc) { return Err(stop); }
-                }
-            }
-        }
-
-        self.bus.note_pc(pc);
-        let (outcome, accesses) = {
-            let mut bus = RecordingBus::new(&mut self.bus, std::mem::take(&mut self.model_accesses));
-            let mut outcome = self.cores[core].step(&mut bus);
-            // A control operation is an occurrence, not a decoded intention. Current cores can
-            // report it before a privilege or execution failure, so only retirement commits it.
-            if !matches!(outcome.kind, StepKind::Retired) { outcome.control = None; }
-            let accesses = bus.finish(outcome.bytes, outcome.pc);
-            (outcome, accesses)
-        };
-        if let Some(trap) = outcome.trap() {
-            if self.probes.contains(Wants::TRAP | Wants::TRAP_PC) {
-                let cx = Ctx { symbols: &self.symbols, cycles: self.bus.cycles(), cpu_hz: S::CPU_HZ };
-                for observer in &mut self.observers {
-                    if observer.wants().contains(Wants::TRAP | Wants::TRAP_PC) { observer.on_trap(&cx, core, &self.cores[core], pc, &trap); }
-                }
-            }
-            match trap {
-                Trap::Exception(_) => { self.exceptions += 1; }
-                Trap::Interrupt(irq) => { self.interrupts += 1; self.irq_hist[core][(irq & 31) as usize] += 1; }
-                Trap::Unimplemented(at, raw) if self.dbg.stop_on_unimplemented => return Err(Stop::Unimplemented(at, raw)),
-                Trap::Simcall => return Err(Stop::Simcall(pc)),
-                Trap::Ebreak(at) if !self.cores[core].has_trap_handler() => { self.exceptions += 1; return Err(Stop::Ebreak(at)); }
-                Trap::Ebreak(_) => { self.exceptions += 1; }
-                Trap::Unimplemented(_, _) => {}
-            }
-        }
-        self.refresh_irq();
-        {
-            let cx = Ctx { symbols: &self.symbols, cycles: self.bus.cycles(), cpu_hz: S::CPU_HZ };
-            for observer in &mut self.observers {
-                if observer.wants().contains(Wants::INSN) {
-                    if let Some(stop) = observer.after_insn(&cx, core, &self.cores[core], &mut self.bus) { return Err(stop); }
-                }
-            }
-        }
-        if self.probes.0 != 0 { self.deliver_events(); }
-        if self.bus.sw_reset() { return Err(Stop::SwReset); }
-        if self.exceptions >= self.dbg.stop_after_exceptions { return Err(Stop::Exceptions(self.exceptions)); }
-
-        let facts = ExecutionFacts { core, outcome, accesses: &accesses };
-        let result = self.cost.as_mut().expect("modeled path requires an attached model").cycles_at(&facts, self.bus.cycles());
-        self.model_accesses = accesses;
-        match result {
-            Ok(0) => Err(Stop::CostModel { core, pc, reason: "cost model returned zero cycles".into() }),
-            Ok(cycles) => Ok(cycles),
-            Err(reason) => Err(Stop::CostModel { core, pc, reason }),
-        }
-    }
     /// Run core 0 until device time reaches `target` (a cycle count of `bus.cycles()`), exactly:
     /// the round is cut short at the target, so time never overshoots by a quantum, and cut
     /// short at the instruction — or the device tick — that raises a host event
@@ -998,6 +709,7 @@ impl<S: Soc> Machine<S> {
             if now >= target { return RunUntil::Reached; }
             if self.apply_script_events() { self.drain_console(); return RunUntil::Stop(Stop::Halted); }
             self.refresh_irq();
+            if self.bus.sw_reset() { self.drain_console(); return RunUntil::Stop(Stop::SwReset); }
             let left = target - now;
             let core = &self.cores[0];
             if core.waiting() && !core.irq_pending() && !no_skip {
@@ -1017,7 +729,7 @@ impl<S: Soc> Machine<S> {
                     used_total += used as u64;
                     budget -= used.min(budget);
                     if s.is_some() { stop = s; break; }
-                    if self.bus.sw_reset() { break; }
+                    if self.bus.sw_reset() { return RunUntil::Stop(self.finish_reset(used_total)); }
                     if self.bus.take_host_event() { yielded = true; break; }
                 }
                 let script_stopped = self.after_round(used_total);
@@ -1108,140 +820,6 @@ impl<S: Soc> Machine<S> {
             } else { self.rt.behind = 0.0; }
         }
         stopped
-    }
-
-    // ------------------------------------------------------------------ web UI
-    /// Send display / audio / ring updates to the browser (called ~50x per emulated second).
-    fn web_push(&mut self) {
-        if self.rt.log {
-            let now = std::time::Instant::now();
-            let (i0, i1) = (self.cores[0].insn_count(), self.cores.get(1).map_or(0, |c| c.insn_count()));
-            if let Some(last) = self.rt.log_last {
-                let dt = now.duration_since(last).as_secs_f64() * 1e3;
-                if dt > 40.0 {
-                    let (p0, p1) = (self.cores[0].pc(), self.cores.get(1).map_or(0, |c| c.pc()));
-                    eprintln!("[rt] t={:.2}s window took {:.0} ms: core0 {} insns (pc {:08x} {}), core1 {} insns (pc {:08x} {})", self.seconds(), dt,
-                              i0 - self.rt.log_insns.0, p0, self.sym(p0), i1 - self.rt.log_insns.1, p1, self.sym(p1));
-                }
-            }
-            self.rt.log_last = Some(now); self.rt.log_insns = (i0, i1);
-        }
-        let Some(w) = self.web.clone() else { return };
-        self.drain_console();
-        let board = self.bus.board_ref();
-        let ver = board.display_version();
-        // Prefer one quiet push interval for pixel streams, but never defer a changed frame
-        // twice: continuous drawing must remain visible. This is a UI snapshot, not scanout.
-        let changed = ver != self.ws.px_sent;
-        let due = changed && (!board.display_quiet_push() || ver == self.ws.px_pending || self.ws.px_deferred);
-        self.ws.px_pending = ver;
-        self.ws.px_deferred = changed && !due;
-        if due {
-            if let Some((w_, h_, px, _)) = board.display() {
-                self.ws.px_sent = ver;
-                let mut b = Vec::with_capacity(5 + px.len() * 2);
-                b.extend_from_slice(&[1u8, w_ as u8, (w_ >> 8) as u8, h_ as u8, (h_ >> 8) as u8]);
-                b.extend(px.iter().flat_map(|p| p.to_le_bytes()));
-                w.send_binary(&b);
-            }
-        }
-        let board = self.bus.board_ref();
-        if self.ws.cam_pushed != self.bus.camera_frames() / 20 || !self.ws.cam_sent {
-            if let Some(rgb) = board.camera_preview(320, 240) {
-                let mut b = vec![4u8, (320u16 & 255) as u8, (320u16 >> 8) as u8, (240u16 & 255) as u8, (240u16 >> 8) as u8]; b.extend_from_slice(&rgb); w.send_binary(&b); self.ws.cam_sent = true;
-            }
-            self.ws.cam_pushed = self.bus.camera_frames() / 20;
-        }
-        let (pcm, rate) = self.bus.audio();
-        if pcm.len() > self.ws.audio_sent {
-            let chunk = &pcm[self.ws.audio_sent..];
-            let mut b = vec![2u8];
-            b.extend_from_slice(&rate.to_le_bytes());
-            for s in chunk { b.extend_from_slice(&s.to_le_bytes()); }
-            w.send_binary(&b);
-            self.ws.audio_sent = pcm.len();
-        }
-        let board = self.bus.board_ref();
-        let grids: Vec<(&'static str, Vec<[u8; 3]>, u64)> =
-            board.led_grids().into_iter().map(|(id, leds, updates)| (id, leds.to_vec(), updates)).collect();
-        self.ws.grid_updates.resize(grids.len(), u64::MAX);
-        for (i, (id, leds, updates)) in grids.iter().enumerate() {
-            if self.ws.grid_updates[i] == *updates { continue; }
-            self.ws.grid_updates[i] = *updates;
-            w.send_text(&format!("{{\"t\":\"grid\",\"id\":\"{}\",\"leds\":[{}]}}", id, leds_json(leds)));
-        }
-        let board = self.bus.board_ref();
-        if let Some((leds, updates)) = board.leds() { if updates != self.ws.ring_updates {
-            self.ws.ring_updates = updates;
-            let leds: Vec<String> = leds.iter().map(|c| format!("[{},{},{}]", c[0], c[1], c[2])).collect();
-            w.send_text(&format!("{{\"t\":\"ring\",\"leds\":[{}]}}", leds.join(",")));
-        } }
-        // snapshot for late-joining clients: backlog, frame, ring
-        if w.needs_hello() {
-            use crate::web::json_escape;
-            let mut hello: Vec<Vec<u8>> = Vec::new();
-            let mk = |s: &str| -> Vec<u8> { let mut f = vec![0x81u8]; let n = s.len(); if n < 126 { f.push(n as u8); } else if n < 65536 { f.push(126); f.extend_from_slice(&(n as u16).to_be_bytes()); } else { f.push(127); f.extend_from_slice(&(n as u64).to_be_bytes()); } f.extend_from_slice(s.as_bytes()); f };
-            let mkb = |d: &[u8]| -> Vec<u8> { let mut f = vec![0x82u8]; let n = d.len(); if n < 126 { f.push(n as u8); } else if n < 65536 { f.push(126); f.extend_from_slice(&(n as u16).to_be_bytes()); } else { f.push(127); f.extend_from_slice(&(n as u64).to_be_bytes()); } f.extend_from_slice(d); f };
-            hello.push(mk(&format!("{{\"t\":\"serial\",\"src\":\"uart0\",\"data\":\"{}\"}}", json_escape(&String::from_utf8_lossy(&self.console.uart0)))));
-            hello.push(mk(&format!("{{\"t\":\"serial\",\"src\":\"usb\",\"data\":\"{}\"}}", json_escape(&String::from_utf8_lossy(&self.console.usb)))));
-            hello.push(mk(&format!("{{\"t\":\"board\",\"name\":\"{}\"}}", board.name())));
-            if let Some((w_, h_, px, _)) = board.display() { let mut b = vec![1u8, w_ as u8, (w_ >> 8) as u8, h_ as u8, (h_ >> 8) as u8]; for p in &px { b.push(*p as u8); b.push((*p >> 8) as u8); } hello.push(mkb(&b)); }
-            if let Some(rgb) = board.camera_preview(320, 240) { let mut b = vec![4u8, (320u16 & 255) as u8, (320u16 >> 8) as u8, (240u16 & 255) as u8, (240u16 >> 8) as u8]; b.extend_from_slice(&rgb); hello.push(mkb(&b)); }
-            if let Some((leds, _)) = board.leds() { let leds: Vec<String> = leds.iter().map(|c| format!("[{},{},{}]", c[0], c[1], c[2])).collect();
-            hello.push(mk(&format!("{{\"t\":\"ring\",\"leds\":[{}]}}", leds.join(",")))); }
-            for (id, leds, _) in board.led_grids() { hello.push(mk(&format!("{{\"t\":\"grid\",\"id\":\"{}\",\"leds\":[{}]}}", id, leds_json(leds)))); }
-            w.set_hello(hello);
-        }
-        w.send_text(&format!("{{\"t\":\"stat\",\"time\":{:.2},\"insns\":{},\"frames\":{},\"behind\":{:.2},\"resyncs\":{},\"speed\":{},\"cam\":{},\"gpio_in\":\"{:x}\"}}", self.seconds(), self.insns(), board.display_frames(), self.rt.behind, self.rt.resyncs, self.rt.speed.map_or_else(|| "null".to_string(), |s| format!("{:.3}", s)), self.bus.camera_frames(), self.bus.gpio_input()));
-    }
-
-    // Host input is accepted at run boundaries without advancing device time. The periodic
-    // poll remains necessary for native callers that run continuously rather than in slices.
-    fn web_poll_input(&mut self) {
-        let Some(w) = self.web.clone() else { return };
-        use crate::web::json_str;
-        for b in w.poll_incoming_bin() {
-            // type 3: camera picture from the browser — [3][w u16 le][h u16 le][RGBA...]
-            if b.len() >= 5 && b[0] == 3 {
-                let (wd, ht) = (u16::from_le_bytes([b[1], b[2]]) as usize, u16::from_le_bytes([b[3], b[4]]) as usize);
-                if wd > 0 && ht > 0 && b.len() >= 5 + wd * ht * 4 {
-                    let mut rgb = Vec::with_capacity(wd * ht * 3);
-                    for px in b[5..5 + wd * ht * 4].chunks(4) { rgb.extend_from_slice(&px[..3]); }
-                    self.bus.board().set_camera_picture(crate::picture::Picture { w: wd as u32, h: ht as u32, rgb });
-                }
-            }
-        }
-        for m in w.poll_incoming() {
-            let t = json_str(&m, "t").unwrap_or_default();
-            match t.as_str() {
-                "btn" => { let pin: u8 = json_str(&m, "pin").and_then(|x| x.parse().ok()).unwrap_or(0); let v = json_str(&m, "v").unwrap_or_default() == "1";
-                           self.bus.gpio_set_input(pin, !v); *self.bus.irq_dirty() = true; }
-                "knobpress" => { let v = json_str(&m, "v").unwrap_or_default() == "1"; if let Some(sw) = self.bus.board_ref().named_pin("sw") { self.bus.gpio_set_input(sw, !v); *self.bus.irq_dirty() = true; } }
-                "knob" => {
-                    let d: i32 = json_str(&m, "d").and_then(|x| x.parse().ok()).unwrap_or(1);
-                    let Some((clk, dt)) = self.bus.board_ref().encoder() else { continue };
-                    let step = S::CPU_HZ / 500;   // 2 ms per phase
-                    let mut tc = (self.bus.cycles() + step).max(self.script.knob_next);   // queue detents back to back, never overlapping
-                    for _ in 0..d.unsigned_abs() { for (pn, l) in Self::quadrature(clk, dt, d > 0) { self.script.events.push((tc, ScriptAction::Gpio(pn, l))); tc += step; } tc += step * 4; }
-                    self.script.knob_next = tc;
-                    // Keep already consumed events before the cursor; pending events at the
-                    // current horizon have not necessarily run when input arrives at run entry.
-                    self.script.events[self.script.pos..].sort_by_key(|e| e.0);
-                }
-                // a line with its newline, or `key`: bytes exactly as typed (a terminal on the console)
-                "serial" | "key" => {
-                    let data = if t == "key" { json_str(&m, "data").unwrap_or_default() } else { format!("{}\n", json_str(&m, "line").unwrap_or_default()) };
-                    match json_str(&m, "src").as_deref() {
-                        Some("uart0") => self.bus.uart_input(0, data.as_bytes()),
-                        Some("uart1") => self.bus.uart_input(1, data.as_bytes()),
-                        _ => self.bus.serial_input(data.as_bytes()),
-                    }
-                }
-                "touch" => { let x: u16 = json_str(&m, "x").and_then(|v| v.parse().ok()).unwrap_or(0); let y: u16 = json_str(&m, "y").and_then(|v| v.parse().ok()).unwrap_or(0);
-                             let down = json_str(&m, "down").unwrap_or_default() == "1"; self.bus.touch_input(x, y, down); }
-                _ => {}
-            }
-        }
     }
 
     /// One encoder detent as (pin, level) edges, 2 ms apart. Idle is (1,1); CW: CLK falls while
