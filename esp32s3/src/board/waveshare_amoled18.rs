@@ -185,7 +185,8 @@ impl BoardModel for WaveshareAmoled18V2 {
     }
     fn display_version(&self) -> u64 { self.panel.pixels_written }
     fn display_frames(&self) -> u64 { self.panel.frames }
-    fn display_quiet_push(&self) -> bool { true }
+    fn display_quiet_push(&self) -> bool { false }
+    fn display_push_hz(&self) -> u64 { 120 }
     fn input_levels(&self) -> Vec<(u8, bool)> {
         vec![(PIN_AMOLED_TE, self.te_level), (PIN_AMOLED_TOUCH_INT, self.touch_irq_level)]
     }

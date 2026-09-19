@@ -30,6 +30,7 @@
     if (m.text !== undefined) { onmessage && onmessage(m.text); return; }
     if (m.bin !== undefined) {
       onmessage && onmessage(m.bin);
+      if (m.ack) worker.postMessage({ op: 'frame-ack' });
       if (m.frameTrace) window.recordTouchTrace?.({ stage: 'canvas-drawn', atMs: performance.timeOrigin + performance.now(), cycles: m.frameTrace.cycles });
       return;
     }
