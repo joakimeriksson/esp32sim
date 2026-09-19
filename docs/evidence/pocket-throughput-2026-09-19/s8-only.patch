@@ -1,0 +1,39 @@
+diff --git a/xtensa-lx7/src/jit/wasm_pie.rs b/xtensa-lx7/src/jit/wasm_pie.rs
+index aaa118d7..2cee2571 100644
+--- a/xtensa-lx7/src/jit/wasm_pie.rs
++++ b/xtensa-lx7/src/jit/wasm_pie.rs
+@@ -154,9 +154,9 @@ fn add_i32_lanes(g: &mut Gen) {
+ 
+ /// ACCX += Σ x·y over the signed `w`-bit lanes of Q registers `x` and `y`, saturated to 40
+ /// bits: exactly `pie::exec_packed`. The products are widening vector multiplies over the low
+-/// and high halves; the lane sums and ACCX itself are 64-bit, so no intermediate can wrap.
++/// and high halves. Signed-8 products sum in 32 bits (at most 16 * 128 * 128);
++/// signed-16 products and ACCX need 64 bits.
+ fn accumulate(g: &mut Gen, w: u8, x: i32, y: i32) {
+-    i64_const(g, 0);
+     if w == 8 {
+         // i8·i8 fits i16; two products per i32 lane after the pairwise add.
+         for high in [false, true] {
+@@ -164,11 +164,21 @@ fn accumulate(g: &mut Gen, w: u8, x: i32, y: i32) {
+             q(g, y);
+             g.bytes.extend([0xfd, if high { 0x9d } else { 0x9c }, 0x01]); // i16x8.extmul_{low,high}_i8x16_s
+             g.bytes.extend([0xfd, 0x7e]); // i32x4.extadd_pairwise_i16x8_s
++            if high {
++                g.get(V128);
++                g.bytes.extend([0xfd, 0xae, 0x01]); // i32x4.add
++            }
+             g.set(V128);
+-            add_i32_lanes(g);
+         }
++        for lane in 0..4 {
++            g.get(V128);
++            g.bytes.extend([0xfd, 0x1b, lane]); // i32x4.extract_lane
++            if lane != 0 { g.op(0x6a); } // i32.add
++        }
++        g.op(0xac); // i64.extend_i32_s
+     } else {
+         // i16·i16 fits i32; eight products, summed in 64 bits.
++        i64_const(g, 0);
+         for high in [false, true] {
+             q(g, x);
+             q(g, y);

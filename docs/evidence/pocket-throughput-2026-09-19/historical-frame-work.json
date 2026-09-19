@@ -1,0 +1,53 @@
+{
+  "olderCombined4": {
+    "rawPath": "/Users/alice/src/a/esp32sim/work/night-run/runs/pt-combined4/1-candidate/result.json",
+    "version": {
+      "Browser": "Chrome/153.0.8010.53",
+      "V8-Version": "15.3.76.13"
+    },
+    "result": {
+      "workload": "pocket-tank",
+      "guestSeconds": 30.000000229166666,
+      "wallSeconds": 65.41034999999404,
+      "instructions": 10073833775,
+      "frames": 737,
+      "jit": {
+        "compiled": 6243,
+        "failed": 0,
+        "released": 1813,
+        "compileMs": 553.6749993264675,
+        "bytes": 72008542,
+        "liveBytes": 55998239,
+        "peakBytes": 55998239,
+        "peakModules": 4852,
+        "instructions": 9817326819
+      }
+    }
+  },
+  "currentBaseline": {
+    "rawPath": "/Users/alice/src/a/esp32sim/work/pocket-perf-runs/s8-screen/1-baseline/result.json",
+    "version": {
+      "Browser": "Chrome/153.0.8010.53",
+      "V8-Version": "15.3.76.13"
+    },
+    "result": {
+      "workload": "pocket-tank",
+      "guestSeconds": 30.000000229166666,
+      "wallSeconds": 83.43798000001907,
+      "instructions": 10073833775,
+      "frames": 3094,
+      "jit": {
+        "compiled": 6243,
+        "failed": 0,
+        "released": 1813,
+        "compileMs": 691.0699986815453,
+        "bytes": 72158197,
+        "liveBytes": 56141679,
+        "peakBytes": 56141679,
+        "peakModules": 4852,
+        "instructions": 9817326916
+      }
+    }
+  },
+  "note": "Presentation work differs. Equal guest instructions do not establish equal total work; the elapsed-time attribution remains unmeasured. Historical copied build.json commits are not accepted as binary provenance."
+}

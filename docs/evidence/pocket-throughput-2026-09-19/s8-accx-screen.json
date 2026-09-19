@@ -1,0 +1,172 @@
+{
+  "pairs": 1,
+  "screeningOnly": true,
+  "medianWallSeconds": {
+    "baseline": 79.45189999997616,
+    "candidate": 79.36957499998807
+  },
+  "wallReductionPercent": 0.10361615013374514,
+  "pairsWallReductionPercent": [
+    0.10361615013374514
+  ],
+  "runs": [
+    {
+      "pair": 1,
+      "arm": "baseline",
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "browser": "Chrome/153.0.8010.53",
+      "v8": "15.3.76.13",
+      "provenance": {
+        "sha256": {
+          "asset/app": "443dd24aed14a509e6df597eb3a02635cc07e0fbee6f04db85a62f4d4dadb113",
+          "asset/bootloader": "9556d59f3a10f6b04fa6d75f3142a66034339afafffbd4bbc3d9a127eaa73859",
+          "asset/model": "b200bf87c78dc85c4d727f68941ac0b83cced9827037cc169cd2122d71002c2a",
+          "asset/ptable": "7af5b28608c91167e00778b7f20622f3b47849efebeb3e64117162d73f3e0508",
+          "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+          "asset/wasm": "d9b9c8a3635a7aecaf1b2901238247443e70cb2d4a1b828869469e75991c9174",
+          "harness/battery-failure.test.mjs": "68333b7e686dfeb08bffa1a41c1181e86b9fbf63abcdc371c53b9859f0089014",
+          "harness/battery-worker.mjs": "4856f3531a83b8f81bd5118e07060a183c2b904b900f4b8b2b51e187230a3b81",
+          "harness/battery-workload.test.mjs": "8c827d224c8f7b1315676317fa3d83332624810082efe886cd7cf5d07981b399",
+          "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+          "harness/battery.mjs": "54d49c77991cb755468ed957340ab3c198f197f45e06c98773d8f97b738f3d95",
+          "harness/capture-battery.mjs": "3a6eb7f654af08075d808296bf1b4eea7da5607518687594f7115dbe608a286d",
+          "harness/capture-cpu.mjs": "2a224056be6502fb5b7df1f1f63b29e75ba6946e1aa08768030de40f71ffd9cc",
+          "harness/capture-page-response.mjs": "4e4d38ef935ab2fd565d5f3665889b014321f6f2c8cb82b70d12e5db530420c1",
+          "harness/capture-response.mjs": "74a502f612e24170ba7c3fa329eed79bd3b78b01aab679f7fe67920643f3e4d6",
+          "harness/check-page-input.mjs": "1188b390807ad3096e14a9da2fe4139887b4f256b809640cf752b39edba608eb",
+          "harness/response.html": "2ded61ce3ed5449f249f1db204305ca16d0447cfef628dbe1dbe13e33c3d2051",
+          "harness/response.mjs": "0e6d68ba9200d26eeeb34279f49613d56521851e94538f185f842b7c1e9605ff",
+          "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+          "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+          "harness/verdict.test.mjs": "fc77e45e65a7d5072723613833fb35d592b56f7590d80079201d4a2cfba006f4",
+          "harness/workloads.json": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+          "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+          "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+          "web/wasm/worker.js": "1b1b4b8d9a21b828d60bf15406833ee5cf72abb39b5d2be93054c417c4a7b785"
+        }
+      },
+      "wallSeconds": 79.45189999997616,
+      "guestSeconds": 30.000000229166666,
+      "realtimeRatio": 0.3775869454245357,
+      "instructions": 10073833775,
+      "passed": true,
+      "jitFailed": 0,
+      "jitBytes": 72158197,
+      "run": "/Users/alice/src/a/esp32sim/work/pocket-perf-runs/s8-accx-screen/1-baseline",
+      "countedBinaryFrames": 3094,
+      "jitCompiled": 6243,
+      "jitReleased": 1813,
+      "jitPeakModules": 4852,
+      "capture": {
+        "mode": "timing",
+        "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+        "loadBefore": [
+          40.96630859375,
+          38.56494140625,
+          30.1845703125
+        ],
+        "harnessSha256": {
+          "run-pairs.py": "e84dacf743a93dad097c2ff52e53290ade8e6c737c7bcb474a2087a7ecd3d5fd",
+          "serve.py": "b6e64d9520ec25f00678bad3c99b5976b454babb191c3b18d7d69f67faa6102d",
+          "capture-battery.mjs": "3a6eb7f654af08075d808296bf1b4eea7da5607518687594f7115dbe608a286d"
+        },
+        "chromeCommand": [
+          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+          "--headless=new",
+          "--no-first-run",
+          "--no-default-browser-check",
+          "--disable-background-timer-throttling",
+          "--disable-renderer-backgrounding",
+          "--remote-debugging-address=127.0.0.1",
+          "--remote-debugging-port=59443",
+          "--user-data-dir=/Users/alice/src/a/esp32sim/work/pocket-perf-runs/s8-accx-screen/1-baseline/chrome-profile",
+          "about:blank"
+        ],
+        "loadAfter": [
+          13.91845703125,
+          30.4892578125,
+          27.890625
+        ]
+      }
+    },
+    {
+      "pair": 1,
+      "arm": "candidate",
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "browser": "Chrome/153.0.8010.53",
+      "v8": "15.3.76.13",
+      "provenance": {
+        "sha256": {
+          "asset/app": "443dd24aed14a509e6df597eb3a02635cc07e0fbee6f04db85a62f4d4dadb113",
+          "asset/bootloader": "9556d59f3a10f6b04fa6d75f3142a66034339afafffbd4bbc3d9a127eaa73859",
+          "asset/model": "b200bf87c78dc85c4d727f68941ac0b83cced9827037cc169cd2122d71002c2a",
+          "asset/ptable": "7af5b28608c91167e00778b7f20622f3b47849efebeb3e64117162d73f3e0508",
+          "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+          "asset/wasm": "b81bf1a262ca6377754c3dfa7ad1a0829b9db4c7c903b809d4a220321ebb514d",
+          "harness/battery-failure.test.mjs": "68333b7e686dfeb08bffa1a41c1181e86b9fbf63abcdc371c53b9859f0089014",
+          "harness/battery-worker.mjs": "4856f3531a83b8f81bd5118e07060a183c2b904b900f4b8b2b51e187230a3b81",
+          "harness/battery-workload.test.mjs": "8c827d224c8f7b1315676317fa3d83332624810082efe886cd7cf5d07981b399",
+          "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+          "harness/battery.mjs": "54d49c77991cb755468ed957340ab3c198f197f45e06c98773d8f97b738f3d95",
+          "harness/capture-battery.mjs": "3a6eb7f654af08075d808296bf1b4eea7da5607518687594f7115dbe608a286d",
+          "harness/capture-cpu.mjs": "2a224056be6502fb5b7df1f1f63b29e75ba6946e1aa08768030de40f71ffd9cc",
+          "harness/capture-page-response.mjs": "4e4d38ef935ab2fd565d5f3665889b014321f6f2c8cb82b70d12e5db530420c1",
+          "harness/capture-response.mjs": "74a502f612e24170ba7c3fa329eed79bd3b78b01aab679f7fe67920643f3e4d6",
+          "harness/check-page-input.mjs": "1188b390807ad3096e14a9da2fe4139887b4f256b809640cf752b39edba608eb",
+          "harness/response.html": "2ded61ce3ed5449f249f1db204305ca16d0447cfef628dbe1dbe13e33c3d2051",
+          "harness/response.mjs": "0e6d68ba9200d26eeeb34279f49613d56521851e94538f185f842b7c1e9605ff",
+          "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+          "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+          "harness/verdict.test.mjs": "fc77e45e65a7d5072723613833fb35d592b56f7590d80079201d4a2cfba006f4",
+          "harness/workloads.json": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+          "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+          "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+          "web/wasm/worker.js": "1b1b4b8d9a21b828d60bf15406833ee5cf72abb39b5d2be93054c417c4a7b785"
+        }
+      },
+      "wallSeconds": 79.36957499998807,
+      "guestSeconds": 30.000000229166666,
+      "realtimeRatio": 0.37797859229019654,
+      "instructions": 10073833775,
+      "passed": true,
+      "jitFailed": 0,
+      "jitBytes": 71592497,
+      "run": "/Users/alice/src/a/esp32sim/work/pocket-perf-runs/s8-accx-screen/1-candidate",
+      "countedBinaryFrames": 3094,
+      "jitCompiled": 6243,
+      "jitReleased": 1813,
+      "jitPeakModules": 4852,
+      "capture": {
+        "mode": "timing",
+        "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+        "loadBefore": [
+          13.91845703125,
+          30.4892578125,
+          27.890625
+        ],
+        "harnessSha256": {
+          "run-pairs.py": "e84dacf743a93dad097c2ff52e53290ade8e6c737c7bcb474a2087a7ecd3d5fd",
+          "serve.py": "b6e64d9520ec25f00678bad3c99b5976b454babb191c3b18d7d69f67faa6102d",
+          "capture-battery.mjs": "3a6eb7f654af08075d808296bf1b4eea7da5607518687594f7115dbe608a286d"
+        },
+        "chromeCommand": [
+          "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+          "--headless=new",
+          "--no-first-run",
+          "--no-default-browser-check",
+          "--disable-background-timer-throttling",
+          "--disable-renderer-backgrounding",
+          "--remote-debugging-address=127.0.0.1",
+          "--remote-debugging-port=59548",
+          "--user-data-dir=/Users/alice/src/a/esp32sim/work/pocket-perf-runs/s8-accx-screen/1-candidate/chrome-profile",
+          "about:blank"
+        ],
+        "loadAfter": [
+          10.220703125,
+          25.47998046875,
+          26.21240234375
+        ]
+      }
+    }
+  ]
+}
