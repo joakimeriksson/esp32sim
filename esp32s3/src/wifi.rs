@@ -2,6 +2,9 @@
 //! "hears". The AP beacons, answers probe requests, and completes open-system authentication and
 //! association; data frames are handed to the network backend (docs/networking-plan.md).
 
+#[cfg(test)]
+mod tests;
+
 pub fn mac_str(m: &[u8]) -> String { m.iter().map(|b| format!("{:02x}", b)).collect::<Vec<_>>().join(":") }
 
 fn ies(f: &[u8], body: usize) -> Vec<(u8, &[u8])> {
@@ -37,6 +40,41 @@ pub const RSN_IE: &[u8] = &[48, 20, 1, 0, 0x00, 0x0f, 0xac, 4, 1, 0, 0x00, 0x0f,
 #[derive(Clone, Debug)]
 pub struct ApConfig { pub ssid: String, pub bssid: [u8; 6], pub channel: u8, pub psk: Option<String> }
 
+impl ApConfig {
+    /// Parse the shared CLI/browser AP configuration. Unknown keys are errors so a
+    /// misspelled passphrase option cannot silently configure an open network.
+    pub fn parse(spec: &str) -> Result<Self, String> {
+        let mut cfg = Self {
+            ssid: "esp32sim".into(), bssid: [0x02, 0x53, 0x49, 0x4d, 0x00, 0x01], channel: 6, psk: None,
+        };
+        if spec.is_empty() { return Ok(cfg); }
+        for entry in spec.split(',') {
+            let (key, value) = entry.split_once('=')
+                .ok_or_else(|| format!("invalid WiFi option '{entry}': expected key=value"))?;
+            match key {
+                "ssid" => cfg.ssid = value.to_string(),
+                "chan" | "channel" | "ch" => {
+                    cfg.channel = value.parse::<u8>().ok().filter(|n| (1..=14).contains(n))
+                        .ok_or_else(|| format!("invalid WiFi channel '{value}': expected 1 through 14"))?;
+                }
+                "psk" | "password" | "pass" => cfg.psk = Some(value.to_string()),
+                "bssid" => {
+                    let invalid = || format!("invalid WiFi BSSID '{value}': expected six hexadecimal octets");
+                    let mut octets = value.split(':');
+                    for byte in &mut cfg.bssid {
+                        let octet = octets.next().filter(|s| s.len() == 2 && s.bytes().all(|b| b.is_ascii_hexdigit()))
+                            .ok_or_else(&invalid)?;
+                        *byte = u8::from_str_radix(octet, 16).map_err(|_| invalid())?;
+                    }
+                    if octets.next().is_some() { return Err(invalid()); }
+                }
+                _ => return Err(format!("unknown WiFi option '{key}'")),
+            }
+        }
+        Ok(cfg)
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum StaState { Idle, Authenticated, Associated }
 
@@ -44,15 +82,22 @@ pub enum StaState { Idle, Authenticated, Associated }
 pub struct AirFrame { pub at_us: u64, pub frame: Vec<u8> }
 
 /// WPA2 four-way handshake state (AP side).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum WpaState {
+    #[default]
+    Idle,
+    AwaitingMessage2,
+    AwaitingMessage4,
+    Installed,
+}
+
 #[derive(Default)]
 pub struct Wpa {
     pub pmk: [u8; 32],
     pub anonce: [u8; 32],
-    pub snonce: [u8; 32],
-    pub ptk: Option<[u8; 48]>,
     pub gtk: [u8; 16],
     pub replay: u64,
-    pub msg: u8,          // last message exchanged (0 = not started, 4 = done)
+    pub state: WpaState,
 }
 
 pub struct VirtualAp {
@@ -138,7 +183,7 @@ impl VirtualAp {
                 let ssid_ok = ies(f, 24).iter().any(|(id, d)| *id == 0 && (d.is_empty() || *d == self.cfg.ssid.as_bytes()));
                 if ssid_ok && to_us(&f[4..10]) { let r = self.beacon_like(5, &a2, now_us); self.stats.1 += 1; self.send(now_us + 1500, r); }
             }
-            (0, 11) if to_us(&f[4..10]) => {                                                 // authentication (open system)
+            (0, 11) if f.len() >= 30 && to_us(&f[4..10]) => {                                // authentication (open system)
                 let (alg, seq) = (u16::from_le_bytes([f[24], f[25]]), u16::from_le_bytes([f[26], f[27]]));
                 if self.log { eprintln!("[wifi] station AUTH req alg={} seq={} status={} hex={:02x?}", alg, seq, u16::from_le_bytes([f[28],f[29]]), f); }
                 if alg == 0 && seq == 1 {
@@ -155,10 +200,10 @@ impl VirtualAp {
                 r.extend_from_slice(&[1, 8, 0x82, 0x84, 0x8b, 0x96, 0x0c, 0x12, 0x18, 0x24]); r.extend_from_slice(&[50, 4, 0x30, 0x48, 0x60, 0x6c]);
                 self.send(now_us + 300, r);
                 if self.cfg.psk.is_some() {                       // WPA2: start the four-way handshake
-                    self.wpa.ptk = None; self.wpa.msg = 0; self.wpa.replay += 1;
-                    let m1 = self.eapol(0x008a, self.wpa.anonce, &[], false);
+                    self.wpa.replay += 1;
+                    let m1 = self.eapol(0x008a, self.wpa.anonce, &[], None);
                     self.send(now_us + 30_000, m1);
-                    self.wpa.msg = 1;
+                    self.wpa.state = WpaState::AwaitingMessage2;
                 }
             }
             (0, 12) | (0, 10) if to_us(&f[4..10]) => { self.state = StaState::Idle; }
@@ -186,7 +231,7 @@ impl VirtualAp {
         None
     }
     /// Build an EAPOL-Key frame (802.1X over LLC/SNAP in an 802.11 data frame from the DS).
-    fn eapol(&mut self, key_info: u16, nonce: [u8; 32], key_data: &[u8], mic: bool) -> Vec<u8> {
+    fn eapol(&mut self, key_info: u16, nonce: [u8; 32], key_data: &[u8], mic_key: Option<&[u8]>) -> Vec<u8> {
         let mut body = Vec::with_capacity(99 + key_data.len());
         body.push(2);                                                    // 802.1X-2004
         body.push(3);                                                    // EAPOL-Key
@@ -203,11 +248,9 @@ impl VirtualAp {
         body.extend_from_slice(&[0u8; 16]);
         body.extend_from_slice(&(key_data.len() as u16).to_be_bytes());
         body.extend_from_slice(key_data);
-        if mic {
-            if let Some(ptk) = self.wpa.ptk {
-                let m = crate::crypto::hmac_sha1(&ptk[0..16], &body);    // KCK
-                body[mic_at..mic_at + 16].copy_from_slice(&m[..16]);
-            }
+        if let Some(kck) = mic_key {
+            let m = crate::crypto::hmac_sha1(kck, &body);
+            body[mic_at..mic_at + 16].copy_from_slice(&m[..16]);
         }
         let sta = self.sta; let bssid = self.cfg.bssid;
         let mut f = self.hdr(0x0208, &sta, &bssid);                      // data, from-DS
@@ -221,25 +264,25 @@ impl VirtualAp {
     fn on_eapol(&mut self, body: &[u8], now_us: u64) {
         if body.len() < 99 || body[1] != 3 { return; }
         // the MIC covers exactly the 802.1X frame; the 802.11 payload can carry trailing bytes
-        let n = (4 + u16::from_be_bytes([body[2], body[3]]) as usize).min(body.len());
-        let body = &body[..n];
+        let n = 4 + u16::from_be_bytes([body[2], body[3]]) as usize;
+        let Some(body) = body.get(..n).filter(|b| b.len() >= 99) else { return; };
+        let key_data_len = u16::from_be_bytes([body[97], body[98]]) as usize;
+        if 99 + key_data_len != body.len() { return; }
         let key_info = u16::from_be_bytes([body[5], body[6]]);
         let has_mic = key_info & 0x0100 != 0;
         let secure = key_info & 0x0200 != 0;
         if !has_mic { return; }
-        if !secure && self.wpa.msg == 1 {
+        if !secure && self.wpa.state == WpaState::AwaitingMessage2 {
             // message 2: take the SNonce and derive the pairwise key
-            self.wpa.snonce.copy_from_slice(&body[17..49]);
+            let mut snonce = [0u8; 32]; snonce.copy_from_slice(&body[17..49]);
             let (aa, spa) = (self.cfg.bssid, self.sta);
             let (lo_mac, hi_mac) = if aa <= spa { (aa, spa) } else { (spa, aa) };
-            let (an, sn) = (self.wpa.anonce, self.wpa.snonce);
+            let (an, sn) = (self.wpa.anonce, snonce);
             let (lo_n, hi_n) = if an <= sn { (an, sn) } else { (sn, an) };
             let mut data = Vec::with_capacity(76);
             data.extend_from_slice(&lo_mac); data.extend_from_slice(&hi_mac);
             data.extend_from_slice(&lo_n); data.extend_from_slice(&hi_n);
-            let ptk_v = crate::crypto::prf(&self.wpa.pmk, "Pairwise key expansion", &data, 384);
-            let mut ptk = [0u8; 48]; ptk.copy_from_slice(&ptk_v);
-            self.wpa.ptk = Some(ptk);
+            let ptk = crate::crypto::prf(&self.wpa.pmk, "Pairwise key expansion", &data, 384);
             // self-check: recompute the station's own MIC over message 2. If this matches, the PMK,
             // the PTK derivation and the MIC scope are all right and any later failure is elsewhere.
             {
@@ -264,11 +307,11 @@ impl VirtualAp {
             let wrapped = crate::crypto::aes_key_wrap(&kek, &kd);
             self.wpa.replay += 1;
             let anonce = self.wpa.anonce;
-            let m3 = self.eapol(0x13ca, anonce, &wrapped, true);
+            let m3 = self.eapol(0x13ca, anonce, &wrapped, Some(&ptk[..16]));
             self.send(now_us + 2_000, m3);
-            self.wpa.msg = 3;
-        } else if secure && self.wpa.msg == 3 {
-            self.wpa.msg = 4;                                            // message 4: keys are installed
+            self.wpa.state = WpaState::AwaitingMessage4;
+        } else if secure && self.wpa.state == WpaState::AwaitingMessage4 {
+            self.wpa.state = WpaState::Installed;
             if self.log { eprintln!("[wifi] WPA2 four-way handshake complete"); }
         }
     }
@@ -281,7 +324,7 @@ impl VirtualAp {
         // Once the keys are installed the frame must look encrypted: protected bit, CCMP header and
         // room for the MIC. The payload stays in the clear — as far as firmware is concerned the MAC
         // decrypted it in place.
-        let protected = if self.wpa.msg == 4 { 0x4000 } else { 0 };
+        let protected = if self.wpa.state == WpaState::Installed { 0x4000 } else { 0 };
         let ccmp_hdr = protected != 0;
         let mut f = self.hdr((2 << 2) | 0x0200 | protected, &dst, &src);                        // data, from-DS
         f[16..22].copy_from_slice(&src); f[10..16].copy_from_slice(&bssid);
@@ -302,6 +345,7 @@ impl VirtualAp {
 
 /// 802.11 data frame (to the DS) -> Ethernet frame.
 pub fn data_to_eth(f: &[u8]) -> Option<Vec<u8>> {
+    if f.len() < 2 { return None; }
     let fc = u16::from_le_bytes([f[0], f[1]]); let st = (fc >> 4) & 0xf;
     let hdr = if st & 8 != 0 { 26 } else { 24 };
     if f.len() < hdr + 8 || f[hdr] != 0xaa { return None; }
