@@ -75,7 +75,15 @@ struct Block {
     covered_by: Cell<(u32, u32)>,
     /// Last coverage epoch where this PC was absent from the map.
     uncovered_epoch: Cell<u64>,
+    /// EX136: everything a dispatch at this head needs to enter its region, copied out of the
+    /// owning block so the common path follows no pointers; valid while `epoch` is current.
+    hot: Cell<Hot>,
 }
+/// Entry facts of one region chunk. `sites` points into the owning region's vector, which
+/// lives until that region is dropped, and every drop moves `CodeCache::region_epoch` on.
+#[derive(Clone, Copy)]
+struct Hot { epoch: u64, bloom: u64, slot: u32, k: u32, len: u32, lo: u32, span: u32, pages: [(u32, u32); 3], npages: u32, nsites: u32, sites: *const u32 }
+impl Hot { const NONE: Hot = Hot { epoch: 0, bloom: 0, slot: 0, k: 0, len: 0, lo: 0, span: 0, pages: [(0, 0); 3], npages: 0, nsites: 0, sites: std::ptr::null() }; }
 /// Several chunks compiled as one function; see wasm_region.rs.
 struct Region {
     /// The generated code holds pointers to these instructions for its helper calls,
@@ -106,6 +114,8 @@ pub struct CodeCache {
     covered: RefCell<HashMap<u32, (u32, u32)>>,
     /// Advances whenever a previously absent PC might acquire a region.
     coverage_epoch: Cell<u64>,
+    /// EX136: moves on whenever a region is dropped or block indices change; never zero.
+    region_epoch: Cell<u64>,
     #[cfg(feature = "wasm-jit-profile")]
     pub region_stats: RegionStats,
 }
@@ -143,6 +153,7 @@ impl CodeCache {
             generation: 0,
             covered: RefCell::new(HashMap::new()),
             coverage_epoch: Cell::new(0),
+            region_epoch: Cell::new(1),
             #[cfg(feature = "wasm-jit-profile")]
             region_stats: RegionStats::default(),
         })
@@ -153,6 +164,7 @@ impl CodeCache {
     pub fn reset(&mut self) {
         self.generation += 1;
         self.coverage_epoch.set(self.coverage_epoch.get().wrapping_add(1));
+        self.region_epoch.set(self.region_epoch.get() + 1);
         // Keep recently decoded blocks across arena turnover. Prefer recent code under
         // pressure; enforce these retention limits only after all decoder handles die.
         self.blocks.sort_by_key(|b| std::cmp::Reverse(b.generation));
@@ -259,6 +271,7 @@ fn queue(cc: &mut CodeCache, instructions: &mut [BlockInsn], pc: u32, fast: bool
         region_tries: Cell::new(0),
         covered_by: Cell::new((NONE, 0)),
         uncovered_epoch: Cell::new(u64::MAX),
+        hot: Cell::new(Hot::NONE),
     });
     cc.by_pc.insert(key, id);
     id
@@ -390,13 +403,32 @@ pub unsafe fn run<B: Bus>(
 ) -> u32 {
     type Run<B> =
         extern "C" fn(*mut Cpu, *mut B, *const Helpers, u32, u32, *const TlbEntry, *mut u32) -> u32;
-    // SAFETY: host_jit_compile installs exactly this signature in the shared WASM table.
-    let f: Run<B> = unsafe { std::mem::transmute(cc.blocks[code as usize].slot.get() as usize) };
     let (tlb, versions) = fm
         .map(|m| (m.tlb, m.page_ver))
         .unwrap_or((std::ptr::null(), std::ptr::null_mut()));
     let b = &cc.blocks[code as usize];
     if entry == 0 && !cpu.blocks.observed {
+        // EX136: the facts the checks below would fetch through the owning block, its region and
+        // three of its vectors are cached in this block while no region has been dropped.
+        let hot = b.hot.get();
+        if hot.epoch == cc.region_epoch.get() && budget >= hot.len && cpu.boundary_bloom & hot.bloom == 0
+            && (cpu.lcount == 0 || cpu.lend.wrapping_sub(hot.lo) > hot.span)
+        {
+            let pv = bus.page_versions();
+            if hot.pages[..hot.npages as usize].iter().all(|&(i, v)| pv.get(i as usize).copied().unwrap_or(0) == v) {
+                // SAFETY: as for the region call below; the epoch proves slot and sites are live.
+                let f: Run<B> = unsafe { std::mem::transmute(hot.slot as usize) };
+                let result = f(cpu, bus, h, budget.min(0xffff), hot.k, tlb, versions);
+                region_stats(cc, result, budget);
+                if (result >> 16) & 7 != CODE_REJECT {
+                    assert!((result >> 19) < hot.nsites);
+                    // SAFETY: index checked against the live vector's length.
+                    bus.note_pc(unsafe { *hot.sites.add((result >> 19) as usize) });
+                    return result & 0x7ffff;
+                }
+                return run_block_body(cc, code, cpu, bus, h, budget, entry, tlb, versions);
+            }
+        }
         // The region to run: this block's own, or the one covering this PC.
         let (owner, k) = if b.region.borrow().is_some() {
             (code, 0)
@@ -468,6 +500,7 @@ pub unsafe fn run<B: Bus>(
                     // Some chunk's code changed: rebuild the region from the new code later.
                     drop(region);
                     rb.drop_region(owner, &cc.covered);
+                    cc.region_epoch.set(cc.region_epoch.get() + 1);
                     #[cfg(feature = "wasm-jit-profile")]
                     cc.region_stats.dropped.set(cc.region_stats.dropped.get() + 1);
                     #[cfg(feature = "wasm-jit-tests")]
@@ -481,26 +514,14 @@ pub unsafe fn run<B: Bus>(
                     // SAFETY: the region was installed with the block signature; its
                     // entry parameter is the chunk index.
                     let f: Run<B> = unsafe { std::mem::transmute(r.slot as usize) };
+                    if r.pages.len() <= 3 {
+                        let mut pages = [(0, 0); 3];
+                        pages[..r.pages.len()].copy_from_slice(&r.pages);
+                        b.hot.set(Hot { epoch: cc.region_epoch.get(), bloom: r.bloom, slot: r.slot, k, len: r.lens[k as usize], lo: r.lo,
+                            span: r.hi.wrapping_sub(r.lo), pages, npages: r.pages.len() as u32, nsites: r.sites.len() as u32, sites: r.sites.as_ptr() });
+                    }
                     let result = f(cpu, bus, h, budget.min(0xffff), k, tlb, versions);
-                    #[cfg(feature = "wasm-jit-tests")]
-                    {
-                        use std::sync::atomic::Ordering::Relaxed;
-                        REGION_STATS[2].fetch_max(result & 0xffff, Relaxed);
-                        REGION_STATS[3 + ((result >> 16) & 7) as usize].fetch_add(1, Relaxed);
-                        REGION_STATS[11].fetch_max(budget, Relaxed);
-                    }
-                    #[cfg(feature = "wasm-jit-profile")]
-                    {
-                        let st = &cc.region_stats;
-                        st.calls.set(st.calls.get() + 1);
-                        let exit = ((result >> 16) & 7) as usize;
-                        if exit == CODE_REJECT as usize {
-                            st.rejected.set(st.rejected.get() + 1);
-                        } else {
-                            st.retired.set(st.retired.get() + (result & 0xffff) as u64);
-                            st.exits[exit].set(st.exits[exit].get() + 1);
-                        }
-                    }
+                    region_stats(cc, result, budget);
                     if (result >> 16) & 7 != CODE_REJECT {
                         assert!(((result >> 19) as usize) < r.sites.len(), "region {:x}: result {result:#x} sites {}", rb.pc, r.sites.len());
                         bus.note_pc(r.sites[(result >> 19) as usize]);
@@ -510,6 +531,43 @@ pub unsafe fn run<B: Bus>(
             }
         }
     }
+    run_block_body(cc, code, cpu, bus, h, budget, entry, tlb, versions)
+}
+
+/// Test and profile counters of one region call.
+#[inline(always)]
+#[allow(unused_variables)]
+fn region_stats(cc: &CodeCache, result: u32, budget: u32) {
+    #[cfg(feature = "wasm-jit-tests")]
+    {
+        use std::sync::atomic::Ordering::Relaxed;
+        REGION_STATS[2].fetch_max(result & 0xffff, Relaxed);
+        REGION_STATS[3 + ((result >> 16) & 7) as usize].fetch_add(1, Relaxed);
+        REGION_STATS[11].fetch_max(budget, Relaxed);
+    }
+    #[cfg(feature = "wasm-jit-profile")]
+    {
+        let st = &cc.region_stats;
+        st.calls.set(st.calls.get() + 1);
+        let exit = ((result >> 16) & 7) as usize;
+        if exit == CODE_REJECT as usize {
+            st.rejected.set(st.rejected.get() + 1);
+        } else {
+            st.retired.set(st.retired.get() + (result & 0xffff) as u64);
+            st.exits[exit].set(st.exits[exit].get() + 1);
+        }
+    }
+}
+
+/// The block's own module: whole, resumed or as a retained hardware loop.
+#[allow(clippy::too_many_arguments)]
+#[inline(always)]
+unsafe fn run_block_body<B: Bus>(cc: &CodeCache, code: u32, cpu: &mut Cpu, bus: &mut B, h: &Helpers, budget: u32, entry: u32, tlb: *const TlbEntry, versions: *mut u32) -> u32 {
+    type Run<B> =
+        extern "C" fn(*mut Cpu, *mut B, *const Helpers, u32, u32, *const TlbEntry, *mut u32) -> u32;
+    // SAFETY: host_jit_compile installs exactly this signature in the shared WASM table.
+    let f: Run<B> = unsafe { std::mem::transmute(cc.blocks[code as usize].slot.get() as usize) };
+    let b = &cc.blocks[code as usize];
     let looping = loop_len(cc, code, cpu);
     let initial_lcount = cpu.lcount;
     let result = if looping.is_some() {
