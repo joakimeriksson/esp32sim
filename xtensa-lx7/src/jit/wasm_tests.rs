@@ -15,6 +15,8 @@ struct Ram {
     readonly: bool,
     noted: u32,
     slow: [u8; 256],
+    defer_armed: bool,
+    deferred: bool,
 }
 impl Ram {
     fn new(fast: bool, readonly: bool) -> Self {
@@ -40,6 +42,8 @@ impl Ram {
             readonly,
             noted: 0,
             slow: [0x5a; 256],
+            defer_armed: false,
+            deferred: false,
         }
     }
     fn wrote(&mut self, a: u32, n: u32) {
@@ -102,6 +106,13 @@ impl Bus for Ram {
     fn note_pc(&mut self, pc: u32) {
         self.noted = pc;
     }
+    fn defer_armed(&self) -> bool { self.defer_armed }
+    fn defer_access(&mut self, addr: u32) -> bool {
+        if self.defer_armed && (SLOW..SLOW + 256).contains(&addr) {
+            self.deferred = true; true
+        } else { false }
+    }
+    fn deferred(&self) -> bool { self.deferred }
 }
 fn cpu(seed: u32) -> Cpu {
     let mut c = Cpu::new(0);
@@ -328,6 +339,64 @@ fn whole_block_guards() -> u32 {
     }
     tests
 }
+fn extension_deferral() -> u32 {
+    let mut c = cpu(0);
+    let mut ram = Ram::new(true, false);
+    ram.defer_armed = true;
+    let mut tests = 0;
+    for wb in [0, 15] {
+        c.windowbase = wb;
+        for ar in 0..16 {
+            for (op, raw) in [(Op::Pie, 0), (Op::Mac16, 0), (Op::Mac16, 1 << 20),
+                (Op::Mac16, 4 << 20), (Op::Mac16, 5 << 20), (Op::Mac16, 8 << 20), (Op::Mac16, 9 << 20)] {
+                let mut bi = insn(op);
+                bi.insn.raw = raw;
+                c.ar.fill(0);
+                assert!(!crate::exec::defer_instruction(&c, &mut ram, &bi.insn));
+                c.set_ar(ar, SLOW);
+                ram.deferred = false;
+                assert!(crate::exec::defer_instruction(&c, &mut ram, &bi.insn));
+                assert!(ram.deferred);
+                tests += 1;
+            }
+        }
+    }
+    for op2 in [2, 3, 6, 7] {
+        let mut bi = insn(Op::Mac16);
+        bi.insn.raw = op2 << 20;
+        assert!(!crate::exec::defer_instruction(&c, &mut ram, &bi.insn), "pure MAC16 does not access memory");
+        tests += 1;
+    }
+    ram.defer_armed = false;
+    assert!(!crate::exec::defer_instruction(&c, &mut ram, &insn(Op::Pie).insn));
+    ram.defer_armed = true;
+    c.windowbase = 0;
+    c.ar.fill(0);
+    c.set_ar(0, SLOW);
+    c.cpenable = 8;
+    c.qr[0] = u128::from_le_bytes([1; 16]);
+    c.accx = [9, 0];
+    // ee.vmulas.s8.accx.ld.ip would modify ACCX before its slow load. Both
+    // execution paths must defer before that partial architectural mutation.
+    let bytes = 0xf002_000eu32.to_le_bytes();
+    let i = crate::decode::decode(BASE, bytes);
+    let bi = BlockInsn { insn: i, max_ar: crate::exec::max_ar(&i), off: 0 };
+    ram.deferred = false;
+    assert_eq!(h_exec::<Ram>(&mut c, &mut ram, &bi, BASE), 1);
+    assert!(ram.deferred);
+    assert_eq!(c.accx, [9, 0]);
+    assert!(c.jit_trap.is_none());
+    ram.ram.mem[..4].copy_from_slice(&bytes);
+    ram.ram.mem[4..7].copy_from_slice(&asm::j(BASE + 4, BASE));
+    c.blocks.jit_enabled = false;
+    ram.deferred = false;
+    assert_eq!(crate::block::run_block(&mut c, &mut ram, 64), (0, None));
+    assert!(ram.deferred);
+    assert_eq!(c.accx, [9, 0]);
+    assert_eq!(c.pc, BASE);
+    tests + 3
+}
+
 fn scheduler() {
     // addi.n a3,a3,1; addi.n a4,a4,1; j back to the first instruction.
     let program = [0x1b, 0x33, 0x1b, 0x44, 0x06, 0xfe, 0xff];
@@ -1488,7 +1557,7 @@ pub fn run_tests() -> u32 {
         }
     }
     scheduler();
-    tests += regions();
+    tests += extension_deferral() + regions();
     retention();
     hardware_loop_scheduler();
     crate::block::ownership_tests::compiled_helpers_follow_the_current_bus_type();

@@ -292,6 +292,19 @@ pub(crate) fn word_access(cpu: &Cpu, i: &Insn) -> Option<u32> {
     }
 }
 
+/// Stop before a potentially observable access while executing virtual quanta.
+/// PIE and MAC16 load bases are visible ARs. Conservatively scan them rather than
+/// extracting extension operands again; the bus includes their small pre-offsets.
+#[inline]
+pub(crate) fn defer_instruction<B: Bus>(cpu: &Cpu, bus: &mut B, i: &Insn) -> bool {
+    if !bus.defer_armed() { return false; }
+    if let Some(addr) = word_access(cpu, i) { return bus.defer_access(addr); }
+    if i.op == Op::Pie || (i.op == Op::Mac16 && matches!((i.raw >> 20) & 15, 0 | 1 | 4 | 5 | 8 | 9)) {
+        return (0..16).any(|r| bus.defer_access(cpu.get_ar(r)));
+    }
+    false
+}
+
 pub(crate) fn exec_insn<B: Bus>(cpu: &mut Cpu, bus: &mut B, i: &Insn) -> Result<(), Trap> {
     use Op::*;
     let pc = cpu.pc;

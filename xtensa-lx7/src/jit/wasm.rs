@@ -329,7 +329,7 @@ extern "C" fn h_exec<B: Bus>(
     // owned by its live CodeCache. No Rust execution overlaps generated access.
     let (cpu, bus, instruction) = unsafe { (&mut *cpu, &mut *bus, &*instruction) };
     cpu.pc = pc;
-    if bus.defer_armed() && crate::exec::word_access(cpu, &instruction.insn).is_some_and(|a| bus.defer_access(a)) {
+    if crate::exec::defer_instruction(cpu, bus, &instruction.insn) {
         cpu.jit_trap = None;
         return 1;
     }

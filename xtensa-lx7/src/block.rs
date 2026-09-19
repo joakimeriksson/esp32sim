@@ -299,7 +299,7 @@ fn run_block_inner<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Opt
         let e = cpu.blocks.arena[k as usize];
         if let Some(t) = cpu.check_overflow(e.max_ar) { trap = Some(t); pre = true; break; }
         let at = cpu.pc;
-        if bus.defer_armed() && crate::exec::word_access(cpu, &e.insn).is_some_and(|a| bus.defer_access(a)) { break; }
+        if crate::exec::defer_instruction(cpu, bus, &e.insn) { break; }
         bus.note_pc(at);
         let expected = at.wrapping_add(e.insn.len as u32);
         let r = exec_insn(cpu, bus, &e.insn);

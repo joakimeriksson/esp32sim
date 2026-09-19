@@ -1006,7 +1006,11 @@ impl Bus for SocBus {
     fn defer_armed(&self) -> bool { self.defer_mmio }
     #[inline(always)]
     fn defer_access(&mut self, addr: u32) -> bool {
-        if self.defer_mmio && Self::is_periph(addr) { self.mmio_deferred = true; true } else { false }
+        // PIE ld.qr/st.qr add [-128,112] before accessing memory; MAC16 loads
+        // add +/-4. Their conservative AR scan must also catch boundary crossings.
+        if self.defer_mmio && (PERIPH_BASE - 128..PERIPH_END + 128).contains(&addr) {
+            self.mmio_deferred = true; true
+        } else { false }
     }
     #[inline(always)]
     fn deferred(&self) -> bool { self.mmio_deferred }
@@ -1713,6 +1717,21 @@ mod gp_spi_board_tests {
             assert_eq!(Bus::tick(&mut bus, 128), 0);
             let _ = bus.read32(0x6003_8008).unwrap();
             assert!(!bus.block_break(), "an unchanged source must not break every polling block");
+        }
+    }
+
+    #[test]
+    fn deferred_extension_bases_include_preoffset_boundary_crossings() {
+        let mut bus = SocBus::new(1024, 1024, [0; 6]);
+        for armed in [false, true] {
+            bus.defer_mmio = armed;
+            for (addr, nearby) in [(PERIPH_BASE - 129, false), (PERIPH_BASE - 128, true),
+                (PERIPH_BASE, true), (PERIPH_END - 1, true), (PERIPH_END + 127, true),
+                (PERIPH_END + 128, false), (DRAM_LOW, false)] {
+                bus.mmio_deferred = false;
+                assert_eq!(bus.defer_access(addr), armed && nearby, "base {addr:x}");
+                assert_eq!(bus.mmio_deferred, armed && nearby);
+            }
         }
     }
 
