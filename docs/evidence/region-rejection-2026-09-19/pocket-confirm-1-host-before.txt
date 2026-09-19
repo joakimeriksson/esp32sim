@@ -1,0 +1,9 @@
+18:20  up 6 days,  4:32, 2 users, load averages: 6.37 13.08 12.54
+ %CPU COMM
+ 37.2 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+ 32.4 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mds_stores
+ 12.9 /Applications/Ghostty.app/Contents/MacOS/ghostty
+ 12.3 /Applications/Helium.app/Contents/Frameworks/Helium Framework.framework/Versions/153.0.8010.52/Helpers/Helium Helper (Renderer).app/Contents/MacOS/Helium Helper (Renderer)
+ 11.3 pi
+ 10.7 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mds
+  9.4 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Support/mdworker_shared
