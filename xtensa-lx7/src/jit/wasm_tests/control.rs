@@ -143,7 +143,7 @@ pub(super) fn window_masks() -> u32 {
         let mut block = [low, upper];
         let id = queue(&mut cc, &mut block, BASE, false);
         for _ in 0..HOT {
-            ready(&cc, id);
+            ready(&cc, id, 0);
         }
         for wb in 0..16 {
             for frame in 1..=3 {

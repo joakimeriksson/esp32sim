@@ -605,4 +605,4 @@ mod native;
 pub use native::*;
 
 #[cfg(not(target_arch = "wasm32"))]
-pub fn ready(_: &CodeCache, _: u32) -> bool { true }
+pub fn ready(_: &CodeCache, _: u32, _: u32) -> bool { true }

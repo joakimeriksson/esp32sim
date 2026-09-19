@@ -18,8 +18,8 @@ pub(super) fn inline_cache_hits() -> u32 {
             block[0].insn.imm = 0;
             let mut cc = CodeCache::new(0).unwrap();
             let code = queue(&mut cc, &mut block, BASE, true);
-            for _ in 0..HOT { ready(&cc, code); }
-            assert!(ready(&cc, code));
+            for _ in 0..HOT { ready(&cc, code, 0); }
+            assert!(ready(&cc, code, 0));
             let mut c = cpu(0);
             c.set_ar(4, BASE + 0x100);
             c.set_ar(5, 0x1234_5678);

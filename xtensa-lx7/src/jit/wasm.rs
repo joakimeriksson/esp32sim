@@ -113,6 +113,8 @@ struct Block {
     pcs: Vec<u32>,
     fast: bool,
     loop_prefix: usize,
+    /// EX156: the LEND seen inside this block when its module was generated, or zero.
+    lend_hint: Cell<u32>,
     generation: u64,
     hits: Cell<u32>,
     slot: Cell<u32>,
@@ -305,6 +307,7 @@ fn queue(cc: &mut CodeCache, instructions: &mut [BlockInsn], pc: u32, fast: bool
         instructions: instructions.to_vec(),
         pc,
         fast,
+        lend_hint: Cell::new(0),
         generation: cc.generation,
         hits: Cell::new(0),
         slot: Cell::new(NONE),
@@ -319,18 +322,20 @@ fn queue(cc: &mut CodeCache, instructions: &mut [BlockInsn], pc: u32, fast: bool
     id
 }
 #[inline]
-pub fn ready(cc: &CodeCache, code: u32) -> bool {
+pub fn ready(cc: &CodeCache, code: u32, lend: u32) -> bool {
     let b = &cc.blocks[code as usize];
     let slot = b.slot.get();
-    if slot == NONE { prepare(b) } else { slot != 0 }
+    if slot == NONE { prepare(b, lend) } else { slot != 0 }
 }
 
 #[cold]
 #[inline(never)]
-fn prepare(b: &Block) -> bool {
+fn prepare(b: &Block, lend: u32) -> bool {
     let hits = b.hits.get() + 1;
     b.hits.set(hits);
     if hits < HOT { return false; }
+    // LEND persists after its loop: a loop-body block keeps seeing the same value.
+    if b.instructions.iter().zip(&b.pcs).any(|(i, pc)| pc.wrapping_add(i.insn.len as u32) == lend) { b.lend_hint.set(lend); }
     let bytes = generate(b);
     // SAFETY: The host synchronously copies these bytes, installs a module using the
     // shared memory/table, and returns a correctly typed function slot or zero.

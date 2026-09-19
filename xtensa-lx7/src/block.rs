@@ -303,7 +303,7 @@ fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k: 
     if cpu.price_control && cpu.icache_fill != 0 { limit = limit.min(64); }
     let observed_timing = cpu.price_control && cfg!(not(target_arch = "wasm32"));
     let native_deferred = cfg!(not(target_arch = "wasm32")) && bus.defer_armed();
-    if !observed_timing && !native_deferred && code != crate::jit::NONE && cpu.blocks.jit_enabled && crate::jit::ready(cpu.blocks.code.as_ref().unwrap(), code) {
+    if !observed_timing && !native_deferred && code != crate::jit::NONE && cpu.blocks.jit_enabled && crate::jit::ready(cpu.blocks.code.as_ref().unwrap(), code, cpu.lend) {
         let entry = cpu.blocks.arena[k as usize].off;
         let fm = bus.fast_mem();
         #[cfg(not(target_arch = "wasm32"))]

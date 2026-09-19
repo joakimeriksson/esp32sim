@@ -84,8 +84,8 @@ fn executed_fetch_batches() -> u32 {
         let mut block = vec![insn(Op::Movi); 16];
         let mut cache = CodeCache::new(0).unwrap();
         let code = queue(&mut cache, &mut block, FLASH, false);
-        for _ in 0..HOT { ready(&cache, code); }
-        assert!(ready(&cache, code));
+        for _ in 0..HOT { ready(&cache, code, 0); }
+        assert!(ready(&cache, code, 0));
         let mut cpu = Cpu::new(0);
         cpu.pc = FLASH;
         cpu.ps = 0;

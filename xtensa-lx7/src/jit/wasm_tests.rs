@@ -159,7 +159,7 @@ fn same(a: &Cpu, b: &Cpu) {
     assert_eq!(a.sar, b.sar);
     assert_eq!(a.windowbase, b.windowbase);
     assert_eq!(a.windowstart, b.windowstart);
-    assert_eq!((a.lbeg, a.lend, a.lcount), (b.lbeg, b.lend, b.lcount));
+    assert_eq!((a.lbeg, a.lend, a.lcount), (b.lbeg, b.lend, b.lcount), "loop state [{cx}]");
     assert_eq!((a.interrupt, a.intenable), (b.interrupt, b.intenable));
     assert_eq!((a.scompare1, a.vecbase, a.prid, a.depc), (b.scompare1, b.vecbase, b.prid, b.depc));
     assert_eq!((a.eps, a.excsave, a.misc), (b.eps, b.excsave, b.misc));
@@ -206,6 +206,13 @@ struct Case {
 }
 
 fn compare(block: &mut [BlockInsn], case: Case, configure: impl Fn(&mut Cpu)) {
+    // EX156: a hinted loop end selects the guarded body; without the hint the same state
+    // must still take the checked body.
+    if case.loop_end { compare_hinted(block, case, &configure, BASE + 6); }
+    compare_hinted(block, case, &configure, 0);
+}
+
+fn compare_hinted(block: &mut [BlockInsn], case: Case, configure: &impl Fn(&mut Cpu), hint: u32) {
     let Case { seed, entry, budget, addr, fast, readonly, loop_end, overflow } = case;
     let priced = PRICED.load(std::sync::atomic::Ordering::Relaxed);
     CONTEXT.with(|c| *c.borrow_mut() = format!("{:?} seed={seed} entry={entry} budget={budget} fast={fast} loop_end={loop_end} overflow={overflow} priced={priced}",
@@ -218,9 +225,9 @@ fn compare(block: &mut [BlockInsn], case: Case, configure: impl Fn(&mut Cpu)) {
     let mut cc = CodeCache::new(0).unwrap();
     let code = queue(&mut cc, block, BASE, fast);
     for _ in 0..HOT {
-        ready(&cc, code);
+        ready(&cc, code, hint);
     }
-    assert!(ready(&cc, code), "compiled module must execute");
+    assert!(ready(&cc, code, hint), "compiled module must execute");
     let (mut a, mut b) = (cpu(seed), cpu(seed));
     for c in [&mut a, &mut b] {
         c.price_control = priced;

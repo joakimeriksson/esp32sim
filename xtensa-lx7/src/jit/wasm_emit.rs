@@ -42,6 +42,8 @@ const CACHE_LINE: u8 = 35;
 /// (PIE lane sums and the 40-bit ACCX). `module` must declare them in this order.
 const V128: u8 = if cfg!(feature = "wasm-cache-inline") { 36 } else { 32 };
 const WIDE: u8 = V128 + 1;
+/// EX156 guarded body: the first static index that must not run (entry + credit).
+const STOP: u8 = WIDE + 1;
 const PC: usize = offset_of!(Cpu, pc);
 const AR: usize = offset_of!(Cpu, ar);
 const WINDOWBASE: usize = offset_of!(Cpu, windowbase);
@@ -82,6 +84,10 @@ struct Gen {
     region: Option<RegionGen>,
     /// PC of the most recently emitted guest instruction, for exit-site attribution.
     last_pc: u32,
+    /// EX156: emitting the guarded body; with a loop site (instruction count of the
+    /// repeated prefix, control depth just inside the repeat loop) when LEND is hinted.
+    guarded: bool,
+    guard_site: Option<(usize, usize)>,
     #[cfg(feature = "wasm-jit-profile")]
     last_kind: ExitKind,
 }
@@ -435,6 +441,60 @@ impl Gen {
         self.end();
         self.end();
     }
+    /// EX156: the one static loop end of a guarded body. Same decisions as `fallthrough`
+    /// followed by `repeat_guard`, reached only here instead of after every instruction.
+    fn guarded_backedge(&mut self, hint: u32, loop_depth: usize) {
+        // Read LEND here, not at entry: a LOOP instruction just before may have moved it.
+        self.cpu(LEND);
+        self.c(hint);
+        self.op(0x46);
+        self.begin_if();
+        self.cpu(LCOUNT);
+        self.begin_if();
+        self.decrement_loop();
+        self.get(0);
+        self.cpu(LBEG);
+        self.store(PC);
+        self.flush();
+        self.get(2);
+        self.load(offset_of!(Helpers, loop_end));
+        self.cpu(LEND);
+        self.op(0x46);
+        self.get(2);
+        self.load(offset_of!(Helpers, version_ptrs));
+        self.op(0x45);
+        self.op(0x45);
+        self.op(0x71);
+        self.begin_if();
+        for n in 0..2 {
+            self.get(2);
+            self.load(offset_of!(Helpers, version_ptrs) + n * 4);
+            self.load(0);
+            self.get(2);
+            self.load(offset_of!(Helpers, versions) + n * 4);
+            self.op(0x46);
+            if n != 0 { self.op(0x71); }
+        }
+        self.get(DONE);
+        self.get(3);
+        self.op(0x49);
+        self.op(0x71);
+        self.begin_if();
+        self.c(0);
+        self.set(4);
+        self.get(3);
+        self.get(DONE);
+        self.op(0x6b);
+        self.set(STOP);
+        self.op(0x0c);
+        let label = self.depth() - loop_depth;
+        uleb(&mut self.bytes, label);
+        self.end();
+        self.end();
+        self.ret(CODE_LEFT);
+        self.end();
+        self.end();
+    }
     fn repeat_guard(&mut self) {
         self.flush();
         self.get(2);
@@ -501,17 +561,13 @@ pub(super) fn generate(block: &Block) -> Vec<u8> {
     // no active loop end in this block. Prove those facts once rather than checking
     // them for each instruction. Cuts/resumes and exceptional states use the checked
     // path. Unsigned subtraction also handles blocks crossing the address wrap.
-    g.get(4);
-    g.op(0x45);
-    g.get(3);
-    g.c(block.instructions.len() as u32);
-    g.op(0x4f);
-    g.op(0x71);
-    if max_ar >= 4 {
-        g.window_collision(max_ar);
-        g.op(0x45);
-        g.op(0x71);
-    }
+    // EX156: the same proofs minus "whole block from its head" admit the guarded body,
+    // which enters at any index and cuts at any index with one compare per instruction.
+    let hint = block.lend_hint.get();
+    let site = if hint == 0 { None } else {
+        block.instructions.iter().zip(&block.pcs).position(|(i, pc)| pc.wrapping_add(i.insn.len as u32) == hint).map(|n| n + 1)
+    };
+    // No loop end inside this block.
     g.cpu(LCOUNT);
     g.op(0x45);
     g.cpu(LEND);
@@ -520,7 +576,19 @@ pub(super) fn generate(block: &Block) -> Vec<u8> {
     g.c(block.instructions.iter().map(|bi| bi.insn.len as u32).sum());
     g.op(0x4b);
     g.op(0x72);
-    g.op(0x71);
+    g.set(STOP);
+    g.get(STOP);
+    if site.is_some() {
+        g.cpu(LEND);
+        g.c(hint);
+        g.op(0x46);
+        g.op(0x72);
+    }
+    if max_ar >= 4 {
+        g.window_collision(max_ar);
+        g.op(0x45);
+        g.op(0x71);
+    }
     let cp = coprocessors(&block.instructions, block.fast);
     if cp != 0 {
         // A disabled coprocessor takes the checked path, which completes the
@@ -533,7 +601,51 @@ pub(super) fn generate(block: &Block) -> Vec<u8> {
         g.op(0x71);
     }
     g.begin_if();
+    g.get(4);
+    g.op(0x45);
+    g.get(3);
+    g.c(block.instructions.len() as u32);
+    g.op(0x4f);
+    g.op(0x71);
+    g.get(STOP);
+    g.op(0x71);
+    g.begin_if();
     emit_body(&mut g, block.pc, &block.instructions, block.fast, looping, true, cp);
+    g.end();
+    {
+        let whole_written = g.written;
+        g.dynamic = true;
+        g.pending = 0;
+        g.written = if site.is_some() { whole_written & registers } else { 0 };
+        g.c(0);
+        g.get(4);
+        g.op(0x6b);
+        g.set(DONE);
+        g.get(3);
+        g.get(4);
+        g.op(0x6a);
+        g.set(STOP);
+        if site.is_some() { g.begin_loop(); }
+        let loop_depth = g.depth();
+        let n = block.instructions.len();
+        for _ in 0..n { g.begin_block(); }
+        g.get(4);
+        g.op(0x0e);
+        uleb(&mut g.bytes, n - 1);
+        for k in 0..n { uleb(&mut g.bytes, k); }
+        g.guarded = true;
+        g.guard_site = site.map(|n| (n, loop_depth));
+        emit_body(&mut g, block.pc, &block.instructions, block.fast, false, true, cp);
+        g.guarded = false;
+        g.guard_site = None;
+        if site.is_some() {
+            g.end();
+            g.op(0x00);
+        }
+        g.dynamic = false;
+        g.pending = 0;
+        g.written = whole_written;
+    }
     g.end();
     // Cuts, resumes and repeats count at run time; the whole body above never wrote DONE.
     g.dynamic = true;
@@ -612,6 +724,19 @@ fn emit_body(
             g.ret(CODE_CUT);
             g.end();
         }
+        if g.guarded {
+            // Close this index's entry label. The static retirement count is the index
+            // (an unconditional J before it has counted itself on its own dead path).
+            g.end();
+            g.pending = index as u32;
+            g.get(STOP);
+            g.c(index as u32);
+            g.op(0x4d);
+            g.begin_if();
+            g.cpu_const(PC, pc);
+            g.ret(CODE_CUT);
+            g.end();
+        }
         if !whole || window_changed {
             g.overflow(bi.max_ar, pc);
         }
@@ -643,6 +768,10 @@ fn emit_body(
         if instruction::emit(g, bi, fast, pc, next, last, cp) {
             if whole {
                 g.advance();
+                if let Some((n, loop_depth)) = g.guard_site.filter(|s| s.0 == index + 1) {
+                    let _ = n;
+                    g.guarded_backedge(next, loop_depth);
+                }
             } else {
                 g.fallthrough(next, looping);
             }
@@ -765,7 +894,7 @@ fn module(body: &[u8]) -> Vec<u8> {
     name(&mut exports, "run");
     exports.extend([0, 0]);
     section(&mut out, 7, &exports);
-    let mut func = vec![3, if cfg!(feature = "wasm-cache-inline") { 29 } else { 25 }, 0x7f, 1, 0x7b, 1, 0x7e];   // i32 locals, then V128 and WIDE
+    let mut func = vec![4, if cfg!(feature = "wasm-cache-inline") { 29 } else { 25 }, 0x7f, 1, 0x7b, 1, 0x7e, 1, 0x7f];   // i32 locals, then V128, WIDE and STOP
     func.extend(body);
     let mut code = vec![1];
     uleb(&mut code, func.len());

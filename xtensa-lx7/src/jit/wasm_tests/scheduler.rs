@@ -56,7 +56,7 @@ pub(super) fn retention() {
     let mut code = [insn(Add), insn(S32i), insn(Xor)];
     let first = queue(&mut cc, &mut code, BASE, true);
     for _ in 0..HOT {
-        ready(&cc, first);
+        ready(&cc, first, 0);
     }
     let slot = cc.blocks[first as usize].slot.get();
     assert!(slot != 0 && slot != NONE);

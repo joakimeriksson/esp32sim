@@ -83,7 +83,7 @@ pub(super) fn hardware_loops() -> u32 {
     // An observer head also stops there; a slow access exits after that instruction.
     let mut cc = CodeCache::new(0).unwrap();
     let code = queue(&mut cc, &mut block, BASE, true);
-    for _ in 0..HOT { ready(&cc, code); }
+    for _ in 0..HOT { ready(&cc, code, BASE + 6); }
     for (destination, observed, fast, expected) in [
         (BASE + 0x2000, false, true, 21),
         (BASE + 0x2000, true, true, 2),
@@ -135,7 +135,7 @@ pub(super) fn hardware_loops() -> u32 {
     block[2].insn.op = Op::J;
     block[2].insn.imm = BASE as i32;
     let code = queue(&mut cc, &mut block, BASE, true);
-    for _ in 0..HOT { ready(&cc, code); }
+    for _ in 0..HOT { ready(&cc, code, BASE + 6); }
     for budget in 1..=10 {
         let mut c = cpu(0);
         let mut ram = Ram::new(true, false);
@@ -152,7 +152,7 @@ pub(super) fn hardware_loops() -> u32 {
     block[2].insn.op = Op::Add;
     let start = BASE + 254;
     let code = queue(&mut cc, &mut block, start, true);
-    for _ in 0..HOT { ready(&cc, code); }
+    for _ in 0..HOT { ready(&cc, code, start + 6); }
     let mut c = cpu(0);
     let mut ram = Ram::new(true, false);
     c.pc = start; c.lbeg = start; c.lend = start + 6; c.lcount = 9;
