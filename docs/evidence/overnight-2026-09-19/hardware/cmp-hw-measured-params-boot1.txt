@@ -1,0 +1,57 @@
+{'record': 'TINYDRAW_GATE1_PANEL_STAGE_AB', 'field': 'linear_pie_us', 'hw_us': 12642, 'measured': 0.997}
+{'record': 'TINYDRAW_GATE1_PANEL_STAGE_AB', 'field': 'linear_scalar_us', 'hw_us': 68151, 'measured': 0.998}
+{'record': 'TINYDRAW_GATE1_PANEL_STAGE_AB', 'field': 'ring_pie_us', 'hw_us': 165803, 'measured': 0.714}
+{'record': 'TINYDRAW_GATE1_PANEL_STAGE_AB', 'field': 'ring_scalar_us', 'hw_us': 302828, 'measured': 1.033}
+{'record': 'TINYDRAW_GATE1_HARD zoom=100 operations=1001 samples=20002', 'field': 'total_us', 'hw_us': 171577, 'measured': 0.96}
+{'record': 'TINYDRAW_GATE1_HARD zoom=400 operations=1001 samples=20002', 'field': 'total_us', 'hw_us': 97170, 'measured': 0.942}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=overlap zoom=50', 'field': 'compute_us', 'hw_us': 289511, 'measured': 0.963}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=overlap zoom=50', 'field': 'present_us', 'hw_us': 73945, 'measured': 0.986}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=overlap zoom=50', 'field': 'wall_us', 'hw_us': 371708, 'measured': 0.966}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=overlap zoom=100', 'field': 'compute_us', 'hw_us': 140801, 'measured': 0.956}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=overlap zoom=100', 'field': 'present_us', 'hw_us': 69380, 'measured': 0.95}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=overlap zoom=100', 'field': 'wall_us', 'hw_us': 215958, 'measured': 0.959}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=overlap zoom=200', 'field': 'compute_us', 'hw_us': 116298, 'measured': 0.947}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=overlap zoom=200', 'field': 'present_us', 'hw_us': 68625, 'measured': 0.952}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=overlap zoom=200', 'field': 'wall_us', 'hw_us': 190982, 'measured': 0.942}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=overlap zoom=400', 'field': 'compute_us', 'hw_us': 89185, 'measured': 0.948}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=overlap zoom=400', 'field': 'present_us', 'hw_us': 67259, 'measured': 0.931}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=overlap zoom=400', 'field': 'wall_us', 'hw_us': 158981, 'measured': 0.944}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=adversarial_tapered_4x+evil_hairlines zoom=50', 'field': 'compute_us', 'hw_us': 235583, 'measured': 0.962}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=adversarial_tapered_4x+evil_hairlines zoom=50', 'field': 'present_us', 'hw_us': 61270, 'measured': 1.035}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=adversarial_tapered_4x+evil_hairlines zoom=50', 'field': 'wall_us', 'hw_us': 302977, 'measured': 0.977}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=adversarial_tapered_4x+evil_hairlines zoom=100', 'field': 'compute_us', 'hw_us': 236112, 'measured': 0.964}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=adversarial_tapered_4x+evil_hairlines zoom=100', 'field': 'present_us', 'hw_us': 60114, 'measured': 0.981}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=adversarial_tapered_4x+evil_hairlines zoom=100', 'field': 'wall_us', 'hw_us': 301395, 'measured': 0.966}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=adversarial_tapered_4x+evil_hairlines zoom=200', 'field': 'compute_us', 'hw_us': 309627, 'measured': 0.969}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=adversarial_tapered_4x+evil_hairlines zoom=200', 'field': 'present_us', 'hw_us': 56194, 'measured': 1.041}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=adversarial_tapered_4x+evil_hairlines zoom=200', 'field': 'wall_us', 'hw_us': 373356, 'measured': 0.976}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=adversarial_tapered_4x+evil_hairlines zoom=400', 'field': 'compute_us', 'hw_us': 334076, 'measured': 0.969}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=adversarial_tapered_4x+evil_hairlines zoom=400', 'field': 'present_us', 'hw_us': 56636, 'measured': 1.012}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=adversarial_tapered_4x+evil_hairlines zoom=400', 'field': 'wall_us', 'hw_us': 400957, 'measured': 0.97}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=owner_torture zoom=50', 'field': 'compute_us', 'hw_us': 31800, 'measured': 0.936}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=owner_torture zoom=50', 'field': 'present_us', 'hw_us': 55219, 'measured': 0.987}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=owner_torture zoom=50', 'field': 'wall_us', 'hw_us': 90970, 'measured': 0.956}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=owner_torture zoom=100', 'field': 'compute_us', 'hw_us': 44332, 'measured': 0.949}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=owner_torture zoom=100', 'field': 'present_us', 'hw_us': 56489, 'measured': 0.976}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=owner_torture zoom=100', 'field': 'wall_us', 'hw_us': 104490, 'measured': 0.952}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=owner_torture zoom=200', 'field': 'compute_us', 'hw_us': 89198, 'measured': 0.958}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=owner_torture zoom=200', 'field': 'present_us', 'hw_us': 56927, 'measured': 0.976}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=owner_torture zoom=200', 'field': 'wall_us', 'hw_us': 149961, 'measured': 0.958}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=owner_torture zoom=400', 'field': 'compute_us', 'hw_us': 184594, 'measured': 0.961}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=owner_torture zoom=400', 'field': 'present_us', 'hw_us': 63906, 'measured': 0.958}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=owner_torture zoom=400', 'field': 'wall_us', 'hw_us': 253976, 'measured': 0.957}
+{'record': 'TINYDRAW_GATE1_WORKLOAD kind=realistic', 'field': 'load_us', 'hw_us': 557016, 'measured': 0.63}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=seed7 zoom=400', 'field': 'compute_us', 'hw_us': 96935, 'measured': 0.924}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=seed7 zoom=400', 'field': 'present_us', 'hw_us': 71096, 'measured': 1.013}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=seed7 zoom=400', 'field': 'wall_us', 'hw_us': 171981, 'measured': 0.959}
+{'record': 'TINYDRAW_GATE1_HARD zoom=100 operations=1000 samples=19844', 'field': 'total_us', 'hw_us': 249586, 'measured': 0.966}
+{'record': 'TINYDRAW_GATE1_HARD zoom=400 operations=1008 samples=19852', 'field': 'total_us', 'hw_us': 135119, 'measured': 0.95}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=evil_hairlines_capacity zoom=100', 'field': 'compute_us', 'hw_us': 115842, 'measured': 0.937}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=evil_hairlines_capacity zoom=100', 'field': 'present_us', 'hw_us': 65689, 'measured': 0.979}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=evil_hairlines_capacity zoom=100', 'field': 'wall_us', 'hw_us': 185989, 'measured': 0.952}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=evil_hairlines_capacity zoom=400', 'field': 'compute_us', 'hw_us': 49565, 'measured': 0.883}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=evil_hairlines_capacity zoom=400', 'field': 'present_us', 'hw_us': 64828, 'measured': 1.014}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=evil_hairlines_capacity zoom=400', 'field': 'wall_us', 'hw_us': 118981, 'measured': 0.95}
+{'record': 'TINYDRAW_GATE1_EXPORT', 'field': 'elapsed_us', 'hw_us': 8539644, 'measured': 0.964}
+--- median emulator/hardware ratio per field
+measured {'linear_pie_us': (0.997, 1), 'linear_scalar_us': (0.998, 1), 'ring_pie_us': (0.714, 1), 'ring_scalar_us': (1.033, 1), 'total_us': (0.955, 4), 'compute_us': (0.956, 15), 'present_us': (0.981, 15), 'wall_us': (0.958, 15), 'load_us': (0.63, 1), 'elapsed_us': (0.964, 1)}

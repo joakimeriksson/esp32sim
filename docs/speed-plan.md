@@ -1,5 +1,7 @@
 # Plan: making the emulator faster
 
+> What has already been tried for S3 browser speed and timing, with outcomes, limits and retry conditions, is in [the experiment catalog](experiments.md). Search it before starting an experiment.
+
 Every number here was measured in this repo with `tools/bench.py` (interleaved rounds, best +
 median wall time, guest instruction counts cross-checked) or `sample(1)` against a normal run.
 The negative results are listed too, so nobody re-spends the time.
