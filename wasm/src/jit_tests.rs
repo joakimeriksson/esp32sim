@@ -106,7 +106,7 @@ fn sequential_emulators_reset_timing_state() -> u32 {
         assert_eq!(super::esp32sim_set_icache_fill(first, 404), 0);
         assert!(PRICED.load(Relaxed) && CACHE_PROBES.load(Relaxed) && FETCH_RING.load(Relaxed));
         assert_eq!(CACHE_SET_MASK.load(Relaxed), 127);
-        let m = (*first).m.as_any_mut().downcast_mut::<esp32s3::Machine>().unwrap();
+        let m = (*first).m.s3_mut().unwrap();
         m.cores[0].touch_fetch_lines(0x4200_0000, 0x4200_0000);
         assert_eq!(m.cores[0].icache_misses, 1);
         exercise(m);
@@ -118,7 +118,7 @@ fn sequential_emulators_reset_timing_state() -> u32 {
         assert!(!second.is_null());
         assert!(!PRICED.load(Relaxed) && !CACHE_PROBES.load(Relaxed) && !FETCH_RING.load(Relaxed));
         assert_eq!(CACHE_SET_MASK.load(Relaxed), 63);
-        let m = (*second).m.as_any_mut().downcast_mut::<esp32s3::Machine>().unwrap();
+        let m = (*second).m.s3_mut().unwrap();
         assert!(m.cores.iter().all(|c| !c.price_control && c.icache_fill == 0 && c.blocks.code_bytes() == 0));
         // Do not call the icache setter here: it itself clears the cache and would
         // hide a missing reset in esp32sim_new.
@@ -134,6 +134,40 @@ fn sequential_emulators_reset_timing_state() -> u32 {
         super::esp32sim_delete(second);
     }
     1
+}
+
+fn architectural_stops() -> u32 {
+    for jit in [false, true] {
+        for busy in 0..2 {
+            for instructions in [1usize, 63, 64, 65, 127, 128, 129] {
+                let (mut a, mut b) = (machine(jit), machine(jit));
+                for m in [&mut a, &mut b] {
+                    m.vq_max = 1;
+                    if busy == 1 {
+                        m.bus.write32(CONTROL, 2).unwrap();
+                        m.max_cycles = m.bus.cycles + 64;
+                        assert!(matches!(m.run(u64::MAX), Stop::Halted));
+                        m.cores[0].waiting = true;
+                    }
+                    let mut code = [0x3d, 0xf0].repeat(instructions - 1); // nop.n
+                    code.extend([0, 0, 0]); // ill
+                    m.bus.load_bytes(BASE + 0x800, &code).unwrap();
+                    m.cores[busy].pc = BASE + 0x800;
+                    m.cores[busy].ps = 0;
+                    m.cores[busy].waiting = false;
+                    m.dbg.stop_after_exceptions = 1;
+                    m.max_cycles = m.bus.cycles + (instructions as u64).div_ceil(64).max(2) * 64;
+                }
+                b.vq_max = 1024;
+                let before = b.vq_stats[0];
+                assert!(matches!(a.run(u64::MAX), Stop::Exceptions(1)));
+                assert!(matches!(b.run(u64::MAX), Stop::Exceptions(1)));
+                assert!(b.vq_stats[0] > before);
+                same(&a, &b);
+            }
+        }
+    }
+    28
 }
 
 pub fn run() -> u32 {
@@ -180,7 +214,7 @@ pub fn run() -> u32 {
         }
         same(&a, &b);
     }
-    let cases = 3 + solo_core_one();
+    let cases = 3 + solo_core_one() + architectural_stops();
     #[cfg(feature = "cache-inline")]
     let cases = cases + sequential_emulators_reset_timing_state();
     cases

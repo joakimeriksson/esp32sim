@@ -69,9 +69,11 @@ function loop() {
     postMessage({ pace: { behind: Math.max(0, -aheadMs / 1000), resyncs, speed, mips: Math.max(0, (insns - lastStat.insns)) / (wall - lastStat.wall) / 1000 } });
     lastStat = { wall, insns, cycles: cur };
   }
-  // Behind or on time: come straight back after letting queued messages (input) run. A nested
-  // setTimeout(0) is clamped to 4 ms, which cost a third of an 8 ms interactive turn.
-  if (aheadMs > 1) setTimeout(loop, Math.min(20, aheadMs)); else yieldPort.postMessage(0);
+  // Only yield immediately when this turn left catch-up work unfinished. Once we reach
+  // its target, sleep even if running the guest has put us slightly behind wall time.
+  // MessageChannel avoids the nested timer clamp during expensive interactive turns.
+  if (cur < target) yieldPort.postMessage(0);
+  else setTimeout(loop, Math.max(1, Math.min(20, aheadMs)));
 }
 const yieldChannel = typeof MessageChannel === 'function' ? new MessageChannel() : null;
 const yieldPort = yieldChannel ? yieldChannel.port2 : { postMessage: () => setTimeout(loop, 0) };
@@ -120,6 +122,9 @@ onmessage = async (ev) => {
     if (m.op === 'init') { traceEnabled = !!m.touchTrace; const r = await WebAssembly.instantiate(m.wasm, imports); wasm = r.instance.exports;  postMessage({ ready: true }); }
     else if (m.op === 'create') {
       running = false;
+      // Keep credits for already posted frames until their ACKs arrive, but never send
+      // a retained frame from the emulator being replaced.
+      pendingFrame = null;
       pacing = createPacing();
       pendingInputTrace = [];
       if (emu) { wasm.esp32sim_delete(emu); emu = 0; }
@@ -138,14 +143,19 @@ onmessage = async (ev) => {
       const rc = wasm.esp32sim_boot(emu, m.appDirect ? 1 : 0); if (rc === 0) { running = true; t0 = performance.now(); lastStat = { wall: t0, insns: wasm.esp32sim_insns(emu), cycles: wasm.esp32sim_cycles(emu) }; loop(); } postMessage({ started: rc === 0 }); }
     else if (m.op === 'net-create') {
       running = false;
+      pendingFrame = null;
       if (net) { wasm.esp32sim_net_delete(net); net = 0; }
       if (emu) { wasm.esp32sim_delete(emu); emu = 0; }
       net = wasm.esp32sim_net_new(m.slice_ns || 0);
       netNodes = 0;
       for (const node of m.nodes) {
         const mac = (node.mac || '02:00:00:00:00:0' + (netNodes + 1)).split(':').map(h => parseInt(h, 16));
-        withBytes(new Uint8Array(mac), (mp) => withBytes(enc.encode(node.board || m.board || 'none'),
+        const added = withBytes(new Uint8Array(mac), (mp) => withBytes(enc.encode(node.board || m.board || 'none'),
           (bp, bn) => wasm.esp32sim_net_add(net, mp, node.flash_mb || m.flash_mb || 2, (node.start_ms || 0) * 1e6, node.x || 0, node.y || 0, bp, bn)));
+        if ((added >>> 0) === 0xffffffff) {
+          wasm.esp32sim_net_delete(net); net = 0; netNodes = 0;
+          break;
+        }
         netNodes++;
       }
       postMessage({ created: net !== 0, nodes: netNodes });

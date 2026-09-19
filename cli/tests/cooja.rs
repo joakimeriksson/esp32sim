@@ -304,3 +304,62 @@ fn stamps_never_precede_their_step() {
         prev = t;
     }
 }
+
+#[test]
+fn run_limits_stop_busy_and_idle_guests() {
+    use esp_soc::SocBus;
+    for instruction in [0x0000006fu32, 0x10500073] { // jal zero,0 / wfi
+        let mut m = esp32c6::machine([0; 6], 4 << 20);
+        m.bus.load_bytes(ENTRY, &instruction.to_le_bytes()).unwrap();
+        m.cores[0].pc = ENTRY;
+        m.max_cycles = 100;
+        let mut input = std::io::Cursor::new(b"{\"type\":\"step\",\"t\":1000000}\n{\"type\":\"step\",\"t\":2000000}\n");
+        let mut output = Vec::new();
+        let result = cooja::run(&mut m, Config::default(), &Hello::default(), &mut input, &mut output).unwrap();
+        assert_eq!(m.bus.cycles(), 100);
+        assert_eq!(result.stopped.as_deref(), Some("Halted"));
+        let output = String::from_utf8(output).unwrap();
+        assert!(output.lines().next().unwrap().contains("\"wake\":625"));
+        assert_eq!(output.matches("[emu] stop:").count(), 1);
+    }
+}
+
+#[test]
+fn no_reboot_stops_at_the_first_reset() {
+    let mut m = esp32c6::machine([0; 6], 4 << 20);
+    // LP_AON_CPUCORE0_CFG.CPU_CORE0_SW_RESET at 0x600b1038.
+    let program: Vec<u8> = [0x600b12b7u32, 0x10000337, 0x0262ac23].into_iter().flat_map(u32::to_le_bytes).collect();
+    m.bus.load_bytes(0x4000_0000, &program).unwrap();
+    m.max_cycles = 1_000;
+    let mut input = std::io::Cursor::new(b"{\"type\":\"step\",\"t\":1000000}\n");
+    let mut output = Vec::new();
+    let cfg = Config { reboot: false, ..Config::default() };
+    let result = cooja::run(&mut m, cfg, &Hello::default(), &mut input, &mut output).unwrap();
+    assert_eq!(m.reboots, 0);
+    assert_eq!(m.cores[0].insn_count, 3);
+    assert!(result.stopped.as_deref().unwrap().starts_with("chip reset"));
+}
+
+#[test]
+fn time_limit_survives_reboots() {
+    use esp_soc::SocBus;
+    let mut m = esp32c6::machine([0; 6], 4 << 20);
+    let program: Vec<u8> = [0x600b12b7u32, 0x10000337, 0x0262ac23].into_iter().flat_map(u32::to_le_bytes).collect();
+    m.bus.load_bytes(0x4000_0000, &program).unwrap();
+    m.max_cycles = 10;
+    let mut input = std::io::Cursor::new(b"{\"type\":\"step\",\"t\":1000000}\n");
+    let mut output = Vec::new();
+    let result = cooja::run(&mut m, Config::default(), &Hello::default(), &mut input, &mut output).unwrap();
+    assert!(m.reboots > 0);
+    assert_eq!(m.bus.cycles(), 10);
+    assert_eq!(result.stopped.as_deref(), Some("Halted"));
+}
+
+#[test]
+fn unsupported_instruction_cap_is_rejected_before_handshake() {
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_esp32sim-c6"))
+        .args(["--cooja", "--max-insns", "100"])
+        .stdin(std::process::Stdio::null()).output().unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("--max-insns is unsupported; use --max-seconds"));
+}
