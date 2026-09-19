@@ -12,6 +12,24 @@ use region::{region_edge, RegionGen};
 /// is emitted for ACCX_0/ACCX_1, which inference kernels read after every dot product.
 pub(super) fn supported_insn(i: &crate::Insn, fast: bool) -> bool {
     supported(i.op, fast) || pie::supported(i, fast) || (i.op == crate::Op::Rur && matches!(i.imm, 0 | 1))
+        || (i.op == crate::Op::Rsr && rsr_field(i.imm as u32).is_some())
+}
+
+/// EX135: special registers whose `Cpu` field is exact at any instruction of a dispatch and that
+/// `read_sr` returns unchanged. Not CCOUNT/INTERRUPT/ICOUNT (advance at dispatch ends), not the
+/// loop, shift and window registers generated code may hold in locals.
+fn rsr_field(n: u32) -> Option<usize> {
+    use crate::state::sr;
+    Some(match n {
+        sr::PS => offset_of!(Cpu, ps), sr::PRID => offset_of!(Cpu, prid), sr::SCOMPARE1 => offset_of!(Cpu, scompare1),
+        sr::INTENABLE => offset_of!(Cpu, intenable), sr::VECBASE => offset_of!(Cpu, vecbase), sr::CPENABLE => offset_of!(Cpu, cpenable),
+        sr::EXCCAUSE => offset_of!(Cpu, exccause), sr::EXCVADDR => offset_of!(Cpu, excvaddr), sr::DEPC => offset_of!(Cpu, depc),
+        177..=183 => offset_of!(Cpu, epc) + 4 * (n - 176) as usize,
+        194..=199 => offset_of!(Cpu, eps) + 4 * (n - 192) as usize,
+        209..=215 => offset_of!(Cpu, excsave) + 4 * (n - 208) as usize,
+        244..=247 => offset_of!(Cpu, misc) + 4 * (n - 244) as usize,
+        _ => return None,
+    })
 }
 
 /// Coprocessors whose CPENABLE bits a body may prove once at its start.
@@ -26,6 +44,7 @@ pub(super) fn supported(op: crate::Op, fast: bool) -> bool {
     matches!(
         op,
         Nop | NopN
+            | Rsync | Esync | Dsync
             | Memw
             | Extw
             | Movi
@@ -131,7 +150,9 @@ pub(super) fn loop_safe(op: crate::Op, fast: bool) -> bool {
 pub(super) fn terminal_helper(op: crate::Op) -> bool {
     use crate::Op::*;
     matches!(op, Call0 | Call4 | Call8 | Call12 | Callx0 | Callx4 | Callx8 | Callx12
-        | Ret | RetN | Retw | RetwN)
+        | Ret | RetN | Retw | RetwN
+        // EX135: these end a block too, and run as well through the helper after a compiled prefix.
+        | Wsr | Xsr | Rsil)
 }
 
 // Parameters: cpu, bus, helpers, budget, entry, TLB, versions.
@@ -789,8 +810,14 @@ fn emit_instruction(
         g.set_ar(r);
         return true;
     }
+    if i.op == Rsr {
+        let Some(field) = rsr_field(imm) else { return false };
+        g.cpu(field);
+        g.set_ar(t);
+        return true;
+    }
     match i.op {
-        Nop | NopN | Memw | Extw => {}
+        Nop | NopN | Memw | Extw | Rsync | Esync | Dsync => {}
         Movi | MoviN => {
             g.c(imm);
             g.set_ar(if i.op == Movi { t } else { s });

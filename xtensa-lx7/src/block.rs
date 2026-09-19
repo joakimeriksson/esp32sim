@@ -118,7 +118,7 @@ impl Clone for BlockCache { fn clone(&self) -> Self { let mut b = Self::new(); b
 pub(crate) fn ends_block(i: &Insn) -> bool {
     use Op::*;
     match i.op {
-        Ill | IllN | Break | BreakN | Syscall | Simcall | Waiti | Rsil | Isync | Rsync | Esync | Dsync | Excw
+        Ill | IllN | Break | BreakN | Syscall | Simcall | Waiti | Rsil | Isync | Excw
         | J | Jx | Call0 | Call4 | Call8 | Call12 | Callx0 | Callx4 | Callx8 | Callx12
         | Ret | RetN | Retw | RetwN | Rotw | Rfe | Rfue | Rfde | Rfwo | Rfwu | Rfi | Rfme
         | Beqz | Bnez | Bltz | Bgez | BeqzN | BnezN | Beqi | Bnei | Blti | Bgei | Bltui | Bgeui
@@ -129,10 +129,12 @@ pub(crate) fn ends_block(i: &Insn) -> bool {
 }
 
 /// The instruction must be the first of its block: it reads or writes state that is only exact
-/// at a block boundary (`CCOUNT`, `CCOMPARE*`, `INTERRUPT`, `INTENABLE`, `PS`).
+/// at a block boundary (`CCOUNT`, `CCOMPARE*`, `INTERRUPT`, `ICOUNT`).
 pub(crate) fn must_start_block(i: &Insn) -> bool {
+    // EX135: PS and INTENABLE change only through instructions that end a block (or a trap), so a
+    // read of them is exact anywhere; a write ends its block and needs no boundary in front.
     matches!(i.op, Op::Rsr | Op::Wsr | Op::Xsr)
-        && matches!(i.imm as u32, sr::CCOUNT | sr::INTERRUPT | sr::INTCLEAR | sr::INTENABLE | sr::PS | sr::ICOUNT | 240..=242)
+        && matches!(i.imm as u32, sr::CCOUNT | sr::INTERRUPT | sr::INTCLEAR | sr::ICOUNT | 240..=242)
 }
 
 /// Decode a block starting at `pc0` and register it. Only the first fetch can fault: a later

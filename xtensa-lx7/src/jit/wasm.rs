@@ -242,9 +242,11 @@ fn queue(cc: &mut CodeCache, instructions: &mut [BlockInsn], pc: u32, fast: bool
         .collect();
     cc.blocks.push(Block {
         pcs,
-        // A block that writes LCOUNT through LOOP* must never be admitted as a retained
-        // hardware loop: run() locates the last executed instruction from LCOUNT deltas.
-        loop_prefix: if instructions.iter().any(|i| matches!(i.insn.op, crate::Op::Loop | crate::Op::Loopnez | crate::Op::Loopgtz)) { 0 }
+        // Explicit loop-state writes break the LCOUNT-delta accounting used for retained
+        // prefixes. A terminal WSR/XSR LEND can also create a new helper-side backedge.
+        loop_prefix: if instructions.iter().any(|i| matches!(i.insn.op, crate::Op::Loop | crate::Op::Loopnez | crate::Op::Loopgtz)
+            || (matches!(i.insn.op, crate::Op::Wsr | crate::Op::Xsr)
+                && matches!(i.insn.imm as u32, crate::state::sr::LBEG | crate::state::sr::LEND | crate::state::sr::LCOUNT))) { 0 }
             else { instructions.iter().take_while(|i| emitter::loop_safe(i.insn.op, fast)).count() },
         instructions: instructions.to_vec(),
         pc,

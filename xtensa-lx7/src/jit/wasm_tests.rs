@@ -143,7 +143,10 @@ fn same(a: &Cpu, b: &Cpu) {
     assert_eq!(a.sar, b.sar);
     assert_eq!(a.windowbase, b.windowbase);
     assert_eq!(a.windowstart, b.windowstart);
-    assert_eq!(a.lcount, b.lcount);
+    assert_eq!((a.lbeg, a.lend, a.lcount), (b.lbeg, b.lend, b.lcount));
+    assert_eq!((a.interrupt, a.intenable), (b.interrupt, b.intenable));
+    assert_eq!((a.scompare1, a.vecbase, a.prid, a.depc), (b.scompare1, b.vecbase, b.prid, b.depc));
+    assert_eq!((a.eps, a.excsave, a.misc), (b.eps, b.excsave, b.misc));
     assert_eq!(a.epc, b.epc);
     assert_eq!(a.exccause, b.exccause);
     assert_eq!(a.insn_count, b.insn_count);
@@ -269,6 +272,69 @@ fn compare_configured(
     if done > 0 {
         assert_eq!(ra.noted, rb.noted);
     }
+}
+
+fn special_register_blocks() -> u32 {
+    use crate::state::sr;
+    let mut tests = 0;
+    let exact = [sr::PS, sr::PRID, sr::SCOMPARE1, sr::INTENABLE, sr::VECBASE,
+        sr::CPENABLE, sr::EXCCAUSE, sr::EXCVADDR, sr::DEPC];
+    for number in exact.into_iter().chain(177..=183).chain(194..=199).chain(209..=215).chain(244..=247) {
+        let mut block = [insn(Op::Add), insn(Op::Rsr), insn(Op::Xor)];
+        block[1].insn.imm = number as i32;
+        let mut cc = CodeCache::new(0).unwrap();
+        assert!(compile(&mut cc, &mut block, BASE, false).is_some());
+        for entry in 0..3 {
+            for budget in 1..=3 {
+                compare_configured(&mut block, 0, entry, budget, None, false, false,
+                    false, false, |c| {
+                        c.write_sr(number, 0xab00_0000 | number).unwrap();
+                        c.prid = 0x1234_5678;
+                    });
+                tests += 1;
+            }
+        }
+    }
+    // Time-accounted registers must still start their own interpreter block.
+    for number in [sr::CCOUNT, sr::INTERRUPT, sr::ICOUNT, 240, 241, 242] {
+        let mut block = [insn(Op::Add), insn(Op::Rsr)];
+        block[1].insn.imm = number as i32;
+        let mut cc = CodeCache::new(0).unwrap();
+        assert!(compile(&mut cc, &mut block, BASE, false).is_none());
+        assert!(crate::block::must_start_block(&block[1].insn));
+        tests += 1;
+    }
+    for op in [Op::Wsr, Op::Xsr] {
+        for number in [sr::PS, sr::INTENABLE, sr::WINDOWBASE, sr::WINDOWSTART,
+            sr::LBEG, sr::LEND, sr::LCOUNT, sr::SAR, sr::CPENABLE, sr::VECBASE,
+            sr::SCOMPARE1, 177, 194, 209, 244, 255] {
+            let mut block = [insn(Op::Add), insn(Op::MovN), insn(op)];
+            block[2].insn.imm = number as i32;
+            for wb in [0, 15] {
+                for entry in 0..3 {
+                    for budget in [1, 3, 12] {
+                        compare_configured(&mut block, wb, entry, budget, None, false,
+                            false, true, false, |c| {
+                                let value = if number == sr::LEND { BASE + 9 } else { 9 };
+                                c.set_ar(4, value);
+                                c.set_ar(5, value);
+                            });
+                        tests += 1;
+                    }
+                }
+            }
+        }
+    }
+    for op in [Op::Rsil, Op::Rsync, Op::Esync, Op::Dsync] {
+        let mut block = [insn(Op::Add), insn(Op::MovN), insn(op)];
+        for entry in 0..3 {
+            for budget in 1..=3 {
+                compare(&mut block, 15, entry, budget, None, false, false, true, false);
+                tests += 1;
+            }
+        }
+    }
+    tests
 }
 
 fn terminal_helpers() -> u32 {
@@ -496,13 +562,17 @@ fn hardware_loops() -> u32 {
             cases += 1;
         }
     }
-    // LCOUNT-writing suffixes cannot enter production compilation, so accounting
-    // may use LCOUNT deltas as backedge counts even after the suffix executes.
+    // SR-writing suffixes compile, but cannot retain a hardware-loop prefix: the
+    // helper could overwrite LCOUNT or change which instruction takes a backedge.
     for op in [Op::Wsr, Op::Xsr] {
-        let mut rejected = [insn(Op::Add), insn(Op::MovN), insn(op)];
-        rejected[2].insn.imm = crate::state::sr::LCOUNT as i32;
-        assert!(compile(&mut CodeCache::new(0).unwrap(), &mut rejected, BASE, true).is_none());
-        cases += 1;
+        for number in [crate::state::sr::LBEG, crate::state::sr::LEND, crate::state::sr::LCOUNT] {
+            let mut block = [insn(Op::Add), insn(Op::MovN), insn(op)];
+            block[2].insn.imm = number as i32;
+            let mut cc = CodeCache::new(0).unwrap();
+            let code = compile(&mut cc, &mut block, BASE, true).expect("SR suffix compiles");
+            assert_eq!(cc.blocks[code as usize].loop_prefix, 0, "loop state written by helper");
+            cases += 1;
+        }
     }
     // Review spike: LOOP* suffixes compile, but such a block never gets a retained prefix.
     for op in [Op::Loop, Op::Loopnez, Op::Loopgtz] {
@@ -1561,5 +1631,5 @@ pub fn run_tests() -> u32 {
     retention();
     hardware_loop_scheduler();
     crate::block::ownership_tests::compiled_helpers_follow_the_current_bus_type();
-    tests + integer_ops() + floating_point() + floating_point_guard_proof() + 4 + hardware_loops() + window_masks() + terminal_helpers() + whole_block_guards() + entry_and_shifts()
+    tests + integer_ops() + floating_point() + floating_point_guard_proof() + 4 + hardware_loops() + window_masks() + terminal_helpers() + special_register_blocks() + whole_block_guards() + entry_and_shifts()
 }
