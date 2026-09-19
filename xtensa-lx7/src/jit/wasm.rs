@@ -82,9 +82,9 @@ pub struct RegionStats {
 #[cfg(feature = "wasm-jit-profile")]
 impl RegionStats {
     pub fn report(&self) -> String {
-        format!("[ex153] run_calls={} budget64_calls={} whole_calls={} whole_retired={} tailcut_calls={} tailcut_retired={} resumed_calls={} resumed_retired={} resumed_cut_again={} zero_retired_calls={} budget_sum={}\n[wasm-region] formed={} failed={} covered={} dropped={} chunks={} instructions={} bytes={} calls={} rejected={} retired={} exits[end,left,trap,cut,pre]={:?} left_kinds[call,callx,retw,ret,jx,sr,memory,edge,budget,dirty,other]={:?}",
+        format!("[ex153] run_calls={} budget64_calls={} whole_calls={} whole_retired={} tailcut_calls={} tailcut_retired={} resumed_calls={} resumed_retired={} resumed_cut_again={} zero_retired_calls={} budget_sum={} chained={}\n[wasm-region] formed={} failed={} covered={} dropped={} chunks={} instructions={} bytes={} calls={} rejected={} retired={} exits[end,left,trap,cut,pre]={:?} left_kinds[call,callx,retw,ret,jx,sr,memory,edge,budget,dirty,other]={:?}",
             self.ex153[0].get(), self.ex153[1].get(), self.ex153[2].get(), self.ex153[3].get(), self.ex153[4].get(), self.ex153[5].get(),
-            self.ex153[6].get(), self.ex153[7].get(), self.ex153[8].get(), self.ex153[9].get(), self.ex153[10].get(),
+            self.ex153[6].get(), self.ex153[7].get(), self.ex153[8].get(), self.ex153[9].get(), self.ex153[10].get(), self.ex153[11].get(),
             self.formed.get(), self.failed.get(), self.covered.get(), self.dropped.get(), self.chunks.get(),
             self.instructions.get(), self.bytes.get(), self.calls.get(), self.rejected.get(), self.retired.get(),
             self.exits[..5].iter().map(|c| c.get()).collect::<Vec<_>>(),
@@ -95,6 +95,10 @@ pub static CENSUS: [std::sync::atomic::AtomicU64; 8] = [const { std::sync::atomi
 #[inline(always)]
 fn census(i: usize, n: u64) { if cfg!(feature = "wasm-cpu-profile") { CENSUS[i].fetch_add(n, std::sync::atomic::Ordering::Relaxed); } }
 const HOT: u32 = 32;
+/// EX153: chain compiled calls inside the wrapper.
+const CHAIN: bool = true;
+/// EX153: an interpreter helper ran during this wrapper call; the dispatcher must look again.
+static HELPED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 /// EX138: emit control-flow prices into code generated from now on.
 pub static PRICED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 /// Emit the inline data-cache probe into code generated from now on (a `cache-inline` build that
@@ -400,6 +404,7 @@ extern "C" fn h_exec<B: Bus>(
     // SAFETY: The compiled caller passes the exclusive live CPU/bus and an instruction
     // owned by its live CodeCache. No Rust execution overlaps generated access.
     let (cpu, bus, instruction) = unsafe { (&mut *cpu, &mut *bus, &*instruction) };
+    HELPED.store(true, std::sync::atomic::Ordering::Relaxed);
     cpu.pc = pc;
     #[cfg(feature = "wasm-jit-profile")]
     {
@@ -485,7 +490,35 @@ pub unsafe fn run<B: Bus>(
     cpu.fetch_n = 0;
     let budget = if cpu.icache_fill != 0 { budget.min(64) } else { budget };
     // SAFETY: preserve the caller's live code, helper and memory guarantees.
-    let result = unsafe { run_inner(cc, code, cpu, bus, h, budget, entry, fm) };
+    HELPED.store(false, std::sync::atomic::Ordering::Relaxed);
+    cpu.blocks.chain_ei = NONE;
+    // A dispatch at a probed PC stays one block long, as the differential suite requires.
+    let chain = CHAIN && cpu.boundary_bloom & emu_core::core::pc_bit(cpu.pc) == 0;
+    let mut result = unsafe { run_inner(cc, code, cpu, bus, h, budget, entry, fm) };
+    // EX153: keep going inside this wrapper while nothing the dispatcher would look at can have
+    // changed: a plain END/LEFT exit, no interpreter helper ran, credit remains, and the next PC
+    // has a valid decoded entry with ready code that may start without a boundary check.
+    if chain {
+        let mut total = 0u32;
+        loop {
+            let exit = (result >> 16) & 7;
+            let sofar = total + (result & 0xffff);
+            if (exit != CODE_END && exit != CODE_LEFT) || sofar >= budget || cpu.blocks.observed
+                || HELPED.load(std::sync::atomic::Ordering::Relaxed) { break; }
+            let pc = cpu.pc;
+            if cpu.boundary_bloom & emu_core::core::pc_bit(pc) != 0 { break; }
+            let Some((ei, next)) = cpu.blocks.chain_target(pc, bus.page_versions()) else { break };
+            let slot = cc.blocks[next as usize].slot.get();
+            if slot == NONE || slot == 0 { break; }
+            total = sofar;
+            cpu.blocks.chain_ei = ei;
+            #[cfg(feature = "wasm-jit-profile")]
+            { let st = &cc.region_stats.ex153; st[11].set(st[11].get() + 1); }
+            // SAFETY: the entry is valid for the current code pages and its code is ready in this cache.
+            result = unsafe { run_inner(cc, next, cpu, bus, h, budget - total, 0, fm) };
+        }
+        result += total;
+    }
     #[cfg(feature = "wasm-jit-profile")]
     {
         let st = &cc.region_stats.ex153;

@@ -61,6 +61,8 @@ pub struct BlockCache {
     /// A block cut short by the caller's budget or a timer deadline resumes here rather than
     /// spawning a new block at the cut point: (entry index, arena index, pc at that index).
     resume: (u32, u32, u32),
+    /// EX153: decoded entry of the block the WASM wrapper chained into last; a CUT resumes in it.
+    pub(crate) chain_ei: u32,
     pub builds: u64,
     pub flushes: u64,
     /// native code for blocks, when the host supports it and `jit_enabled`
@@ -86,7 +88,7 @@ impl BlockCache {
         BlockCache {
                      #[cfg(all(target_arch = "wasm32", feature = "wasm-jit-profile"))]
                      profile: crate::jit::profile::Profile::default(),
-                     entries: vec![Entry::EMPTY; ENTRIES], arena: Vec::with_capacity(ARENA_MAX + MAX_LEN), extras: Vec::new(), resume: (0, 0, 1), builds: 0, flushes: 0,
+                     entries: vec![Entry::EMPTY; ENTRIES], arena: Vec::with_capacity(ARENA_MAX + MAX_LEN), extras: Vec::new(), resume: (0, 0, 1), chain_ei: u32::MAX, builds: 0, flushes: 0,
                      code, jit_enabled: crate::jit::AVAILABLE, observed: false, compiled: 0, jit_instructions: 0 }
     }
     pub fn flush(&mut self) {
@@ -102,6 +104,15 @@ impl BlockCache {
         { return self.code.as_ref().map(|c| c.region_stats.report()); }
         #[allow(unreachable_code)]
         None
+    }
+    /// EX153: a valid decoded entry with compiled code at `pc` whose first instruction needs no
+    /// exact block-boundary state.
+    #[inline(always)]
+    pub(crate) fn chain_target(&self, pc: u32, pv: &[u32]) -> Option<(u32, u32)> {
+        let ei = Self::index(pc);
+        let e = &self.entries[ei];
+        (e.pc == pc && e.code != crate::jit::NONE && Self::valid(e, pv) && !must_start_block(&self.arena[e.start as usize].insn))
+            .then_some((ei as u32, e.code))
     }
     pub fn jit_active(&self) -> bool { self.jit_enabled && self.code.is_some() }
     #[inline(always)]
@@ -346,6 +357,10 @@ fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k: 
                 {
                     // The WASM wrapper accounts for repeated prefixes when returning
                     // the next decoded index; no PC scan is needed here.
+                    let (ei, end) = if cpu.blocks.chain_ei != u32::MAX {
+                        let e = &cpu.blocks.entries[cpu.blocks.chain_ei as usize];
+                        (cpu.blocks.chain_ei, e.start + e.n as u32)
+                    } else { (ei, end) };
                     let index = cpu.blocks.entries[ei as usize].start + (r >> 19);
                     if index < end { cpu.blocks.resume = (ei, index, cpu.pc); }
                 }
