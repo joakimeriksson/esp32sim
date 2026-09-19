@@ -17,6 +17,7 @@ async function importBattery() {
   let source = await fs.readFile(path.join(harness, 'battery.mjs'), 'utf8');
   source = source.replace("'./verdict.mjs'", JSON.stringify(pathToFileURL(path.join(harness, 'verdict.mjs')).href));
   source = source.replace("'/web/wasm/jit.mjs'", JSON.stringify(pathToFileURL(path.join(root, 'web/wasm/jit.mjs')).href));
+  source = source.replace("'/web/wasm/experiments.mjs'", JSON.stringify(pathToFileURL(path.join(root, 'web/wasm/experiments.mjs')).href));
   await fs.writeFile(path.join(temp, 'battery.mjs'), source);
   const module = await import(pathToFileURL(path.join(temp, 'battery.mjs')).href);
   return {module, temp};
@@ -43,13 +44,13 @@ function mockExports(lines, calls) {
   };
 }
 
-async function run(lines) {
+async function run(lines, config = workload) {
   const {module, temp} = await importBattery();
   const realInstantiate = WebAssembly.instantiate;
   const calls = [];
   try {
-    WebAssembly.instantiate = async () => ({instance: {exports: mockExports(lines, calls)}});
-    const result = await module.runBattery(async () => new Uint8Array(), () => {}, true, false, workload);
+    WebAssembly.instantiate = async () => ({instance: {exports: {...mockExports(lines, calls), ...Object.fromEntries((config.exports ?? []).map(([name]) => [name, (_emu, ...args) => { calls.push([name, ...args]); return 0; }]))}}});
+    const result = await module.runBattery(async () => new Uint8Array(), () => {}, true, false, config);
     return {result, calls};
   } finally {
     WebAssembly.instantiate = realInstantiate;
@@ -68,6 +69,17 @@ test('pocket-tank loads its model at the flash offset, runs its guest duration a
   assert.equal(result.verdictValidation.schema, 'pocket-tank-v1');
   assert.ok(result.checks.every(check => check.count >= check.min));
   assert.equal(result.passed, true);
+});
+
+test('hardware receipts retain the requested key, alias and actually applied exports', async () => {
+  const config = {name: 'pocket-tank', key: 'pocket-tank-hw', ...workloads['pocket-tank-hw']};
+  // A bisected workload must record precisely the subset it used.
+  config.exports = config.exports.filter((_, n) => n !== 8);
+  const {result, calls} = await run('', config);
+  assert.equal(result.workload, 'pocket-tank-hw');
+  assert.equal(result.workloadAlias, 'pocket-tank');
+  assert.deepEqual(result.appliedExports, config.exports);
+  assert.deepEqual(calls.filter(([name]) => name.startsWith('esp32sim_')), config.exports);
 });
 
 test('pocket-tank fails when the model never decides', async () => {

@@ -165,6 +165,10 @@ impl<S: Soc> Machine<S> {
         self.model_ready_at.fill(self.bus.cycles());
         Ok(())
     }
+    /// Whether the approximate scheduler owns instruction and memory prices.
+    pub fn has_approximate_jit_timing(&self) -> bool { self.approximate_jit_timing.is_some() }
+    /// Whether either timing model owns scheduling.
+    pub fn has_timing_model(&self) -> bool { self.cost.is_some() || self.approximate_jit_timing.is_some() }
     /// Uniform CPI and deadline-bounded instruction batches for an explicitly rough JIT experiment.
     /// Within-batch memory ordering and memory latency are not modeled by this setting.
     pub fn set_approximate_jit_timing(&mut self, cpi: u32, quantum: u32) -> Result<(), String> {

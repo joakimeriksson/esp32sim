@@ -96,7 +96,11 @@
   async function boot(cfg, files) {
     if (started) { location.reload(); return; }
     setStatus('loading firmware…');
-    const ok = await ask('created', { op: 'create', board: cfg.board, flash_mb: cfg.flash_mb, psram_mb: cfg.psram_mb, jit: q.get('jit') !== '0', experiments: [...(q.get('timing') === 'hw' ? [["esp32sim_set_approximate_jit_timing",1,512],["esp32sim_set_approximate_jit_frontiers",1],["esp32sim_set_approximate_jit_cache",96,160,2],["esp32sim_set_approximate_cache_contention",1],["esp32sim_set_approximate_cache_fill_service",160],["esp32sim_set_spi2_timing",1],["esp32sim_set_measured_te",1],["esp32sim_set_control_prices",1],["esp32sim_set_icache_fill",404]] : []), ...(q.get('quantum') ? [['esp32sim_set_quantum', +q.get('quantum')]] : [])] });
+    const { experimentsFromParams } = await import('./wasm/experiments.mjs');
+    let experiments;
+    try { experiments = experimentsFromParams(q); }
+    catch (err) { setStatus(err.message); return; }
+    const ok = await ask('created', { op: 'create', board: cfg.board, flash_mb: cfg.flash_mb, psram_mb: cfg.psram_mb, jit: q.get('jit') !== '0', experiments });
     if (!ok) { setStatus('unknown board'); return; }
     for (const [kind, data, at] of files) {
       const key = at !== undefined ? 'loadat' + at : 'load' + KINDS[kind];

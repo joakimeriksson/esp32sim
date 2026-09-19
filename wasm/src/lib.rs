@@ -373,6 +373,7 @@ pub unsafe extern "C" fn esp32sim_set_jit(e: *mut Emu, enabled: u32) {
 }
 
 /// Configure provisional uniform CPU cost and deadline-bounded batches before execution.
+/// CPI and quantum must be nonzero; this API cannot detach the scheduler once configured.
 /// # Safety
 /// `e` must be a live exclusively borrowed emulator.
 #[no_mangle]

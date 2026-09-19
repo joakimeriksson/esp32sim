@@ -2,10 +2,11 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { MessageChannel } from 'node:worker_threads';
 import { runInNewContext } from 'node:vm';
+import { applyExperiments, HW } from '../web/wasm/experiments.mjs';
 import { createPacing } from '../web/wasm/pacing.mjs';
 
 const source = (await readFile(new URL('../web/wasm/worker.js', import.meta.url), 'utf8')).replace(/^import .*;\n/gm, '');
-async function harness(cost = 0, additions = []) {
+async function harness(cost = 0, additions = [], experiments = [], overrides = {}) {
   let wall = 0, cycles = 0, input = 0, frame = null, immediate = 0;
   const timers = [], messages = [], channels = [], runs = [], deletedNetworks = [];
   let delivered;
@@ -35,14 +36,15 @@ async function harness(cost = 0, additions = []) {
     esp32sim_out_kind: () => 2, esp32sim_out_ptr: () => 0, esp32sim_out_len: () => 2,
   };
   const context = {
-    createPacing, createJitHost: () => ({ imports: {} }), TextEncoder, TextDecoder, MessageChannel: Channel,
+    applyExperiments, createPacing, createJitHost: () => ({ imports: {} }), TextEncoder, TextDecoder, MessageChannel: Channel,
     performance: { now: () => wall }, Date, postMessage: m => messages.push(m),
     WebAssembly: { instantiate: async () => ({ instance: { exports: wasm } }) },
     setTimeout: (callback, delay) => timers.push({ callback, delay }),
   };
+  Object.assign(wasm, overrides);
   runInNewContext(source, context);
   const send = data => context.onmessage({ data });
-  await send({ op: 'init' }); await send({ op: 'create', board: 'test' });
+  await send({ op: 'init' }); await send({ op: 'create', board: 'test', experiments });
   return {
     send, timers, messages, runs, deletedNetworks, get immediate() { return immediate; },
     setWall(value) { wall = value; }, get wall() { return wall; },
@@ -138,3 +140,47 @@ for (const failure of [-1, 0xffffffff]) {
   } finally { h.close(); }
 }
 console.log('worker native-channel, consumer ACK, replacement and network failure tests passed');
+
+// Unsafe dispatch must never call arbitrary exports or boot a partial configuration.
+for (const experiments of [
+  [['esp32sim_delete']], [['unknown']], [['toString']], null, {}, [null],
+  [['esp32sim_set_quantum', 0]], [['esp32sim_set_quantum', NaN]],
+  [['esp32sim_set_quantum', '64']], [['esp32sim_set_quantum', 64, 1]],
+  [['esp32sim_set_approximate_jit_cache', 96, 160, 4]],
+  [...HW, ['esp32sim_set_quantum', 64]],
+]) {
+  let deleted = 0, booted = 0;
+  const h = await harness(0, [], experiments, {
+    esp32sim_delete() { deleted++; }, esp32sim_boot() { booted++; return 0; },
+  });
+  try {
+    await h.send({ op: 'start' });
+    assert.equal(deleted, 0, 'dangerous delete experiment never dispatched');
+    assert.equal(booted, 0, 'invalid experiments never boot');
+    assert.equal(h.messages.at(-1).started, false, 'start failure acknowledged');
+    assert.equal(h.runs.length, 0);
+  } finally { h.close(); }
+}
+for (const failure of ['missing', 'reject', 'throw']) {
+  let booted = 0, later = 0;
+  const exports = Object.fromEntries(HW.map(([name]) => [name, () => 0]));
+  if (failure === 'missing') delete exports[HW[1][0]];
+  else exports[HW[1][0]] = () => { if (failure === 'throw') throw Error('setter trap'); return 1; };
+  exports[HW[2][0]] = () => { later++; return 0; };
+  const h = await harness(0, [], HW, {...exports, esp32sim_boot() { booted++; return 0; }});
+  try {
+    await h.send({ op: 'start' });
+    assert.equal(h.messages.at(-1).started, false, failure);
+    assert.equal(booted, 0); assert.equal(later, 0); assert.equal(h.runs.length, 0);
+  } finally { h.close(); }
+}
+{
+  const applied = [];
+  const h = await harness(0, [], HW, Object.fromEntries(HW.map(([name]) => [name, (_emu, ...args) => { applied.push([name, ...args]); return 0; }])));
+  try {
+    await h.send({op: 'start'});
+    assert.equal(h.messages.at(-1).started, true);
+    assert.deepEqual(applied, HW);
+  } finally { h.close(); }
+}
+console.log('worker native-channel, consumer ACK, replacement and experiment tests passed');

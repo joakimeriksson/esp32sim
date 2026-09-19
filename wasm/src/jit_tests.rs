@@ -101,6 +101,8 @@ fn sequential_emulators_reset_timing_state() -> u32 {
     unsafe {
         let first = super::esp32sim_new(name.as_ptr(), name.len(), 1, 0);
         assert!(!first.is_null());
+        assert_eq!(super::esp32sim_set_approximate_jit_timing(first, 1, 64), 0);
+        assert_eq!(super::esp32sim_set_approximate_jit_frontiers(first, 1), 0);
         assert_eq!(super::esp32sim_set_approximate_jit_cache(first, 96, 160, 3), 0);
         assert_eq!(super::esp32sim_set_control_prices(first, 1), 0);
         assert_eq!(super::esp32sim_set_icache_fill(first, 404), 0);
@@ -111,7 +113,7 @@ fn sequential_emulators_reset_timing_state() -> u32 {
         assert_eq!(m.cores[0].icache_misses, 1);
         exercise(m);
         assert!(m.cores[0].blocks.code_bytes() > 0);
-        assert!(m.cores[0].timing_extra > 404, "the first emulator must execute priced instructions");
+        assert!(m.bus.cycles > m.cores[0].insn_count, "the scheduler must charge the first emulator's priced instructions");
         super::esp32sim_delete(first);
 
         let second = super::esp32sim_new(name.as_ptr(), name.len(), 1, 0);
@@ -122,13 +124,15 @@ fn sequential_emulators_reset_timing_state() -> u32 {
         assert!(m.cores.iter().all(|c| !c.price_control && c.icache_fill == 0 && c.blocks.code_bytes() == 0));
         // Do not call the icache setter here: it itself clears the cache and would
         // hide a missing reset in esp32sim_new.
+        m.cores[0].price_control = true;
         m.cores[0].icache_fill = 404;
         m.cores[0].touch_fetch_lines(0x4200_0000, 0x4200_0000);
         assert_eq!(m.cores[0].icache_misses, 1, "new emulator must start with a cold fetch cache");
+        m.cores[1].price_control = true;
         m.cores[1].icache_fill = 404;
         m.cores[1].touch_fetch_lines(0x4200_0000, 0x4200_0000);
         assert_eq!(m.cores[1].icache_misses, 0, "the two new cores still share their fetch cache");
-        for c in &mut m.cores { c.icache_fill = 0; c.timing_extra = 0; }
+        for c in &mut m.cores { c.price_control = false; c.icache_fill = 0; c.timing_extra = 0; }
         exercise(m);
         assert_eq!(m.cores[0].timing_extra, 0, "old priced code must not survive recreation");
         super::esp32sim_delete(second);

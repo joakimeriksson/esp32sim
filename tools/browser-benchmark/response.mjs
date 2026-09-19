@@ -1,3 +1,4 @@
+import { experimentsFromParams } from '/web/wasm/experiments.mjs';
 // Uses the production worker, including pacing and the input queue.
 const canvas = document.querySelector('canvas'), ctx = canvas.getContext('2d');
 const status = document.querySelector('#status');
@@ -90,18 +91,20 @@ worker.onerror = event => { status.textContent = event.message; receipt.error = 
 receipt.assets = await (await fetch('/assets.json')).json();
 const wasm = await (await fetch('/asset/wasm')).arrayBuffer();
 await command({op: 'init', wasm}, 'ready');
-const HW = [["esp32sim_set_approximate_jit_timing",1,512],["esp32sim_set_approximate_jit_frontiers",1],["esp32sim_set_approximate_jit_cache",96,160,2],["esp32sim_set_approximate_cache_contention",1],["esp32sim_set_approximate_cache_fill_service",160],["esp32sim_set_spi2_timing",1],["esp32sim_set_measured_te",1],["esp32sim_set_control_prices",1],["esp32sim_set_icache_fill",404]];
-const timingParam = new URL(location.href).searchParams.get('timing');
-// `timing=hw` is the whole model; `timing=hw-<n>[-<m>...]` drops the listed exports (for bisecting).
-const dropped = (timingParam || '').split('-').slice(1).map(Number);
-const experiments = timingParam && timingParam.startsWith('hw') ? HW.filter((_, n) => !dropped.includes(n)) : [];
+const experiments = experimentsFromParams(new URL(location.href).searchParams);
 await command({op: 'create', board: 'waveshare-amoled18-v2', flash_mb: 16, psram_mb: 8, experiments}, 'created');
 for (const [name, kind] of [['rom', 0], ['bootloader', 1], ['ptable', 2], ['app', 3], ['elf', 4]]) {
   const data = await (await fetch('/asset/' + name)).arrayBuffer();
   const result = await command({op: 'load', kind, data}, 'loaded');
   if (!result.ok) throw Error('Load failed: ' + name);
 }
-await command({op: 'start'}, 'started');
+const start = await command({op: 'start'}, 'started');
+receipt.started = start.started;
+if (!start.started) {
+  status.textContent = 'Timing configuration or boot failed (see worker logs).';
+  throw Error(status.textContent);
+}
+receipt.appliedExports = experiments;
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function replay() {
   if (!ready || replayed) return;

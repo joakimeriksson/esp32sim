@@ -1,5 +1,6 @@
 import { createJitHost } from './jit.mjs';
 import { createPacing } from './pacing.mjs';
+import { applyExperiments } from './experiments.mjs';
 let pacing = createPacing();
 // Optional host-stage diagnostics. Run entry is not controller consumption;
 // framebuffer output is not physical panel scanout. Epoch times match the page.
@@ -130,7 +131,7 @@ onmessage = async (ev) => {
       if (emu) { wasm.esp32sim_delete(emu); emu = 0; }
       emu = withBytes(enc.encode(m.board), (p, n) => wasm.esp32sim_new(p, n, m.flash_mb | 0, m.psram_mb | 0));
       if (emu !== 0) wasm.esp32sim_set_jit(emu, m.jit === false ? 0 : 1);
-      experiments = m.experiments || [];
+      experiments = m.experiments === undefined ? [] : m.experiments;
       if (emu !== 0 && wasm.esp32sim_cpu_hz) CPU_HZ = wasm.esp32sim_cpu_hz(emu);
       postMessage({ created: emu !== 0 });
     }
@@ -139,7 +140,9 @@ onmessage = async (ev) => {
     else if (m.op === 'wifi') { withBytes(enc.encode(m.spec), (p, n) => wasm.esp32sim_wifi(emu, p, n)); }
     else if (m.op === 'start') {
       // Optional timing-model exports (`?timing=hw`), applied after the loads and before the first instruction.
-      for (const [name, ...args] of experiments) { if (typeof wasm[name] !== 'function' || wasm[name](emu, ...args)) postMessage({ log: '[worker] experiment export failed: ' + name }); }
+      running = false;
+      if (!emu) throw new Error('no emulator to start');
+      applyExperiments(wasm, emu, experiments);
       const rc = wasm.esp32sim_boot(emu, m.appDirect ? 1 : 0); if (rc === 0) { running = true; t0 = performance.now(); lastStat = { wall: t0, insns: wasm.esp32sim_insns(emu), cycles: wasm.esp32sim_cycles(emu) }; loop(); } postMessage({ started: rc === 0 }); }
     else if (m.op === 'net-create') {
       running = false;
@@ -173,5 +176,5 @@ onmessage = async (ev) => {
       withBytes(enc.encode(m.data), (p, n) => wasm.esp32sim_in_text(emu, p, n));
     }
     else if (m.op === 'bin') { pacing.input(performance.now()); withBytes(new Uint8Array(m.data), (p, n) => wasm.esp32sim_in_bin(emu, p, n)); }
-  } catch (err) { postMessage({ log: '[worker] ' + (err && err.stack || err) }); running = false; }
+  } catch (err) { postMessage({ log: '[worker] ' + (err && err.stack || err) }); running = false; if (m.op === 'start') postMessage({ started: false }); }
 };
