@@ -564,7 +564,7 @@ impl<S: Soc> Machine<S> {
                         if let Some(s) = self.vq_close_round(&on, &mut n) { return s; }
                     }
                     if let Some(s) = stop { self.drain_console(); return s; }
-                    if pos > 0 && pos % QUANTUM == 0 { continue; }
+                    if pos > 0 && pos.is_multiple_of(QUANTUM) { continue; }
                     resume_at = pos % QUANTUM;
                 }
             }

@@ -1737,7 +1737,8 @@ mod gp_spi_board_tests {
 
     #[test]
     fn quiet_backstop_keeps_the_original_cadence_for_active_devices() {
-        let cases: &[(&str, fn(&mut Peripherals))] = &[
+        type Activation = (&'static str, fn(&mut Peripherals));
+        let cases: &[Activation] = &[
             ("i2s0", |p| p.i2s0.tx_conf |= 1 << 2),
             ("i2s1", |p| p.i2s1.tx_conf |= 1 << 2),
             ("camera", |p| p.lcd_cam.running = true),
