@@ -310,7 +310,7 @@ pub(crate) fn defer_instruction<B: Bus>(cpu: &Cpu, bus: &mut B, i: &Insn) -> boo
 #[inline]
 pub(crate) fn load_result(i: &Insn) -> Option<u8> {
     use Op::*;
-    matches!(i.op, L32i | L32iN | L32r | L8ui | L16ui | L16si).then_some(i.t)
+    matches!(i.op, L32i | L32iN | L32r | L8ui | L16ui | L16si | L32ai | L32e | S32c1i).then_some(i.t)
 }
 /// True when `i` reads the result of the load `prev`.
 #[inline]
