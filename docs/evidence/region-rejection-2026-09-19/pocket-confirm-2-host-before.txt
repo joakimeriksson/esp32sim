@@ -1,0 +1,9 @@
+19:36  up 6 days,  5:49, 2 users, load averages: 40.47 17.37 13.46
+ %CPU COMM
+ 51.5 /usr/libexec/duetexpertd
+ 42.4 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+ 15.4 /Applications/Discord.app/Contents/Frameworks/Discord Helper (Renderer).app/Contents/MacOS/Discord Helper (Renderer)
+ 13.6 /System/Library/CoreServices/AccessibilityUIServer.app/Contents/MacOS/AccessibilityUIServer
+ 11.2 pi
+  9.6 /Applications/Ghostty.app/Contents/MacOS/ghostty
+  7.8 /System/Library/PrivateFrameworks/DataAccess.framework/Support/dataaccessd
