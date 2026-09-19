@@ -1,0 +1,57 @@
+{'record': 'TINYDRAW_GATE1_PANEL_STAGE_AB', 'field': 'linear_pie_us', 'hw_us': 12642, 'final': 0.999}
+{'record': 'TINYDRAW_GATE1_PANEL_STAGE_AB', 'field': 'linear_scalar_us', 'hw_us': 68151, 'final': 0.998}
+{'record': 'TINYDRAW_GATE1_PANEL_STAGE_AB', 'field': 'ring_pie_us', 'hw_us': 165803, 'final': 0.932}
+{'record': 'TINYDRAW_GATE1_PANEL_STAGE_AB', 'field': 'ring_scalar_us', 'hw_us': 302828, 'final': 1.039}
+{'record': 'TINYDRAW_GATE1_HARD zoom=100 operations=1001 samples=20002', 'field': 'total_us', 'hw_us': 171577, 'final': 1.008}
+{'record': 'TINYDRAW_GATE1_HARD zoom=400 operations=1001 samples=20002', 'field': 'total_us', 'hw_us': 97170, 'final': 1.006}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=overlap zoom=50', 'field': 'compute_us', 'hw_us': 289511, 'final': 0.981}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=overlap zoom=50', 'field': 'present_us', 'hw_us': 73945, 'final': 1.025}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=overlap zoom=50', 'field': 'wall_us', 'hw_us': 371708, 'final': 0.986}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=overlap zoom=100', 'field': 'compute_us', 'hw_us': 140801, 'final': 0.986}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=overlap zoom=100', 'field': 'present_us', 'hw_us': 69380, 'final': 1.027}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=overlap zoom=100', 'field': 'wall_us', 'hw_us': 215958, 'final': 1.0}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=overlap zoom=200', 'field': 'compute_us', 'hw_us': 116298, 'final': 0.984}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=overlap zoom=200', 'field': 'present_us', 'hw_us': 68625, 'final': 1.053}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=overlap zoom=200', 'field': 'wall_us', 'hw_us': 190982, 'final': 1.01}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=overlap zoom=400', 'field': 'compute_us', 'hw_us': 89185, 'final': 0.987}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=overlap zoom=400', 'field': 'present_us', 'hw_us': 67259, 'final': 1.046}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=overlap zoom=400', 'field': 'wall_us', 'hw_us': 158981, 'final': 1.013}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=adversarial_tapered_4x+evil_hairlines zoom=50', 'field': 'compute_us', 'hw_us': 235583, 'final': 0.979}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=adversarial_tapered_4x+evil_hairlines zoom=50', 'field': 'present_us', 'hw_us': 61270, 'final': 1.105}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=adversarial_tapered_4x+evil_hairlines zoom=50', 'field': 'wall_us', 'hw_us': 302977, 'final': 1.007}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=adversarial_tapered_4x+evil_hairlines zoom=100', 'field': 'compute_us', 'hw_us': 236112, 'final': 0.98}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=adversarial_tapered_4x+evil_hairlines zoom=100', 'field': 'present_us', 'hw_us': 60114, 'final': 1.081}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=adversarial_tapered_4x+evil_hairlines zoom=100', 'field': 'wall_us', 'hw_us': 301395, 'final': 1.003}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=adversarial_tapered_4x+evil_hairlines zoom=200', 'field': 'compute_us', 'hw_us': 309627, 'final': 0.979}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=adversarial_tapered_4x+evil_hairlines zoom=200', 'field': 'present_us', 'hw_us': 56194, 'final': 1.106}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=adversarial_tapered_4x+evil_hairlines zoom=200', 'field': 'wall_us', 'hw_us': 373356, 'final': 0.998}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=adversarial_tapered_4x+evil_hairlines zoom=400', 'field': 'compute_us', 'hw_us': 334076, 'final': 0.977}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=adversarial_tapered_4x+evil_hairlines zoom=400', 'field': 'present_us', 'hw_us': 56636, 'final': 1.092}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=adversarial_tapered_4x+evil_hairlines zoom=400', 'field': 'wall_us', 'hw_us': 400957, 'final': 0.991}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=owner_torture zoom=50', 'field': 'compute_us', 'hw_us': 31800, 'final': 0.989}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=owner_torture zoom=50', 'field': 'present_us', 'hw_us': 55219, 'final': 1.071}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=owner_torture zoom=50', 'field': 'wall_us', 'hw_us': 90970, 'final': 1.022}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=owner_torture zoom=100', 'field': 'compute_us', 'hw_us': 44332, 'final': 0.988}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=owner_torture zoom=100', 'field': 'present_us', 'hw_us': 56489, 'final': 1.054}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=owner_torture zoom=100', 'field': 'wall_us', 'hw_us': 104490, 'final': 1.009}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=owner_torture zoom=200', 'field': 'compute_us', 'hw_us': 89198, 'final': 0.98}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=owner_torture zoom=200', 'field': 'present_us', 'hw_us': 56927, 'final': 1.082}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=owner_torture zoom=200', 'field': 'wall_us', 'hw_us': 149961, 'final': 1.026}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=owner_torture zoom=400', 'field': 'compute_us', 'hw_us': 184594, 'final': 0.979}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=owner_torture zoom=400', 'field': 'present_us', 'hw_us': 63906, 'final': 1.052}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=owner_torture zoom=400', 'field': 'wall_us', 'hw_us': 253976, 'final': 1.0}
+{'record': 'TINYDRAW_GATE1_WORKLOAD kind=realistic', 'field': 'load_us', 'hw_us': 557016, 'final': 0.934}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=seed7 zoom=400', 'field': 'compute_us', 'hw_us': 96935, 'final': 0.983}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=seed7 zoom=400', 'field': 'present_us', 'hw_us': 71096, 'final': 1.091}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=seed7 zoom=400', 'field': 'wall_us', 'hw_us': 171981, 'final': 1.023}
+{'record': 'TINYDRAW_GATE1_HARD zoom=100 operations=1000 samples=19844', 'field': 'total_us', 'hw_us': 249586, 'final': 1.003}
+{'record': 'TINYDRAW_GATE1_HARD zoom=400 operations=1008 samples=19852', 'field': 'total_us', 'hw_us': 135119, 'final': 1.019}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=evil_hairlines_capacity zoom=100', 'field': 'compute_us', 'hw_us': 115842, 'final': 0.985}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=evil_hairlines_capacity zoom=100', 'field': 'present_us', 'hw_us': 65689, 'final': 1.1}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=evil_hairlines_capacity zoom=100', 'field': 'wall_us', 'hw_us': 185989, 'final': 1.027}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=evil_hairlines_capacity zoom=400', 'field': 'compute_us', 'hw_us': 49565, 'final': 0.987}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=evil_hairlines_capacity zoom=400', 'field': 'present_us', 'hw_us': 64828, 'final': 1.102}
+{'record': 'TINYDRAW_GATE1_PACED_COLD corpus=evil_hairlines_capacity zoom=400', 'field': 'wall_us', 'hw_us': 118981, 'final': 1.042}
+{'record': 'TINYDRAW_GATE1_EXPORT', 'field': 'elapsed_us', 'hw_us': 8539644, 'final': 0.992}
+--- median emulator/hardware ratio per field
+final {'linear_pie_us': (0.999, 1), 'linear_scalar_us': (0.998, 1), 'ring_pie_us': (0.932, 1), 'ring_scalar_us': (1.039, 1), 'total_us': (1.007, 4), 'compute_us': (0.983, 15), 'present_us': (1.081, 15), 'wall_us': (1.009, 15), 'load_us': (0.934, 1), 'elapsed_us': (0.992, 1)}

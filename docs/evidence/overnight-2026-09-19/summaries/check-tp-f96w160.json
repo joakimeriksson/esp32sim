@@ -1,0 +1,20 @@
+{
+ "workload": "tinydraw",
+ "status": "completed",
+ "passed": true,
+ "guestSeconds": 70.3,
+ "wallSeconds": 59.486830000013114,
+ "instructions": 10095941052,
+ "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+ "jit": {
+  "compiled": 11939,
+  "failed": 0,
+  "released": 5372,
+  "compileMs": 1073.375003606081,
+  "bytes": 134017423,
+  "liveBytes": 72545331,
+  "peakBytes": 86880114,
+  "peakModules": 7719,
+  "instructions": 9846205819
+ }
+}

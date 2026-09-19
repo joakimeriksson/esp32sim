@@ -1,0 +1,14 @@
+import fs from 'node:fs/promises';
+const [url, out, port='9240', waitS='30'] = process.argv.slice(2);
+const v=await(await fetch(`http://127.0.0.1:${port}/json/version`)).json();const ws=new WebSocket(v.webSocketDebuggerUrl);await new Promise(r=>ws.onopen=r);
+let id=0;const pending=new Map();const logs=[];
+ws.onmessage=({data})=>{const m=JSON.parse(data);if(m.id){const p=pending.get(m.id);pending.delete(m.id);m.error?p.reject(Error(JSON.stringify(m.error))):p.resolve(m.result);}else if(m.method==='Runtime.exceptionThrown')logs.push('EXC '+JSON.stringify(m.params.exceptionDetails.exception?.description||m.params.exceptionDetails.text).slice(0,300));else if(m.method==='Log.entryAdded')logs.push('LOG '+m.params.entry.level+' '+m.params.entry.text.slice(0,200)+' '+(m.params.entry.url||''));};
+const send=(method,params={},sessionId)=>new Promise((resolve,reject)=>{pending.set(++id,{resolve,reject});ws.send(JSON.stringify({id,method,params,sessionId}));});
+const {targetId}=await send('Target.createTarget',{url:'about:blank'});const {sessionId}=await send('Target.attachToTarget',{targetId,flatten:true});
+await send('Runtime.enable',{},sessionId);await send('Log.enable',{},sessionId);await send('Page.enable',{},sessionId);
+await send('Emulation.setDeviceMetricsOverride',{width:1300,height:1000,deviceScaleFactor:1,mobile:false},sessionId);
+await send('Page.navigate',{url},sessionId);
+await new Promise(r=>setTimeout(r,Number(waitS)*1000));
+const shot=await send('Page.captureScreenshot',{format:'png'},sessionId);await fs.writeFile(out,Buffer.from(shot.data,'base64'));
+console.log(logs.join('\n')||'no console errors');
+await send('Target.closeTarget',{targetId});ws.close();
