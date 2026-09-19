@@ -123,7 +123,7 @@ impl FlatRam {
     pub fn new(base: u32, size: usize) -> Self { FlatRam { base, mem: vec![0; size], ver: 0 } }
     fn off(&self, addr: u32, n: usize) -> Result<usize, Fault> {
         let o = addr.wrapping_sub(self.base) as usize;
-        if o + n <= self.mem.len() { Ok(o) } else { Err(Fault::Unmapped) }
+        if o.checked_add(n).is_some_and(|end| end <= self.mem.len()) { Ok(o) } else { Err(Fault::Unmapped) }
     }
 }
 
@@ -143,5 +143,20 @@ impl Bus for FlatRam {
         let mut b = [0u8; 4];
         for (i, byte) in b.iter_mut().enumerate() { if o + i < self.mem.len() { *byte = self.mem[o + i]; } }
         Ok(b)
+    }
+}
+
+#[cfg(test)]
+mod bounds_tests {
+    use super::*;
+
+    #[test]
+    fn access_length_cannot_wrap_into_the_valid_range() {
+        let ram = FlatRam::new(0x1000, 16);
+        assert_eq!(ram.off(0x1001, usize::MAX), Err(Fault::Unmapped));
+        assert_eq!(ram.off(0x0ffc, 4), Err(Fault::Unmapped));
+        assert_eq!(ram.off(0x100c, 4), Ok(12));
+        assert_eq!(ram.off(0x1010, 0), Ok(16));
+        assert_eq!(ram.off(0x1010, 1), Err(Fault::Unmapped));
     }
 }
