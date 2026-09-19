@@ -1,0 +1,632 @@
+{
+  "date": "2026-09-19",
+  "sourceRevision": "d549d4b27b927e7bd32bd2e4e9cc4188738c8e03",
+  "sourceTree": "f9947f5b8f7173f16e69119ae0f4ec08a0685ae7",
+  "host": "Darwin arm64",
+  "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)\nbinary: rustc\ncommit-hash: 48a229ceaefd4985c50990b14116b6d856af0985\ncommit-date: 2026-09-01\nhost: aarch64-apple-darwin\nrelease: 1.98.1\nLLVM version: 22.1.8",
+  "node": "v26.8.2",
+  "commands": {
+    "native": "TMPDIR=\"$PWD/work/tmp\" cargo test --release --workspace --no-fail-fast -- --include-ignored --skip external_",
+    "clippy": "TMPDIR=\"$PWD/work/tmp\" cargo clippy --workspace --all-targets -- -D warnings",
+    "web": "node tools/worker-pacing-test.mjs && node tools/worker-channel-test.mjs && node --test tools/touch-input-test.mjs tools/browser-benchmark/*.test.mjs",
+    "python": "uv run --no-project --python /Users/alice/src/a/esp32sim/.venv/bin/python -m unittest discover -s tools/browser-benchmark -p test_*.py",
+    "wasmBuild": "tools/wasm-build.sh",
+    "wasmManifests": "node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+    "wasmDifferential": "tools/wasm-jit-test.sh"
+  },
+  "exitCodes": {
+    "native": 0,
+    "clippy": 0,
+    "web": 0,
+    "python": 0,
+    "wasmBuild": 0,
+    "wasmManifests": 0,
+    "wasmDifferential": 0
+  },
+  "native": {
+    "totals": {
+      "passed": 371,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 12
+    },
+    "suites": [
+      {
+        "suite": "Running unittests src/lib.rs",
+        "status": "ok",
+        "passed": 3,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 1
+      },
+      {
+        "suite": "Running unittests src/lib.rs",
+        "status": "ok",
+        "passed": 22,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running tests/devices.rs",
+        "status": "ok",
+        "passed": 13,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running tests/timer_rtc_regressions.rs",
+        "status": "ok",
+        "passed": 4,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running tests/tx_boundaries.rs",
+        "status": "ok",
+        "passed": 11,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running unittests src/lib.rs",
+        "status": "ok",
+        "passed": 21,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running tests/cost_model.rs",
+        "status": "ok",
+        "passed": 17,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running tests/parsers.rs",
+        "status": "ok",
+        "passed": 11,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running unittests src/lib.rs",
+        "status": "ok",
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running tests/bus.rs",
+        "status": "ok",
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running tests/rtc_watchdog.rs",
+        "status": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running unittests src/lib.rs",
+        "status": "ok",
+        "passed": 17,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running tests/board.rs",
+        "status": "ok",
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running tests/net.rs",
+        "status": "ok",
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 1
+      },
+      {
+        "suite": "Running unittests src/lib.rs",
+        "status": "ok",
+        "passed": 104,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 1
+      },
+      {
+        "suite": "Running tests/approximate_timing.rs",
+        "status": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running tests/host_input.rs",
+        "status": "ok",
+        "passed": 3,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running tests/machine.rs",
+        "status": "ok",
+        "passed": 24,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 2
+      },
+      {
+        "suite": "Running tests/sram_cost_model.rs",
+        "status": "ok",
+        "passed": 9,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running tests/timer_interrupts.rs",
+        "status": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running tests/virtual_stops.rs",
+        "status": "ok",
+        "passed": 2,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running unittests src/lib.rs",
+        "status": "ok",
+        "passed": 7,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running unittests src/main.rs",
+        "status": "ok",
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running unittests src/bin/esp32sim-c3.rs",
+        "status": "ok",
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running unittests src/bin/esp32sim-c6.rs",
+        "status": "ok",
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running tests/cooja.rs",
+        "status": "ok",
+        "passed": 9,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 1
+      },
+      {
+        "suite": "Running tests/goldens.rs",
+        "status": "ok",
+        "passed": 14,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 1
+      },
+      {
+        "suite": "Running tests/soc_contracts.rs",
+        "status": "ok",
+        "passed": 5,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running unittests src/lib.rs",
+        "status": "ok",
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running tests/abi.rs",
+        "status": "ok",
+        "passed": 5,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running tests/boundaries.rs",
+        "status": "ok",
+        "passed": 4,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running unittests src/lib.rs",
+        "status": "ok",
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running tests/sram_kernel.rs",
+        "status": "ok",
+        "passed": 6,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running unittests src/lib.rs",
+        "status": "ok",
+        "passed": 8,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running tests/objdump_diff.rs",
+        "status": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 1
+      },
+      {
+        "suite": "Running tests/semantics.rs",
+        "status": "ok",
+        "passed": 5,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running unittests src/lib.rs",
+        "status": "ok",
+        "passed": 17,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 3
+      },
+      {
+        "suite": "Running tests/isa_regressions.rs",
+        "status": "ok",
+        "passed": 5,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running tests/jit_memory.rs",
+        "status": "ok",
+        "passed": 4,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running tests/objdump_diff.rs",
+        "status": "ok",
+        "passed": 1,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 1
+      },
+      {
+        "suite": "Running tests/operands.rs",
+        "status": "ok",
+        "passed": 4,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Running tests/semantics.rs",
+        "status": "ok",
+        "passed": 6,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Doc-tests emu_core",
+        "status": "ok",
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Doc-tests esp_periph",
+        "status": "ok",
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Doc-tests esp_soc",
+        "status": "ok",
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Doc-tests esp32c3",
+        "status": "ok",
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Doc-tests esp32c6",
+        "status": "ok",
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Doc-tests esp32s3",
+        "status": "ok",
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Doc-tests esp32sim",
+        "status": "ok",
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Doc-tests esp32sim_wasm",
+        "status": "ok",
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Doc-tests esp32sim_wasm_jit",
+        "status": "ok",
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Doc-tests riscv_rv32",
+        "status": "ok",
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      },
+      {
+        "suite": "Doc-tests xtensa_lx7",
+        "status": "ok",
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "filtered": 0
+      }
+    ]
+  },
+  "browserHost": {
+    "nodeTests": 16,
+    "pythonTests": 12,
+    "workerScriptsPassed": true
+  },
+  "wasm": {
+    "firmwareManifests": 8,
+    "jitHandoffPassed": true,
+    "differentialCases": 78861,
+    "modules": 76349,
+    "artifacts": [
+      {
+        "path": "web/wasm/esp32sim.wasm",
+        "bytes": 7609424,
+        "sha256": "aa29cb50241673cd57ad4ec60c1816f035e45dfd88e34fd0a56948c7ad09114c",
+        "importsProfileClock": false,
+        "exportsTestSuite": false
+      },
+      {
+        "path": "target/wasm32-unknown-unknown/release/esp32sim_wasm.wasm",
+        "bytes": 12363515,
+        "sha256": "b39aa534935476a7e57409a5833e9f818766297c2d95125d2c6c22f92466328f",
+        "importsProfileClock": false,
+        "exportsTestSuite": true
+      }
+    ]
+  },
+  "roms": [
+    {
+      "chip": "esp32s3_rev0",
+      "path": "/Users/alice/.espressif/tools/esp-rom-elfs/20241011/esp32s3_rev0_rom.elf",
+      "bytes": 949552,
+      "sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd"
+    },
+    {
+      "chip": "esp32c3_rev3",
+      "path": "/Users/alice/.espressif/tools/esp-rom-elfs/20241011/esp32c3_rev3_rom.elf",
+      "bytes": 556332,
+      "sha256": "19ac22e08707df926fb0cf4c54795d4067b983fae8635f396ded173a6d78fc3c"
+    },
+    {
+      "chip": "esp32c6_rev0",
+      "path": "/Users/alice/.espressif/tools/esp-rom-elfs/20241011/esp32c6_rev0_rom.elf",
+      "bytes": 489768,
+      "sha256": "788e1d38724aeb8fd974fa10c4a7b089c02627d35342ce84b9e0b12b239f3551"
+    }
+  ],
+  "logs": [
+    {
+      "path": "work/validation-final-0919/workspace-tests-final.log",
+      "bytes": 35400,
+      "sha256": "bc6b45b7142694f7f5b729b4c7f3e3af43a6a63e98a445c62c5fe5c078994a70"
+    },
+    {
+      "path": "work/validation-final-0919/clippy.log",
+      "bytes": 1093,
+      "sha256": "7f68fb9ec1bc89e0e293405df94a19a55e8cd9a049beb9977aa7d23526ea43e6"
+    },
+    {
+      "path": "work/validation-final-0919/web-tests.log",
+      "bytes": 1878,
+      "sha256": "8811fe7e44b4f07ce88008ff9e006f1fd3129d9133368c9ad0953b022c319a7d"
+    },
+    {
+      "path": "work/validation-final-0919/wasm-build.log",
+      "bytes": 1776,
+      "sha256": "fca56308e3925ae49889d12b165bf716ba0e98556d86f758db6a405be78496a0"
+    },
+    {
+      "path": "work/validation-final-0919/wasm-manifests.log",
+      "bytes": 968,
+      "sha256": "fa4446489e18b5bd0388f938371cde8f556f294e3671c99d3d16bfc16d55b800"
+    },
+    {
+      "path": "work/validation-final-0919/wasm-jit-tests.log",
+      "bytes": 1053,
+      "sha256": "66f5f56180217aa7ddbfe8fc8a4886b2642391bccbd0a643b567f6107bc6938c"
+    },
+    {
+      "path": "work/validation-final-0919/c3-first-reset.log",
+      "bytes": 482,
+      "sha256": "f9a4604922c913dfc9f52980a4a371becf6c502ce36a3fc1a6279e6b11803ea1"
+    },
+    {
+      "path": "work/validation-final-0919/c6-first-reset.log",
+      "bytes": 481,
+      "sha256": "0956eeef2ad33c09a8abaa90e887d0a52a4a7fb9e0dbcc181fdeb30b79fa2027"
+    }
+  ],
+  "limitations": [
+    "External-prerequisite tests selected by external_ were excluded; ignored ROM-dependent tests were included.",
+    "UPDATE_GOLDENS was not set; only two RV32 reboot-count fixtures were deliberately corrected after invariant checks.",
+    "Production WASM build precedes three behavior-preserving Clippy rewrites; the differential rebuild includes them. Patch retained beside this receipt.",
+    "These checks validate emulator behavior and do not establish silicon timing fidelity or Pocket Tank speed.",
+    "Raw logs remain in the local ignored work directory; SHA-256 and byte lengths above preserve identity. No public raw-log archive exists yet."
+  ],
+  "additionalTargetedChecks": [
+    {
+      "command": "ESP32SIM_VQ_NATIVE=1 cargo test -p esp32s3 --test virtual_stops --test machine",
+      "passed": 28,
+      "scope": "Includes 64 WAITI positions/core/timer scenarios, each run with virtual quanta off and on; assertion verifies the virtual path executed.",
+      "log": "work/scheduler-waiti-after.log",
+      "bytes": 2882,
+      "sha256": "2529fcd9515ded87ac046b452f3786536def36e8cfc75101e7133ea87f862c2e"
+    },
+    {
+      "command": "cargo test -p xtensa-lx7 --test isa_regressions custom_pie_slots_load_and_store_float_registers",
+      "passed": 1,
+      "scope": "Final test fixture enables both CP0 and CP3; this checks instruction effects and does not establish the hardware coprocessor gate.",
+      "log": "work/isa-review/resumed-f64-test.log",
+      "bytes": 430,
+      "sha256": "37f22515071e93323dfd20c961f3435743a6895b01a44879334a38d6eba9b3ff"
+    }
+  ],
+  "openPullRequests": [
+    {
+      "headRefName": "docs/agents-experiment-catalog",
+      "headRefOid": "87da306ff4d0de927a3772d464053108a8771232",
+      "number": 93,
+      "includedAsAncestor": true,
+      "url": "https://github.com/joakimeriksson/esp32sim/pull/93"
+    },
+    {
+      "headRefName": "fix/flatram-bounds",
+      "headRefOid": "abbbf688e82f2fba0797b7778e23036a4b8c60d5",
+      "number": 92,
+      "includedAsAncestor": true,
+      "url": "https://github.com/joakimeriksson/esp32sim/pull/92"
+    },
+    {
+      "headRefName": "timing/approximate-model",
+      "headRefOid": "b0271570fe893da9ca027d8950530d3b836a3ec9",
+      "number": 91,
+      "includedAsAncestor": true,
+      "url": "https://github.com/joakimeriksson/esp32sim/pull/91"
+    },
+    {
+      "headRefName": "web/smooth-drawing",
+      "headRefOid": "5a1bba827c277160860f528768423950c3ecaa61",
+      "number": 89,
+      "includedAsAncestor": true,
+      "url": "https://github.com/joakimeriksson/esp32sim/pull/89"
+    },
+    {
+      "headRefName": "perf/larger-regions",
+      "headRefOid": "322c1038500b697963638eb4b2072ec41582bb5b",
+      "number": 88,
+      "includedAsAncestor": true,
+      "url": "https://github.com/joakimeriksson/esp32sim/pull/88"
+    },
+    {
+      "headRefName": "perf/sr-block-boundaries",
+      "headRefOid": "12109bea876c35c1457bb01a53246180a7032f5b",
+      "number": 87,
+      "includedAsAncestor": true,
+      "url": "https://github.com/joakimeriksson/esp32sim/pull/87"
+    },
+    {
+      "headRefName": "perf/virtual-quanta",
+      "headRefOid": "3aa74620bef12423b51e3ecb9e61697214e31017",
+      "number": 86,
+      "includedAsAncestor": true,
+      "url": "https://github.com/joakimeriksson/esp32sim/pull/86"
+    },
+    {
+      "headRefName": "perf/wasm-dispatch-diet",
+      "headRefOid": "58accaf14841b44d67c5a1b10e7b9e4b44a1ae54",
+      "number": 85,
+      "includedAsAncestor": true,
+      "url": "https://github.com/joakimeriksson/esp32sim/pull/85"
+    }
+  ]
+}
