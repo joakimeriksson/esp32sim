@@ -1,6 +1,0 @@
-source "/Users/joakimeriksson/esp/esp-idf-v5.5.4/components/bootloader/Kconfig.projbuild"
-source "/Users/joakimeriksson/esp/esp-idf-v5.5.4/components/esp_app_format/Kconfig.projbuild"
-source "/Users/joakimeriksson/esp/esp-idf-v5.5.4/components/esp_rom/Kconfig.projbuild"
-source "/Users/joakimeriksson/esp/esp-idf-v5.5.4/components/esptool_py/Kconfig.projbuild"
-source "/Users/joakimeriksson/esp/esp-idf-v5.5.4/components/partition_table/Kconfig.projbuild"
-source "/Users/joakimeriksson/work/esp32sim/examples/wifi-station/main/Kconfig.projbuild"
