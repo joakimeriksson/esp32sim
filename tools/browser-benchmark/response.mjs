@@ -87,7 +87,12 @@ worker.onerror = event => { status.textContent = event.message; receipt.error = 
 receipt.assets = await (await fetch('/assets.json')).json();
 const wasm = await (await fetch('/asset/wasm')).arrayBuffer();
 await command({op: 'init', wasm}, 'ready');
-await command({op: 'create', board: 'waveshare-amoled18-v2', flash_mb: 16, psram_mb: 8}, 'created');
+const HW = [["esp32sim_set_approximate_jit_timing",1,512],["esp32sim_set_approximate_jit_frontiers",1],["esp32sim_set_approximate_jit_cache",96,160,2],["esp32sim_set_approximate_cache_contention",1],["esp32sim_set_approximate_cache_fill_service",160],["esp32sim_set_spi2_timing",1],["esp32sim_set_measured_te",1],["esp32sim_set_control_prices",1],["esp32sim_set_icache_fill",404]];
+const timingParam = new URL(location.href).searchParams.get('timing');
+// `timing=hw` is the whole model; `timing=hw-<n>[-<m>...]` drops the listed exports (for bisecting).
+const dropped = (timingParam || '').split('-').slice(1).map(Number);
+const experiments = timingParam && timingParam.startsWith('hw') ? HW.filter((_, n) => !dropped.includes(n)) : [];
+await command({op: 'create', board: 'waveshare-amoled18-v2', flash_mb: 16, psram_mb: 8, experiments}, 'created');
 for (const [name, kind] of [['rom', 0], ['bootloader', 1], ['ptable', 2], ['app', 3], ['elf', 4]]) {
   const data = await (await fetch('/asset/' + name)).arrayBuffer();
   const result = await command({op: 'load', kind, data}, 'loaded');
