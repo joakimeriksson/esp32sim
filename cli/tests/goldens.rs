@@ -146,6 +146,9 @@ fn hello_world_c3() {
 }
 
 /// The C3's esp_restart() path: a software CPU reset, back through the ROM with the right cause.
+/// In this unmodeled RV32 path the reported count includes idle cycles and survives reset.
+/// A reset charges only its executed partial round, so the 12 s count is 12 * 160 MHz;
+/// charging a full reset round previously added device time without matching core work.
 #[test] #[ignore = "needs the ESP32-C3 mask ROM ELF"]
 fn hello_world_c3_reboot() {
     let rom = rom("esp32c3_rev3");
@@ -179,6 +182,7 @@ fn hello_world_c6() {
 
 /// The C6's esp_restart() path: a software CPU reset through LP_AON, back through the ROM with
 /// the right cause and the ROM's `Saved PC` line.
+/// As on the C3, partial-reset accounting preserves the 12 * 160 MHz reported count.
 #[test] #[ignore = "needs the ESP32-C6 mask ROM ELF"]
 fn hello_world_c6_reboot() {
     let rom = rom("esp32c6_rev0");

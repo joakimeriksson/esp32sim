@@ -2,7 +2,7 @@
 //! them per symbol and, with a file, writes one `addr symbol` line per block start (sorted), a
 //! format `diff` and a spreadsheet both take.
 use crate::observe::{Ctx, Observer, Wants};
-use crate::soc::{Soc, Stop};
+use crate::soc::Soc;
 use std::collections::{BTreeMap, BTreeSet};
 
 pub struct Coverage { pub starts: BTreeSet<u32>, pub path: Option<String> }
@@ -11,7 +11,6 @@ impl<S: Soc> Observer<S> for Coverage {
     fn name(&self) -> &'static str { "coverage" }
     fn wants(&self) -> Wants { Wants::BLOCK }
     fn on_block(&mut self, _cx: &Ctx, _core: usize, pc: u32, _insns: u32) { self.starts.insert(pc); }
-    fn on_insn(&mut self, _cx: &Ctx, _core: usize, _cpu: &S::Core, _bus: &mut S::Bus, pc: u32) -> Option<Stop> { self.starts.insert(pc); None }
     fn report(&mut self, cx: &Ctx) -> String {
         let mut per_sym: BTreeMap<String, usize> = BTreeMap::new();
         for &pc in &self.starts { let s = cx.sym(pc); *per_sym.entry(s.split('+').next().unwrap_or("").to_string()).or_insert(0) += 1; }

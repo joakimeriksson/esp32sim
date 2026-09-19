@@ -12,7 +12,7 @@ impl Wants {
     pub const NONE: Wants = Wants(0);
     /// `on_insn`/`after_insn` for every instruction — the run single-steps
     pub const INSN: Wants = Wants(1);
-    /// `on_block` after every block the fast path executed (full speed)
+    /// `on_block` after each fast-path block or single-step fallback instruction
     pub const BLOCK: Wants = Wants(2);
     /// `on_trap` without fragmenting blocks; PC is the run-entry PC on the fast path.
     pub const TRAP: Wants = Wants(4);
@@ -55,7 +55,7 @@ pub trait Observer<S: Soc> {
     fn on_insn(&mut self, _cx: &Ctx, _core: usize, _cpu: &S::Core, _bus: &mut S::Bus, _pc: u32) -> Option<Stop> { None }
     /// After the instruction (and its trap, if any) on `core`.
     fn after_insn(&mut self, _cx: &Ctx, _core: usize, _cpu: &S::Core, _bus: &mut S::Bus) -> Option<Stop> { None }
-    /// The fast path ran `insns` instructions of the block starting at `pc`.
+    /// Executed `insns` instructions starting at `pc`; single-step fallback reports one.
     fn on_block(&mut self, _cx: &Ctx, _core: usize, _pc: u32, _insns: u32) {}
     /// CPU state is after trap delivery. PC is the run-entry PC unless `TRAP_PC`
     /// (or the single-step path) provides exact instruction attribution.
