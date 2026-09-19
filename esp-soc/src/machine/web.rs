@@ -112,7 +112,7 @@ impl<S: Soc> Machine<S> {
                 let Some(bytes) = pixels.checked_mul(4) else { continue };
                 let Some(rgba) = b[5..].get(..bytes) else { continue };
                 let mut rgb = Vec::with_capacity(pixels * 3);
-                for px in rgba.chunks_exact(4) { rgb.extend_from_slice(&px[..3]); }
+                for px in rgba.as_chunks::<4>().0 { rgb.extend_from_slice(&px[..3]); }
                 self.bus.board().set_camera_picture(crate::picture::Picture { w: wd as u32, h: ht as u32, rgb });
             }
         }

@@ -41,3 +41,54 @@ fn architectural_stop_preserves_unfinished_round() {
         }
     }
 }
+
+#[test]
+fn waiti_inside_virtual_round_preserves_timer_ordering() {
+    const SPIN: [u8; 3] = [0x06, 0xff, 0xff];
+    const START: u32 = IRAM + 0x100;
+    const VECTOR_BASE: u32 = IRAM + 0x1000;
+    let timer = xtensa_lx7::state::TIMER_INTERRUPT[0];
+    for busy in 0..2 {
+        // Include short partial rounds, exact boundaries and partial rounds after full ones.
+        for wait_at in [3, 63, 64, 65, 67, 127, 128, 129] {
+            for wake_after in [1, 2, 63, 65] {
+                let mut results = Vec::new();
+                for vq in [1, 1024] {
+                    let mut m = esp32s3::machine([0; 6]);
+                    m.console.capture = true;
+                    m.vq_max = 1;
+                    for core in &mut m.cores { core.set_jit(false); }
+                    m.bus.load_bytes(IRAM, &SPIN).unwrap();
+                    m.bus.load_bytes(0x4000_0400, &SPIN).unwrap();
+                    m.cores[0].pc = IRAM;
+                    m.cores[0].ps = 0;
+                    m.bus.write32(0x600c_0000, 2).unwrap();
+                    assert!(matches!(m.run(64), Stop::MaxInsns));
+                    m.cores[1 - busy].waiting = true;
+                    let mut code = [0x3d, 0xf0].repeat(wait_at - 1); // nop.n
+                    code.extend([0x00, 0x70, 0x00]); // waiti 0
+                    code.extend(SPIN);
+                    m.bus.load_bytes(START, &code).unwrap();
+                    m.bus.load_bytes(VECTOR_BASE + xtensa_lx7::state::vec::KERNEL, &SPIN).unwrap();
+                    let cpu = &mut m.cores[busy];
+                    cpu.pc = START;
+                    cpu.ps = 0;
+                    cpu.vecbase = VECTOR_BASE;
+                    cpu.intenable = 1 << timer;
+                    cpu.ccompare[0] = cpu.ccount.wrapping_add((wait_at + wake_after) as u32);
+                    m.vq_max = vq;
+                    m.max_cycles = m.bus.cycles + 384;
+                    assert!(matches!(m.run(1024), Stop::Halted));
+                    assert_eq!(m.interrupts, 1, "one wakeup, busy={busy} wait_at={wait_at} wake_after={wake_after} vq={vq}");
+                    assert_eq!(m.cores[busy].epc[1], START + 2 * (wait_at as u32 - 1) + 3, "timer resumes after WAITI");
+                    if vq > 1 && std::env::var_os("ESP32SIM_VQ_NATIVE").is_some() {
+                        assert!(m.vq_stats[0] > 0 && m.vq_stats[3] > 0, "exercise a virtual run cut by WAITI");
+                    }
+                    results.push((m.bus.cycles, m.run_steps(), m.irq_hist.clone(), m.cores.iter()
+                        .map(|c| (c.ccount, c.insn_count, c.pc, c.ps, c.interrupt, c.epc, c.waiting)).collect::<Vec<_>>()));
+                }
+                assert_eq!(results[0], results[1], "busy={busy} wait_at={wait_at} wake_after={wake_after}");
+            }
+        }
+    }
+}

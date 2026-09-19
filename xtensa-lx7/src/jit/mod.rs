@@ -228,10 +228,10 @@ mod native {
         assert!(std::mem::size_of::<TlbEntry>().is_power_of_two() && TLB_ENTRY_SHIFT < 64);
         assert!(TLB_INDEX_SHIFT < 32 && TLB_XOR_SHIFT < 32);
         assert!(VPAGE_SHIFT >= 3 && VPAGE_SHIFT <= 12); // page edge test uses a 12-bit immediate
-        assert!(TLB_LO % 4 == 0 && TLB_LO < 16384 && TLB_HI % 4 == 0 && TLB_HI < 16384);
-        assert!(TLB_BASE % 8 == 0 && TLB_BASE < 32768);
-        assert!(TLB_VBASE % 4 == 0 && TLB_VBASE < 16384);
-        assert!(TLB_WRITABLE % 4 == 0 && TLB_WRITABLE < 16384);
+        assert!(TLB_LO.is_multiple_of(4) && TLB_LO < 16384 && TLB_HI.is_multiple_of(4) && TLB_HI < 16384);
+        assert!(TLB_BASE.is_multiple_of(8) && TLB_BASE < 32768);
+        assert!(TLB_VBASE.is_multiple_of(4) && TLB_VBASE < 16384);
+        assert!(TLB_WRITABLE.is_multiple_of(4) && TLB_WRITABLE < 16384);
     };
 
     const CPU: Reg = 19; const BUS: Reg = 20; const AR: Reg = 21; const WB4: Reg = 22; const LEFT: Reg = 23;

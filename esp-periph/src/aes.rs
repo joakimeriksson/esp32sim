@@ -51,8 +51,8 @@ impl Aes {
             output.extend_from_slice(&out);
             self.blocks += 1;
         }
-        for (word, bytes) in self.iv.iter_mut().zip(iv.chunks_exact(4)) {
-            *word = u32::from_le_bytes(bytes.try_into().unwrap());
+        for (word, bytes) in self.iv.iter_mut().zip(iv.as_chunks::<4>().0) {
+            *word = u32::from_le_bytes(*bytes);
         }
         output
     }
@@ -117,11 +117,11 @@ mod tests {
     fn accelerator(block_mode: u32, decrypt: bool, iv: &str) -> Aes {
         let mut aes = Aes::new();
         let key = hex("2b7e151628aed2a6abf7158809cf4f3c");
-        for (i, word) in key.chunks_exact(4).enumerate() {
-            aes.write(i as u32 * 4, u32::from_le_bytes(word.try_into().unwrap()));
+        for (i, word) in key.as_chunks::<4>().0.iter().enumerate() {
+            aes.write(i as u32 * 4, u32::from_le_bytes(*word));
         }
-        for (i, word) in hex(iv).chunks_exact(4).enumerate() {
-            aes.write(0x50 + i as u32 * 4, u32::from_le_bytes(word.try_into().unwrap()));
+        for (i, word) in hex(iv).as_chunks::<4>().0.iter().enumerate() {
+            aes.write(0x50 + i as u32 * 4, u32::from_le_bytes(*word));
         }
         aes.write(0x40, if decrypt { 4 } else { 0 });
         aes.write(0x94, block_mode);

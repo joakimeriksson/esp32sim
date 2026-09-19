@@ -60,7 +60,7 @@ impl<S: Soc> MachineApi for Machine<S> {
             "profile-blocks" => { self.add_observer(Box::new(BlockProfile::new(20))); 0 }
             "coverage" => { self.add_observer(Box::new(Coverage::new(None))); 0 }
             "irq-latency" => { self.add_observer(Box::new(IrqLatency::new(S::CORES))); 0 }
-            "trace-fn" => { let n: Vec<(u32, String)> = self.symbols.iter().filter(|(_, s)| s.starts_with(arg)).map(|(a, s)| (*a, s.clone())).collect(); for (a, s) in n { self.fn_probes.insert(a, s); } 0 }
+            "trace-fn" => { self.trace_fns(arg); 0 }
             _ => { log(&format!("[emu] unknown observer '{}'", name)); 1 }
         }
     }
