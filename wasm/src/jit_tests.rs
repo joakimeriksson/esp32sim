@@ -83,6 +83,40 @@ fn solo_core_one() -> u32 {
     4
 }
 
+fn architectural_stops() -> u32 {
+    for jit in [false, true] {
+        for busy in 0..2 {
+            for instructions in [1usize, 63, 64, 65, 127, 128, 129] {
+                let (mut a, mut b) = (machine(jit), machine(jit));
+                for m in [&mut a, &mut b] {
+                    m.vq_max = 1;
+                    if busy == 1 {
+                        m.bus.write32(CONTROL, 2).unwrap();
+                        m.max_cycles = m.bus.cycles + 64;
+                        assert!(matches!(m.run(u64::MAX), Stop::Halted));
+                        m.cores[0].waiting = true;
+                    }
+                    let mut code = [0x3d, 0xf0].repeat(instructions - 1); // nop.n
+                    code.extend([0, 0, 0]); // ill
+                    m.bus.load_bytes(BASE + 0x800, &code).unwrap();
+                    m.cores[busy].pc = BASE + 0x800;
+                    m.cores[busy].ps = 0;
+                    m.cores[busy].waiting = false;
+                    m.dbg.stop_after_exceptions = 1;
+                    m.max_cycles = m.bus.cycles + (instructions as u64).div_ceil(64).max(2) * 64;
+                }
+                b.vq_max = 1024;
+                let before = b.vq_stats[0];
+                assert!(matches!(a.run(u64::MAX), Stop::Exceptions(1)));
+                assert!(matches!(b.run(u64::MAX), Stop::Exceptions(1)));
+                assert!(b.vq_stats[0] > before);
+                same(&a, &b);
+            }
+        }
+    }
+    28
+}
+
 pub fn run() -> u32 {
     let (mut a, mut b) = (machine(false), machine(true));
     for m in [&mut a, &mut b] {
@@ -127,5 +161,5 @@ pub fn run() -> u32 {
         }
         same(&a, &b);
     }
-    3 + solo_core_one()
+    3 + solo_core_one() + architectural_stops()
 }
