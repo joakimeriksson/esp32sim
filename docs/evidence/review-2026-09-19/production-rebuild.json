@@ -1,0 +1,9 @@
+{
+  "sourceRevision": "8ce9f055a30854d75aae9502b69672051d20bb9b",
+  "codeRevision": "d549d4b27b927e7bd32bd2e4e9cc4188738c8e03",
+  "artifact": "web/wasm/esp32sim.wasm",
+  "bytes": 7609464,
+  "sha256": "468a47ee89a6274cff24eb8f2669648d327b0f7d41e1fff7681ba1c071b7ce80",
+  "build": "tools/wasm-build.sh; rustc1.98.1 default features; wasm-opt132 -O3",
+  "smoke": "ok   wasm JIT handoff: shared-memory block committed at a scheduler boundary\nok   hello: board none, 4.3 M insns in 0.3 s wall (14.1 Minsn/s), 129 console lines, 0 binary frames\nok   panel: board waveshare-lcd4b, 142.4 M insns in 3.9 s wall (36.5 Minsn/s), 193 console lines, 252 binary frames\n"
+}
