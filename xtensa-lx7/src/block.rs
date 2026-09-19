@@ -198,6 +198,13 @@ fn build<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc0: u32) -> Result<(u32, u32, u16)
 /// Returns `(iterations, trap)` where iterations is what a loop over `step()` would have
 /// consumed: executed instructions, plus one for a trap taken before an instruction ran.
 pub fn run_block<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Option<Trap>) {
+    let result = run_block_profiled(cpu, bus, budget);
+    // Trap entry is independent of instruction retirement and profiling.
+    if cpu.price_control && matches!(result.1, Some(Trap::Exception(_) | Trap::Interrupt(_))) { cpu.timing_extra += 6; }
+    result
+}
+
+fn run_block_profiled<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Option<Trap>) {
     #[cfg(all(target_arch = "wasm32", feature = "wasm-jit-profile"))]
     {
         if cpu.blocks.profile.sample() {
@@ -215,12 +222,7 @@ pub fn run_block<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Optio
             return result;
         }
     }
-    let result = run_block_inner(cpu, bus, budget);
-    // EX142: redirecting the fetch to a vector. The window ladder measures 35 cycles for an
-    // overflow plus underflow pair whose handlers retire 18 instructions: (35 - 18) / 2 per
-    // handler, of which the return takes two beyond its own cycle and the entry the rest.
-    if cpu.price_control && matches!(result.1, Some(Trap::Exception(_) | Trap::Interrupt(_))) { cpu.timing_extra += 6; }
-    result
+    run_block_inner(cpu, bus, budget)
 }
 
 // Keep this boundary visible to a sampling profiler without adding per-block clocks.
@@ -228,10 +230,15 @@ pub fn run_block<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Optio
 fn run_block_inner<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Option<Trap>) {
     if let Some(t) = cpu.check_interrupts() { return (1, Some(t)); }
     if cpu.waiting { cpu.advance_ccount(cpu.approximate_cpi); return (1, None); }
-    let pc = cpu.pc;
+    let (ei, k, end) = match find_block(cpu, bus) { Ok(b) => b, Err(t) => return (1, Some(t)) };
+    cpu.blocks.resume.2 = 1;
 
-    // find the block: a pending continuation, a cached block, or a fresh decode
-    let (ei, mut k, end) = {
+    run_decoded(cpu, bus, budget, ei, k, end)
+}
+
+fn find_block<B: Bus>(cpu: &mut Cpu, bus: &mut B) -> Result<(u32, u32, u32), Trap> {
+    let pc = cpu.pc;
+    Ok({
         let (rei, rk, rpc) = cpu.blocks.resume;
         let resumed = if rpc == pc {
             let e = &cpu.blocks.entries[rei as usize];
@@ -242,12 +249,20 @@ fn run_block_inner<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Opt
             let ei = BlockCache::index(pc);
             let e = &cpu.blocks.entries[ei];
             if e.pc == pc && BlockCache::valid(e, bus.page_versions()) { (ei as u32, e.start, e.start + e.n as u32) }
-            else { match build(cpu, bus, pc) { Ok((ei, s, n)) => (ei, s, s + n as u32), Err(t) => return (1, Some(t)) } }
+            else { let (ei, s, n) = build(cpu, bus, pc)?; (ei, s, s + n as u32) }
         }
-    };
-    cpu.blocks.resume.2 = 1;
-    if cpu.icache_fill != 0 { let n = cpu.blocks.entries[ei as usize].n as u32; cpu.touch_fetch_lines(pc, pc + 3 * n.saturating_sub(1)); }
+    })
+}
 
+/// Share decoded dependency prices and continuation state with single stepping.
+/// The model intentionally resets scoreboards at decoded block boundaries, not budget cuts.
+pub(crate) fn step_extra<B: Bus>(cpu: &mut Cpu, bus: &mut B, i: &Insn) -> u32 {
+    let Ok((ei, k, end)) = find_block(cpu, bus) else { return 0; };
+    cpu.blocks.resume = if k + 1 < end { (ei, k + 1, cpu.pc.wrapping_add(i.len as u32)) } else { (0, 0, 1) };
+    cpu.blocks.extras[k as usize] as u32
+}
+
+fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k: u32, end: u32) -> (u32, Option<Trap>) {
     // never run past a CCOMPARE match: the timer interrupt must land on the same instruction
     #[cfg(not(target_arch = "wasm32"))]
     let mut limit = (end - k).min(budget);
@@ -262,7 +277,17 @@ fn run_block_inner<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Opt
     }
 
     let code = cpu.blocks.entries[ei as usize].code;
-    if code != crate::jit::NONE && cpu.blocks.jit_enabled && crate::jit::ready(cpu.blocks.code.as_ref().unwrap(), code) {
+    // Native code has no price collector or deferred-access guard. Keep its default
+    // fast path, but execute opt-in pricing and deferred quanta in the interpreter.
+    // WASM already collects instruction prices. Bound fetch-priced calls to one
+    // instruction so retained loops cannot hide which fetch lines were executed.
+    #[cfg(target_arch = "wasm32")]
+    if cpu.price_control && cpu.icache_fill != 0 { limit = limit.min(1); }
+    let observed_timing = cpu.price_control && cfg!(not(target_arch = "wasm32"));
+    let native_deferred = cfg!(not(target_arch = "wasm32")) && bus.defer_armed();
+    if !observed_timing && !native_deferred && code != crate::jit::NONE && cpu.blocks.jit_enabled && crate::jit::ready(cpu.blocks.code.as_ref().unwrap(), code) {
+        #[cfg(target_arch = "wasm32")]
+        let fetch_pc = cpu.pc;
         let entry = cpu.blocks.arena[k as usize].off;
         let fm = bus.fast_mem();
         #[cfg(not(target_arch = "wasm32"))]
@@ -293,6 +318,11 @@ fn run_block_inner<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Opt
         // EX133: the helper refused a device-register access; its instruction was counted
         // but did not run, and the pc still names it.
         if exit == crate::jit::CODE_TRAP && bus.deferred() { done -= 1; }
+        #[cfg(target_arch = "wasm32")]
+        if done != 0 && cpu.price_control && cpu.icache_fill != 0 {
+            let i = cpu.blocks.arena[k as usize].insn;
+            cpu.touch_fetch_lines(fetch_pc, fetch_pc.wrapping_add(i.len.max(1) as u32 - 1));
+        }
         cpu.blocks.jit_instructions += done as u64;
         cpu.insn_count += done as u64;
         cpu.advance_ccount(done * cpu.approximate_cpi);
@@ -323,6 +353,9 @@ fn run_block_inner<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Opt
         let at = cpu.pc;
         if crate::exec::defer_instruction(cpu, bus, &e.insn) { break; }
         bus.note_pc(at);
+        if cpu.price_control && cpu.icache_fill != 0 {
+            cpu.touch_fetch_lines(at, at.wrapping_add(e.insn.len.max(1) as u32 - 1));
+        }
         let expected = at.wrapping_add(e.insn.len as u32);
         let r = exec_insn(cpu, bus, &e.insn);
         done += 1; k += 1;

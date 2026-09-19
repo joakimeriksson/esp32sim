@@ -195,12 +195,18 @@ pub fn step<B: Bus>(cpu: &mut Cpu, bus: &mut B) -> Result<(), Trap> { step_outco
 /// Execute one slow-path event and retain the fetch and control facts that cannot be recovered by
 /// wrapping the bus.
 pub fn step_outcome<B: Bus>(cpu: &mut Cpu, bus: &mut B) -> StepOutcome {
+    let outcome = step_outcome_inner(cpu, bus);
+    if cpu.price_control && matches!(outcome.trap(), Some(Trap::Exception(_) | Trap::Interrupt(_))) { cpu.timing_extra += 6; }
+    outcome
+}
+
+fn step_outcome_inner<B: Bus>(cpu: &mut Cpu, bus: &mut B) -> StepOutcome {
     let pc = cpu.pc;
     if let Some(t) = cpu.check_interrupts() {
         return StepOutcome { pc, next_pc: cpu.pc, bytes: None, length: 0, kind: StepKind::TrapBefore(t), control: None };
     }
     if cpu.waiting {
-        cpu.advance_ccount(1);
+        cpu.advance_ccount(cpu.approximate_cpi);
         return StepOutcome { pc, next_pc: pc, bytes: None, length: 0, kind: StepKind::Idle, control: None };
     }
 
@@ -231,9 +237,18 @@ pub fn step_outcome<B: Bus>(cpu: &mut Cpu, bus: &mut B) -> StepOutcome {
     }
 
     let control = control_event(cpu, &i);
+    let extra = if cpu.price_control { crate::block::step_extra(cpu, bus, &i) } else { 0 };
+    if cpu.price_control && cpu.icache_fill != 0 {
+        cpu.touch_fetch_lines(pc, pc.wrapping_add(i.len.max(1) as u32 - 1));
+    }
     let r = exec_insn(cpu, bus, &i);
+    if cpu.price_control && r.is_ok() {
+        let taken = control_taken(cpu, &i);
+        cpu.timing_extra += control_price(i.op, taken) + extra
+            + u32::from(taken && transfers(i.op) && straddles(bus, cpu.pc));
+    }
     cpu.insn_count += 1;
-    cpu.advance_ccount(1);
+    cpu.advance_ccount(cpu.approximate_cpi);
     let kind = match r { Ok(()) => StepKind::Retired, Err(trap) => StepKind::TrapDuring(trap) };
     StepOutcome { pc, next_pc: cpu.pc, bytes: Some(bytes), length: i.len, kind, control }
 }
