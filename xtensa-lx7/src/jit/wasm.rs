@@ -404,7 +404,11 @@ extern "C" fn h_exec<B: Bus>(
     // SAFETY: The compiled caller passes the exclusive live CPU/bus and an instruction
     // owned by its live CodeCache. No Rust execution overlaps generated access.
     let (cpu, bus, instruction) = unsafe { (&mut *cpu, &mut *bus, &*instruction) };
-    HELPED.store(true, std::sync::atomic::Ordering::Relaxed);
+    // A return that does not trap changes only the window and the PC: nothing the dispatcher
+    // would re-derive (interrupt inputs, waiting, device state) before the next block.
+    if !matches!(instruction.insn.op, crate::Op::Retw | crate::Op::RetwN | crate::Op::Ret | crate::Op::RetN) {
+        HELPED.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
     cpu.pc = pc;
     #[cfg(feature = "wasm-jit-profile")]
     {
