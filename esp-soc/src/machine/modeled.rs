@@ -109,13 +109,15 @@ impl<S: Soc> Machine<S> {
             let budget = cycles.div_ceil(u64::from(cpi)).max(1) as u32;
             // Keep cheap blocks together. A priced memory access yields immediately after its
             // block, exposing the stall to the other CPU without settling devices per ALU block.
-            let (mut used, mut extras) = (0, 0u32);
+            // Retired slots and elapsed cycles have different units: control prices are cycles.
+            let (mut retired, mut spent, mut extras) = (0u32, 0u64, 0u32);
             let penalty = loop {
-                self.bus.begin_timing_batch(core, now + u64::from(used) * u64::from(cpi));
-                if solo { self.bus.set_defer(used > 0); }
-                let (done, stop) = if blocks { self.step_blocks(core, budget - used) } else {
+                self.bus.begin_timing_batch(core, now + spent);
+                if solo { self.bus.set_defer(spent > 0); }
+                let left = (cycles.saturating_sub(spent).div_ceil(u64::from(cpi)).max(1) as u32).min(budget);
+                let (done, stop) = if blocks { self.step_blocks(core, left) } else {
                     let stop = self.step_core(core);
-                    self.cores[core].advance_cycles(cpi - 1);
+                    if !self.cores[core].step_charges_cpi() { self.cores[core].advance_cycles(cpi - 1); }
                     (1, stop)
                 };
                 if let Some(stop) = stop { self.bus.set_defer(false); self.drain_console(); return stop; }
@@ -123,26 +125,28 @@ impl<S: Soc> Machine<S> {
                     self.bus.set_defer(false);
                     let extra = self.cores[core].take_timing_extra();
                     let penalty = self.bus.take_timing_penalty();
-                    let work = used + done.max(1) + extra;
-                    self.cores[core].advance_cycles(penalty + extras + extra);
+                    let work = retired + done.max(1);
+                    self.cores[core].advance_cycles(penalty.saturating_add(extras).saturating_add(extra));
                     self.run_steps += u64::from(work);
-                    let cycles = u64::from(work) * u64::from(cpi) + u64::from(penalty);
+                    let cycles = spent + u64::from(done.max(1)) * u64::from(cpi) + u64::from(extra) + u64::from(penalty);
                     return self.finish_reset(cycles);
                 }
                 let deferred = solo && self.bus.take_deferred();
                 // EX138: priced control flow spends the batch's cycles without ending it.
                 let extra = self.cores[core].take_timing_extra();
-                extras += extra;
-                used += if deferred { done } else { done.max(1) } + extra;
+                extras = extras.saturating_add(extra);
+                let slots = if deferred { done } else { done.max(1) };
+                retired += slots;
+                spent += u64::from(slots) * u64::from(cpi) + u64::from(extra);
                 let penalty = self.bus.take_timing_penalty();
-                if penalty != 0 || used >= budget || self.cores[core].waiting() || deferred { break penalty; }
+                if penalty != 0 || spent >= cycles || self.cores[core].waiting() || deferred { break penalty; }
             };
             if solo { self.bus.set_defer(false); }
-            self.cores[core].advance_cycles(penalty + extras);
-            self.model_ready_at[core] = now + u64::from(used.max(1)) * u64::from(cpi) + u64::from(penalty);
-            instructions += u64::from(used.max(1));
-            self.run_steps += u64::from(used.max(1));
-            if instructions & 0xffff < u64::from(used.max(1)) { self.drain_console(); }
+            self.cores[core].advance_cycles(penalty.saturating_add(extras));
+            self.model_ready_at[core] = now + spent.max(u64::from(cpi)) + u64::from(penalty);
+            instructions += u64::from(retired.max(1));
+            self.run_steps += u64::from(retired.max(1));
+            if instructions & 0xffff < u64::from(retired.max(1)) { self.drain_console(); }
         }
     }
 

@@ -113,6 +113,9 @@ pub trait Core {
     fn advance_cycles(&mut self, cycles: u32);
     /// Experimental uniform instruction cost for the fast block path.
     fn set_approximate_cpi(&mut self, _cycles: u32) {}
+    /// Whether a single `step` already advances the cycle counter by the approximate CPI.
+    /// When false, the approximate scheduler tops each step up by CPI-1 itself.
+    fn step_charges_cpi(&self) -> bool { false }
     /// EX138: collect the priced control-flow cycles accrued since the last call.
     fn take_timing_extra(&mut self) -> u32 { 0 }
     /// Existing no-model idle accounting. Cores may count scheduler-skipped time as host work;

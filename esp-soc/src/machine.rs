@@ -456,6 +456,7 @@ impl<S: Soc> Machine<S> {
     }
 
     fn run_unmodeled<const APPROXIMATE: bool>(&mut self, max_insns: u64) -> Stop {
+        assert!(self.quantum != 0, "scheduling quantum must be nonzero");
         let (cpi, max_quantum) = if APPROXIMATE { self.approximate_jit_timing.unwrap() } else { (1, self.quantum as u32) };
         self.stub_bloom = self.stubs.keys().fold(0, |m, &pc| m | pc_bit(pc));
         self.probe_bloom = self.fn_probes.keys().fold(0, |m, &pc| m | pc_bit(pc));
@@ -584,7 +585,7 @@ impl<S: Soc> Machine<S> {
                             self.drain_console(); return stop;
                         }
                         if APPROXIMATE {
-                            let penalty = self.bus.take_timing_penalty();
+                            let penalty = self.bus.take_timing_penalty().saturating_add(self.cores[i].take_timing_extra());
                             self.cores[i].advance_cycles(penalty);
                             stalls[i] += u64::from(penalty);
                         }
@@ -604,8 +605,9 @@ impl<S: Soc> Machine<S> {
                             self.drain_console(); return stop;
                         }
                         if APPROXIMATE {
-                            let penalty = self.bus.take_timing_penalty();
-                            self.cores[i].advance_cycles(cpi - 1 + penalty);
+                            let penalty = self.bus.take_timing_penalty().saturating_add(self.cores[i].take_timing_extra());
+                            let top_up = if self.cores[i].step_charges_cpi() { 0 } else { cpi - 1 };
+                            self.cores[i].advance_cycles(top_up.saturating_add(penalty));
                             stalls[i] += u64::from(penalty);
                         }
                         if self.bus.sw_reset() {

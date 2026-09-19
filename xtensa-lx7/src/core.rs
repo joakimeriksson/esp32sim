@@ -26,6 +26,7 @@ impl emu_core::Core for Cpu {
     fn irq_bits(irq: &u32) -> u32 { *irq }
     fn advance_cycles(&mut self, cycles: u32) { self.advance_ccount(cycles) }
     fn set_approximate_cpi(&mut self, cycles: u32) { self.approximate_cpi = cycles.max(1); }
+    fn step_charges_cpi(&self) -> bool { true }
     fn take_timing_extra(&mut self) -> u32 { std::mem::take(&mut self.timing_extra) }
     fn cycles_until_wake(&self) -> Option<u64> {
         if !self.waiting { return None; }
