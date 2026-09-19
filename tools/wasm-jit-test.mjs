@@ -5,7 +5,7 @@ import { createJitHost } from '../web/wasm/jit.mjs';
 let w;
 const host = createJitHost(() => w);
 const bytes = readFileSync(new URL('../target/wasm32-unknown-unknown/release/esp32sim_wasm.wasm', import.meta.url));
-w = (await WebAssembly.instantiate(bytes, {env: {...host.imports, host_log(p,n) {
+w = (await WebAssembly.instantiate(bytes, {env: {...host.imports, host_profile_now: () => performance.now(), host_log(p,n) {
   console.error(new TextDecoder().decode(new Uint8Array(w.memory.buffer,p,n)));
 }}})).instance.exports;
 const count = w.esp32sim_test_block_jit();

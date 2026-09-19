@@ -260,14 +260,7 @@ pub fn compile(
     pc: u32,
     fast: bool,
 ) -> Option<u32> {
-    if instructions.len() < 2
-        || !instructions.iter().enumerate().all(|(n, i)| {
-            let last = n + 1 == instructions.len();
-            (!emitter::terminal_helper(i.insn.op) || last)
-                && (emitter::supported_insn(&i.insn, fast)
-                    || (last && emitter::terminal_helper(i.insn.op)))
-        })
-    {
+    if instructions.len() < 2 || !emitter::admitted(instructions, fast) {
         return None;
     }
     Some(queue(cc, instructions, pc, fast))

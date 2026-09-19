@@ -7,153 +7,16 @@ pub(super) mod region;
 #[path = "wasm_pie.rs"]
 mod pie;
 use region::{region_edge, RegionGen};
-
-/// `supported` for a decoded instruction: PIE eligibility depends on the table entry, and RUR
-/// is emitted for ACCX_0/ACCX_1, which inference kernels read after every dot product.
-pub(super) fn supported_insn(i: &crate::Insn, fast: bool) -> bool {
-    supported(i.op, fast) || pie::supported(i, fast) || (i.op == crate::Op::Rur && matches!(i.imm, 0 | 1))
-        || (i.op == crate::Op::Rsr && rsr_field(i.imm as u32).is_some())
-}
-
-/// EX135: special registers whose `Cpu` field is exact at any instruction of a dispatch and that
-/// `read_sr` returns unchanged. Not CCOUNT/INTERRUPT/ICOUNT (advance at dispatch ends), not the
-/// loop, shift and window registers generated code may hold in locals.
-fn rsr_field(n: u32) -> Option<usize> {
-    use crate::state::sr;
-    Some(match n {
-        sr::PS => offset_of!(Cpu, ps), sr::PRID => offset_of!(Cpu, prid), sr::SCOMPARE1 => offset_of!(Cpu, scompare1),
-        sr::INTENABLE => offset_of!(Cpu, intenable), sr::VECBASE => offset_of!(Cpu, vecbase), sr::CPENABLE => offset_of!(Cpu, cpenable),
-        sr::EXCCAUSE => offset_of!(Cpu, exccause), sr::EXCVADDR => offset_of!(Cpu, excvaddr), sr::DEPC => offset_of!(Cpu, depc),
-        177..=183 => offset_of!(Cpu, epc) + 4 * (n - 176) as usize,
-        194..=199 => offset_of!(Cpu, eps) + 4 * (n - 192) as usize,
-        209..=215 => offset_of!(Cpu, excsave) + 4 * (n - 208) as usize,
-        244..=247 => offset_of!(Cpu, misc) + 4 * (n - 244) as usize,
-        _ => return None,
-    })
-}
-
-/// Coprocessors whose CPENABLE bits a body may prove once at its start.
-pub(super) fn coprocessors(instructions: &[BlockInsn], fast: bool) -> u32 {
-    (float::can_hoist_guard(instructions, fast) as u32) | if pie::can_hoist(instructions, fast) { pie::CP3 } else { 0 }
-}
-
-// Most unsupported operations keep their block interpreted. Calls/returns at the
-// end may use a helper after the compiled prefix; memory misses also use helpers.
-pub(super) fn supported(op: crate::Op, fast: bool) -> bool {
-    use crate::Op::*;
-    matches!(
-        op,
-        Nop | NopN
-            | Rsync | Esync | Dsync
-            | Memw
-            | Extw
-            | Movi
-            | MoviN
-            | Mov
-            | MovN
-            | Add
-            | AddN
-            | Sub
-            | And
-            | Or
-            | Xor
-            | Mull
-            | Muluh
-            | Mulsh
-            | Quou
-            | Quos
-            | Remu
-            | Rems
-            | Salt
-            | Saltu
-            | Addi
-            | AddiN
-            | Addmi
-            | Addx2
-            | Addx4
-            | Addx8
-            | Subx2
-            | Subx4
-            | Subx8
-            | Neg
-            | Abs
-            | Slli
-            | Srli
-            | Srai
-            | Sll
-            | Srl
-            | Sra
-            | Src
-            | Entry
-            | Extui
-            | Sext
-            | Ssr
-            | Ssl
-            | Ssa8l
-            | Ssa8b
-            | Ssai
-            | Nsau
-            | Moveqz
-            | Movnez
-            | Movltz
-            | Movgez
-            | Min
-            | Max
-            | Minu
-            | Maxu
-            | J
-            | Jx
-            | Call0 | Call4 | Call8 | Call12 | Callx0 | Callx4 | Callx8 | Callx12
-            | Beqz
-            | BeqzN
-            | Bnez
-            | BnezN
-            | Bltz
-            | Bgez
-            | Beqi
-            | Bnei
-            | Blti
-            | Bgei
-            | Bltui
-            | Bgeui
-            | Beq
-            | Bne
-            | Blt
-            | Bge
-            | Bltu
-            | Bgeu
-            | Bbci
-            | Bbsi
-            | Bbc
-            | Bbs
-            | Loop | Loopnez | Loopgtz
-    ) || float::supported(op) || (fast
-        && matches!(
-            op,
-            L8ui | L16ui | L16si | L32i | L32iN | L32r | S8i | S16i | S32i | S32iN | Lsi | Ssi
-        ))
-}
-
-// Initially admit only straight-line integer/memory loops. Slow memory paths leave
-// generated execution; no helper can change mappings or interrupt state and continue.
-pub(super) fn loop_safe(op: crate::Op, fast: bool) -> bool {
-    use crate::Op::*;
-    matches!(op, Nop | NopN | Movi | MoviN | Mov | MovN | Add | AddN | Sub
-        | And | Or | Xor | Addi | AddiN | Addmi | Addx2 | Addx4 | Addx8
-        | Subx2 | Subx4 | Subx8 | Neg | Slli | Srli | Srai | Extui | Sext)
-        || (fast && matches!(op, L8ui | L16ui | L16si | L32i | L32iN | L32r
-            | S8i | S16i | S32i | S32iN))
-}
-
-// Calls and returns must end decoder blocks. Normal calls are emitted directly;
-// returns and exceptional calls retain exec_insn's window and exception handling.
-pub(super) fn terminal_helper(op: crate::Op) -> bool {
-    use crate::Op::*;
-    matches!(op, Call0 | Call4 | Call8 | Call12 | Callx0 | Callx4 | Callx8 | Callx12
-        | Ret | RetN | Retw | RetwN
-        // EX135: these end a block too, and run as well through the helper after a compiled prefix.
-        | Wsr | Xsr | Rsil)
-}
+#[path = "wasm_policy.rs"]
+mod policy;
+#[path = "wasm_memory.rs"]
+mod memory;
+#[path = "wasm_instruction.rs"]
+mod instruction;
+pub(super) use policy::{admitted, supported_insn, loop_safe, terminal_helper};
+#[cfg(feature = "wasm-jit-tests")]
+pub(super) use policy::supported;
+use policy::coprocessors;
 
 // Parameters: cpu, bus, helpers, budget, entry, TLB, versions.
 // Locals: done, windowbase*4, scratch, guest address, TLB entry, relative offset.
@@ -441,13 +304,36 @@ impl Gen {
         self.load(offset);
         self.bytes.extend([0x11, ty, 0]);
     }
+    /// Push the occupied-window mask touched by this AR operand range.
+    fn window_collision(&mut self, max_ar: u8) {
+        self.get(WINDOWS);
+        self.c((1 << (max_ar / 4)) - 1);
+        self.op(0x71);
+    }
+    /// Take one already-proved hardware backedge. Its caller chooses the target path.
+    fn decrement_loop(&mut self) {
+        self.get(0);
+        self.cpu(LCOUNT);
+        self.c(1);
+        self.op(0x6b);
+        self.store(LCOUNT);
+    }
+    /// Keep disabled-coprocessor traps at the instruction boundary: a checked body
+    /// must retire its prefix and honor budget cuts before executing this fallback.
+    fn guard_coprocessor(&mut self, mask: u32, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
+        self.cpu(offset_of!(Cpu, cpenable));
+        self.c(mask);
+        self.op(0x71);
+        self.op(0x45);
+        self.begin_if();
+        self.fallback(bi, pc, next, last, false);
+        self.end();
+    }
     fn overflow(&mut self, max_ar: u8, pc: u32) {
         if max_ar < 4 {
             return;
         }
-        self.get(WINDOWS);
-        self.c((1 << (max_ar / 4)) - 1);
-        self.op(0x71);
+        self.window_collision(max_ar);
         self.begin_if();
         self.spill();
         self.get(0);
@@ -536,11 +422,7 @@ impl Gen {
         self.begin_if();
         self.cpu(LCOUNT);
         self.begin_if();
-        self.get(0);
-        self.cpu(LCOUNT);
-        self.c(1);
-        self.op(0x6b);
-        self.store(LCOUNT);
+        self.decrement_loop();
         self.get(0);
         self.cpu(LBEG);
         self.store(PC);
@@ -626,9 +508,7 @@ pub(super) fn generate(block: &Block) -> Vec<u8> {
     g.op(0x4f);
     g.op(0x71);
     if max_ar >= 4 {
-        g.get(WINDOWS);
-        g.c((1 << (max_ar / 4)) - 1);
-        g.op(0x71);
+        g.window_collision(max_ar);
         g.op(0x45);
         g.op(0x71);
     }
@@ -739,7 +619,7 @@ fn emit_body(
         g.wait_price = extras[index] as u32;
         g.price(g.wait_price);
         g.straddle = bi.straddle;
-        if emit_instruction(g, bi, fast, pc, next, last, cp) {
+        if instruction::emit(g, bi, fast, pc, next, last, cp) {
             if whole {
                 g.advance();
             } else {
@@ -750,9 +630,7 @@ fn emit_body(
                 // otherwise continue at the next instruction through ordinary blocks.
                 // ENTRY has retired, so a hardware loop ending right here takes its
                 // backedge first, as the interpreter's epilogue would.
-                g.get(WINDOWS);
-                g.c((1 << (g.max_ar / 4)) - 1);
-                g.op(0x71);
+                g.window_collision(g.max_ar);
                 g.begin_if();
                 g.spill();
                 g.cpu(LEND);
@@ -763,11 +641,7 @@ fn emit_body(
                 g.op(0x47);
                 g.op(0x71);
                 g.begin_if();
-                g.get(0);
-                g.cpu(LCOUNT);
-                g.c(1);
-                g.op(0x6b);
-                g.store(LCOUNT);
+                g.decrement_loop();
                 g.get(0);
                 g.cpu(LBEG);
                 g.store(PC);
@@ -806,11 +680,7 @@ fn emit_body(
                 g.op(0x47);
                 g.op(0x71);
                 g.begin_if();
-                g.get(0);
-                g.cpu(LCOUNT);
-                g.c(1);
-                g.op(0x6b);
-                g.store(LCOUNT);
+                g.decrement_loop();
                 region_edge(g, lbeg, false);
                 g.end();
             }
@@ -819,666 +689,6 @@ fn emit_body(
     } else {
         g.cpu_const(PC, pc);
         g.ret(CODE_END);
-    }
-}
-
-fn emit_instruction(
-    g: &mut Gen,
-    bi: &BlockInsn,
-    fast: bool,
-    pc: u32,
-    next: u32,
-    last: bool,
-    cp: u32,
-) -> bool {
-    use crate::Op::*;
-    let i = &bi.insn;
-    let (r, s, t) = (i.r, i.s, i.t);
-    let imm = i.imm as u32;
-    if float::supported(i.op) {
-        float::emit(g, bi, pc, next, last, cp & 1 != 0);
-        return true;
-    }
-    if i.op == Pie {
-        if !pie::supported(i, fast) {
-            return false;
-        }
-        pie::emit(g, bi, pc, next, last, cp & pie::CP3 != 0);
-        return true;
-    }
-    if i.op == Rur {
-        if !matches!(imm, 0 | 1) {
-            return false;
-        }
-        // RUR ACCX_0 / ACCX_1: `Cpu::read_ur` returns the word as stored and, unlike FCR and
-        // FSR, checks no coprocessor enable.
-        g.cpu(offset_of!(Cpu, accx) + 4 * imm as usize);
-        g.set_ar(r);
-        return true;
-    }
-    if i.op == Rsr {
-        let Some(field) = rsr_field(imm) else { return false };
-        g.cpu(field);
-        g.set_ar(t);
-        return true;
-    }
-    match i.op {
-        Nop | NopN | Memw | Extw | Rsync | Esync | Dsync => {}
-        Movi | MoviN => {
-            g.c(imm);
-            g.set_ar(if i.op == Movi { t } else { s });
-        }
-        Mov | MovN => {
-            g.ar(s);
-            g.set_ar(t);
-        }
-        Quou | Quos | Remu | Rems => emit_divide(g, bi, pc, next, last),
-        Add | AddN | Sub | And | Or | Xor | Mull | Salt | Saltu => {
-            g.ar(s);
-            g.ar(t);
-            g.op(match i.op {
-                Add | AddN => 0x6a,
-                Sub => 0x6b,
-                And => 0x71,
-                Or => 0x72,
-                Xor => 0x73,
-                Mull => 0x6c,
-                Salt => 0x48,
-                _ => 0x49,
-            });
-            g.set_ar(r);
-        }
-        Muluh | Mulsh => {
-            let extend = if i.op == Mulsh { 0xac } else { 0xad }; // i64.extend_i32_s/u
-            g.ar(s);
-            g.op(extend);
-            g.ar(t);
-            g.op(extend);
-            g.op(0x7e); // i64.mul
-            g.op(0x42); // i64.const 32
-            g.op(32);
-            g.op(if i.op == Mulsh { 0x87 } else { 0x88 }); // i64.shr_s/u
-            g.op(0xa7); // i32.wrap_i64
-            g.set_ar(r);
-        }
-        Addi | AddiN | Addmi => {
-            g.ar(s);
-            g.c(imm);
-            g.op(0x6a);
-            g.set_ar(if i.op == AddiN { r } else { t });
-        }
-        Addx2 | Addx4 | Addx8 | Subx2 | Subx4 | Subx8 => {
-            g.ar(s);
-            g.c(match i.op {
-                Addx2 | Subx2 => 1,
-                Addx4 | Subx4 => 2,
-                _ => 3,
-            });
-            g.op(0x74);
-            g.ar(t);
-            g.op(if matches!(i.op, Addx2 | Addx4 | Addx8) {
-                0x6a
-            } else {
-                0x6b
-            });
-            g.set_ar(r);
-        }
-        Neg => {
-            g.c(0);
-            g.ar(t);
-            g.op(0x6b);
-            g.set_ar(r);
-        }
-        Abs => {
-            g.c(0);
-            g.ar(t);
-            g.op(0x6b); // Wrapping negation preserves INT_MIN.
-            g.ar(t);
-            g.ar(t);
-            g.c(0);
-            g.op(0x48); // i32.lt_s
-            g.op(0x1b);
-            g.set_ar(r);
-        }
-        Slli | Srli | Srai => {
-            g.ar(if i.op == Slli { s } else { t });
-            g.c(imm & 31);
-            g.op(match i.op {
-                Slli => 0x74,
-                Srai => 0x75,
-                _ => 0x76,
-            });
-            g.set_ar(r);
-        }
-        Sll | Srl => {
-            if i.op == Sll {
-                g.c(32);
-                g.cpu(SAR);
-                g.op(0x6b);
-                g.c(63);
-                g.op(0x71);
-            } else {
-                g.cpu(SAR);
-            }
-            g.set(TMP);
-            g.ar(if i.op == Sll { s } else { t });
-            g.get(TMP);
-            g.op(if i.op == Sll { 0x74 } else { 0x76 });
-            g.c(0);
-            g.get(TMP);
-            g.c(32);
-            g.op(0x49); // Counts >= 32 produce zero, unlike WASM's masked shifts.
-            g.op(0x1b);
-            g.set_ar(r);
-        }
-        Sra => {
-            g.ar(t);
-            g.cpu(SAR);
-            g.tee(TMP);
-            g.c(31);
-            g.get(TMP);
-            g.c(32);
-            g.op(0x49); // Clamp the unsigned count; WASM shifts otherwise wrap at 32.
-            g.op(0x1b);
-            g.op(0x75); // i32.shr_s
-            g.set_ar(r);
-        }
-        Src => {
-            g.ar(s);
-            g.op(0xad); // i64.extend_i32_u
-            g.op(0x42); // i64.const 32
-            g.op(32);
-            g.op(0x86); // i64.shl
-            g.ar(t);
-            g.op(0xad);
-            g.op(0x84); // i64.or
-            g.cpu(SAR);
-            g.op(0xad);
-            g.op(0x88); // i64.shr_u masks the count to six bits, as Xtensa does.
-            g.op(0xa7); // i32.wrap_i64
-            g.set_ar(r);
-        }
-        Entry => {
-            if s > 3 {
-                return false;
-            }
-            g.cpu(offset_of!(Cpu, ps));
-            g.c(ps::WOE);
-            g.op(0x71);
-            g.op(0x45);
-            g.begin_if();
-            g.fallback(bi, pc, next, last, false);
-            g.end();
-            // Commit the old window before rotating, then refresh all cached
-            // operands and collision bits before writing the new stack pointer.
-            g.ar(s);
-            g.c(imm);
-            g.op(0x6b);
-            g.set(REL);
-            g.spill();
-            g.get(0);
-            g.cpu(WINDOWBASE);
-            g.cpu(offset_of!(Cpu, ps));
-            g.c(ps::CALLINC_MASK);
-            g.op(0x71);
-            g.c(ps::CALLINC_SHIFT);
-            g.op(0x76);
-            g.op(0x6a);
-            g.c(15);
-            g.op(0x71);
-            g.store(WINDOWBASE);
-            g.get(0);
-            g.cpu(offset_of!(Cpu, windowstart));
-            g.c(1);
-            g.cpu(WINDOWBASE);
-            g.op(0x74);
-            g.op(0x72);
-            g.store(offset_of!(Cpu, windowstart));
-            g.reload();
-            g.get(REL);
-            g.set_ar(s);
-        }
-        Extui => {
-            g.ar(t);
-            g.c(imm);
-            g.op(0x76);
-            g.c(if i.imm2 >= 32 {
-                u32::MAX
-            } else {
-                (1u32 << i.imm2) - 1
-            });
-            g.op(0x71);
-            g.set_ar(r);
-        }
-        Sext => {
-            g.ar(s);
-            g.c(31 - imm);
-            g.op(0x74);
-            g.c(31 - imm);
-            g.op(0x75);
-            g.set_ar(r);
-        }
-        Ssr | Ssl | Ssa8l | Ssa8b => {
-            g.get(0);
-            if matches!(i.op, Ssl | Ssa8b) {
-                g.c(32);
-            }
-            g.ar(s);
-            g.c(if matches!(i.op, Ssa8l | Ssa8b) { 3 } else { 31 });
-            g.op(0x71);
-            if matches!(i.op, Ssa8l | Ssa8b) {
-                g.c(3);
-                g.op(0x74);
-            }
-            if matches!(i.op, Ssl | Ssa8b) {
-                g.op(0x6b);
-            }
-            g.store(SAR);
-        }
-        Ssai => g.cpu_const(SAR, imm & 31),
-        Nsau => {
-            g.ar(s);
-            g.op(0x67);
-            g.set_ar(t);
-        }
-        Moveqz | Movnez | Movltz | Movgez => {
-            g.ar(s);
-            g.ar(r);
-            g.ar(t);
-            g.c(0);
-            g.op(match i.op {
-                Moveqz => 0x46,
-                Movnez => 0x47,
-                Movltz => 0x48,
-                _ => 0x4e,
-            });
-            g.op(0x1b);
-            g.set_ar(r);
-        }
-        Min | Max | Minu | Maxu => {
-            g.ar(s);
-            g.ar(t);
-            g.ar(s);
-            g.ar(t);
-            g.op(match i.op {
-                Min => 0x48,
-                Max => 0x4a,
-                Minu => 0x49,
-                _ => 0x4b,
-            });
-            g.op(0x1b);
-            g.set_ar(r);
-        }
-        J => g.leave(imm),
-        Jx => {
-            g.price(5);
-            g.advance();
-            g.get(0);
-            g.ar(s);
-            g.store(PC);
-            g.ret(CODE_LEFT);
-        }
-        Call0 | Call4 | Call8 | Call12 | Callx0 | Callx4 | Callx8 | Callx12 => {
-            let inc = match i.op {
-                Call0 | Callx0 => 0,
-                Call4 | Callx4 => 1,
-                Call8 | Callx8 => 2,
-                _ => 3,
-            };
-            if inc != 0 {
-                // The ordinary overflow guard already ran. Keep the illegal WOE=0
-                // case in the interpreter so its exception state remains identical.
-                g.cpu(offset_of!(Cpu, ps));
-                g.c(ps::WOE);
-                g.op(0x71);
-                g.op(0x45);
-                g.begin_if();
-                g.fallback(bi, pc, next, true, false);
-                g.end();
-            }
-            let indirect = matches!(i.op, Callx0 | Callx4 | Callx8 | Callx12);
-            g.price(if indirect { 5 } else { 2 + g.straddle as u32 });
-            if indirect {
-                // The target may alias the return-address destination.
-                g.ar(s);
-                g.set(TMP);
-            }
-            if inc != 0 {
-                g.get(0);
-                g.cpu(offset_of!(Cpu, ps));
-                g.c(!ps::CALLINC_MASK);
-                g.op(0x71);
-                g.c(inc << ps::CALLINC_SHIFT);
-                g.op(0x72);
-                g.store(offset_of!(Cpu, ps));
-            }
-            g.c(if inc == 0 { next } else { (inc << 30) | (next & 0x3fff_ffff) });
-            g.set_ar((inc * 4) as u8);
-            g.advance();
-            if indirect {
-                g.get(0);
-                g.get(TMP);
-                g.store(PC);
-            } else {
-                g.cpu_const(PC, imm);
-            }
-            g.ret(CODE_LEFT);
-        }
-        Beqz | BeqzN | Bnez | BnezN | Bltz | Bgez | Beqi | Bnei | Blti | Bgei | Bltui | Bgeui
-        | Beq | Bne | Blt | Bge | Bltu | Bgeu => {
-            g.ar(s);
-            match i.op {
-                Beqz | BeqzN | Bnez | BnezN | Bltz | Bgez => g.c(0),
-                Beqi | Bnei | Blti | Bgei | Bltui | Bgeui => g.c(i.imm2 as u32),
-                _ => g.ar(t),
-            }
-            g.op(match i.op {
-                Beqz | BeqzN | Beqi | Beq => 0x46,
-                Bnez | BnezN | Bnei | Bne => 0x47,
-                Bltz | Blti | Blt => 0x48,
-                Bgez | Bgei | Bge => 0x4e,
-                Bltui | Bltu => 0x49,
-                _ => 0x4f,
-            });
-            g.begin_if();
-            g.leave(imm);
-            g.end();
-        }
-        Loop | Loopnez | Loopgtz => {
-            g.price(4);
-            // Review spike. Mirrors exec.rs: LCOUNT = AR[s] - 1, LBEG = next, LEND = target;
-            // LOOPNEZ/LOOPGTZ skip the body when the count is zero / non-positive. Blocks
-            // containing these never receive a retained loop prefix (see queue), so the
-            // LCOUNT-delta accounting in run() is unaffected.
-            g.get(0);
-            g.ar(s);
-            g.c(1);
-            g.op(0x6b);
-            g.store(LCOUNT);
-            g.cpu_const(LBEG, next);
-            g.cpu_const(LEND, imm);
-            if i.op != Loop {
-                g.ar(s);
-                if i.op == Loopnez {
-                    g.op(0x45); // i32.eqz
-                } else {
-                    g.c(0);
-                    g.op(0x4c); // i32.le_s
-                }
-                g.begin_if();
-                g.free_leave = true;
-                g.leave(imm);
-                g.end();
-            }
-        }
-        Bbci | Bbsi | Bbc | Bbs => {
-            g.ar(s);
-            g.c(1);
-            if matches!(i.op, Bbci | Bbsi) {
-                g.c(i.imm2 as u32);
-            } else {
-                g.ar(t);
-            }
-            g.op(0x74);
-            g.op(0x71);
-            g.c(0);
-            g.op(if matches!(i.op, Bbci | Bbc) {
-                0x46
-            } else {
-                0x47
-            });
-            g.begin_if();
-            g.leave(imm);
-            g.end();
-        }
-        L8ui | L16ui | L16si | L32i | L32iN | L32r | S8i | S16i | S32i | S32iN | Lsi | Ssi if fast => {
-            if cp & 1 == 0 && matches!(i.op, Lsi | Ssi) { float::guard(g, bi, pc, next, last); }
-            emit_memory(g, bi, pc, next, last);
-        }
-        _ => return false,
-    }
-    true
-}
-
-/// QUOU/QUOS/REMU/REMS. A zero divisor raises DIVIDE_BY_ZERO and QUOS of INT_MIN by -1 wraps,
-/// where wasm's `i32.div_s` would trap, so both re-execute the whole instruction in the
-/// interpreter; every other operand pair divides inline. (`i32.rem_s` of INT_MIN by -1 is 0 in
-/// wasm, as `wrapping_rem` is, so REMS needs only the zero check.)
-fn emit_divide(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
-    use crate::Op::*;
-    let i = &bi.insn;
-    g.begin_block();
-    g.begin_block();
-    g.ar(i.t);
-    g.op(0x45); // i32.eqz
-    g.bytes.extend([0x0d, 0]);
-    if i.op == Quos {
-        g.ar(i.s);
-        g.c(0x8000_0000);
-        g.op(0x46); // i32.eq
-        g.ar(i.t);
-        g.c(u32::MAX);
-        g.op(0x46);
-        g.op(0x71); // i32.and
-        g.bytes.extend([0x0d, 0]);
-    }
-    g.ar(i.s);
-    g.ar(i.t);
-    g.op(match i.op { Quos => 0x6d, Quou => 0x6e, Rems => 0x6f, _ => 0x70 }); // i32.div_s/div_u/rem_s/rem_u
-    g.set_ar(i.r);
-    // The helper below prices its own path; only the inline quotient is charged here.
-    g.price(if matches!(i.op, Quou | Quos) { 3 } else { 4 });
-    g.bytes.extend([0x0c, 1]);
-    g.end();
-    g.fallback(bi, pc, next, last, false);
-    g.end();
-}
-
-fn emit_memory(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
-    use crate::Op::*;
-    let i = &bi.insn;
-    let store = matches!(i.op, S8i | S16i | S32i | S32iN | Ssi);
-    let width = match i.op {
-        L8ui | S8i => 1,
-        L16ui | L16si | S16i => 2,
-        _ => 4,
-    };
-    if i.op == L32r {
-        g.c(i.imm as u32);
-    } else {
-        g.ar(i.s);
-        g.c(i.imm as u32);
-        g.op(0x6a);
-    }
-    g.set(ADDR);
-    // This block jumps to the slow instruction before making any memory changes.
-    g.begin_block();
-    g.begin_block();
-    g.get(5);
-    g.op(0x45);
-    g.bytes.extend([0x0d, 0]);
-    g.get(ADDR);
-    g.c(width - 1);
-    g.op(0x71);
-    g.bytes.extend([0x0d, 0]);
-    g.get(5);
-    g.get(ADDR);
-    g.c(16);
-    g.op(0x76);
-    g.get(ADDR);
-    g.c(24);
-    g.op(0x76);
-    g.op(0x73);
-    g.c(511);
-    g.op(0x71);
-    g.c(size_of::<TlbEntry>() as u32);
-    g.op(0x6c);
-    g.op(0x6a);
-    g.set(TLB);
-    g.get(ADDR);
-    g.get(TLB);
-    g.load(offset_of!(TlbEntry, lo));
-    g.op(0x49);
-    g.bytes.extend([0x0d, 0]);
-    g.get(TLB);
-    g.load(offset_of!(TlbEntry, hi));
-    g.get(ADDR);
-    g.op(0x6b);
-    g.c(width);
-    g.op(0x49);
-    g.bytes.extend([0x0d, 0]);
-    g.get(ADDR);
-    g.get(TLB);
-    g.load(offset_of!(TlbEntry, hi));
-    g.op(0x4f);
-    g.bytes.extend([0x0d, 0]);
-    if store {
-        g.get(TLB);
-        g.load(offset_of!(TlbEntry, writable));
-        g.op(0x45);
-        g.bytes.extend([0x0d, 0]);
-    }
-    g.get(ADDR);
-    g.get(TLB);
-    g.load(offset_of!(TlbEntry, lo));
-    g.op(0x6b);
-    g.set(REL);
-    #[cfg(feature = "wasm-cache-inline")]
-    emit_cache_hit(g, store, 1);
-    g.get(TLB);
-    g.load(offset_of!(TlbEntry, base));
-    g.get(REL);
-    g.op(0x6a);
-    if store {
-        if i.op == Ssi { g.fr(i.t); } else { g.ar(i.t); }
-        g.op(match width {
-            1 => 0x3a,
-            2 => 0x3b,
-            _ => 0x36,
-        });
-        g.bytes.extend([0, 0]);
-        g.get(6);
-        g.get(TLB);
-        g.load(offset_of!(TlbEntry, vbase));
-        g.get(REL);
-        g.c(8);
-        g.op(0x76);
-        g.op(0x6a);
-        g.c(2);
-        g.op(0x74);
-        g.op(0x6a);
-        g.tee(TMP);
-        g.get(TMP);
-        g.load(0);
-        g.c(1);
-        g.op(0x6a);
-        g.store(0);
-        region_store_check(g);
-    } else {
-        if i.op == Lsi { g.set(TMP); g.get(0); g.get(TMP); }
-        g.op(match i.op {
-            L8ui => 0x2d,
-            L16ui => 0x2f,
-            L16si => 0x2e,
-            _ => 0x28,
-        });
-        g.bytes.extend([0, 0]);
-        if i.op == Lsi { g.store(offset_of!(Cpu, fr) + 4 * i.t as usize); } else { g.set_ar(i.t); }
-    }
-    g.bytes.extend([0x0c, 1]);
-    g.end();
-    g.fallback(bi, pc, next, last, false);
-    g.end();
-}
-
-/// The ordinary TLB checks already established a successful aligned access.
-/// Preserve the reference cache's four-way round-robin policy: hit does not
-/// update replacement; miss leaves before touching state and uses the helper.
-#[cfg(feature = "wasm-cache-inline")]
-fn emit_cache_hit(g: &mut Gen, store: bool, accesses: u8) {
-    use emu_core::bus::{FastCache, FastCacheLine};
-    if !super::CACHE_PROBES.load(std::sync::atomic::Ordering::Relaxed) { return; }
-    g.begin_block(); // No cache view or internal memory: keep ordinary fast path.
-    g.get(2);
-    g.load(offset_of!(Helpers, cache));
-    g.tee(CACHE);
-    g.op(0x45);
-    g.bytes.extend([0x0d, 0]);
-    g.get(TLB);
-    g.load(offset_of!(TlbEntry, src));
-    g.c(!1);
-    g.op(0x71);
-    g.c(2); // Flash=2, PSRAM=3 in the experimental S3 adapter.
-    g.op(0x47);
-    g.bytes.extend([0x0d, 0]);
-
-    g.get(TLB);
-    g.load(offset_of!(TlbEntry, src));
-    g.c(28);
-    g.op(0x74);
-    g.get(TLB);
-    g.load(offset_of!(TlbEntry, off));
-    g.get(REL);
-    g.op(0x6a);
-    g.op(0x72);
-    g.c(6);
-    g.op(0x76);
-    g.set(CACHE_TAG);
-    g.get(CACHE);
-    g.load(offset_of!(FastCache, lines));
-    g.get(CACHE_TAG);
-    g.c(super::CACHE_SET_MASK.load(std::sync::atomic::Ordering::Relaxed));   // 64-byte lines, 8 ways: 64 sets at 32 KB, 128 at 64 KB
-    g.op(0x71);
-    g.c((8 * size_of::<FastCacheLine>()) as u32);
-    g.op(0x6c);
-    g.op(0x6a);
-    g.set(CACHE_SET);
-    g.begin_block(); // Find a way. Invalid tags are MAX, impossible for 64B keys.
-    for way in 0..8 {
-        g.get(CACHE_SET);
-        g.c((way * size_of::<FastCacheLine>()) as u32);
-        g.op(0x6a);
-        g.tee(CACHE_LINE);
-        g.load(offset_of!(FastCacheLine, tag));
-        g.get(CACHE_TAG);
-        g.op(0x46);
-        g.begin_if();
-        g.bytes.extend([0x0c, 1]);
-        g.end();
-    }
-    g.bytes.extend([0x0c, 2]); // No match: leave to this instruction's slow path.
-    g.end();
-    if store {
-        g.get(CACHE_LINE);
-        g.c(1);
-        g.store(offset_of!(FastCacheLine, dirty));
-    }
-    g.get(CACHE);
-    g.load(offset_of!(FastCache, hits));
-    g.tee(CACHE_SET);
-    g.get(CACHE_SET);
-    g.bytes.extend([0x29, 3, 0]); // i64.load
-    g.bytes.extend([0x42, accesses, 0x7c]); // i64.const accesses; i64.add
-    g.bytes.extend([0x37, 3, 0]); // i64.store
-    g.end();
-}
-
-/// After a fast store bumped the version at the pointer in TMP: a store into one of the
-/// region's own code pages means the next chunk head must leave, so the dispatcher
-/// re-validates before stale translated code runs.
-fn region_store_check(g: &mut Gen) {
-    if let Some(r) = &g.region {
-        let (lo, hi) = (r.page_lo, r.page_hi);
-        g.get(TMP);
-        g.get(6);
-        g.op(0x6b);
-        g.c(lo * 4);
-        g.op(0x6b);
-        g.c((hi - lo) * 4);
-        g.op(0x4d);
-        g.get(DIRTY);
-        g.op(0x72);
-        g.set(DIRTY);
     }
 }
 
