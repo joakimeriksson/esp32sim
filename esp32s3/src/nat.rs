@@ -1,41 +1,171 @@
-//! User-mode NAT: the guest's TCP and UDP flows are terminated here and relayed through ordinary
-//! host sockets — the same trick Contiki-NG's border router plays with NAT64, and what QEMU's slirp
-//! does, but without the C dependency. The emulator speaks TCP to the firmware and the host's socket
-//! API to the world, so no privileges, no tap device and no routing setup are needed.
+//! User-mode NAT: guest TCP and UDP flows are relayed through ordinary host sockets.
 //!
-//! Deliberately simple: no window scaling, no SACK, no congestion control. Segments are small, the
-//! "link" never reorders, and lwIP retransmits anything we drop.
+//! TCP uses bounded buffers in both directions. SYN, data and FIN share one retransmission queue,
+//! so a dropped virtual-air frame cannot discard acknowledged guest bytes or strand a handshake.
+//! This is a small relay, without window scaling, SACK or congestion control.
 
-use std::io::{ErrorKind, Read, Write};
+use std::collections::VecDeque;
+use std::io::{self, ErrorKind, Read, Write};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpStream, UdpSocket};
-use std::sync::mpsc::{channel, Receiver};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::mpsc::{channel, Receiver, TryRecvError};
+use crate::net::packet::{ethernet, ip_packet, transport_checksum, udp_packet, GATEWAY_MAC};
 
 const MSS: usize = 1400;
 const WINDOW: u16 = 5840;
 const RETRANSMIT_US: u64 = 300_000;
 const IDLE_CLOSE_US: u64 = 120_000_000;
+const TIME_WAIT_US: u64 = 30_000_000;
+const MAX_FLOWS: usize = 64;
+const MAX_CONNECTS: usize = 8;
+const UDP_BATCH: usize = 16;
+const FIN: u8 = 0x01;
+const SYN: u8 = 0x02;
+const RST: u8 = 0x04;
+const ACK: u8 = 0x10;
+const PSH: u8 = 0x08;
 
-fn ip(a: &[u8; 4]) -> Ipv4Addr { Ipv4Addr::new(a[0], a[1], a[2], a[3]) }
+fn ip(a: &[u8; 4]) -> Ipv4Addr { Ipv4Addr::from(*a) }
+fn address(a: &[u8; 4], port: u16) -> SocketAddr { SocketAddr::new(IpAddr::V4(ip(a)), port) }
 
-#[derive(PartialEq, Debug)]
-enum State { Connecting, Established, GuestClosed, HostClosed, Done }
+// A permit belongs to the blocking connect worker, not its guest flow. Removing a flow with RST
+// must not free a slot while connect_timeout is still running on the host.
+static CONNECTING: AtomicUsize = AtomicUsize::new(0);
+struct ConnectPermit;
+impl ConnectPermit {
+    fn acquire() -> Option<Self> {
+        CONNECTING.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| (n < MAX_CONNECTS).then_some(n + 1)).ok().map(|_| Self)
+    }
+}
+impl Drop for ConnectPermit {
+    fn drop(&mut self) { CONNECTING.fetch_sub(1, Ordering::Relaxed); }
+}
+
+fn connect(addr: SocketAddr) -> Option<Receiver<io::Result<TcpStream>>> {
+    let permit = ConnectPermit::acquire()?;
+    let (tx, rx) = channel();
+    std::thread::Builder::new().name("nat-connect".into()).spawn(move || {
+        let _permit = permit;
+        let result = TcpStream::connect_timeout(&addr, std::time::Duration::from_secs(4))
+            .and_then(|sock| { sock.set_nonblocking(true)?; sock.set_nodelay(true)?; Ok(sock) });
+        let _ = tx.send(result);
+    }).ok()?;
+    Some(rx)
+}
+
+enum Transport { Connecting(Receiver<io::Result<TcpStream>>), Connected(TcpStream), TimeWait, Closed }
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum GuestWrite { Open, Draining, Closed }
+
+struct Sent {
+    seq: u32,
+    flags: u8,
+    data: Vec<u8>,
+    at_us: u64,
+}
+impl Sent {
+    fn len(&self) -> usize { self.data.len() + usize::from(self.flags & (SYN | FIN) != 0) }
+}
 
 struct Tcp {
     guest_mac: [u8; 6], guest_ip: [u8; 4], guest_port: u16, dst_ip: [u8; 4], dst_port: u16,
-    pending: Option<Receiver<std::io::Result<TcpStream>>>,
-    sock: Option<TcpStream>,
-    state: State,
-    our_seq: u32,       // next sequence number we will hand out
-    guest_seq: u32,     // next sequence number we expect from the guest
-    unacked: Vec<u8>,   // sent but not acknowledged, starting at `unacked_seq`
-    unacked_seq: u32,
-    last_tx_us: u64,
+    transport: Transport,
+    guest_write: GuestWrite,
+    host_closed: bool,
+    our_seq: u32,
+    guest_seq: u32,
+    guest_window: u16,
+    to_host: VecDeque<u8>,
+    unacked: VecDeque<Sent>,
     last_activity_us: u64,
+}
+
+impl Tcp {
+    fn handshake_pending(&self) -> bool { self.unacked.front().is_some_and(|s| s.flags & SYN != 0) }
+    fn in_flight(&self) -> usize { self.unacked.iter().map(Sent::len).sum() }
+
+    fn acknowledge(&mut self, ack: u32) {
+        let Some(first) = self.unacked.front() else { return };
+        let mut count = ack.wrapping_sub(first.seq) as usize;
+        if count > self.in_flight() { return; } // old or beyond anything sent
+        while count > 0 {
+            let sent = self.unacked.front_mut().unwrap();
+            let n = sent.len();
+            if count < n {
+                sent.data.drain(..count);
+                sent.seq = ack;
+                break;
+            }
+            count -= n;
+            self.unacked.pop_front();
+        }
+    }
+
+    fn accept(&mut self, seq: u32, data: &[u8], fin: bool) {
+        if self.guest_write != GuestWrite::Open || seq != self.guest_seq { return; }
+        if data.len() > WINDOW as usize - self.to_host.len() { return; }
+        self.to_host.extend(data);
+        self.guest_seq = self.guest_seq.wrapping_add(data.len() as u32);
+        if fin {
+            self.guest_seq = self.guest_seq.wrapping_add(1);
+            self.guest_write = GuestWrite::Draining;
+        }
+    }
+
+    fn segment(&self, flags: u8, data: &[u8], seq: u32) -> Vec<u8> {
+        let mut seg = Vec::with_capacity(20 + data.len());
+        seg.extend_from_slice(&self.dst_port.to_be_bytes());
+        seg.extend_from_slice(&self.guest_port.to_be_bytes());
+        seg.extend_from_slice(&seq.to_be_bytes());
+        seg.extend_from_slice(&self.guest_seq.to_be_bytes());
+        seg.extend_from_slice(&[0x50, flags]);
+        seg.extend_from_slice(&(WINDOW - self.to_host.len() as u16).to_be_bytes());
+        seg.extend_from_slice(&[0; 4]);
+        seg.extend_from_slice(data);
+        let check = transport_checksum(&self.dst_ip, &self.guest_ip, 6, &seg);
+        seg[16..18].copy_from_slice(&check.to_be_bytes());
+        ethernet(&self.guest_mac, &GATEWAY_MAC, 0x0800, &ip_packet(6, &self.dst_ip, &self.guest_ip, &seg))
+    }
+
+    fn send(&mut self, flags: u8, data: Vec<u8>, now_us: u64) -> Vec<u8> {
+        let frame = self.segment(flags, &data, self.our_seq);
+        let sent = Sent { seq: self.our_seq, flags, data, at_us: now_us };
+        self.our_seq = self.our_seq.wrapping_add(sent.len() as u32);
+        self.unacked.push_back(sent);
+        frame
+    }
+
+    fn retransmit(&mut self, now_us: u64) -> Option<Vec<u8>> {
+        let sent = self.unacked.front_mut()?;
+        if now_us.wrapping_sub(sent.at_us) < RETRANSMIT_US { return None; }
+        sent.at_us = now_us;
+        let sent = self.unacked.front().unwrap();
+        Some(self.segment(sent.flags, &sent.data, sent.seq))
+    }
+
+    fn closed(&self) -> bool {
+        matches!(self.transport, Transport::Closed)
+    }
+}
+
+/// Preserve every unwritten byte across short writes and WouldBlock. Returns bytes actually sent.
+fn flush_pending(writer: &mut impl Write, pending: &mut VecDeque<u8>) -> io::Result<usize> {
+    let mut written = 0;
+    while !pending.is_empty() {
+        match writer.write(pending.as_slices().0) {
+            Ok(0) => return Err(ErrorKind::WriteZero.into()),
+            Ok(n) => { pending.drain(..n); written += n; }
+            Err(e) if e.kind() == ErrorKind::Interrupted => continue,
+            Err(e) if e.kind() == ErrorKind::WouldBlock => break,
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(written)
 }
 
 struct Udp {
     guest_mac: [u8; 6], guest_ip: [u8; 4], guest_port: u16, dst_ip: [u8; 4], dst_port: u16,
-    reply_src: [u8; 4],      // what the guest believes it is talking to (DNS is redirected to the host resolver)
+    reply_src: [u8; 4], // DNS's guest-visible address, before host resolver redirection
     sock: UdpSocket,
     last_activity_us: u64,
 }
@@ -52,197 +182,168 @@ pub struct Nat {
 
 impl Nat {
     pub fn new(log: bool) -> Self {
-        Nat { tcp: Vec::new(), udp: Vec::new(), isn: 0x1000, resolver: host_resolver(),
-              log,
-              tcp_opened: 0, tcp_refused: 0, udp_flows: 0, bytes_to_host: 0, bytes_to_guest: 0 }
+        Self { tcp: Vec::new(), udp: Vec::new(), isn: 0x1000, resolver: host_resolver(), log,
+            tcp_opened: 0, tcp_refused: 0, udp_flows: 0, bytes_to_host: 0, bytes_to_guest: 0 }
     }
 
-    // -------------------------------------------------------------- UDP
-
-    /// Forward a UDP datagram and remember the flow so replies find their way back.
+    /// Forward a UDP datagram through a connected socket, which accepts replies only from its peer.
     #[allow(clippy::too_many_arguments, reason = "packet fields stay explicit at the protocol boundary")]
     pub fn udp_out(&mut self, gmac: &[u8; 6], gip: &[u8; 4], sport: u16, dip: &[u8; 4], reply_src: &[u8; 4],
                    dport: u16, payload: &[u8], now_us: u64) {
-        let idx = self.udp.iter().position(|f| f.guest_port == sport && f.dst_ip == *dip && f.dst_port == dport);
+        let idx = self.udp.iter().position(|f| f.guest_ip == *gip && f.guest_port == sport && f.dst_ip == *dip && f.dst_port == dport);
         let idx = match idx {
             Some(i) => i,
             None => {
+                if self.udp.len() >= MAX_FLOWS { return; }
                 let Ok(sock) = UdpSocket::bind("0.0.0.0:0") else { return };
-                let _ = sock.set_nonblocking(true);
-                self.udp.push(Udp { guest_mac: *gmac, guest_ip: *gip, guest_port: sport, dst_ip: *dip, dst_port: dport, reply_src: *reply_src, sock, last_activity_us: now_us });
+                if sock.connect(address(dip, dport)).is_err() || sock.set_nonblocking(true).is_err() { return; }
+                self.udp.push(Udp { guest_mac: *gmac, guest_ip: *gip, guest_port: sport, dst_ip: *dip, dst_port: dport,
+                    reply_src: *reply_src, sock, last_activity_us: now_us });
                 self.udp_flows += 1;
                 if self.log { eprintln!("[nat] UDP {}:{} -> {}:{} ({} bytes)", ip(gip), sport, ip(dip), dport, payload.len()); }
                 self.udp.len() - 1
             }
         };
-        let f = &mut self.udp[idx];
-        f.last_activity_us = now_us;
-        let _ = f.sock.send_to(payload, SocketAddr::new(IpAddr::V4(ip(dip)), dport));
-        self.bytes_to_host += payload.len() as u64;
+        let flow = &mut self.udp[idx];
+        flow.last_activity_us = now_us;
+        if let Ok(n) = flow.sock.send(payload) { self.bytes_to_host += n as u64; }
     }
 
-    // -------------------------------------------------------------- TCP
-
-    /// Handle one TCP segment from the guest; returns frames to send back.
     pub fn tcp_in(&mut self, gmac: &[u8; 6], gip: &[u8; 4], dip: &[u8; 4], seg: &[u8], now_us: u64) -> Vec<Vec<u8>> {
         if seg.len() < 20 { return Vec::new(); }
+        let off = ((seg[12] >> 4) as usize) * 4;
+        if off < 20 || off > seg.len() { return Vec::new(); }
         let sport = u16::from_be_bytes([seg[0], seg[1]]);
         let dport = u16::from_be_bytes([seg[2], seg[3]]);
-        let seq = u32::from_be_bytes([seg[4], seg[5], seg[6], seg[7]]);
-        let ack = u32::from_be_bytes([seg[8], seg[9], seg[10], seg[11]]);
-        let off = ((seg[12] >> 4) as usize) * 4;
+        let seq = u32::from_be_bytes(seg[4..8].try_into().unwrap());
+        let ack = u32::from_be_bytes(seg[8..12].try_into().unwrap());
         let flags = seg[13];
-        let data = if seg.len() > off { &seg[off..] } else { &[][..] };
-        let (syn, fin, rst, is_ack) = (flags & 2 != 0, flags & 1 != 0, flags & 4 != 0, flags & 0x10 != 0);
-
-        let idx = self.tcp.iter().position(|c| c.guest_port == sport && c.dst_port == dport && c.dst_ip == *dip);
-
-        if syn && idx.is_none() {
-            let (tx, rx) = channel();
-            let addr = SocketAddr::new(IpAddr::V4(ip(dip)), dport);
-            std::thread::spawn(move || { let _ = tx.send(TcpStream::connect_timeout(&addr, std::time::Duration::from_secs(4))); });
+        let data = &seg[off..];
+        let window = u16::from_be_bytes([seg[14], seg[15]]);
+        let idx = self.tcp.iter().position(|c| c.guest_ip == *gip && c.guest_port == sport && c.dst_port == dport && c.dst_ip == *dip);
+        if flags & (SYN | ACK | RST) == SYN && idx.is_none() {
+            if self.tcp.len() >= MAX_FLOWS {
+                // Finished flows remember final ACKs only while their bounded slots are spare.
+                let Some(i) = self.tcp.iter().position(|c| matches!(c.transport, Transport::TimeWait | Transport::Closed)) else { return Vec::new() };
+                self.tcp.remove(i);
+            }
+            let Some(pending) = connect(address(dip, dport)) else { return Vec::new() };
             self.isn = self.isn.wrapping_add(0x10000);
             self.tcp.push(Tcp { guest_mac: *gmac, guest_ip: *gip, guest_port: sport, dst_ip: *dip, dst_port: dport,
-                                pending: Some(rx), sock: None, state: State::Connecting,
-                                our_seq: self.isn, guest_seq: seq.wrapping_add(1), unacked: Vec::new(),
-                                unacked_seq: self.isn, last_tx_us: now_us, last_activity_us: now_us });
+                transport: Transport::Connecting(pending), guest_write: GuestWrite::Open, host_closed: false,
+                our_seq: self.isn, guest_seq: seq.wrapping_add(1), guest_window: window,
+                to_host: VecDeque::new(), unacked: VecDeque::new(), last_activity_us: now_us });
             if self.log { eprintln!("[nat] TCP {}:{} -> {}:{} connecting", ip(gip), sport, ip(dip), dport); }
-            return Vec::new();                                     // the SYN/ACK waits for the host connect
+            return Vec::new();
         }
         let Some(i) = idx else { return Vec::new() };
-        let mut out = Vec::new();
-        self.tcp[i].last_activity_us = now_us;
-
-        if rst { self.tcp[i].state = State::Done; return out; }
-        if is_ack {                                                 // release acknowledged bytes
-            let c = &mut self.tcp[i];
-            let acked = ack.wrapping_sub(c.unacked_seq) as usize;
-            if acked > 0 && acked <= c.unacked.len() { c.unacked.drain(..acked); c.unacked_seq = ack; }
+        let c = &mut self.tcp[i];
+        c.last_activity_us = now_us;
+        if flags & RST != 0 { c.transport = Transport::Closed; return Vec::new(); }
+        if matches!(c.transport, Transport::TimeWait) {
+            return if flags & FIN != 0 { vec![c.segment(ACK, &[], c.our_seq)] } else { Vec::new() };
         }
-        if !data.is_empty() {
-            let c = &mut self.tcp[i];
-            if seq == c.guest_seq {
-                if let Some(s) = &mut c.sock { let _ = s.write_all(data); }
-                c.guest_seq = c.guest_seq.wrapping_add(data.len() as u32);
-                self.bytes_to_host += data.len() as u64;
-            }
-            out.push(self.segment(i, 0x10, &[]));                   // ACK (also re-ACKs a retransmit)
+        if flags & SYN != 0 {
+            return if c.handshake_pending() { vec![c.segment(SYN | ACK, &[], c.unacked[0].seq)] } else { Vec::new() };
         }
-        if fin {
-            let c = &mut self.tcp[i];
-            c.guest_seq = c.guest_seq.wrapping_add(1);
-            if let Some(s) = &c.sock { let _ = s.shutdown(std::net::Shutdown::Write); }
-            c.state = if c.state == State::HostClosed { State::Done } else { State::GuestClosed };
-            out.push(self.segment(i, 0x10, &[]));
+        if !matches!(c.transport, Transport::Connected(_)) { return Vec::new(); }
+        if flags & ACK != 0 { c.acknowledge(ack); c.guest_window = window; }
+        if c.handshake_pending() { return Vec::new(); }
+        if !data.is_empty() || flags & FIN != 0 {
+            c.accept(seq, data, flags & FIN != 0);
+            return vec![c.segment(ACK, &[], c.our_seq)];
         }
-        out
+        Vec::new()
     }
 
-    /// Pump host sockets: connect results, inbound data, retransmissions, expiry.
+    /// Pump a bounded amount of host traffic, then retransmit and expire flows.
     pub fn poll(&mut self, now_us: u64) -> Vec<Vec<u8>> {
         let mut out = Vec::new();
-        for i in 0..self.tcp.len() {
-            if self.tcp[i].state == State::Connecting {
-                let result = self.tcp[i].pending.as_ref().and_then(|rx| rx.try_recv().ok());
+        for c in &mut self.tcp {
+            if c.closed() { continue; }
+            if c.host_closed && c.guest_write == GuestWrite::Closed && c.unacked.is_empty()
+                && matches!(c.transport, Transport::Connected(_)) {
+                // Release the host socket but keep enough state to re-ACK a lost final ACK.
+                c.transport = Transport::TimeWait;
+                c.last_activity_us = now_us;
+            }
+            if let Transport::Connecting(rx) = &c.transport {
+                let result = match rx.try_recv() {
+                    Ok(result) => Some(result),
+                    Err(TryRecvError::Disconnected) => Some(Err(ErrorKind::ConnectionAborted.into())),
+                    Err(TryRecvError::Empty) => None,
+                };
                 match result {
                     Some(Ok(sock)) => {
-                        let _ = sock.set_nonblocking(true);
-                        let _ = sock.set_nodelay(true);
-                        let c = &mut self.tcp[i];
-                        c.sock = Some(sock); c.pending = None; c.state = State::Established;
+                        c.transport = Transport::Connected(sock);
                         self.tcp_opened += 1;
-                        if self.log { eprintln!("[nat] TCP {}:{} connected", ip(&self.tcp[i].dst_ip), self.tcp[i].dst_port); }
-                        out.push(self.segment(i, 0x12, &[]));                  // SYN|ACK
-                        self.tcp[i].our_seq = self.tcp[i].our_seq.wrapping_add(1);
-                        self.tcp[i].unacked_seq = self.tcp[i].our_seq;
+                        if self.log { eprintln!("[nat] TCP {}:{} connected", ip(&c.dst_ip), c.dst_port); }
+                        out.push(c.send(SYN | ACK, Vec::new(), now_us));
                     }
                     Some(Err(e)) => {
+                        if self.log { eprintln!("[nat] TCP {}:{} failed: {}", ip(&c.dst_ip), c.dst_port, e); }
                         self.tcp_refused += 1;
-                        if self.log { eprintln!("[nat] TCP {}:{} failed: {}", ip(&self.tcp[i].dst_ip), self.tcp[i].dst_port, e); }
-                        out.push(self.segment(i, 0x14, &[]));                  // RST|ACK
-                        self.tcp[i].state = State::Done;
+                        out.push(c.segment(RST | ACK, &[], c.our_seq));
+                        c.transport = Transport::Closed;
                     }
                     None => {}
                 }
-                continue;
             }
-            // inbound data
-            if matches!(self.tcp[i].state, State::Established | State::GuestClosed) {
-                let mut buf = [0u8; MSS];
-                loop {
-                    let n = match self.tcp[i].sock.as_mut().map(|s| s.read(&mut buf)) {
-                        Some(Ok(0)) => { break_eof(&mut self.tcp[i]); out.push(self.segment(i, 0x11, &[])); self.tcp[i].our_seq = self.tcp[i].our_seq.wrapping_add(1); break; }
-                        Some(Ok(n)) => n,
-                        Some(Err(ref e)) if e.kind() == ErrorKind::WouldBlock => break,
-                        Some(Err(_)) => { self.tcp[i].state = State::Done; break; }
-                        None => break,
-                    };
-                    let payload = buf[..n].to_vec();
-                    if self.log { eprintln!("[nat] TCP {}:{} -> guest {} bytes (seq {})", ip(&self.tcp[i].dst_ip), self.tcp[i].dst_port, n, self.tcp[i].our_seq); }
-                    out.push(self.segment(i, 0x18, &payload));                  // PSH|ACK
-                    let c = &mut self.tcp[i];
-                    c.unacked.extend_from_slice(&payload);
-                    c.our_seq = c.our_seq.wrapping_add(n as u32);
-                    c.last_tx_us = now_us;
-                    self.bytes_to_guest += n as u64;
-                    if self.unacked_full(i) { break; }
+            if matches!(c.transport, Transport::Connected(_)) && !c.handshake_pending() {
+                let Transport::Connected(sock) = &mut c.transport else { unreachable!() };
+                let queued = c.to_host.len();
+                match flush_pending(sock, &mut c.to_host) {
+                    Ok(n) => self.bytes_to_host += n as u64,
+                    Err(_) => { out.push(c.segment(RST | ACK, &[], c.our_seq)); c.transport = Transport::Closed; continue; }
                 }
-            }
-            // retransmit the oldest unacknowledged segment
-            let c = &self.tcp[i];
-            if !c.unacked.is_empty() && now_us.wrapping_sub(c.last_tx_us) > RETRANSMIT_US {
-                let chunk: Vec<u8> = c.unacked.iter().take(MSS).cloned().collect();
-                let seq = c.unacked_seq;
-                out.push(self.segment_at(i, 0x18, &chunk, seq));
-                self.tcp[i].last_tx_us = now_us;
-            }
-        }
-        // UDP replies
-        for i in 0..self.udp.len() {
-            let mut buf = [0u8; 2048];
-            loop {
-                match self.udp[i].sock.recv_from(&mut buf) {
-                    Ok((n, _from)) => {
-                        if self.log { eprintln!("[nat] UDP reply {} bytes -> guest port {}", n, self.udp[i].guest_port); }
-                        self.bytes_to_guest += n as u64;
-                        self.udp[i].last_activity_us = now_us;
-                        let f = &self.udp[i];
-                        out.push(udp_frame(&f.guest_mac, &f.reply_src, &f.guest_ip, f.dst_port, f.guest_port, &buf[..n]));
+                if c.guest_write == GuestWrite::Draining && c.to_host.is_empty() {
+                    let _ = sock.shutdown(std::net::Shutdown::Write);
+                    c.guest_write = GuestWrite::Closed;
+                }
+                if c.to_host.len() < queued { out.push(c.segment(ACK, &[], c.our_seq)); } // reopen the receive window
+                // One byte at a zero window becomes a persist probe. The same retransmission
+                // queue retries it, recovering even when the guest's window-update ACK is lost.
+                let send_window = usize::from(c.guest_window.min(WINDOW).max(1));
+                while !c.host_closed && c.in_flight() < send_window {
+                    let room = send_window - c.in_flight();
+                    let mut buf = [0; MSS];
+                    let Transport::Connected(sock) = &mut c.transport else { break };
+                    match sock.read(&mut buf[..room.min(MSS)]) {
+                        Ok(0) => { c.host_closed = true; out.push(c.send(FIN | ACK, Vec::new(), now_us)); }
+                        Ok(n) => {
+                            if self.log { eprintln!("[nat] TCP {}:{} -> guest {} bytes (seq {})", ip(&c.dst_ip), c.dst_port, n, c.our_seq); }
+                            self.bytes_to_guest += n as u64;
+                            c.last_activity_us = now_us;
+                            out.push(c.send(PSH | ACK, buf[..n].to_vec(), now_us));
+                        }
+                        Err(e) if e.kind() == ErrorKind::WouldBlock => break,
+                        Err(e) if e.kind() == ErrorKind::Interrupted => continue,
+                        Err(_) => { out.push(c.segment(RST | ACK, &[], c.our_seq)); c.transport = Transport::Closed; break; }
                     }
-                    Err(ref e) if e.kind() == ErrorKind::WouldBlock => break,
-                    Err(_) => break,
                 }
             }
+            if let Some(frame) = c.retransmit(now_us) { out.push(frame); }
         }
-        self.tcp.retain(|c| c.state != State::Done && now_us.wrapping_sub(c.last_activity_us) < IDLE_CLOSE_US);
+        for flow in &mut self.udp {
+            let mut buf = [0; 2048];
+            for _ in 0..UDP_BATCH {
+                let Ok(n) = flow.sock.recv(&mut buf) else { break };
+                if self.log { eprintln!("[nat] UDP reply {} bytes -> guest port {}", n, flow.guest_port); }
+                self.bytes_to_guest += n as u64;
+                flow.last_activity_us = now_us;
+                let udp = udp_packet(&flow.reply_src, &flow.guest_ip, flow.dst_port, flow.guest_port, &buf[..n]);
+                out.push(ethernet(&flow.guest_mac, &GATEWAY_MAC, 0x0800, &ip_packet(17, &flow.reply_src, &flow.guest_ip, &udp)));
+            }
+        }
+        self.tcp.retain(|c| {
+            let timeout = if matches!(c.transport, Transport::TimeWait) { TIME_WAIT_US } else { IDLE_CLOSE_US };
+            !c.closed() && now_us.wrapping_sub(c.last_activity_us) < timeout
+        });
         self.udp.retain(|f| now_us.wrapping_sub(f.last_activity_us) < IDLE_CLOSE_US);
         out
     }
-
-    fn unacked_full(&self, i: usize) -> bool { self.tcp[i].unacked.len() >= WINDOW as usize }
-
-    fn segment(&self, i: usize, flags: u8, payload: &[u8]) -> Vec<u8> {
-        let seq = self.tcp[i].our_seq;
-        self.segment_at(i, flags, payload, seq)
-    }
-
-    fn segment_at(&self, i: usize, flags: u8, payload: &[u8], seq: u32) -> Vec<u8> {
-        let c = &self.tcp[i];
-        let mut t = Vec::with_capacity(20 + payload.len());
-        t.extend_from_slice(&c.dst_port.to_be_bytes()); t.extend_from_slice(&c.guest_port.to_be_bytes());
-        t.extend_from_slice(&seq.to_be_bytes()); t.extend_from_slice(&c.guest_seq.to_be_bytes());
-        t.extend_from_slice(&[0x50, flags]); t.extend_from_slice(&WINDOW.to_be_bytes());
-        t.extend_from_slice(&[0, 0, 0, 0]);
-        t.extend_from_slice(payload);
-        let ck = tcp_checksum(&c.dst_ip, &c.guest_ip, &t);
-        t[16..18].copy_from_slice(&ck.to_be_bytes());
-        eth_ip(&c.guest_mac, &c.dst_ip, &c.guest_ip, 6, &t)
-    }
 }
 
-fn break_eof(c: &mut Tcp) { c.state = if c.state == State::GuestClosed { State::Done } else { State::HostClosed }; }
-
-/// The host's first configured resolver, so guest name lookups behave like the host's.
 fn host_resolver() -> [u8; 4] {
     if let Ok(conf) = std::fs::read_to_string("/etc/resolv.conf") {
         for line in conf.lines() {
@@ -254,50 +355,5 @@ fn host_resolver() -> [u8; 4] {
     [1, 1, 1, 1]
 }
 
-fn checksum(data: &[u8], init: u32) -> u16 {
-    let mut sum = init;
-    let mut i = 0;
-    while i + 1 < data.len() { sum += u16::from_be_bytes([data[i], data[i + 1]]) as u32; i += 2; }
-    if i < data.len() { sum += (data[i] as u32) << 8; }
-    while sum >> 16 != 0 { sum = (sum & 0xffff) + (sum >> 16); }
-    !(sum as u16)
-}
-
-fn tcp_checksum(src: &[u8; 4], dst: &[u8; 4], seg: &[u8]) -> u16 {
-    let mut p = Vec::with_capacity(12 + seg.len());
-    p.extend_from_slice(src); p.extend_from_slice(dst);
-    p.extend_from_slice(&[0, 6]); p.extend_from_slice(&(seg.len() as u16).to_be_bytes());
-    p.extend_from_slice(seg);
-    checksum(&p, 0)
-}
-
-/// Wrap a UDP payload from `src_ip:sport` to the guest.
-fn udp_frame(gmac: &[u8; 6], src_ip: &[u8; 4], dst_ip: &[u8; 4], sport: u16, dport: u16, payload: &[u8]) -> Vec<u8> {
-    let len = 8 + payload.len();
-    let mut u = Vec::with_capacity(len);
-    u.extend_from_slice(&sport.to_be_bytes()); u.extend_from_slice(&dport.to_be_bytes());
-    u.extend_from_slice(&(len as u16).to_be_bytes()); u.extend_from_slice(&[0, 0]);
-    u.extend_from_slice(payload);
-    let mut p = Vec::with_capacity(12 + len);
-    p.extend_from_slice(src_ip); p.extend_from_slice(dst_ip);
-    p.extend_from_slice(&[0, 17]); p.extend_from_slice(&(len as u16).to_be_bytes());
-    p.extend_from_slice(&u);
-    let c = checksum(&p, 0); let c = if c == 0 { 0xffff } else { c };
-    u[6..8].copy_from_slice(&c.to_be_bytes());
-    eth_ip(gmac, src_ip, dst_ip, 17, &u)
-}
-
-/// IPv4 packet inside an Ethernet frame addressed to the guest.
-fn eth_ip(gmac: &[u8; 6], src: &[u8; 4], dst: &[u8; 4], proto: u8, payload: &[u8]) -> Vec<u8> {
-    let total = 20 + payload.len();
-    let mut h = Vec::with_capacity(total);
-    h.extend_from_slice(&[0x45, 0x00]); h.extend_from_slice(&(total as u16).to_be_bytes());
-    h.extend_from_slice(&[0, 0, 0x40, 0x00, 64, proto, 0, 0]);
-    h.extend_from_slice(src); h.extend_from_slice(dst);
-    let c = checksum(&h, 0).to_be_bytes(); h[10] = c[0]; h[11] = c[1];
-    h.extend_from_slice(payload);
-    let mut f = Vec::with_capacity(14 + total);
-    f.extend_from_slice(gmac); f.extend_from_slice(&[0x02, 0x53, 0x49, 0x4d, 0x00, 0x02]);
-    f.extend_from_slice(&[0x08, 0x00]); f.extend_from_slice(&h);
-    f
-}
+#[cfg(test)]
+mod tests;
