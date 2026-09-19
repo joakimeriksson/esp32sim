@@ -545,7 +545,7 @@ impl<S: Soc> Machine<S> {
                 if n & 0xffff < chunk { self.drain_console(); }
                 continue;
             }
-            // EX133 virtual quanta: core 0 alone is busy, so nothing outside it can change until the
+            // EX133/EX144 virtual quanta: one core alone is busy, so nothing outside it can change until the
             // next device deadline. Let it run several quanta in one budget; the rounds it spans are
             // closed afterwards exactly as the per-quantum schedule would have closed them. A device
             // register access stops in front of its instruction and finishes its quantum the old way.
@@ -606,7 +606,7 @@ impl<S: Soc> Machine<S> {
         }
     }
 
-    /// EX133: how many quanta core 0 may run in one budget. Every bound keeps the boundaries
+    /// EX133/EX144: how many quanta the sole busy core may run in one budget. Every bound keeps the boundaries
     /// inside the run free of work: no device flush, script event, page push, peer wake-up,
     /// cycle or instruction limit may fall due before the last of them.
     fn vq_quanta(&self, insns_left: u64, on: &[bool], busy: usize) -> u64 {
@@ -623,7 +623,7 @@ impl<S: Soc> Machine<S> {
         k.max(1)
     }
 
-    /// EX133: close one quantum that core 0 ran alone, as the scheduling loop does.
+    /// EX133/EX144: close one quantum that the busy core ran alone, as the scheduling loop does.
     fn vq_close_round(&mut self, on: &[bool], n: &mut u64, busy: usize) -> Option<Stop> {
         for (i, (core, &enabled)) in self.cores.iter_mut().zip(on).enumerate() { if enabled && i != busy { core.idle_advance(QUANTUM as u32); } }
         *n += QUANTUM;
