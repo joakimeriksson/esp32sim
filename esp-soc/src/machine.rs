@@ -107,7 +107,7 @@ const QUANTUM: u64 = 64;
 /// EX133 default for `Machine::vq_max`; a build can pin another with `ESP32SIM_VQ_BUILD=<n>`.
 const VQ_DEFAULT: u64 = match option_env!("ESP32SIM_VQ_BUILD") {
     Some(s) => { let b = s.as_bytes(); let (mut i, mut v) = (0, 0u64); while i < b.len() { v = v * 10 + (b[i] - b'0') as u64; i += 1; } v }
-    None => if cfg!(target_arch = "wasm32") { 4 } else { 1 },
+    None => if cfg!(target_arch = "wasm32") { 1024 } else { 1 },
 };
 
 /// Records only accesses made synchronously by `Core::step`. Generated direct-memory access is
