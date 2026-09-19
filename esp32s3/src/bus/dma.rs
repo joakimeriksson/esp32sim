@@ -371,8 +371,8 @@ impl SocBus {
                         r.buf_pos += n;
                     }
                     let eof_now = o.buf_pos == od.length && od.eof;
-                    if r.buf_pos == id.size || eof_now {
-                        if !self.dma_close_in(&mut r, in_dw0, id.next, eof_now) { r.int_raw |= IN_DSCR_ERR; r.running = false; break; }
+                    if (r.buf_pos == id.size || eof_now) && !self.dma_close_in(&mut r, in_dw0, id.next, eof_now) {
+                        r.int_raw |= IN_DSCR_ERR; r.running = false; break;
                     }
                     if o.buf_pos < od.length { continue; }                                 // the IN buffer filled first
                 }
