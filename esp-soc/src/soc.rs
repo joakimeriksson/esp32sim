@@ -71,6 +71,12 @@ pub trait SocBus: Bus {
     /// CPU cycles from the current device horizon to the next transition that may wake a core.
     fn next_deadline(&self) -> Option<u64> { None }
     fn irq_dirty(&mut self) -> &mut bool;
+    /// Arm or disarm device-register deferral for a multi-quantum run (EX133); clears the flag.
+    /// Whether `set_defer` is honoured; without it a multi-quantum run is never attempted.
+    fn can_defer(&self) -> bool { false }
+    fn set_defer(&mut self, on: bool) { let _ = on; }
+    /// Whether the last dispatch stopped in front of a device-register access; clears it.
+    fn take_deferred(&mut self) -> bool { false }
     /// Re-derive the interrupt lines after a device change; true if a core's input may differ.
     fn refresh_irq(&mut self) -> bool;
     /// Deliver deferred device time now (a bus that defers it).

@@ -71,6 +71,9 @@ pub struct Machine<S: Soc> {
     pub cores: Vec<S::Core>,
     /// a secondary core held in reset by its SoC registers (reset when released)
     core_held: Vec<bool>,
+    /// Instructions each busy core runs per scheduling round. 64 is the reference the goldens and
+    /// pinned totals hold for; a larger value changes the interleaving of two busy cores (EX047).
+    pub quantum: u64,
     pub bus: S::Bus,
     pub symbols: BTreeMap<u32, String>,
     pub dbg: Debug,
@@ -90,19 +93,40 @@ pub struct Machine<S: Soc> {
     pub rt: Realtime,
     debug_rom: bool,
     cost: Option<Box<dyn CostModel>>,
+    model_accesses: Vec<MemoryAccess>,
+    approximate_jit_timing: Option<(u32, u32)>,
+    approximate_jit_frontiers: bool,
     model_ready_at: Vec<u64>,
     model_stop: Option<Stop>,
     model_attach_error: Option<&'static str>,
+    /// EX133 virtual quanta: most scheduling quanta one core may run in a single budget while
+    /// every other core idles (1 = off). Bit-exact with the per-quantum schedule by construction.
+    /// Kept at the struct tail so the scheduler's hot fields keep their offsets when quanta are off.
+    pub vq_max: u64,
+    /// EX133 counters: multi-quantum runs, quanta they covered, runs stopped at a device register, at waiti.
+    pub vq_stats: [u64; 4],
+    /// Rounds to leave alone after runs that a device register cut short, and the growing penalty:
+    /// firmware that touches registers every few instructions gains nothing from a long budget.
+    vq_skip: u32, vq_penalty: u32,
 }
 
+/// Default scheduling quantum; `Machine::quantum` can raise it (not bit-exact with the default).
 const QUANTUM: u64 = 64;
+/// EX133 default for `Machine::vq_max`; a build can pin another with `ESP32SIM_VQ_BUILD=<n>`.
+const VQ_DEFAULT: u64 = match option_env!("ESP32SIM_VQ_BUILD") {
+    Some(s) => { let b = s.as_bytes(); let (mut i, mut v) = (0, 0u64); while i < b.len() { v = v * 10 + (b[i] - b'0') as u64; i += 1; } v }
+    None => if cfg!(target_arch = "wasm32") { 1024 } else { 1 },
+};
 
 /// Records only accesses made synchronously by `Core::step`. Generated direct-memory access is
 /// disabled so every load and store passes through one of the typed methods below.
 struct RecordingBus<'a, B> { bus: &'a mut B, accesses: Vec<MemoryAccess> }
 
 impl<'a, B> RecordingBus<'a, B> {
-    fn new(bus: &'a mut B) -> Self { Self { bus, accesses: Vec::new() } }
+    fn new(bus: &'a mut B, mut accesses: Vec<MemoryAccess>) -> Self {
+        accesses.clear();
+        Self { bus, accesses }
+    }
 
     fn finish(mut self, bytes: Option<[u8; 4]>, pc: u32) -> Vec<MemoryAccess> {
         if let Some(bytes) = bytes {
@@ -167,7 +191,7 @@ impl<S: Soc> Machine<S> {
     pub fn new(mac: [u8; 6], bus: S::Bus) -> Self {
         Machine {
             mac, reboots: 0, stubs: HashMap::new(), stub_bloom: 0, probe_bloom: 0, stub_hits: 0, fn_probes: HashMap::new(),
-            cores: (0..S::CORES).map(S::new_core).collect(), core_held: (0..S::CORES).map(|i| i > 0).collect(),
+            cores: (0..S::CORES).map(S::new_core).collect(), core_held: (0..S::CORES).map(|i| i > 0).collect(), quantum: QUANTUM, vq_stats: [0; 4], vq_skip: 0, vq_penalty: 0, vq_max: std::env::var("ESP32SIM_VQ").ok().and_then(|v| v.parse().ok()).unwrap_or(VQ_DEFAULT),
             bus, symbols: BTreeMap::new(),
             dbg: Debug { stop_on_unimplemented: true, stop_after_exceptions: u64::MAX },
             observers: Vec::new(), probes: Wants::NONE, prev_irq: vec![0; S::CORES],
@@ -176,7 +200,7 @@ impl<S: Soc> Machine<S> {
             console: Console { all: Vec::new(), usb: Vec::new(), uart0: Vec::new(), mask: 3, prefix: false, capture: false },
             web: None, ws: WebState { last_push_cycles: 0, audio_sent: 0, ring_updates: 0, grid_updates: Vec::new(), px_pending: 0, px_sent: 0, px_deferred: false, cam_pushed: u64::MAX, cam_sent: false },
             rt: Realtime { enabled: false, wall_start: None, last_check: 0, behind: 0.0, resyncs: 0, speed: None, speed_mark: None, log: false, log_last: None, log_insns: (0, 0) },
-            debug_rom: false, cost: None, model_ready_at: vec![0; S::CORES], model_stop: None, model_attach_error: None,
+            debug_rom: false, cost: None, model_accesses: Vec::new(), approximate_jit_timing: None, approximate_jit_frontiers: false, model_ready_at: vec![0; S::CORES], model_stop: None, model_attach_error: None,
         }
     }
 
@@ -194,7 +218,7 @@ impl<S: Soc> Machine<S> {
     }
     /// Attach a timing model before the machine has executed or reset.
     pub fn set_cost_model(&mut self, mut model: Box<dyn CostModel>) -> Result<(), String> {
-        if self.cost.is_some() { return Err("a cost model is already attached".into()); }
+        if self.cost.is_some() || self.approximate_jit_timing.is_some() { return Err("a timing model is already attached".into()); }
         if let Some(reason) = self.model_attach_error { return Err(reason.into()); }
         if self.bus.cycles() != 0 || self.reboots != 0 || self.cores.iter().any(|core| core.insn_count() != 0) {
             return Err("cost model attachment requires a pristine machine with no execution or reset".into());
@@ -202,6 +226,23 @@ impl<S: Soc> Machine<S> {
         model.lifecycle(&LifecycleFacts { kind: LifecycleKind::Attach, chip: S::NAME, cores: S::CORES, cpu_hz: S::CPU_HZ })?;
         self.model_ready_at.fill(0);
         self.cost = Some(model);
+        Ok(())
+    }
+    /// Let cores resume independently after a priced block, instead of waiting for both batches.
+    /// Instructions inside each block still execute together, so ordering remains approximate.
+    pub fn set_approximate_jit_frontiers(&mut self, enabled: bool) -> Result<(), String> {
+        if self.approximate_jit_timing.is_none() || self.insns() != 0 { return Err("configure JIT timing before frontiers and before execution".into()); }
+        self.approximate_jit_frontiers = enabled;
+        self.model_ready_at.fill(self.bus.cycles());
+        Ok(())
+    }
+    /// Uniform CPI and deadline-bounded instruction batches for an explicitly rough JIT experiment.
+    /// Within-batch memory ordering and memory latency are not modeled by this setting.
+    pub fn set_approximate_jit_timing(&mut self, cpi: u32, quantum: u32) -> Result<(), String> {
+        if self.cost.is_some() || self.insns() != 0 { return Err("configure approximate JIT timing before execution, without CostModel".into()); }
+        if !(1..=256).contains(&cpi) || !(1..=4096).contains(&quantum) { return Err("CPI must be 1..256 and quantum 1..4096".into()); }
+        self.approximate_jit_timing = Some((cpi, quantum));
+        for core in &mut self.cores { core.set_approximate_cpi(cpi); }
         Ok(())
     }
     pub fn has_observer(&self, name: &str) -> bool { self.observers.iter().any(|o| o.name() == name) }
@@ -452,7 +493,7 @@ impl<S: Soc> Machine<S> {
     pub fn run(&mut self, max_insns: u64) -> Stop {
         self.web_poll_input();
         self.refresh_irq();
-        if self.cost.is_some() { self.run_modeled(max_insns) } else { self.run_unmodeled(max_insns) }
+        if self.cost.is_some() { self.run_modeled(max_insns) } else if self.approximate_jit_frontiers { self.run_approximate_jit_frontiers(max_insns) } else if self.approximate_jit_timing.is_some() { self.run_unmodeled::<true>(max_insns) } else { self.run_unmodeled::<false>(max_insns) }
     }
 
     /// The complete unmodelled core-0 quantum a browser-side straight-line block may retire at
@@ -463,6 +504,7 @@ impl<S: Soc> Machine<S> {
     pub fn browser_external_block_budget(&self, requested: u32) -> Option<u32> {
         if requested == 0
             || self.cost.is_some()
+            || self.approximate_jit_timing.is_some()
             || self.probes.0 != 0
             || !self.stubs.is_empty()
             || !self.fn_probes.is_empty()
@@ -475,21 +517,22 @@ impl<S: Soc> Machine<S> {
         {
             return None;
         }
-        Some(QUANTUM as u32)
+        Some(self.quantum as u32)
     }
 
     /// Advance shared device time after a quantum accepted by
     /// `browser_external_block_budget`. Architectural core state must already contain the full
     /// quantum's result.
     pub fn finish_browser_external_quantum(&mut self) -> Option<Stop> {
-        self.after_round(QUANTUM);
+        self.after_round(self.quantum);
         if self.bus.sw_reset() { self.drain_console(); return Some(Stop::SwReset); }
         if self.bus.cycles() >= self.max_cycles { self.drain_console(); return Some(Stop::Halted); }
         self.drain_console();
         None
     }
 
-    fn run_unmodeled(&mut self, max_insns: u64) -> Stop {
+    fn run_unmodeled<const APPROXIMATE: bool>(&mut self, max_insns: u64) -> Stop {
+        let (cpi, max_quantum) = if APPROXIMATE { self.approximate_jit_timing.unwrap() } else { (1, self.quantum as u32) };
         self.stub_bloom = self.stubs.keys().fold(0, |m, &pc| m | pc_bit(pc));
         self.probe_bloom = self.fn_probes.keys().fold(0, |m, &pc| m | pc_bit(pc));
         for c in &mut self.cores {
@@ -532,31 +575,134 @@ impl<S: Soc> Machine<S> {
                 if n & 0xffff < chunk { self.drain_console(); }
                 continue;
             }
+            // EX133/EX144 virtual quanta: one core alone is busy, so nothing outside it can change until the
+            // next device deadline. Let it run several quanta in one budget; the rounds it spans are
+            // closed afterwards exactly as the per-quantum schedule would have closed them. A device
+            // register access stops in front of its instruction and finishes its quantum the old way.
+            let mut resume_at = 0u64;
+            // Find the sole busy core only when virtual quanta are eligible.
+            let busy = if !APPROXIMATE && self.vq_max > 1 && blocks && !slow_path && self.probes.0 == 0 {
+                if self.vq_skip > 0 { self.vq_skip -= 1; usize::MAX }
+                else {
+                    let mut b = (0..S::CORES).filter(|&i| !idle[i]);
+                    match (b.next(), b.next()) { (Some(i), None) => i, _ => usize::MAX }
+                }
+            } else { usize::MAX };
+            if busy != usize::MAX {
+                let k = self.vq_quanta(max_insns - n, &on, busy);
+                if k > 1 {
+                    let total = (k * self.quantum) as u32;
+                    let mut left = total;
+                    let mut stop = None;
+                    self.bus.set_defer(true);
+                    while left > 0 {
+                        let (used, s) = self.step_blocks(busy, left);
+                        left -= used.min(left);
+                        if s.is_some() { stop = s; break; }
+                        if self.bus.take_deferred() { self.vq_stats[2] += 1; break; }
+                        if self.cores[busy].waiting() { self.vq_stats[3] += 1; break; }
+                    }
+                    self.bus.set_defer(false);
+                    let pos = (total - left) as u64;
+                    self.vq_stats[0] += 1; self.vq_stats[1] += pos / self.quantum;
+                    if pos < 2 * self.quantum { self.vq_penalty = (self.vq_penalty * 2 + 1).min(255); self.vq_skip = self.vq_penalty; } else { self.vq_penalty = 0; }
+                    // A stopping instruction belongs to the unfinished round, even when it
+                    // consumes that round's last slot. The ordinary loop returns before its
+                    // device tick and credits only peers dispatched before the busy core.
+                    let completed = if stop.is_some() { pos.saturating_sub(1) / self.quantum } else { pos / self.quantum };
+                    for _ in 0..completed {
+                        if let Some(s) = self.vq_close_round(&on, &mut n, busy) { return s; }
+                    }
+                    if let Some(s) = stop {
+                        for (core, &enabled) in self.cores.iter_mut().zip(&on).take(busy) {
+                            if enabled { core.idle_advance(self.quantum as u32); }
+                        }
+                        self.drain_console(); return s;
+                    }
+                    if pos > 0 && pos.is_multiple_of(self.quantum) { continue; }
+                    resume_at = pos % self.quantum;
+                }
+            }
+            let quantum = if APPROXIMATE {
+                // An instruction can overrun the deadline by at most CPI-1 cycles.
+                self.idle_budget(u64::from(max_quantum) * u64::from(cpi), &on)
+                    .min(self.max_cycles - self.bus.cycles()).div_ceil(u64::from(cpi)).max(1)
+            } else { self.quantum };
+            let elapsed = quantum * u64::from(cpi);
+            let mut stalls = [0u64; 4];
             for i in 0..S::CORES {
                 if !on[i] { continue; }
-                if idle[i] && !slow_path { self.cores[i].idle_advance(QUANTUM as u32); } else if blocks {
-                    let mut left = QUANTUM as u32;
+                if idle[i] && !slow_path { self.cores[i].idle_advance(elapsed as u32); } else if blocks {
+                    // A partial virtual round has exactly one non-idle core. Its peers
+                    // take the idle branch above, so only that core consumes resume_at.
+                    let mut left = (quantum - resume_at) as u32;
                     while left > 0 {
                         let (used, stop) = self.step_blocks(i, left);
                         if let Some(stop) = stop { self.drain_console(); return stop; }
+                        if APPROXIMATE {
+                            let penalty = self.bus.take_timing_penalty();
+                            self.cores[i].advance_cycles(penalty);
+                            stalls[i] += u64::from(penalty);
+                        }
                         left -= used.min(left);
                         // a reset takes effect at the instruction that requested it: the core's
                         // run already stopped there (the register write broke the block)
                         if self.bus.sw_reset() { break; }
                     }
                 } else {
-                    for _ in 0..QUANTUM {
+                    for _ in 0..quantum {
                         if let Some(stop) = self.step_core(i) { self.drain_console(); return stop; }
+                        if APPROXIMATE {
+                            let penalty = self.bus.take_timing_penalty();
+                            self.cores[i].advance_cycles(cpi - 1 + penalty);
+                            stalls[i] += u64::from(penalty);
+                        }
                         if self.bus.sw_reset() { break; }
                     }
                 }
-                if i == 0 { n += QUANTUM; }
+                if i == 0 { n += quantum; }
             }
-            self.after_round(QUANTUM);
+            let stall = if APPROXIMATE { *stalls[..S::CORES].iter().max().unwrap() } else { 0 };
+            if APPROXIMATE {
+                // Coarse lockstep approximation: both cores meet again after the slower batch.
+                // This intentionally exposes memory costs before access-level scheduling exists.
+                for i in 0..S::CORES {
+                    if on[i] { self.cores[i].advance_cycles((stall - stalls[i]) as u32); }
+                }
+            }
+            self.after_round(elapsed + stall);
             if self.bus.sw_reset() { self.drain_console(); return Stop::SwReset; }
             if self.bus.cycles() >= self.max_cycles { self.drain_console(); return Stop::Halted; }
-            if n & 0xffff < QUANTUM { self.drain_console(); }
+            if n & 0xffff < quantum { self.drain_console(); }
         }
+    }
+
+    /// EX133/EX144: how many quanta the sole busy core may run in one budget. Every bound keeps the boundaries
+    /// inside the run free of work: no device flush, script event, page push, peer wake-up,
+    /// cycle or instruction limit may fall due before the last of them.
+    fn vq_quanta(&self, insns_left: u64, on: &[bool], busy: usize) -> u64 {
+        let Some(deadline) = self.bus.next_deadline() else { return 1 };
+        if self.rt.enabled || !self.bus.can_defer() { return 1; }
+        let now = self.bus.cycles();
+        let mut k = self.vq_max.min(deadline.div_ceil(self.quantum)).min(insns_left.div_ceil(self.quantum))
+            .min(self.max_cycles.saturating_sub(now).div_ceil(self.quantum));
+        for (i, (core, &enabled)) in self.cores.iter().zip(on).enumerate() {
+            if enabled && i != busy { if let Some(wake) = core.cycles_until_wake() { k = k.min(wake.div_ceil(self.quantum)); } }
+        }
+        if let Some((at, _)) = self.script.events.get(self.script.pos) { k = k.min(at.saturating_sub(now).div_ceil(self.quantum)); }
+        if self.web.is_some() { k = k.min((S::CPU_HZ / self.bus.board_ref().display_push_hz()).saturating_sub(now.wrapping_sub(self.ws.last_push_cycles)).div_ceil(self.quantum)); }
+        k.max(1)
+    }
+
+    /// EX133/EX144: close one quantum that the busy core ran alone, as the scheduling loop does.
+    fn vq_close_round(&mut self, on: &[bool], n: &mut u64, busy: usize) -> Option<Stop> {
+        for (i, (core, &enabled)) in self.cores.iter_mut().zip(on).enumerate() { if enabled && i != busy { core.idle_advance(self.quantum as u32); } }
+        *n += self.quantum;
+        self.after_round(self.quantum);
+        if self.bus.sw_reset() { self.drain_console(); return Some(Stop::SwReset); }
+        if self.bus.cycles() >= self.max_cycles { self.drain_console(); return Some(Stop::Halted); }
+        if *n & 0xffff < self.quantum { self.drain_console(); }
+        None
     }
 
     /// Positive idle advance bounded by device work, enabled cores' wakeups and host actions.
@@ -571,6 +717,69 @@ impl<S: Soc> Machine<S> {
             budget = budget.min(at.saturating_sub(self.bus.cycles()).max(1));
         }
         budget
+    }
+
+    fn run_approximate_jit_frontiers(&mut self, max_insns: u64) -> Stop {
+        let (cpi, quantum) = self.approximate_jit_timing.unwrap();
+        self.stub_bloom = self.stubs.keys().fold(0, |m, &pc| m | pc_bit(pc));
+        self.probe_bloom = self.fn_probes.keys().fold(0, |m, &pc| m | pc_bit(pc));
+        for core in &mut self.cores {
+            core.set_boundaries(self.stub_bloom | self.probe_bloom);
+            core.set_block_observation(self.probes.contains(Wants::BLOCK | Wants::TRAP_PC));
+        }
+        let trace = self.has_observer("trace");
+        let force_idle = self.probes.contains(Wants::NO_IDLE_SKIP);
+        let blocks = !self.probes.contains(Wants::INSN);
+        let mut on = [false; 4];
+        let mut instructions = 0;
+        loop {
+            if instructions >= max_insns { self.drain_console(); return Stop::MaxInsns; }
+            if let Err(stop) = self.settle_modeled_time(&mut on, trace, force_idle) { self.drain_console(); return stop; }
+            let now = self.bus.cycles();
+            let Some(core) = (0..S::CORES)
+                .filter(|&i| on[i] && (force_idle || !self.cores[i].waiting() || self.cores[i].irq_pending()))
+                .filter(|&i| self.model_ready_at[i] <= now)
+                .min_by_key(|&i| (self.model_ready_at[i], i))
+            else { self.drain_console(); return Stop::Halted; };
+            // EX139: a core running alone may batch up to the next deadline; device registers are
+            // then reached only at settled time (the batch stops in front of them).
+            let solo = self.vq_max > 1 && self.bus.can_defer() && (0..S::CORES).all(|i| i == core || !on[i] || (self.cores[i].waiting() && !self.cores[i].irq_pending()));
+            let mut cycles = u64::from(if solo { quantum.max(4096) } else { quantum }) * u64::from(cpi);
+            if let Some(delta) = self.bus.next_deadline() { cycles = cycles.min(delta.max(1)); }
+            if let Some(&(at, _)) = self.script.events.get(self.script.pos) { cycles = cycles.min(at.saturating_sub(now).max(1)); }
+            for (i, &enabled) in on.iter().enumerate().take(S::CORES) {
+                if i != core && enabled && self.model_ready_at[i] > now {
+                    cycles = cycles.min(self.model_ready_at[i] - now);
+                }
+            }
+            cycles = cycles.min(self.max_cycles - now);
+            let budget = cycles.div_ceil(u64::from(cpi)).max(1) as u32;
+            // Keep cheap blocks together. A priced memory access yields immediately after its
+            // block, exposing the stall to the other CPU without settling devices per ALU block.
+            let (mut used, mut extras) = (0, 0u32);
+            let penalty = loop {
+                self.bus.begin_timing_batch(core, now + u64::from(used) * u64::from(cpi));
+                if solo { self.bus.set_defer(used > 0); }
+                let (done, stop) = if blocks { self.step_blocks(core, budget - used) } else {
+                    let stop = self.step_core(core);
+                    self.cores[core].advance_cycles(cpi - 1);
+                    (1, stop)
+                };
+                if let Some(stop) = stop { self.bus.set_defer(false); self.drain_console(); return stop; }
+                let deferred = solo && self.bus.take_deferred();
+                // EX138: priced control flow spends the batch's cycles without ending it.
+                let extra = self.cores[core].take_timing_extra();
+                extras += extra;
+                used += if deferred { done } else { done.max(1) } + extra;
+                let penalty = self.bus.take_timing_penalty();
+                if penalty != 0 || used >= budget || self.cores[core].waiting() || deferred { break penalty; }
+            };
+            if solo { self.bus.set_defer(false); }
+            self.cores[core].advance_cycles(penalty + extras);
+            self.model_ready_at[core] = now + u64::from(used.max(1)) * u64::from(cpi) + u64::from(penalty);
+            instructions += u64::from(used.max(1));
+            if instructions & 0xffff < u64::from(used.max(1)) { self.drain_console(); }
+        }
     }
 
     fn run_modeled(&mut self, max_insns: u64) -> Stop {
@@ -731,7 +940,7 @@ impl<S: Soc> Machine<S> {
 
         self.bus.note_pc(pc);
         let (outcome, accesses) = {
-            let mut bus = RecordingBus::new(&mut self.bus);
+            let mut bus = RecordingBus::new(&mut self.bus, std::mem::take(&mut self.model_accesses));
             let mut outcome = self.cores[core].step(&mut bus);
             // A control operation is an occurrence, not a decoded intention. Current cores can
             // report it before a privilege or execution failure, so only retirement commits it.
@@ -770,7 +979,8 @@ impl<S: Soc> Machine<S> {
         if self.exceptions >= self.dbg.stop_after_exceptions { return Err(Stop::Exceptions(self.exceptions)); }
 
         let facts = ExecutionFacts { core, outcome, accesses: &accesses };
-        let result = self.cost.as_mut().expect("modeled path requires an attached model").cycles(&facts);
+        let result = self.cost.as_mut().expect("modeled path requires an attached model").cycles_at(&facts, self.bus.cycles());
+        self.model_accesses = accesses;
         match result {
             Ok(0) => Err(Stop::CostModel { core, pc, reason: "cost model returned zero cycles".into() }),
             Ok(cycles) => Ok(cycles),
@@ -817,7 +1027,7 @@ impl<S: Soc> Machine<S> {
                 if let Some((at, _)) = self.script.events.get(self.script.pos) {
                     deadline = deadline.min(at.saturating_sub(now).max(1));
                 }
-                let mut budget = left.min(QUANTUM).min(deadline) as u32;
+                let mut budget = left.min(self.quantum).min(deadline) as u32;
                 let (mut used_total, mut yielded, mut stop) = (0u64, false, None);
                 while budget > 0 {
                     let (used, s) = if blocks { self.step_blocks(0, budget) } else { (1, self.step_core(0)) };
@@ -891,7 +1101,7 @@ impl<S: Soc> Machine<S> {
     #[inline]
     fn after_round_rest(&mut self) -> bool {
         let stopped = self.apply_script_events();
-        if self.web.is_some() && self.bus.cycles().wrapping_sub(self.ws.last_push_cycles) >= S::CPU_HZ / 50 { self.ws.last_push_cycles = self.bus.cycles(); self.web_push(); self.web_poll_input(); }
+        if self.web.is_some() && self.bus.cycles().wrapping_sub(self.ws.last_push_cycles) >= S::CPU_HZ / self.bus.board_ref().display_push_hz() { self.ws.last_push_cycles = self.bus.cycles(); self.web_push(); self.web_poll_input(); }
         if self.rt.enabled && self.bus.cycles().wrapping_sub(self.rt.last_check) >= 1 << 16 {
             self.rt.last_check = self.bus.cycles();
             let start = *self.rt.wall_start.get_or_insert_with(std::time::Instant::now);
@@ -946,8 +1156,9 @@ impl<S: Soc> Machine<S> {
         if due {
             if let Some((w_, h_, px, _)) = board.display() {
                 self.ws.px_sent = ver;
-                let mut b = vec![1u8, w_ as u8, (w_ >> 8) as u8, h_ as u8, (h_ >> 8) as u8];
-                for p in &px { b.push(*p as u8); b.push((*p >> 8) as u8); }
+                let mut b = Vec::with_capacity(5 + px.len() * 2);
+                b.extend_from_slice(&[1u8, w_ as u8, (w_ >> 8) as u8, h_ as u8, (h_ >> 8) as u8]);
+                b.extend(px.iter().flat_map(|p| p.to_le_bytes()));
                 w.send_binary(&b);
             }
         }

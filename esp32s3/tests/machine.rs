@@ -183,6 +183,7 @@ fn quiet_display_publication_remains_live_during_continuous_changes() {
             Some((1, 1, vec![version as u16], version))
         }
     }
+    const PUSH: u64 = 240_000_000 / 50;   // one page-push interval at the default display_push_hz
     let mut m = machine();
     let version = Arc::new(AtomicU64::new(0));
     m.bus.board = Box::new(Display(version.clone()));
@@ -192,16 +193,16 @@ fn quiet_display_publication_remains_live_during_continuous_changes() {
     m.web = Some(web.clone());
     for push in 1..=6 {
         version.store(push, Ordering::Relaxed);
-        m.run_until_cycle(push * 4_800_000);
+        m.run_until_cycle(push * PUSH);
         let frames: Vec<_> = web.take_outbox().into_iter().filter(|(kind, data)| *kind == 2 && data[0] == 1).collect();
         if push % 2 == 0 {
             assert_eq!(frames, [(2, vec![1, 1, 0, 1, 0, push as u8, 0])]);
         } else { assert!(frames.is_empty()); }
     }
     version.store(7, Ordering::Relaxed);
-    m.run_until_cycle(7 * 4_800_000);
+    m.run_until_cycle(7 * PUSH);
     web.take_outbox();
-    m.run_until_cycle(8 * 4_800_000); // a quiet interval publishes the pending version
+    m.run_until_cycle(8 * PUSH); // a quiet interval publishes the pending version
     assert!(web.take_outbox().iter().any(|(kind, data)| *kind == 2 && data == &[1, 1, 0, 1, 0, 7, 0]));
 }
 

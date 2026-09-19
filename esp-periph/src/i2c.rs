@@ -40,7 +40,14 @@ impl I2c {
         I2c { regs: RegRam::new(), tx: VecDeque::new(), rx: VecDeque::new(), int_raw: 0, int_ena: 0, cmd: [0; 8], devices: Vec::new(), cur: None, expect_addr: false, nack: false,
               log: false, transactions: 0 }
     }
-    pub fn attach(&mut self, addr: u8, dev: Box<dyn I2cDevice>) { self.devices.push((addr, dev)); }
+    /// A device attached at an occupied address replaces the one there: a board swapped before
+    /// boot (`esp32sim_set_measured_te`) must not leave the old board's devices answering.
+    pub fn attach(&mut self, addr: u8, dev: Box<dyn I2cDevice>) {
+        match self.devices.iter_mut().find(|(attached, _)| *attached == addr) {
+            Some(slot) => slot.1 = dev,
+            None => self.devices.push((addr, dev)),
+        }
+    }
     pub fn has_device(&self, addr: u8) -> bool { self.devices.iter().any(|(attached, _)| *attached == addr) }
     pub fn irq(&self) -> bool { self.int_raw & self.int_ena != 0 }
 

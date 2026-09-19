@@ -241,6 +241,12 @@ fn vmem(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool, o: &Ops, st
     g.set(ADDR);
     g.begin_block();
     g.begin_block();
+    // Mode 1 prices these memory operations in the existing interpreter helper.
+    // Keep the experiment simple; the default and SRC.Q.LD-only mode stay fast.
+    g.cpu(offset_of!(Cpu, approximate_pie_mode));
+    g.c(1);
+    g.op(0x46);
+    g.bytes.extend([0x0d, 0]);
     g.get(5);
     g.op(0x45);
     g.bytes.extend([0x0d, 0]);
@@ -286,6 +292,8 @@ fn vmem(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool, o: &Ops, st
     g.load(offset_of!(TlbEntry, lo));
     g.op(0x6b);
     g.set(REL);
+    #[cfg(feature = "wasm-cache-inline")]
+    emit_cache_hit(g, store, 4); // The reference PIE helper performs four words.
     if store {
         g.get(TLB);
         g.load(offset_of!(TlbEntry, base));

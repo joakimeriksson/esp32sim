@@ -40,6 +40,20 @@ unsafe impl Sync for TlbEntry {}
 #[derive(Clone, Copy)]
 pub struct FastMem { pub tlb: *const TlbEntry, pub page_ver: *mut u32 }
 
+/// Experimental generated-code view of a 32 KiB, 64-byte, four-way cache.
+/// The owner keeps both pointers live and unmoved during a generated call.
+/// Only zero-cost hits are admitted; misses return through ordinary bus helpers.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct FastCache { pub lines: *mut FastCacheLine, pub hits: *mut u64 }
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct FastCacheLine { pub tag: u32, pub dirty: u32, pub valid: u32 }
+impl Default for FastCacheLine {
+    fn default() -> Self { Self { tag: u32::MAX, dirty: 0, valid: 0 } }
+}
+
 pub trait Bus {
     fn read8(&mut self, addr: u32) -> Result<u8, Fault>;
     fn read16(&mut self, addr: u32) -> Result<u16, Fault>;
@@ -65,12 +79,33 @@ pub trait Bus {
     /// and let the machine re-derive the CPU's interrupt inputs before the next instruction.
     #[inline(always)]
     fn block_break(&self) -> bool { false }
+    /// Virtual quanta (EX133): true while the machine runs one core across several scheduling
+    /// quanta. Device registers must then be reached at exact device time, so the executor asks
+    /// `defer_access` before a word access and stops in front of the instruction when it says yes.
+    #[inline(always)]
+    fn defer_armed(&self) -> bool { false }
+    /// True, and remembered for the machine, when `addr` is a device register and a
+    /// multi-quantum run is active. The instruction must not execute in this dispatch.
+    #[inline(always)]
+    fn defer_access(&mut self, addr: u32) -> bool { let _ = addr; false }
+    /// True when this dispatch stopped in front of a deferred access (not cleared by reading).
+    #[inline(always)]
+    fn deferred(&self) -> bool { false }
     /// Direct memory access for generated code, if the bus has a `TlbEntry` table.
     fn fast_mem(&mut self) -> Option<FastMem> { None }
     /// Copy guest memory at `addr` into `out` in one piece when the whole range is plain
     /// memory with no device behind it. `false` changes nothing and means the caller must use
     /// the per-access reads, which also report where a fault is. A fast path for vector loads.
     fn read_bulk(&mut self, addr: u32, out: &mut [u8]) -> bool { let _ = (addr, out); false }
+    fn fast_cache(&mut self) -> Option<FastCache> { None }
+    /// Drain provisional synchronous data-access penalties for a fast-path timing experiment.
+    /// The scheduler decides when to settle this batch; this does not imply access-level ordering.
+    fn take_timing_penalty(&mut self) -> u32 { 0 }
+    /// Start a compiled batch's provisional memory-service cursor in shared CPU cycles.
+    /// Access effects are still immediate; this is not instruction-level interleaving.
+    fn begin_timing_batch(&mut self, _core: usize, _now: u64) {}
+    /// Add an opt-in instruction penalty to the same provisional batch drain.
+    fn add_timing_penalty(&mut self, _cycles: u32) {}
     /// Called after every executed instruction with the cycle estimate; lets the
     /// SoC advance timers and DMA. Return pending external level-interrupt lines.
     fn tick(&mut self, cycles: u32) -> u32 { let _ = cycles; 0 }

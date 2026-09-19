@@ -21,6 +21,8 @@ impl emu_core::Core for Cpu {
     fn irq_pending(&self) -> bool { self.check_interrupts_pending() != 0 }
     fn irq_bits(irq: &u32) -> u32 { *irq }
     fn advance_cycles(&mut self, cycles: u32) { self.advance_ccount(cycles) }
+    fn set_approximate_cpi(&mut self, cycles: u32) { self.approximate_cpi = cycles.max(1); }
+    fn take_timing_extra(&mut self) -> u32 { std::mem::take(&mut self.timing_extra) }
     fn cycles_until_wake(&self) -> Option<u64> {
         if !self.waiting { return None; }
         let mask_level = if self.excm() { self.intlevel().max(EXCM_LEVEL) } else { self.intlevel() };
@@ -103,6 +105,25 @@ mod tests {
     use emu_core::{Bus, CacheOperation, ControlEventKind, Core, Fault, FlatRam, StepKind, TlbOperation, Trap};
     use crate::state::{exc, TIMER_INTERRUPT};
     /// `movi a2, 5; j .` through the trait, on the block path and the step path.
+    #[test]
+    fn approximate_block_cost_charges_ccount_and_cuts_at_timer() {
+        let base = 0x4037_0000;
+        let mut ram = FlatRam::new(base, 64);
+        // Four movi.n instructions; timer deadline lies inside the second priced instruction.
+        ram.mem[..8].copy_from_slice(&[0x0c, 0x12, 0x0c, 0x23, 0x0c, 0x34, 0x0c, 0x45]);
+        let mut cpu = crate::Cpu::new(0);
+        cpu.pc = base;
+        cpu.ps = 0;
+        cpu.ccompare[0] = 5;
+        Core::set_approximate_cpi(&mut cpu, 3);
+        let (used, trap) = cpu.run(&mut ram, 8);
+        assert_eq!(trap, None);
+        assert_eq!(used, 2);
+        assert_eq!(cpu.insn_count, 2);
+        assert_eq!(cpu.ccount, 6);
+        assert_ne!(cpu.interrupt & (1 << TIMER_INTERRUPT[0]), 0);
+    }
+
     #[test]
     fn core_runs_a_block() {
         let mut ram = FlatRam::new(0x4037_0000, 64);

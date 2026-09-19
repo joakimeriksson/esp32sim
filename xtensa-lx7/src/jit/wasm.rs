@@ -23,6 +23,42 @@ const REGION_TRIES: u8 = 8;
 #[cfg(feature = "wasm-jit-tests")]
 pub(crate) static REGION_STATS: [std::sync::atomic::AtomicU32; 12] = [const { std::sync::atomic::AtomicU32::new(0) }; 12];
 
+#[cfg(not(feature = "wasm-jit-profile"))]
+type ExitSite = u32;
+#[cfg(feature = "wasm-jit-profile")]
+type ExitSite = (u32, ExitKind);
+
+#[cfg(feature = "wasm-jit-profile")]
+#[derive(Clone, Copy, Default)]
+enum ExitKind {
+    Call, Callx, Retw, Ret, Jx, Sr, Memory, Edge, Budget, Dirty,
+    #[default]
+    Other,
+}
+#[cfg(feature = "wasm-jit-profile")]
+impl ExitKind {
+    fn for_op(op: crate::Op) -> Self {
+        use crate::Op::*;
+        match op {
+            Call0 | Call4 | Call8 | Call12 => Self::Call,
+            Callx0 | Callx4 | Callx8 | Callx12 => Self::Callx,
+            Retw | RetwN => Self::Retw,
+            Ret | RetN => Self::Ret,
+            Jx => Self::Jx,
+            Wsr | Xsr | Rsil => Self::Sr,
+            L8ui | L16ui | L16si | L32i | L32iN | L32r | S8i | S16i | S32i | S32iN | Lsi | Ssi | Pie => Self::Memory,
+            _ => Self::Other,
+        }
+    }
+}
+#[inline(always)]
+fn site_pc(site: ExitSite) -> u32 {
+    #[cfg(feature = "wasm-jit-profile")]
+    { site.0 }
+    #[cfg(not(feature = "wasm-jit-profile"))]
+    { site }
+}
+
 /// Region counters for the opt-in profile build; absent from production.
 #[cfg(feature = "wasm-jit-profile")]
 #[derive(Default)]
@@ -35,6 +71,7 @@ pub struct RegionStats {
     pub rejected: Cell<u64>,
     pub retired: Cell<u64>,
     pub exits: [Cell<u64>; 8],
+    pub left_kinds: [Cell<u64>; 11],
     pub chunks: Cell<u64>,
     pub instructions: Cell<u64>,
     pub bytes: Cell<u64>,
@@ -42,13 +79,23 @@ pub struct RegionStats {
 #[cfg(feature = "wasm-jit-profile")]
 impl RegionStats {
     pub fn report(&self) -> String {
-        format!("[wasm-region] formed={} failed={} covered={} dropped={} chunks={} instructions={} bytes={} calls={} rejected={} retired={} exits[end,left,trap,cut,pre]={:?}",
+        format!("[wasm-region] formed={} failed={} covered={} dropped={} chunks={} instructions={} bytes={} calls={} rejected={} retired={} exits[end,left,trap,cut,pre]={:?} left_kinds[call,callx,retw,ret,jx,sr,memory,edge,budget,dirty,other]={:?}",
             self.formed.get(), self.failed.get(), self.covered.get(), self.dropped.get(), self.chunks.get(),
             self.instructions.get(), self.bytes.get(), self.calls.get(), self.rejected.get(), self.retired.get(),
-            self.exits[..5].iter().map(|c| c.get()).collect::<Vec<_>>())
+            self.exits[..5].iter().map(|c| c.get()).collect::<Vec<_>>(),
+            self.left_kinds.iter().map(|c| c.get()).collect::<Vec<_>>())
     }
 }
 const HOT: u32 = 32;
+/// EX138: emit control-flow prices into code generated from now on.
+pub static PRICED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// Emit the inline data-cache probe into code generated from now on (a `cache-inline` build that
+/// runs without the timing model must not pay for it).
+/// EX147: regions generated from now on record the chunks they enter in `Cpu::fetch_ring`.
+pub static FETCH_RING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// Set index mask of the inline data-cache probe: 63 for the 32 KB cache, 127 for 64 KB (64-byte lines, 8 ways).
+pub static CACHE_SET_MASK: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(63);
+pub static CACHE_PROBES: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 const RETAIN_BYTES: usize = 64 << 20;
 const RETAIN_BLOCKS: usize = 16_384;
 
@@ -73,9 +120,21 @@ struct Block {
     region_tries: Cell<u8>,
     /// Region (owning block, chunk) this head was last found in; rechecked when stale.
     covered_by: Cell<(u32, u32)>,
+    /// Last coverage epoch where this PC was absent from the map.
+    uncovered_epoch: Cell<u64>,
+    /// EX136: everything a dispatch at this head needs to enter its region, copied out of the
+    /// owning block so the common path follows no pointers; valid while `epoch` is current.
+    hot: Cell<Hot>,
 }
+/// Entry facts of one region chunk. `sites` points into the owning region's vector, which
+/// lives until that region is dropped, and every drop moves `CodeCache::region_epoch` on.
+#[derive(Clone, Copy)]
+struct Hot { epoch: u64, bloom: u64, slot: u32, k: u32, len: u32, lo: u32, span: u32, pages: [(u32, u32); 8], npages: u32, nsites: u32, sites: *const ExitSite, lines: *const (u32, u32), nlines: u32 }
+impl Hot { const NONE: Hot = Hot { epoch: 0, bloom: 0, slot: 0, k: 0, len: 0, lo: 0, span: 0, pages: [(0, 0); 8], npages: 0, nsites: 0, sites: std::ptr::null(), lines: std::ptr::null(), nlines: 0 }; }
 /// Several chunks compiled as one function; see wasm_region.rs.
 struct Region {
+    /// EX147: first and last byte address of every chunk, by chunk index.
+    fetch_lines: Vec<(u32, u32)>,
     /// The generated code holds pointers to these instructions for its helper calls,
     /// so they live exactly as long as the module does.
     #[allow(dead_code)]
@@ -87,7 +146,7 @@ struct Region {
     hi: u32,
     loops: Vec<(u32, u32)>,
     pages: Vec<(u32, u32)>,
-    sites: Vec<u32>,
+    sites: Vec<ExitSite>,
     /// instructions per chunk, for the credit check at an entry
     lens: Vec<u32>,
 }
@@ -102,6 +161,10 @@ pub struct CodeCache {
     /// covering region at that chunk. Overlapping copies of one loop would only cost
     /// code and compile time.
     covered: RefCell<HashMap<u32, (u32, u32)>>,
+    /// Advances whenever a previously absent PC might acquire a region.
+    coverage_epoch: Cell<u64>,
+    /// EX136: moves on whenever a region is dropped or block indices change; never zero.
+    region_epoch: Cell<u64>,
     #[cfg(feature = "wasm-jit-profile")]
     pub region_stats: RegionStats,
 }
@@ -138,6 +201,8 @@ impl CodeCache {
             by_pc: HashMap::new(),
             generation: 0,
             covered: RefCell::new(HashMap::new()),
+            coverage_epoch: Cell::new(0),
+            region_epoch: Cell::new(1),
             #[cfg(feature = "wasm-jit-profile")]
             region_stats: RegionStats::default(),
         })
@@ -147,6 +212,8 @@ impl CodeCache {
     }
     pub fn reset(&mut self) {
         self.generation += 1;
+        self.coverage_epoch.set(self.coverage_epoch.get().wrapping_add(1));
+        self.region_epoch.set(self.region_epoch.get() + 1);
         // Keep recently decoded blocks across arena turnover. Prefer recent code under
         // pressure; enforce these retention limits only after all decoder handles die.
         self.blocks.sort_by_key(|b| std::cmp::Reverse(b.generation));
@@ -236,9 +303,11 @@ fn queue(cc: &mut CodeCache, instructions: &mut [BlockInsn], pc: u32, fast: bool
         .collect();
     cc.blocks.push(Block {
         pcs,
-        // A block that writes LCOUNT through LOOP* must never be admitted as a retained
-        // hardware loop: run() locates the last executed instruction from LCOUNT deltas.
-        loop_prefix: if instructions.iter().any(|i| matches!(i.insn.op, crate::Op::Loop | crate::Op::Loopnez | crate::Op::Loopgtz)) { 0 }
+        // Explicit loop-state writes break the LCOUNT-delta accounting used for retained
+        // prefixes. A terminal WSR/XSR LEND can also create a new helper-side backedge.
+        loop_prefix: if instructions.iter().any(|i| matches!(i.insn.op, crate::Op::Loop | crate::Op::Loopnez | crate::Op::Loopgtz)
+            || (matches!(i.insn.op, crate::Op::Wsr | crate::Op::Xsr)
+                && matches!(i.insn.imm as u32, crate::state::sr::LBEG | crate::state::sr::LEND | crate::state::sr::LCOUNT))) { 0 }
             else { instructions.iter().take_while(|i| emitter::loop_safe(i.insn.op, fast)).count() },
         instructions: instructions.to_vec(),
         pc,
@@ -250,50 +319,68 @@ fn queue(cc: &mut CodeCache, instructions: &mut [BlockInsn], pc: u32, fast: bool
         region: RefCell::new(None),
         region_tries: Cell::new(0),
         covered_by: Cell::new((NONE, 0)),
+        uncovered_epoch: Cell::new(u64::MAX),
+        hot: Cell::new(Hot::NONE),
     });
     cc.by_pc.insert(key, id);
     id
 }
+#[inline]
 pub fn ready(cc: &CodeCache, code: u32) -> bool {
     let b = &cc.blocks[code as usize];
-    if b.slot.get() == NONE {
-        let hits = b.hits.get() + 1;
-        b.hits.set(hits);
-        if hits < HOT {
-            return false;
-        }
-        let bytes = generate(b);
-        // SAFETY: The host synchronously copies these bytes, installs a module using the
-        // shared memory/table, and returns a correctly typed function slot or zero.
-        let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
-        b.slot.set(slot);
-        b.bytes.set(if slot == 0 { 0 } else { bytes.len() });
-    }
-    b.slot.get() != 0
+    let slot = b.slot.get();
+    if slot == NONE { prepare(b) } else { slot != 0 }
+}
+
+#[cold]
+#[inline(never)]
+fn prepare(b: &Block) -> bool {
+    let hits = b.hits.get() + 1;
+    b.hits.set(hits);
+    if hits < HOT { return false; }
+    let bytes = generate(b);
+    // SAFETY: The host synchronously copies these bytes, installs a module using the
+    // shared memory/table, and returns a correctly typed function slot or zero.
+    let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
+    b.slot.set(slot);
+    b.bytes.set(if slot == 0 { 0 } else { bytes.len() });
+    slot != 0
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Helpers {
-    exec: usize,
-    overflow: usize,
-    fused: usize,
+    exec: *const (),
+    overflow: *const (),
+    fused: *const (),
     loop_end: u32,
     version_ptrs: [*const u32; 2],
     versions: [u32; 2],
+    #[cfg(feature = "wasm-cache-inline")]
+    cache: *const emu_core::bus::FastCache,
 }
 impl Helpers {
-    pub fn new<B: Bus>() -> Self {
+    pub const fn new<B: Bus>() -> Self {
         Self {
-            exec: h_exec::<B> as *const () as usize,
-            overflow: h_overflow as *const () as usize,
-            fused: h_fused as *const () as usize,
+            exec: h_exec::<B> as *const (),
+            overflow: h_overflow as *const (),
+            fused: h_fused as *const (),
             loop_end: 0,
             version_ptrs: [std::ptr::null(); 2],
             versions: [0; 2],
+            #[cfg(feature = "wasm-cache-inline")]
+            cache: std::ptr::null(),
         }
     }
+    pub fn shared<B: Bus>() -> &'static Self {
+        &const { Helpers::new::<B>() }
+    }
 }
+const _: () = {
+    assert!(size_of::<Helpers>() == if cfg!(feature = "wasm-cache-inline") { 36 } else { 32 });
+    assert!(offset_of!(Helpers, overflow) == 4);
+    assert!(offset_of!(Helpers, fused) == 8);
+};
 // Baseline WASM has no fused multiply-add opcode. Preserve Rust's single rounding
 // without spilling integer register locals or invoking the instruction dispatcher.
 extern "C" fn h_fused(s: u32, t: u32, r: u32, subtract: u32) -> u32 {
@@ -310,9 +397,20 @@ extern "C" fn h_exec<B: Bus>(
     // owned by its live CodeCache. No Rust execution overlaps generated access.
     let (cpu, bus, instruction) = unsafe { (&mut *cpu, &mut *bus, &*instruction) };
     cpu.pc = pc;
+    if crate::exec::defer_instruction(cpu, bus, &instruction.insn) {
+        cpu.jit_trap = None;
+        return 1;
+    }
     bus.note_pc(pc);
     match exec_insn(cpu, bus, &instruction.insn) {
-        Ok(()) => (bus.block_break() as u32) << 1,
+        Ok(()) => {
+            if cpu.price_control {
+                let taken = crate::exec::control_taken(cpu, &instruction.insn);
+                cpu.timing_extra += crate::exec::control_price(instruction.insn.op, taken)
+                    + u32::from(taken && crate::exec::transfers(instruction.insn.op) && crate::exec::straddles(bus, cpu.pc));
+            }
+            (bus.block_break() as u32) << 1
+        }
         Err(t) => {
             cpu.jit_trap = Some(t);
             1
@@ -346,6 +444,8 @@ pub fn loop_len(cc: &CodeCache, code: u32, cpu: &Cpu) -> Option<usize> {
 }
 
 /// Execute a published block against the exclusively borrowed machine state.
+/// Returns retired count in bits 0..16 and exit code in bits 16..19. For CODE_CUT,
+/// bits 19..32 carry the next instruction index in the decoded block.
 ///
 /// # Safety
 /// `code` must be ready in this cache; `entry` must be its recorded instruction index.
@@ -363,13 +463,43 @@ pub unsafe fn run<B: Bus>(
 ) -> u32 {
     type Run<B> =
         extern "C" fn(*mut Cpu, *mut B, *const Helpers, u32, u32, *const TlbEntry, *mut u32) -> u32;
-    // SAFETY: host_jit_compile installs exactly this signature in the shared WASM table.
-    let f: Run<B> = unsafe { std::mem::transmute(cc.blocks[code as usize].slot.get() as usize) };
+    #[cfg(feature = "wasm-cache-inline")]
+    let cache_view = if CACHE_PROBES.load(std::sync::atomic::Ordering::Relaxed) { bus.fast_cache() } else { None };
+    #[cfg(feature = "wasm-cache-inline")]
+    let hinted = Helpers { cache: cache_view.as_ref().map_or(std::ptr::null(), |v| v), ..*h };
+    #[cfg(feature = "wasm-cache-inline")]
+    let h = &hinted;
     let (tlb, versions) = fm
         .map(|m| (m.tlb, m.page_ver))
         .unwrap_or((std::ptr::null(), std::ptr::null_mut()));
     let b = &cc.blocks[code as usize];
     if entry == 0 && !cpu.blocks.observed {
+        // EX136: the facts the checks below would fetch through the owning block, its region and
+        // three of its vectors are cached in this block while no region has been dropped.
+        let hot = b.hot.get();
+        if hot.epoch == cc.region_epoch.get() && budget >= hot.len && cpu.boundary_bloom & hot.bloom == 0
+            && (cpu.lcount == 0 || cpu.lend.wrapping_sub(hot.lo) > hot.span)
+        {
+            let pv = bus.page_versions();
+            if hot.pages[..hot.npages as usize].iter().all(|&(i, v)| pv.get(i as usize).copied().unwrap_or(0) == v) {
+                cpu.fetch_n = 0;
+                // SAFETY: as for the region call below; the epoch proves slot and sites are live.
+                let f: Run<B> = unsafe { std::mem::transmute(hot.slot as usize) };
+                let result = f(cpu, bus, h, budget.min(0xffff), hot.k, tlb, versions);
+                replay_fetch_ring(cpu, hot.lines, hot.nlines);
+                let site = if (result >> 16) & 7 != CODE_REJECT {
+                    assert!((result >> 19) < hot.nsites);
+                    // SAFETY: index checked against the live vector's length.
+                    Some(unsafe { *hot.sites.add((result >> 19) as usize) })
+                } else { None };
+                region_stats(cc, result, budget, site);
+                if let Some(site) = site {
+                    bus.note_pc(site_pc(site));
+                    return result & 0x7ffff;
+                }
+                return run_block_body(cc, code, cpu, bus, h, budget, entry, tlb, versions);
+            }
+        }
         // The region to run: this block's own, or the one covering this PC.
         let (owner, k) = if b.region.borrow().is_some() {
             (code, 0)
@@ -379,7 +509,14 @@ pub unsafe fn run<B: Bus>(
                 && cc.blocks.get(cached.0 as usize).and_then(|o| o.region.borrow().as_ref()
                     .map(|r| r.chunks.get(cached.1 as usize).is_some_and(|c| c.pc == b.pc))).unwrap_or(false);
             // A temporary borrow in an `if let` would outlive the whole chain.
-            let found = if live { None } else { cc.covered.borrow().get(&b.pc).copied() };
+            let epoch = cc.coverage_epoch.get();
+            let found = if live || b.uncovered_epoch.get() == epoch {
+                None
+            } else {
+                let found = cc.covered.borrow().get(&b.pc).copied();
+                if found.is_none() { b.uncovered_epoch.set(epoch); }
+                found
+            };
             if live {
                 cached
             } else if let Some(found) = found {
@@ -397,10 +534,13 @@ pub unsafe fn run<B: Bus>(
                     let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
                     (slot != 0).then(|| Region {
                         lens: f.chunks.iter().map(|c| c.instructions.len() as u32).collect(),
+                        fetch_lines: f.chunks.iter().map(|c| { let end = c.pc + c.instructions.iter().map(|i| i.insn.len as u32).sum::<u32>().max(1) - 1; (c.pc, end) }).collect(),
                         chunks: f.chunks, slot, bytes: bytes.len(), bloom: f.bloom, lo: f.lo, hi: f.hi, loops: f.loops, pages: f.pages, sites,
                     })
                 });
                 if let Some(r) = &formed {
+                    // Removal cannot invalidate a negative lookup; insertion can.
+                    cc.coverage_epoch.set(cc.coverage_epoch.get().wrapping_add(1));
                     let mut covered = cc.covered.borrow_mut();
                     for (k, c) in r.chunks.iter().enumerate() { covered.entry(c.pc).or_insert((code, k as u32)); }
                     #[cfg(feature = "wasm-jit-profile")]
@@ -432,6 +572,7 @@ pub unsafe fn run<B: Bus>(
                     // Some chunk's code changed: rebuild the region from the new code later.
                     drop(region);
                     rb.drop_region(owner, &cc.covered);
+                    cc.region_epoch.set(cc.region_epoch.get() + 1);
                     #[cfg(feature = "wasm-jit-profile")]
                     cc.region_stats.dropped.set(cc.region_stats.dropped.get() + 1);
                     #[cfg(feature = "wasm-jit-tests")]
@@ -445,35 +586,87 @@ pub unsafe fn run<B: Bus>(
                     // SAFETY: the region was installed with the block signature; its
                     // entry parameter is the chunk index.
                     let f: Run<B> = unsafe { std::mem::transmute(r.slot as usize) };
+                    if r.pages.len() <= 8 {
+                        let mut pages = [(0, 0); 8];
+                        pages[..r.pages.len()].copy_from_slice(&r.pages);
+                        b.hot.set(Hot { epoch: cc.region_epoch.get(), bloom: r.bloom, slot: r.slot, k, len: r.lens[k as usize], lo: r.lo,
+                            span: r.hi.wrapping_sub(r.lo), pages, npages: r.pages.len() as u32, nsites: r.sites.len() as u32, sites: r.sites.as_ptr(), lines: r.fetch_lines.as_ptr(), nlines: r.fetch_lines.len() as u32 });
+                    }
+                    cpu.fetch_n = 0;
                     let result = f(cpu, bus, h, budget.min(0xffff), k, tlb, versions);
-                    #[cfg(feature = "wasm-jit-tests")]
-                    {
-                        use std::sync::atomic::Ordering::Relaxed;
-                        REGION_STATS[2].fetch_max(result & 0xffff, Relaxed);
-                        REGION_STATS[3 + ((result >> 16) & 7) as usize].fetch_add(1, Relaxed);
-                        REGION_STATS[11].fetch_max(budget, Relaxed);
-                    }
-                    #[cfg(feature = "wasm-jit-profile")]
-                    {
-                        let st = &cc.region_stats;
-                        st.calls.set(st.calls.get() + 1);
-                        let exit = ((result >> 16) & 7) as usize;
-                        if exit == CODE_REJECT as usize {
-                            st.rejected.set(st.rejected.get() + 1);
-                        } else {
-                            st.retired.set(st.retired.get() + (result & 0xffff) as u64);
-                            st.exits[exit].set(st.exits[exit].get() + 1);
-                        }
-                    }
-                    if (result >> 16) & 7 != CODE_REJECT {
+                    replay_fetch_ring(cpu, r.fetch_lines.as_ptr(), r.fetch_lines.len() as u32);
+                    let site = if (result >> 16) & 7 != CODE_REJECT {
                         assert!(((result >> 19) as usize) < r.sites.len(), "region {:x}: result {result:#x} sites {}", rb.pc, r.sites.len());
-                        bus.note_pc(r.sites[(result >> 19) as usize]);
+                        Some(r.sites[(result >> 19) as usize])
+                    } else { None };
+                    region_stats(cc, result, budget, site);
+                    if let Some(site) = site {
+                        bus.note_pc(site_pc(site));
                         return result & 0x7ffff;
                     }
                 }
             }
         }
     }
+    run_block_body(cc, code, cpu, bus, h, budget, entry, tlb, versions)
+}
+
+/// EX147: replay the chunks a region call entered (the last 64; with more, every chunk counts as
+/// fetched once first) into the fetch cache. `chunks` must belong to the live region just called.
+#[inline]
+fn replay_fetch_ring(cpu: &mut Cpu, chunks: *const (u32, u32), n_chunks: u32) {
+    if cpu.icache_fill == 0 { return; }
+    // SAFETY: the caller passes the fetch-line vector of the region it has just run.
+    let chunks = unsafe { std::slice::from_raw_parts(chunks, n_chunks as usize) };
+    let n = cpu.fetch_n;
+    if n > 64 { for &(lo, hi) in chunks { cpu.touch_fetch_lines(lo, hi); } }
+    let mut last = u32::MAX;
+    for i in n.saturating_sub(64)..n {
+        let k = cpu.fetch_ring[(i & 63) as usize];
+        if k == last { continue; }   // a loop over one chunk
+        last = k;
+        if let Some(&(lo, hi)) = chunks.get(k as usize) { cpu.touch_fetch_lines(lo, hi); }
+    }
+}
+
+/// Test and profile counters of one region call.
+#[inline(always)]
+#[allow(unused_variables)]
+fn region_stats(cc: &CodeCache, result: u32, budget: u32, site: Option<ExitSite>) {
+    #[cfg(feature = "wasm-jit-tests")]
+    {
+        use std::sync::atomic::Ordering::Relaxed;
+        REGION_STATS[2].fetch_max(result & 0xffff, Relaxed);
+        REGION_STATS[3 + ((result >> 16) & 7) as usize].fetch_add(1, Relaxed);
+        REGION_STATS[11].fetch_max(budget, Relaxed);
+    }
+    #[cfg(feature = "wasm-jit-profile")]
+    {
+        let st = &cc.region_stats;
+        st.calls.set(st.calls.get() + 1);
+        let exit = ((result >> 16) & 7) as usize;
+        if exit == CODE_REJECT as usize {
+            st.rejected.set(st.rejected.get() + 1);
+        } else {
+            st.retired.set(st.retired.get() + (result & 0xffff) as u64);
+            st.exits[exit].set(st.exits[exit].get() + 1);
+            if exit == CODE_LEFT as usize {
+                let kind = site.expect("a region LEFT exit has a site").1 as usize;
+                st.left_kinds[kind].set(st.left_kinds[kind].get() + 1);
+            }
+        }
+    }
+}
+
+/// The block's own module: whole, resumed or as a retained hardware loop.
+#[allow(clippy::too_many_arguments)]
+#[inline(always)]
+unsafe fn run_block_body<B: Bus>(cc: &CodeCache, code: u32, cpu: &mut Cpu, bus: &mut B, h: &Helpers, budget: u32, entry: u32, tlb: *const TlbEntry, versions: *mut u32) -> u32 {
+    type Run<B> =
+        extern "C" fn(*mut Cpu, *mut B, *const Helpers, u32, u32, *const TlbEntry, *mut u32) -> u32;
+    // SAFETY: host_jit_compile installs exactly this signature in the shared WASM table.
+    let f: Run<B> = unsafe { std::mem::transmute(cc.blocks[code as usize].slot.get() as usize) };
+    let b = &cc.blocks[code as usize];
     let looping = loop_len(cc, code, cpu);
     let initial_lcount = cpu.lcount;
     let result = if looping.is_some() {
@@ -491,11 +684,11 @@ pub unsafe fn run<B: Bus>(
         f(cpu, bus, h, budget.min(0xffff), entry, tlb, versions)
     };
     let done = result & 0xffff;
+    // LCOUNT changes only at the admitted hardware backedge. Subtract repeated
+    // prefixes to locate both the last retired instruction and a cut continuation.
+    let repeated = looping.map_or(0, |n| (initial_lcount - cpu.lcount) as usize * n);
+    let offset = (entry + done) as usize - repeated;
     if done > 0 {
-        // LCOUNT changes only at the admitted hardware backedge. Subtract repeated
-        // prefixes when locating the last executed instruction (including slow exits).
-        let repeated = looping.map_or(0, |n| (initial_lcount - cpu.lcount) as usize * n);
-        let offset = (entry + done) as usize - repeated;
         #[cfg(feature = "wasm-jit-profile")]
         if looping.is_some() {
             let retained = initial_lcount - cpu.lcount - u32::from(offset == 0);
@@ -508,9 +701,9 @@ pub unsafe fn run<B: Bus>(
             b.pc, b.instructions.iter().map(|i| i.insn.op).collect::<Vec<_>>(), cpu.lcount));
         bus.note_pc(pc);
     }
-    // Direct memory accesses need no peripheral callbacks. Preserve the last instruction PC
-    // for subsequent bus diagnostics just as the interpreter does.
-    result
+    // Reuse the offset already reconstructed above instead of scanning decoded PCs
+    // again in run_block_inner. Regions never return CODE_CUT.
+    if result >> 16 == CODE_CUT { result | ((offset as u32) << 19) } else { result }
 }
 
 #[path = "wasm_emit.rs"]
