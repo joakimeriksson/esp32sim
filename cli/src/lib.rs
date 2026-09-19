@@ -353,8 +353,7 @@ fn prepare<S: Soc>(m: &mut Machine<S>, o: &Opts) -> String {
     for p in &o.elfs { m.add_symbols(&std::fs::read(p).expect("elf")).expect("elf symbols"); }
     if let Some(s) = &o.serial { m.bus.serial_input(s.as_bytes()); }
     for pre in &o.trace_fns {
-        let mut n = 0;
-        for (&a, name) in m.symbols.clone().iter() { if name.starts_with(pre.as_str()) || (pre.ends_with('$') && name == &pre[..pre.len() - 1]) { m.fn_probes.insert(a, name.clone()); n += 1; } }
+        let n = m.trace_fns(pre);
         eprintln!("[emu] --trace-fn {}: {} functions", pre, n);
     }
     for st in &o.stubs {

@@ -141,8 +141,9 @@ change), `--coverage[-file]` (block starts per function), `--irq-latency` (raise
 line), `--vcd` (GPIO edges and interrupt lines as a waveform). These two use ordinary `TRAP`
 callbacks and retain block execution. `TRAP` receives the run-entry PC and post-trap CPU state;
 `TRAP_PC` requests exact instruction attribution, at a throughput cost. Only `INSN` observers
-force the single-step hooks, and only those that say `NO_IDLE_SKIP` change emulated timing — `--profile` does,
-`--break` does not, exactly as before. A `CostModel` (`Machine::set_cost_model`) switches the
+force the single-step hooks, and only those that say `NO_IDLE_SKIP` change emulated timing.
+Both `--profile` and `--break` request it; breakpoints must inspect a sleeping core's current PC.
+A `CostModel` (`Machine::set_cost_model`) switches the
 machine to a per-event path that records the conceptual fetch, CPU bus accesses, control event,
 trap timing and next pc. The model may refuse any event it cannot price.
 

@@ -557,8 +557,11 @@ impl<S: Soc> Machine<S> {
             } else {
                 // A sleeping peer's local timer bounds the entire round. Advancing only that
                 // peer by a shorter interval would leave its CCOUNT behind shared device time.
-                self.cores.iter().zip(&on).filter(|(_, enabled)| **enabled)
-                    .filter_map(|(core, _)| core.cycles_until_wake())
+                // Use the round-entry idle snapshot: a busy core that reached WAITI in a
+                // partial virtual round has already advanced by resume_at. Its remaining
+                // timer delta cannot shorten that original round, which must match VQ-off.
+                self.cores.iter().enumerate().filter(|(i, _)| on[*i] && idle[*i])
+                    .filter_map(|(_, core)| core.cycles_until_wake())
                     .fold(self.quantum, |limit, wake| limit.min(wake.max(1)))
             };
             let elapsed = quantum * u64::from(cpi);

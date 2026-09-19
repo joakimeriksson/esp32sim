@@ -58,4 +58,17 @@ impl<S: Soc> Machine<S> {
             u32::from_str_radix(name.strip_prefix("0x").unwrap_or(name), 16).ok()
         })
     }
+
+    /// Trace every symbol with this prefix, or one exact name when suffixed with `$`.
+    pub fn trace_fns(&mut self, pattern: &str) -> usize {
+        let exact = pattern.strip_suffix('$');
+        let mut matched = 0;
+        for (&addr, name) in &self.symbols {
+            if exact.map_or_else(|| name.starts_with(pattern), |exact| name == exact) {
+                self.fn_probes.insert(addr, name.clone());
+                matched += 1;
+            }
+        }
+        matched
+    }
 }

@@ -1,6 +1,18 @@
 use super::*;
 
 #[test]
+fn function_trace_patterns_share_prefix_and_exact_matching() {
+    let mut m = esp32c6::machine([0; 6], 4 << 20);
+    m.symbols.extend([(1, "foo".into()), (2, "foobar".into()), (3, "other".into())]);
+    assert_eq!(m.trace_fns("foo"), 2);
+    assert_eq!(m.fn_probes.keys().copied().collect::<Vec<_>>(), [1, 2]);
+    m.fn_probes.clear();
+    assert_eq!(m.trace_fns("foo$"), 1);
+    assert_eq!(m.fn_probes.keys().copied().collect::<Vec<_>>(), [1]);
+    assert_eq!(m.trace_fns("missing$"), 0);
+}
+
+#[test]
 fn stub_values_are_explicit() {
     for (spec, expected) in [("func", 0), ("func=0", 0), ("func=true", 1), ("func=false", 0), ("func=42", 42), ("func=0x2a", 42)] {
         assert_eq!(stub_spec(spec), Ok(("func", expected)));

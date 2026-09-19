@@ -44,7 +44,7 @@ fn custom_pie_slots_load_and_store_float_registers() {
 
 fn lanes(values: [i16; 8]) -> u128 {
     let mut bytes = [0; 16];
-    for (lane, value) in bytes.chunks_exact_mut(2).zip(values) { lane.copy_from_slice(&value.to_le_bytes()); }
+    for (lane, value) in bytes.as_chunks_mut::<2>().0.iter_mut().zip(values) { lane.copy_from_slice(&value.to_le_bytes()); }
     u128::from_le_bytes(bytes)
 }
 
