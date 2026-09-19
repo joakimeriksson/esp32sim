@@ -308,13 +308,15 @@ impl Ieee802154 {
         if self.promiscuous() { return true; }
         if h.frame_type == 2 { return false; }                       // an ACK we are not waiting for
         let mine = self.addresses();
-        let pan_ok = |pan: u16| pan == 0xffff || mine.iter().any(|m| m.0 == pan || m.0 == 0xffff);
+        // The PAN and destination address must match the same enabled multipan entry.
+        let pan_ok = |pan: u16, own_pan: u16| pan == 0xffff || own_pan == pan || own_pan == 0xffff;
         match (h.dst_pan, h.dst_short, h.dst_ext) {
-            (Some(pan), Some(short), _) => pan_ok(pan) && (short == 0xffff || mine.iter().any(|m| m.1 == short)),
-            (Some(pan), _, Some(ext)) => pan_ok(pan) && mine.iter().any(|m| m.2 == ext),
+            (Some(pan), Some(0xffff), _) => pan == 0xffff || mine.iter().any(|m| pan_ok(pan, m.0)),
+            (Some(pan), Some(short), _) => mine.iter().any(|m| pan_ok(pan, m.0) && m.1 == short),
+            (Some(pan), _, Some(ext)) => mine.iter().any(|m| pan_ok(pan, m.0) && m.2 == ext),
             _ => match h.src_pan {
-                Some(pan) if h.frame_type == 0 => pan_ok(pan),
-                Some(pan) => self.conf(CONF_COORDINATOR) && pan_ok(pan),
+                Some(pan) if h.frame_type == 0 => pan == 0xffff || mine.iter().any(|m| pan_ok(pan, m.0)),
+                Some(pan) => self.conf(CONF_COORDINATOR) && (pan == 0xffff || mine.iter().any(|m| pan_ok(pan, m.0))),
                 None => false,
             },
         }
@@ -786,6 +788,30 @@ mod tests {
         let mut r = armed_rx(); r.write(0x68, 0);
         assert!(!r.receive(&other_pan, -60, 200, None));
         assert_eq!(r.events & EVENT_RX_ABORT, 0);
+    }
+
+    #[test]
+    fn multipan_matches_pan_and_address_in_the_same_entry() {
+        let mut r = Ieee802154::new();
+        r.write(0x04, 3 << 28);
+        let entries = [(0xaaaa, 1, [0x11; 8]), (0xbbbb, 2, [0x22; 8])];
+        for (i, &(pan, short, ext)) in entries.iter().enumerate() {
+            let base = 0x08 + 0x10 * i as u32;
+            r.write(base, short); r.write(base + 4, pan);
+            r.write(base + 8, u32::from_le_bytes(ext[..4].try_into().unwrap()));
+            r.write(base + 12, u32::from_le_bytes(ext[4..].try_into().unwrap()));
+        }
+        for &(pan, short, ext) in &entries {
+            for dst_pan in [pan as u16, 0xffff] {
+                let h = MacHeader { frame_type: 1, dst_pan: Some(dst_pan), dst_short: Some(short as u16), ..Default::default() };
+                assert!(r.accepts(&h));
+                assert!(r.accepts(&MacHeader { dst_short: None, dst_ext: Some(ext), ..h }));
+            }
+            let other_pan = if pan == 0xaaaa { 0xbbbb } else { 0xaaaa };
+            let h = MacHeader { frame_type: 1, dst_pan: Some(other_pan), dst_short: Some(short as u16), ..Default::default() };
+            assert!(!r.accepts(&h), "PAN and short address must match one entry");
+            assert!(!r.accepts(&MacHeader { dst_short: None, dst_ext: Some(ext), ..h }), "PAN and extended address must match one entry");
+        }
     }
 
     /// A received AR frame passing the filter is acknowledged by hardware: RX_DONE, then the ACK

@@ -41,16 +41,7 @@ pub mod src {
 /// cleared by writing CPU_INT_CLEAR.
 pub struct Intc {
     pub map: [u32; src::COUNT],
-    pub enable: u32,
-    pub int_type: u32,
-    pub pri: [u32; 32],
-    pub thresh: u32,
-    /// latched edge-triggered lines
-    pub edge_pending: u32,
-    /// level lines asserted right now, recomputed when a source changes
-    pub level: u32,
-    /// all mapped lines asserted last time, for edge detection
-    prev: u32,
+    pub lines: esp_periph::intmtx::Lines,
     ram: RegRam,
 }
 
@@ -58,18 +49,17 @@ impl Default for Intc { fn default() -> Self { Self::new() } }
 
 impl Intc {
     pub fn new() -> Self {
-        Intc { map: [0; src::COUNT], enable: 0, int_type: 0, pri: [0; 32], thresh: 0,
-               edge_pending: 0, level: 0, prev: 0, ram: RegRam::new() }
+        Intc { map: [0; src::COUNT], lines: Default::default(), ram: RegRam::new() }
     }
 
     pub fn read(&self, off: u32) -> u32 {
         match off {
             0x000..=0x0f8 => self.map.get((off / 4) as usize).copied().unwrap_or(0),
-            0x104 => self.enable,
-            0x108 => self.int_type,
-            0x110 => self.level | self.edge_pending,     // EIP_STATUS: raw source state
-            0x114..=0x190 => self.pri[((off - 0x114) / 4) as usize],
-            0x194 => self.thresh,
+            0x104 => self.lines.enable,
+            0x108 => self.lines.int_type,
+            0x110 => self.lines.level | self.lines.edge_pending,     // EIP_STATUS: raw source state
+            0x114..=0x190 => self.lines.pri[((off - 0x114) / 4) as usize],
+            0x194 => self.lines.thresh,
             _ => self.ram.read(off),
         }
     }
@@ -77,42 +67,13 @@ impl Intc {
     pub fn write(&mut self, off: u32, v: u32) {
         match off {
             0x000..=0x0f8 => { if let Some(m) = self.map.get_mut((off / 4) as usize) { *m = v & 0x1f; } }
-            0x104 => self.enable = v,
-            0x108 => self.int_type = v,
-            0x10c => self.edge_pending &= !v,            // CPU_INT_CLEAR
-            0x114..=0x190 => self.pri[((off - 0x114) / 4) as usize] = v & 0xf,
-            0x194 => self.thresh = v & 0xf,
+            0x104 => self.lines.enable = v,
+            0x108 => self.lines.int_type = v,
+            0x10c => self.lines.edge_pending &= !v,            // CPU_INT_CLEAR
+            0x114..=0x190 => self.lines.pri[((off - 0x114) / 4) as usize] = v & 0xf,
+            0x194 => self.lines.thresh = v & 0xf,
             _ => self.ram.write(off, v),
         }
-    }
-
-    /// Recompute line state from the sources that are currently asserted.
-    pub fn update(&mut self, status: &[u32]) {
-        let mut lines = 0u32;
-        for s in 0..src::COUNT {
-            if status[s / 32] & (1 << (s % 32)) == 0 { continue; }
-            let n = self.map[s];
-            if n != 0 { lines |= 1 << n; }
-        }
-        // an edge line latches on the rising edge of its source and stays until CPU_INT_CLEAR
-        self.edge_pending |= lines & !self.prev & self.int_type;
-        self.prev = lines;
-        self.level = lines & !self.int_type;
-    }
-
-    /// The highest-priority line the CPU should take, if any.
-    pub fn pending(&self) -> Option<u32> {
-        let p = (self.level | self.edge_pending) & self.enable & !1;
-        if p == 0 { return None; }
-        // "interrupts with priority levels lower than the threshold are masked" — so a line at
-        // exactly the threshold fires, which is what IDF relies on (it enables with thresh = 1
-        // and allocates handlers at priority 1).
-        let (mut best, mut best_pri) = (None, 0);
-        for n in 1..32 {
-            let pri = self.pri[n];
-            if p & (1 << n) != 0 && pri >= self.thresh && pri > best_pri { best_pri = pri; best = Some(n as u32); }
-        }
-        best
     }
 }
 
@@ -237,7 +198,7 @@ impl Peripherals {
     pub fn new(mac: [u8; 6]) -> Self {
         Peripherals {
             uart: [Uart::new(UartLayout::C3), Uart::new(UartLayout::C3)], usb: UsbSerialJtag::new(CPU_HZ), systimer: Systimer::new(),
-            timg: [TimerGroup::new(), TimerGroup::new()], gpio: Gpio::new(), rtc: RtcCntl::new(),
+            timg: [TimerGroup::new(), TimerGroup::new()], gpio: Gpio::new(), rtc: RtcCntl::new_c3(),
             efuse: efuse_c3(mac, 0, 4, 3), system: SystemRegs::new(0x28), extmem: Extmem::new(), intc: Intc::new(),
             spi0: { let mut s = SpiMem::new(false); s.has_psram = false; s },
             spi1: { let mut s = SpiMem::new(true); s.has_psram = false; s },   // the C3 has no PSRAM
@@ -282,7 +243,7 @@ impl Peripherals {
         let st = self.source_status();
         let changed = st != self.last_status;
         self.last_status = st;
-        self.intc.update(&st);
+        self.intc.lines.update(&self.intc.map, &st);
         changed
     }
 }

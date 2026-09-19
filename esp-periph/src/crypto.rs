@@ -1,7 +1,5 @@
-//! The small crypto primitives the WPA2 four-way handshake needs, implemented here so the emulator
-//! stays dependency-free: SHA-1, HMAC-SHA1, PBKDF2, the 802.11 PRF and AES-128 key wrap (RFC 3394).
-//! Only the access-point side of the handshake uses them; bulk data stays in the clear because the
-//! emulated MAC does no CCMP (as far as firmware is concerned the hardware did it).
+//! Dependency-free crypto primitives shared by the register-level accelerators and the virtual AP.
+//! The AP uses SHA-1, HMAC-SHA1, PBKDF2, the 802.11 PRF and AES key wrap for its WPA2 handshake.
 
 pub fn sha1(data: &[u8]) -> [u8; 20] {
     let mut h: [u32; 5] = [0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476, 0xC3D2E1F0];
@@ -11,26 +9,32 @@ pub fn sha1(data: &[u8]) -> [u8; 20] {
     while msg.len() % 64 != 56 { msg.push(0); }
     msg.extend_from_slice(&bits.to_be_bytes());
     for block in msg.chunks(64) {
-        let mut w = [0u32; 80];
+        let mut w = [0u32; 16];
         for i in 0..16 { w[i] = u32::from_be_bytes([block[4 * i], block[4 * i + 1], block[4 * i + 2], block[4 * i + 3]]); }
-        for i in 16..80 { w[i] = (w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16]).rotate_left(1); }
-        let (mut a, mut b, mut c, mut d, mut e) = (h[0], h[1], h[2], h[3], h[4]);
-        for (i, &wi) in w.iter().enumerate() {
-            let (f, k) = match i {
-                0..=19 => ((b & c) | ((!b) & d), 0x5A827999u32),
-                20..=39 => (b ^ c ^ d, 0x6ED9EBA1),
-                40..=59 => ((b & c) | (b & d) | (c & d), 0x8F1BBCDC),
-                _ => (b ^ c ^ d, 0xCA62C1D6),
-            };
-            let t = a.rotate_left(5).wrapping_add(f).wrapping_add(e).wrapping_add(k).wrapping_add(wi);
-            e = d; d = c; c = b.rotate_left(30); b = a; a = t;
-        }
-        h[0] = h[0].wrapping_add(a); h[1] = h[1].wrapping_add(b); h[2] = h[2].wrapping_add(c);
-        h[3] = h[3].wrapping_add(d); h[4] = h[4].wrapping_add(e);
+        sha1_block(&mut h, &w);
     }
     let mut out = [0u8; 20];
     for i in 0..5 { out[4 * i..4 * i + 4].copy_from_slice(&h[i].to_be_bytes()); }
     out
+}
+
+/// Compress one block into the first five state words (the hardware exposes a larger register bank).
+pub(crate) fn sha1_block(h: &mut [u32], w0: &[u32; 16]) {
+    let mut w = [0u32; 80];
+    w[..16].copy_from_slice(w0);
+    for i in 16..80 { w[i] = (w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16]).rotate_left(1); }
+    let (mut a, mut b, mut c, mut d, mut e) = (h[0], h[1], h[2], h[3], h[4]);
+    for (i, &wi) in w.iter().enumerate() {
+        let (f, k) = match i {
+            0..=19 => ((b & c) | (!b & d), 0x5A827999),
+            20..=39 => (b ^ c ^ d, 0x6ED9EBA1),
+            40..=59 => ((b & c) | (b & d) | (c & d), 0x8F1BBCDC),
+            _ => (b ^ c ^ d, 0xCA62C1D6),
+        };
+        let t = a.rotate_left(5).wrapping_add(f).wrapping_add(e).wrapping_add(k).wrapping_add(wi);
+        e = d; d = c; c = b.rotate_left(30); b = a; a = t;
+    }
+    for (word, v) in h.iter_mut().zip([a, b, c, d, e]) { *word = word.wrapping_add(v); }
 }
 
 pub fn hmac_sha1(key: &[u8], data: &[u8]) -> [u8; 20] {
@@ -79,7 +83,7 @@ pub fn prf(key: &[u8], label: &str, data: &[u8], bits: usize) -> Vec<u8> {
     out
 }
 
-// ------------------------------------------------------------------ AES-128 (encrypt only)
+// ------------------------------------------------------------------ AES
 
 const SBOX: [u8; 256] = [
     0x63,0x7c,0x77,0x7b,0xf2,0x6b,0x6f,0xc5,0x30,0x01,0x67,0x2b,0xfe,0xd7,0xab,0x76,
@@ -101,23 +105,7 @@ const SBOX: [u8; 256] = [
 
 fn xtime(b: u8) -> u8 { (b << 1) ^ if b & 0x80 != 0 { 0x1b } else { 0 } }
 
-fn expand_key(key: &[u8; 16]) -> [[u8; 16]; 11] {
-    let mut rk = [[0u8; 16]; 11];
-    rk[0].copy_from_slice(key);
-    let mut rcon = 1u8;
-    for r in 1..11 {
-        let prev = rk[r - 1];
-        let mut t = [prev[13], prev[14], prev[15], prev[12]];
-        for b in t.iter_mut() { *b = SBOX[*b as usize]; }
-        t[0] ^= rcon;
-        rcon = xtime(rcon);
-        for i in 0..4 { rk[r][i] = prev[i] ^ t[i]; }
-        for i in 4..16 { rk[r][i] = prev[i] ^ rk[r][i - 4]; }
-    }
-    rk
-}
-
-/// Inverse S-box, derived once from the forward one.
+/// Inverse S-box, derived from the forward one.
 fn inv_sbox() -> [u8; 256] { let mut t = [0u8; 256]; for i in 0..256 { t[SBOX[i] as usize] = i as u8; } t }
 fn mul(a: u8, b: u8) -> u8 {
     let (mut a, mut b, mut r) = (a, b, 0u8);
@@ -127,10 +115,11 @@ fn mul(a: u8, b: u8) -> u8 {
 
 /// AES with any legal key length, both directions — what the ESP32-S3 AES accelerator provides.
 pub fn aes_block(key: &[u8], block: &[u8; 16], decrypt: bool) -> [u8; 16] {
+    assert!(matches!(key.len(), 16 | 24 | 32), "invalid AES key length");
     let nk = key.len() / 4;
     let nr = nk + 6;
     // key expansion
-    let mut w = vec![[0u8; 4]; 4 * (nr + 1)];
+    let mut w = [[0u8; 4]; 60]; // AES-256 has the largest schedule: 15 round keys of four words.
     for i in 0..nk { w[i].copy_from_slice(&key[4 * i..4 * i + 4]); }
     let mut rcon = 1u8;
     for i in nk..4 * (nr + 1) {
@@ -148,7 +137,6 @@ pub fn aes_block(key: &[u8], block: &[u8; 16], decrypt: bool) -> [u8; 16] {
         for c in 0..4 { k[4 * c..4 * c + 4].copy_from_slice(&w[4 * round + c]); }
         k
     };
-    let inv = inv_sbox();
     let mut s = *block;
     if !decrypt {
         let k = rk(0); for i in 0..16 { s[i] ^= k[i]; }
@@ -165,6 +153,7 @@ pub fn aes_block(key: &[u8], block: &[u8; 16], decrypt: bool) -> [u8; 16] {
             let k = rk(round); for i in 0..16 { s[i] ^= k[i]; }
         }
     } else {
+        let inv = inv_sbox();
         let k = rk(nr); for i in 0..16 { s[i] ^= k[i]; }
         for round in (0..nr).rev() {
             let t = s; for c in 0..4 { for r in 0..4 { s[4 * ((c + r) % 4) + r] = t[4 * c + r]; } }   // InvShiftRows
@@ -185,24 +174,7 @@ pub fn aes_block(key: &[u8], block: &[u8; 16], decrypt: bool) -> [u8; 16] {
 }
 
 pub fn aes128_encrypt_block(key: &[u8; 16], block: &[u8; 16]) -> [u8; 16] {
-    let rk = expand_key(key);
-    let mut s = *block;
-    for i in 0..16 { s[i] ^= rk[0][i]; }
-    for (round, key) in rk.iter().enumerate().skip(1) {
-        for b in s.iter_mut() { *b = SBOX[*b as usize]; }
-        // ShiftRows (column-major state: byte i is row i%4, column i/4)
-        let t = s;
-        for c in 0..4 { for r in 0..4 { s[4 * c + r] = t[4 * ((c + r) % 4) + r]; } }
-        if round != 10 {
-            for c in 0..4 {
-                let col = [s[4 * c], s[4 * c + 1], s[4 * c + 2], s[4 * c + 3]];
-                let x = col[0] ^ col[1] ^ col[2] ^ col[3];
-                for r in 0..4 { s[4 * c + r] = col[r] ^ x ^ xtime(col[r] ^ col[(r + 1) % 4]); }
-            }
-        }
-        for i in 0..16 { s[i] ^= key[i]; }
-    }
-    s
+    aes_block(key, block, false)
 }
 
 /// AES key wrap (RFC 3394) — how the GTK travels inside message 3 of the handshake.

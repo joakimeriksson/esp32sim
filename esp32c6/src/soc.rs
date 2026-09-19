@@ -29,7 +29,7 @@ impl Soc for C6 {
         c.pc = entry;
         c.x[2] = 0x4087_E000;                 // a stack the bootloader would have left us
     }
-    fn irqs(bus: &SocBus, out: &mut [Option<u32>]) { out[0] = bus.periph.intc.pending(); }
+    fn irqs(bus: &SocBus, out: &mut [Option<u32>]) { out[0] = bus.periph.intc.lines.pending(); }
 }
 
 impl esp_soc::SocBus for SocBus {
@@ -48,7 +48,8 @@ impl esp_soc::SocBus for SocBus {
     /// the system registers the bootloader would have set up are not preset, so this is a
     /// shortcut for firmware that does not depend on them.
     fn boot_app(&mut self, app_off: usize) -> Result<u32, String> {
-        let img = esp_soc::image::parse(&self.flash[app_off..])?;
+        let image = self.flash.get(app_off..).ok_or("app offset beyond flash")?;
+        let img = esp_soc::image::parse(image)?;
         let shift = self.page_shift();
         for s in &img.segments {
             let start = app_off + s.file_off as usize;
@@ -59,11 +60,14 @@ impl esp_soc::SocBus for SocBus {
                 if (s.load_addr & mask) != (start as u32 & mask) {
                     return Err(format!("segment {:#x} not page-aligned with flash offset {:#x}", s.load_addr, start));
                 }
+                let window_end = FLASH_LOW + ((MMU_ENTRIES as u32) << shift);
+                if !s.load_addr.checked_add(s.len).is_some_and(|end| end <= window_end) {
+                    return Err("segment beyond the flash window".into());
+                }
                 let first_page = (start as u32) >> shift;
                 let npages = ((s.load_addr & mask) + s.len + mask) >> shift;
                 for i in 0..npages {
                     let idx = (((s.load_addr - FLASH_LOW) >> shift) + i) as usize;
-                    if idx >= MMU_ENTRIES { return Err("segment beyond the flash window".into()); }
                     self.mmu[idx] = MMU_VALID | ((first_page + i) & 0x1ff);
                 }
             } else {
@@ -100,14 +104,23 @@ impl esp_soc::SocBus for SocBus {
     fn reset_cause(&self) -> u32 { self.periph.lpsys.reset_cause }
     fn last_fault(&self) -> Option<(u32, bool)> { self.last_fault }
     fn console_take(&mut self) -> [Vec<u8>; 4] { [std::mem::take(&mut self.periph.usb.tx_out), std::mem::take(&mut self.periph.uart[0].tx_out), std::mem::take(&mut self.periph.uart[1].tx_out), Vec::new()] }
-    fn serial_input(&mut self, data: &[u8]) { self.periph.usb.host_input(data); }
+    fn serial_input(&mut self, data: &[u8]) {
+        let before = self.periph.usb.irq();
+        self.periph.usb.host_input(data);
+        self.irq_dirty |= before != self.periph.usb.irq();
+    }
     fn uart_input(&mut self, n: usize, data: &[u8]) {
         let Some(u) = self.periph.uart.get_mut(n) else { return };
         let before = u.irq();
         u.host_input(data);
         self.irq_dirty |= before != u.irq();
     }
-    fn gpio_set_input(&mut self, pin: u8, level: bool) { self.periph.gpio.set_input(pin, level); if let Some(ev) = &mut self.gpio_events { ev.push((self.cycles, pin, level)); } }
+    fn gpio_set_input(&mut self, pin: u8, level: bool) {
+        let before = self.periph.gpio.input;
+        self.periph.gpio.set_input(pin, level);
+        self.irq_dirty |= before != self.periph.gpio.input;
+        if let Some(ev) = &mut self.gpio_events { ev.push((self.cycles, pin, level)); }
+    }
     fn set_flash_size(&mut self, bytes: usize) {
         self.flash = vec![0xff; bytes];
         let cap = bytes.trailing_zeros() as u8; self.periph.spi1.0.jedec[2] = cap; self.periph.spi0.0.jedec[2] = cap;
