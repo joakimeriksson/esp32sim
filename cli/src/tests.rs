@@ -5,7 +5,9 @@ fn function_trace_patterns_share_prefix_and_exact_matching() {
     let mut m = esp32c6::machine([0; 6], 4 << 20);
     m.symbols.extend([(1, "foo".into()), (2, "foobar".into()), (3, "other".into())]);
     assert_eq!(m.trace_fns("foo"), 2);
-    assert_eq!(m.fn_probes.keys().copied().collect::<Vec<_>>(), [1, 2]);
+    assert_eq!(m.fn_probes.len(), 2);
+    assert!(m.fn_probes.contains_key(&1));
+    assert!(m.fn_probes.contains_key(&2));
     m.fn_probes.clear();
     assert_eq!(m.trace_fns("foo$"), 1);
     assert_eq!(m.fn_probes.keys().copied().collect::<Vec<_>>(), [1]);
