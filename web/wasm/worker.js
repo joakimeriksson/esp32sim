@@ -150,8 +150,12 @@ onmessage = async (ev) => {
       netNodes = 0;
       for (const node of m.nodes) {
         const mac = (node.mac || '02:00:00:00:00:0' + (netNodes + 1)).split(':').map(h => parseInt(h, 16));
-        withBytes(new Uint8Array(mac), (mp) => withBytes(enc.encode(node.board || m.board || 'none'),
+        const added = withBytes(new Uint8Array(mac), (mp) => withBytes(enc.encode(node.board || m.board || 'none'),
           (bp, bn) => wasm.esp32sim_net_add(net, mp, node.flash_mb || m.flash_mb || 2, (node.start_ms || 0) * 1e6, node.x || 0, node.y || 0, bp, bn)));
+        if ((added >>> 0) === 0xffffffff) {
+          wasm.esp32sim_net_delete(net); net = 0; netNodes = 0;
+          break;
+        }
         netNodes++;
       }
       postMessage({ created: net !== 0, nodes: netNodes });

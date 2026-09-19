@@ -5,9 +5,9 @@ import { runInNewContext } from 'node:vm';
 import { createPacing } from '../web/wasm/pacing.mjs';
 
 const source = (await readFile(new URL('../web/wasm/worker.js', import.meta.url), 'utf8')).replace(/^import .*;\n/gm, '');
-async function harness(cost = 0) {
+async function harness(cost = 0, additions = []) {
   let wall = 0, cycles = 0, input = 0, frame = null, immediate = 0;
-  const timers = [], messages = [], channels = [], runs = [];
+  const timers = [], messages = [], channels = [], runs = [], deletedNetworks = [];
   let delivered;
   // Native ports dispatch the actual worker continuation asynchronously. Only the clock
   // and timers are controlled, so assertions do not depend on host machine speed.
@@ -23,7 +23,8 @@ async function harness(cost = 0) {
     memory: new WebAssembly.Memory({ initial: 1 }),
     esp32sim_alloc: () => 128, esp32sim_free() {}, esp32sim_new: () => 1,
     esp32sim_delete() {}, esp32sim_set_jit() {}, esp32sim_boot: () => 0,
-    esp32sim_net_new: () => 2, esp32sim_net_delete() {},
+    esp32sim_net_new: () => 2, esp32sim_net_delete(net) { deletedNetworks.push(net); },
+    esp32sim_net_add: () => additions.shift() ?? 0,
     esp32sim_cpu_hz: () => 240e6, esp32sim_cycles: () => cycles,
     esp32sim_insns: () => cycles, esp32sim_in_text() { input++; },
     esp32sim_run(_emu, amount) { runs.push({ amount, input }); cycles += amount; wall += amount * cost; return 0; },
@@ -43,7 +44,7 @@ async function harness(cost = 0) {
   const send = data => context.onmessage({ data });
   await send({ op: 'init' }); await send({ op: 'create', board: 'test' });
   return {
-    send, timers, messages, runs, get immediate() { return immediate; },
+    send, timers, messages, runs, deletedNetworks, get immediate() { return immediate; },
     setWall(value) { wall = value; }, get wall() { return wall; },
     nextMessage() { return new Promise(resolve => { delivered = resolve; }); },
     frame(id) { frame = id; runInNewContext('drain()', context); },
@@ -127,4 +128,13 @@ for (const op of ['create', 'net-create']) {
     assert.equal(new Uint8Array(h.messages.findLast(m => m.bin).bin)[1], 55, 'remaining old ACK releases exactly one slot');
   } finally { h.close(); }
 }
-console.log('worker native-channel, consumer ACK and replacement tests passed');
+for (const failure of [-1, 0xffffffff]) {
+  const h = await harness(0, [0, failure]);
+  try {
+    await h.send({ op: 'net-create', nodes: [{}, { flash_mb: 4096 }] });
+    assert.equal(h.messages.at(-1).created, false, 'partial network creation reports failure');
+    assert.equal(h.messages.at(-1).nodes, 0, 'no missing node is reported as created');
+    assert.deepEqual(h.deletedNetworks, [2], 'failed creation releases the entire partial network');
+  } finally { h.close(); }
+}
+console.log('worker native-channel, consumer ACK, replacement and network failure tests passed');

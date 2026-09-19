@@ -34,108 +34,20 @@ pub const NS_DEN: u64 = 4;
 /// looked at this often while the guest is busy (an idle guest prints nothing, and its skips
 /// are not cut). 20 µs is ~3200 instructions, shorter than one ISR log line takes to print.
 pub const LOG_STEP_NS: u64 = 20_000;
-pub fn ns_of_cycle(c: u64) -> u64 { c * NS_NUM / NS_DEN }
+pub fn ns_of_cycle(c: u64) -> u64 { ((c as u128 * NS_NUM as u128 / NS_DEN as u128).min(u64::MAX as u128)) as u64 }
+fn ns_after_cycle(c: u64) -> u64 { ns_of_cycle(c).saturating_add(u64::from(!c.is_multiple_of(NS_DEN))) }
 /// The first cycle at or after `ns`.
-pub fn cycle_of_ns(ns: u64) -> u64 { (ns * NS_DEN).div_ceil(NS_NUM) }
+pub fn cycle_of_ns(ns: u64) -> u64 { (ns as u128 * NS_DEN as u128).div_ceil(NS_NUM as u128) as u64 }
 
-// ------------------------------------------------------------------ JSON, enough for NDJSON
-#[derive(Clone, Debug, PartialEq)]
-pub enum Json { Null, Bool(bool), Int(i64), Float(f64), Str(String), Arr(Vec<Json>), Obj(Vec<(String, Json)>) }
-impl Json {
-    pub fn get(&self, key: &str) -> Option<&Json> { match self { Json::Obj(m) => m.iter().find(|(k, _)| k == key).map(|(_, v)| v), _ => None } }
-    pub fn as_i64(&self) -> Option<i64> { match self { Json::Int(i) => Some(*i), Json::Float(f) => Some(*f as i64), _ => None } }
-    pub fn as_f64(&self) -> Option<f64> { match self { Json::Int(i) => Some(*i as f64), Json::Float(f) => Some(*f), _ => None } }
-    pub fn as_str(&self) -> Option<&str> { match self { Json::Str(s) => Some(s), _ => None } }
-    pub fn as_arr(&self) -> Option<&[Json]> { match self { Json::Arr(a) => Some(a), _ => None } }
-    pub fn i64_or(&self, key: &str, dflt: i64) -> i64 { self.get(key).and_then(|v| v.as_i64()).unwrap_or(dflt) }
-    pub fn str_or<'a>(&'a self, key: &str, dflt: &'a str) -> &'a str { self.get(key).and_then(|v| v.as_str()).unwrap_or(dflt) }
-}
-
-struct Parser<'a> { s: &'a [u8], i: usize }
-impl<'a> Parser<'a> {
-    fn ws(&mut self) { while self.i < self.s.len() && matches!(self.s[self.i], b' ' | b'\t' | b'\r' | b'\n') { self.i += 1; } }
-    fn peek(&self) -> Option<u8> { self.s.get(self.i).copied() }
-    fn expect(&mut self, c: u8) -> Result<(), String> { if self.peek() == Some(c) { self.i += 1; Ok(()) } else { Err(format!("expected '{}' at {}", c as char, self.i)) } }
-    fn value(&mut self) -> Result<Json, String> {
-        self.ws();
-        match self.peek() {
-            None => Err("unexpected end".into()),
-            Some(b'{') => {
-                self.i += 1; let mut m = Vec::new();
-                loop {
-                    self.ws();
-                    if self.peek() == Some(b'}') { self.i += 1; break; }
-                    let k = self.string()?; self.ws(); self.expect(b':')?;
-                    let v = self.value()?; m.push((k, v)); self.ws();
-                    match self.peek() { Some(b',') => self.i += 1, Some(b'}') => { self.i += 1; break; } _ => return Err(format!("bad object at {}", self.i)) }
-                }
-                Ok(Json::Obj(m))
-            }
-            Some(b'[') => {
-                self.i += 1; let mut a = Vec::new();
-                loop {
-                    self.ws();
-                    if self.peek() == Some(b']') { self.i += 1; break; }
-                    a.push(self.value()?); self.ws();
-                    match self.peek() { Some(b',') => self.i += 1, Some(b']') => { self.i += 1; break; } _ => return Err(format!("bad array at {}", self.i)) }
-                }
-                Ok(Json::Arr(a))
-            }
-            Some(b'"') => Ok(Json::Str(self.string()?)),
-            Some(b't') => self.lit("true", Json::Bool(true)),
-            Some(b'f') => self.lit("false", Json::Bool(false)),
-            Some(b'n') => self.lit("null", Json::Null),
-            Some(_) => self.number(),
-        }
-    }
-    fn lit(&mut self, word: &str, v: Json) -> Result<Json, String> {
-        if self.s[self.i..].starts_with(word.as_bytes()) { self.i += word.len(); Ok(v) } else { Err(format!("bad literal at {}", self.i)) }
-    }
-    fn number(&mut self) -> Result<Json, String> {
-        let start = self.i;
-        while self.i < self.s.len() && matches!(self.s[self.i], b'0'..=b'9' | b'-' | b'+' | b'.' | b'e' | b'E') { self.i += 1; }
-        let txt = std::str::from_utf8(&self.s[start..self.i]).map_err(|e| e.to_string())?;
-        if txt.is_empty() { return Err(format!("bad value at {}", start)); }
-        if let Ok(i) = txt.parse::<i64>() { return Ok(Json::Int(i)); }
-        txt.parse::<f64>().map(Json::Float).map_err(|_| format!("bad number {:?}", txt))
-    }
-    fn string(&mut self) -> Result<String, String> {
-        self.expect(b'"')?;
-        let mut out = Vec::new();
-        loop {
-            let Some(c) = self.peek() else { return Err("unterminated string".into()) };
-            self.i += 1;
-            match c {
-                b'"' => break,
-                b'\\' => {
-                    let Some(e) = self.peek() else { return Err("bad escape".into()) };
-                    self.i += 1;
-                    match e {
-                        b'n' => out.push(b'\n'), b't' => out.push(b'\t'), b'r' => out.push(b'\r'), b'b' => out.push(8), b'f' => out.push(12),
-                        b'u' => {
-                            let hex = std::str::from_utf8(self.s.get(self.i..self.i + 4).ok_or("bad \\u")?).map_err(|e| e.to_string())?;
-                            let cp = u32::from_str_radix(hex, 16).map_err(|e| e.to_string())?; self.i += 4;
-                            let mut buf = [0u8; 4]; out.extend_from_slice(char::from_u32(cp).unwrap_or('\u{fffd}').encode_utf8(&mut buf).as_bytes());
-                        }
-                        x => out.push(x),
-                    }
-                }
-                x => out.push(x),
-            }
-        }
-        String::from_utf8(out).map_err(|e| e.to_string())
-    }
-}
-pub fn parse_json(line: &str) -> Result<Json, String> {
-    let mut p = Parser { s: line.as_bytes(), i: 0 };
-    let v = p.value()?; p.ws();
-    if p.i != p.s.len() { return Err(format!("trailing data at {}", p.i)); }
-    Ok(v)
-}
+pub use esp_soc::json::{parse_json, Json};
 
 fn hex_decode(s: &str) -> Option<Vec<u8>> {
     if !s.len().is_multiple_of(2) { return None; }
-    (0..s.len()).step_by(2).map(|i| u8::from_str_radix(&s[i..i + 2], 16).ok()).collect()
+    s.as_bytes().as_chunks::<2>().0.iter().map(|pair| {
+        let high = char::from(pair[0]).to_digit(16)?;
+        let low = char::from(pair[1]).to_digit(16)?;
+        Some(((high << 4) | low) as u8)
+    }).collect()
 }
 fn hex_encode(b: &[u8]) -> String { b.iter().map(|x| format!("{:02x}", x)).collect() }
 
@@ -157,10 +69,12 @@ pub struct Config {
     pub rx_on_air: bool,
     /// narrate the exchange on stderr
     pub verbose: bool,
+    /// reboot after guest reset requests, matching the CLI's ROM boot policy
+    pub reboot: bool,
 }
 /// 100 µs busy slices: a transmission reaches csim's medium at the end of the slice it started
 /// in, so the slice bounds how late it is. ~5000 exchanges per busy second at ~20 µs each.
-impl Default for Config { fn default() -> Self { Config { slice_ns: 100_000, console_mask: 2, rx_on_air: true, verbose: false } } }
+impl Default for Config { fn default() -> Self { Config { slice_ns: 100_000, console_mask: 2, rx_on_air: true, verbose: false, reboot: true } } }
 
 /// End-of-run figures for the report.
 #[derive(Clone, Debug, Default)]
@@ -252,8 +166,8 @@ impl<'a> Peer<'a> {
             let core = &self.m.cores[0];
             let seg = if core.waiting() && !core.irq_pending() {
                 // asleep: nothing to stamp until a device wakes it, so the segment ends one step after that
-                match self.m.bus.next_deadline() { None => target_ns, Some(dl) => target_ns.min(ns_of_cycle(self.now_cycles() + dl) + LOG_STEP_NS) }
-            } else { target_ns.min(now + LOG_STEP_NS) };
+                match self.m.bus.next_deadline() { None => target_ns, Some(dl) => target_ns.min(ns_of_cycle(self.now_cycles().saturating_add(dl)).saturating_add(LOG_STEP_NS)) }
+            } else { target_ns.min(now.saturating_add(LOG_STEP_NS)) };
             if let Some(t) = self.run_segment(seg) { return Some(t); }
             if self.halted { return None; }
         }
@@ -261,8 +175,12 @@ impl<'a> Peer<'a> {
 
     fn run_segment(&mut self, target_ns: u64) -> Option<u64> {
         if self.halted { return None; }
-        let target = cycle_of_ns(target_ns);
-        match self.m.run_until_cycle(target) {
+        let target = cycle_of_ns(target_ns).min(self.m.max_cycles);
+        let result = self.m.run_until_cycle(target);
+        let result = if matches!(result, RunUntil::Reached) && self.now_cycles() >= self.m.max_cycles {
+            RunUntil::Stop(Stop::Halted)
+        } else { result };
+        match result {
             RunUntil::Reached => { self.drain_console(); self.report_radio(); None }
             RunUntil::Yield => {
                 self.drain_console();
@@ -282,8 +200,8 @@ impl<'a> Peer<'a> {
                     s => format!("{:?}", s),
                 };
                 self.out.push(format!("{{\"type\":\"log\",\"t\":{},\"line\":\"[emu] stop: {}\"}}", t, esp_soc::web::json_escape(&why)));
-                if let Stop::SwReset = stop {
-                    // the guest asked for a reset: honour it, as the normal run loop does — the cycle counter keeps counting
+                if matches!(stop, Stop::SwReset) && self.cfg.reboot && self.now_cycles() < self.m.max_cycles {
+                    // The cycle cap survives reboots, as in the normal run loop.
                     self.m.reboot();
                     eprintln!("[cooja] chip reset at t={} ns: {}", t, why);
                 } else {
@@ -316,14 +234,18 @@ impl<'a> Peer<'a> {
     /// When to be stepped next: the device deadline while asleep, `now + slice` while busy, and
     /// never past an input still held; always after `t`, so csim makes progress.
     fn wake(&self, t: u64) -> Option<u64> {
-        if self.halted { return self.pending.first().map(|i| i.t().max(t + 1)); }
+        if self.halted { return self.pending.first().map(|i| i.t().max(t.saturating_add(1))); }
         let core = &self.m.cores[0];
         let now = self.now_cycles();
         let mut w = if core.waiting() && !core.irq_pending() {
-            self.m.bus.next_deadline().map(|dl| ((now + dl) * NS_NUM).div_ceil(NS_DEN))
-        } else { Some(ns_of_cycle(now) + self.cfg.slice_ns) };
+            self.m.bus.next_deadline().map(|dl| ns_after_cycle(now.saturating_add(dl)))
+        } else { Some(ns_of_cycle(now).saturating_add(self.cfg.slice_ns)) };
+        if self.m.max_cycles != u64::MAX {
+            let cap = ns_after_cycle(self.m.max_cycles);
+            w = Some(w.map_or(cap, |w| w.min(cap)));
+        }
         if let Some(p) = self.pending.first() { w = Some(w.map_or(p.t(), |w| w.min(p.t()))); }
-        w.map(|w| w.max(t + 1))
+        w.map(|w| w.max(t.saturating_add(1)))
     }
 
     fn done(&mut self, output: &mut dyn Write, t: u64, wake: Option<u64>) -> Result<(), String> {
@@ -381,7 +303,7 @@ fn parse_inputs(msg: &Json) -> Vec<Input> {
 /// booted already. Returns the run's figures.
 pub fn run(m: &mut esp32c6::Machine, cfg: Config, hello: &Hello, input: &mut dyn BufRead, output: &mut dyn Write) -> Result<Summary, String> {
     let mut cfg = cfg;
-    if let Some(us) = hello.args.as_ref().and_then(|a| a.get("slice_us")).and_then(|v| v.as_i64()) { if us > 0 { cfg.slice_ns = us as u64 * 1000; } }
+    if let Some(us) = hello.args.as_ref().and_then(|a| a.get("slice_us")).and_then(|v| v.as_i64()) { if us > 0 { cfg.slice_ns = (us as u64).saturating_mul(1000); } }
     m.console.capture = true;
     let mut peer = Peer { m, cfg, pending: Vec::new(), out: Vec::new(), partial: Default::default(), radio_reported: None, summary: Summary::default(), halted: false };
     if peer.cfg.verbose { eprintln!("[cooja] hello: node {} seed {} at ({}, {}), slice {} µs", hello.id, hello.seed, hello.x, hello.y, peer.cfg.slice_ns / 1000); }
@@ -432,6 +354,8 @@ mod tests {
         assert_eq!(ns_of_cycle(160_000_000), 1_000_000_000);
         assert_eq!(cycle_of_ns(1), 1);
         assert_eq!(cycle_of_ns(7), 2);
+        assert_eq!(ns_of_cycle(u64::MAX), u64::MAX);
+        assert_eq!(cycle_of_ns(u64::MAX), 2_951_479_051_793_528_259);
     }
 
     #[test]
@@ -445,7 +369,13 @@ mod tests {
         assert_eq!(m.get("x").unwrap().as_f64(), Some(-150.0));
         assert_eq!(m.str_or("s", ""), "a\"b\\né");
         assert!(parse_json("{\"a\":1} x").is_err());
-        assert!(parse_json("[1,2,]").is_err() || parse_json("[1,2,]").is_ok());
+        assert!(parse_json("[1,2,]").is_err());
+    }
+
+    #[test]
+    fn hex_decode_rejects_non_ascii_without_slicing_utf8() {
+        assert_eq!(hex_decode("41c8FF"), Some(vec![0x41, 0xc8, 0xff]));
+        for text in ["aéa", "é", "abc", "0g", "+1"] { assert_eq!(hex_decode(text), None); }
     }
 
     #[test]

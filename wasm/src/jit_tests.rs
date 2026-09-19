@@ -106,7 +106,7 @@ fn sequential_emulators_reset_timing_state() -> u32 {
         assert_eq!(super::esp32sim_set_icache_fill(first, 404), 0);
         assert!(PRICED.load(Relaxed) && CACHE_PROBES.load(Relaxed) && FETCH_RING.load(Relaxed));
         assert_eq!(CACHE_SET_MASK.load(Relaxed), 127);
-        let m = (*first).m.as_any_mut().downcast_mut::<esp32s3::Machine>().unwrap();
+        let m = (*first).m.s3_mut().unwrap();
         m.cores[0].touch_fetch_lines(0x4200_0000, 0x4200_0000);
         assert_eq!(m.cores[0].icache_misses, 1);
         exercise(m);
@@ -118,7 +118,7 @@ fn sequential_emulators_reset_timing_state() -> u32 {
         assert!(!second.is_null());
         assert!(!PRICED.load(Relaxed) && !CACHE_PROBES.load(Relaxed) && !FETCH_RING.load(Relaxed));
         assert_eq!(CACHE_SET_MASK.load(Relaxed), 63);
-        let m = (*second).m.as_any_mut().downcast_mut::<esp32s3::Machine>().unwrap();
+        let m = (*second).m.s3_mut().unwrap();
         assert!(m.cores.iter().all(|c| !c.price_control && c.icache_fill == 0 && c.blocks.code_bytes() == 0));
         // Do not call the icache setter here: it itself clears the cache and would
         // hide a missing reset in esp32sim_new.

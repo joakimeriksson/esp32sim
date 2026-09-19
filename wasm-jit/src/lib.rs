@@ -94,6 +94,80 @@ struct DecodedInstruction {
     instruction: Insn,
 }
 
+enum SramInstruction {
+    Load32 {
+        destination: u8,
+        base: u8,
+        offset: i32,
+    },
+    MoveImmediate {
+        destination: u8,
+        value: i32,
+    },
+    Binary {
+        destination: u8,
+        left: u8,
+        right: u8,
+        opcode: u8,
+    },
+    Barrier,
+}
+
+impl SramInstruction {
+    fn from_insn(instruction: &Insn) -> Option<Self> {
+        let Insn {
+            op, r, s, t, imm, ..
+        } = *instruction;
+        Some(match op {
+            Op::L32i | Op::L32iN => Self::Load32 {
+                destination: t,
+                base: s,
+                offset: imm,
+            },
+            Op::MoviN => Self::MoveImmediate {
+                destination: s,
+                value: imm,
+            },
+            Op::Sub => Self::Binary {
+                destination: r,
+                left: s,
+                right: t,
+                opcode: 0x6b,
+            },
+            Op::Saltu => Self::Binary {
+                destination: r,
+                left: s,
+                right: t,
+                opcode: 0x49,
+            },
+            Op::Memw => Self::Barrier,
+            _ => return None,
+        })
+    }
+
+    fn max_ar(&self) -> u8 {
+        match *self {
+            Self::Load32 {
+                destination, base, ..
+            } => destination.max(base),
+            Self::MoveImmediate { destination, .. } => destination,
+            Self::Binary {
+                destination,
+                left,
+                right,
+                ..
+            } => destination.max(left).max(right),
+            Self::Barrier => 0,
+        }
+    }
+}
+
+/// Return the highest AR used by an instruction supported by this SRAM emitter.
+/// `memw` returns `Some(0)` because it uses no ARs; unsupported instructions return `None`.
+pub fn supported_max_ar(instruction: &Insn) -> Option<u8> {
+    SramInstruction::from_insn(instruction).map(|instruction| instruction.max_ar())
+}
+
 /// Compile one straight-line LX7 block whose data accesses are confined to `sram`.
 pub fn compile_sram_block(
     base_pc: u32,
@@ -179,7 +253,11 @@ fn compile_sram_block_with_layout(
     validate_sram_range(sram_base, sram_len)?;
     let instructions = decode_block(base_pc, block)?;
     let costs = price_sram_block(&instructions)?;
-    let mut body = if shared_memory { Vec::new() } else { function_prefix() };
+    let mut body = if shared_memory {
+        Vec::new()
+    } else {
+        function_prefix()
+    };
     if shared_memory {
         emit_entry_pc_guard(&mut body, base_pc, layout);
     }
@@ -293,7 +371,10 @@ fn price_sram_block(instructions: &[DecodedInstruction]) -> Result<Vec<u32>, Com
                 value: u32::from_le_bytes(decoded.bytes),
                 fault: None,
             }];
-            if matches!(decoded.instruction.op, Op::L32i | Op::L32iN) {
+            if matches!(
+                SramInstruction::from_insn(&decoded.instruction),
+                Some(SramInstruction::Load32 { .. })
+            ) {
                 accesses.push(MemoryAccess {
                     kind: MemoryAccessKind::Read,
                     address: DRAM_LOW,
@@ -331,40 +412,58 @@ fn emit_sram_instruction(
     sram_len: usize,
     layout: MemoryLayout,
 ) -> Result<(), CompileError> {
-    match instruction.op {
-        Op::L32i | Op::L32iN => {
-            emit_i32_const(body, (layout.registers + usize::from(instruction.t) * 4) as i32);
-            emit_sram_alignment_guard(body, instruction, layout);
-            emit_sram_bounds_guard(body, instruction, sram_base, sram_len, layout);
-            emit_sram_address(body, instruction, sram_base, layout);
+    let instruction =
+        SramInstruction::from_insn(instruction).ok_or(CompileError::UnsupportedInstruction {
+            pc,
+            op: instruction.op,
+        })?;
+    match instruction {
+        SramInstruction::Load32 {
+            destination,
+            base,
+            offset,
+        } => {
+            emit_i32_const(
+                body,
+                (layout.registers + usize::from(destination) * 4) as i32,
+            );
+            emit_sram_alignment_guard(body, base, offset, layout);
+            emit_sram_bounds_guard(body, base, offset, sram_base, sram_len, layout);
+            emit_sram_address(body, base, offset, sram_base, layout);
             body.extend_from_slice(&[0x28, 0x02, 0x00]);
             emit_i32_store(body);
         }
-        Op::MoviN => {
-            emit_i32_const(body, (layout.registers + usize::from(instruction.s) * 4) as i32);
-            emit_i32_const(body, instruction.imm);
+        SramInstruction::MoveImmediate { destination, value } => {
+            emit_i32_const(
+                body,
+                (layout.registers + usize::from(destination) * 4) as i32,
+            );
+            emit_i32_const(body, value);
             emit_i32_store(body);
         }
-        Op::Sub | Op::Saltu => {
-            emit_i32_const(body, (layout.registers + usize::from(instruction.r) * 4) as i32);
-            emit_register_load(body, instruction.s, layout);
-            emit_register_load(body, instruction.t, layout);
-            body.push(match instruction.op {
-                Op::Sub => 0x6b,
-                Op::Saltu => 0x49,
-                _ => unreachable!(),
-            });
+        SramInstruction::Binary {
+            destination,
+            left,
+            right,
+            opcode,
+        } => {
+            emit_i32_const(
+                body,
+                (layout.registers + usize::from(destination) * 4) as i32,
+            );
+            emit_register_load(body, left, layout);
+            emit_register_load(body, right, layout);
+            body.push(opcode);
             emit_i32_store(body);
         }
-        Op::Memw => {}
-        op => return Err(CompileError::UnsupportedInstruction { pc, op }),
+        SramInstruction::Barrier => {}
     }
     Ok(())
 }
 
-fn emit_sram_alignment_guard(body: &mut Vec<u8>, instruction: &Insn, layout: MemoryLayout) {
-    emit_register_load(body, instruction.s, layout);
-    emit_i32_const(body, instruction.imm);
+fn emit_sram_alignment_guard(body: &mut Vec<u8>, base: u8, offset: i32, layout: MemoryLayout) {
+    emit_register_load(body, base, layout);
+    emit_i32_const(body, offset);
     body.push(0x6a);
     emit_i32_const(body, 3);
     body.push(0x71);
@@ -373,17 +472,18 @@ fn emit_sram_alignment_guard(body: &mut Vec<u8>, instruction: &Insn, layout: Mem
 
 fn emit_sram_bounds_guard(
     body: &mut Vec<u8>,
-    instruction: &Insn,
+    base: u8,
+    offset: i32,
     sram_base: u32,
     sram_len: usize,
     layout: MemoryLayout,
 ) {
-    emit_sram_address(body, instruction, sram_base, layout);
+    emit_sram_address(body, base, offset, sram_base, layout);
     emit_i32_const(body, layout.sram_image as i32);
     body.push(0x49);
     emit_trap_if_true(body);
 
-    emit_sram_address(body, instruction, sram_base, layout);
+    emit_sram_address(body, base, offset, sram_base, layout);
     emit_i32_const(body, (layout.sram_image + sram_len - 4) as i32);
     body.push(0x4b);
     emit_trap_if_true(body);
@@ -395,12 +495,13 @@ fn emit_trap_if_true(body: &mut Vec<u8>) {
 
 fn emit_sram_address(
     body: &mut Vec<u8>,
-    instruction: &Insn,
+    base: u8,
+    offset: i32,
     sram_base: u32,
     layout: MemoryLayout,
 ) {
-    emit_register_load(body, instruction.s, layout);
-    emit_i32_const(body, instruction.imm);
+    emit_register_load(body, base, layout);
+    emit_i32_const(body, offset);
     body.push(0x6a);
     emit_i32_const(body, sram_base as i32);
     body.push(0x6b);
