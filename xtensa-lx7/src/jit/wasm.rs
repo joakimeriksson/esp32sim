@@ -86,6 +86,8 @@ impl RegionStats {
             self.left_kinds.iter().map(|c| c.get()).collect::<Vec<_>>())
     }
 }
+pub static CENSUS: [std::sync::atomic::AtomicU64; 8] = [const { std::sync::atomic::AtomicU64::new(0) }; 8];
+fn census(i: usize, n: u64) { CENSUS[i].fetch_add(n, std::sync::atomic::Ordering::Relaxed); }
 const HOT: u32 = 32;
 /// EX138: emit control-flow prices into code generated from now on.
 pub static PRICED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -509,6 +511,7 @@ unsafe fn run_inner<B: Bus>(
                     Some(unsafe { *hot.sites.add((result >> 19) as usize) })
                 } else { None };
                 region_stats(cc, result, budget, site);
+                if site.is_some() { census(0, 1); census(1, (result & 0xffff) as u64); }
                 if let Some(site) = site {
                     bus.note_pc(site_pc(site));
                     return result & 0x7ffff;
@@ -613,6 +616,7 @@ unsafe fn run_inner<B: Bus>(
                         Some(r.sites[(result >> 19) as usize])
                     } else { None };
                     region_stats(cc, result, budget, site);
+                    if site.is_some() { census(0, 1); census(1, (result & 0xffff) as u64); }
                     if let Some(site) = site {
                         bus.note_pc(site_pc(site));
                         return result & 0x7ffff;
@@ -679,6 +683,13 @@ unsafe fn run_block_body<B: Bus>(cc: &CodeCache, code: u32, cpu: &mut Cpu, bus: 
         f(cpu, bus, h, budget.min(0xffff), entry, tlb, versions)
     };
     let done = result & 0xffff;
+    {
+        let bytes = b.pcs.last().unwrap().wrapping_add(b.instructions.last().unwrap().insn.len as u32).wrapping_sub(b.pc);
+        let noloop = initial_lcount == 0 || cpu.lend.wrapping_sub(b.pc) > bytes;
+        if entry == 0 && budget as usize >= b.instructions.len() { census(3, 1); census(4, done as u64); }
+        else if noloop { census(5, 1); census(6, done as u64); if entry != 0 { census(2, done as u64); } }
+        else { census(7, done as u64); }
+    }
     // LCOUNT changes only at the admitted hardware backedge. Subtract repeated
     // prefixes to locate both the last retired instruction and a cut continuation.
     let repeated = looping.map_or(0, |n| (initial_lcount - cpu.lcount) as usize * n);
