@@ -4,9 +4,9 @@ pub(crate) const GATEWAY_MAC: [u8; 6] = [0x02, 0x53, 0x49, 0x4d, 0x00, 0x02];
 
 pub(crate) fn checksum(data: &[u8], init: u32) -> u16 {
     let mut sum = init;
-    let mut words = data.chunks_exact(2);
-    for word in &mut words { sum += u16::from_be_bytes([word[0], word[1]]) as u32; }
-    if let [last] = words.remainder() { sum += (*last as u32) << 8; }
+    let (words, tail) = data.as_chunks::<2>();
+    for word in words { sum += u16::from_be_bytes(*word) as u32; }
+    if let [last] = tail { sum += (*last as u32) << 8; }
     while sum >> 16 != 0 { sum = (sum & 0xffff) + (sum >> 16); }
     !(sum as u16)
 }

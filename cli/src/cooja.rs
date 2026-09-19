@@ -35,7 +35,7 @@ pub const NS_DEN: u64 = 4;
 /// are not cut). 20 µs is ~3200 instructions, shorter than one ISR log line takes to print.
 pub const LOG_STEP_NS: u64 = 20_000;
 pub fn ns_of_cycle(c: u64) -> u64 { ((c as u128 * NS_NUM as u128 / NS_DEN as u128).min(u64::MAX as u128)) as u64 }
-fn ns_after_cycle(c: u64) -> u64 { ns_of_cycle(c).saturating_add(u64::from(c % NS_DEN != 0)) }
+fn ns_after_cycle(c: u64) -> u64 { ns_of_cycle(c).saturating_add(u64::from(!c.is_multiple_of(NS_DEN))) }
 /// The first cycle at or after `ns`.
 pub fn cycle_of_ns(ns: u64) -> u64 { (ns as u128 * NS_DEN as u128).div_ceil(NS_NUM as u128) as u64 }
 
@@ -43,7 +43,7 @@ pub use esp_soc::json::{parse_json, Json};
 
 fn hex_decode(s: &str) -> Option<Vec<u8>> {
     if !s.len().is_multiple_of(2) { return None; }
-    s.as_bytes().chunks_exact(2).map(|pair| {
+    s.as_bytes().as_chunks::<2>().0.iter().map(|pair| {
         let high = char::from(pair[0]).to_digit(16)?;
         let low = char::from(pair[1]).to_digit(16)?;
         Some(((high << 4) | low) as u8)

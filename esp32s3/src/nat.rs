@@ -303,7 +303,7 @@ impl Nat {
                 if c.to_host.len() < queued { out.push(c.segment(ACK, &[], c.our_seq)); } // reopen the receive window
                 // One byte at a zero window becomes a persist probe. The same retransmission
                 // queue retries it, recovering even when the guest's window-update ACK is lost.
-                let send_window = usize::from(c.guest_window.min(WINDOW).max(1));
+                let send_window = usize::from(c.guest_window.clamp(1, WINDOW));
                 while !c.host_closed && c.in_flight() < send_window {
                     let room = send_window - c.in_flight();
                     let mut buf = [0; MSS];
