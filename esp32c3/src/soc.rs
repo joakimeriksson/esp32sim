@@ -26,7 +26,7 @@ impl Soc for C3 {
         c.pc = entry;
         c.x[2] = 0x3FCD_E000;                 // a stack the bootloader would have left us
     }
-    fn irqs(bus: &SocBus, out: &mut [Option<u32>]) { out[0] = bus.periph.intc.pending(); }
+    fn irqs(bus: &SocBus, out: &mut [Option<u32>]) { out[0] = bus.periph.intc.lines.pending(); }
 }
 
 impl esp_soc::SocBus for SocBus {
@@ -41,9 +41,10 @@ impl esp_soc::SocBus for SocBus {
     fn write_flash(&mut self, offset: usize, data: &[u8]) -> Result<(), String> { SocBus::write_flash(self, offset, data) }
     /// Copy the RAM segments, map the flash-resident ones through the MMU, as the 2nd-stage bootloader would.
     fn boot_app(&mut self, app_off: usize) -> Result<u32, String> {
+        let image = self.flash.get(app_off..).ok_or("app offset beyond flash")?;
+        let img = esp_soc::image::parse(image)?;
         self.periph.system.preset_after_bootloader();
         self.periph.rtc.preset_after_bootloader();
-        let img = esp_soc::image::parse(&self.flash[app_off..])?;
         for s in &img.segments {
             let start = app_off + s.file_off as usize;
             let end = start + s.len as usize;
@@ -63,9 +64,13 @@ impl esp_soc::SocBus for SocBus {
                     return Err(format!("segment {:#x} not page-aligned with flash offset {:#x}", s.load_addr, start));
                 }
                 let first_page = (start as u32) >> 16;
+                if !s.load_addr.checked_add(s.len).is_some_and(|end| end <= IBUS_HIGH) {
+                    return Err("segment beyond the flash window".into());
+                }
                 let npages = ((s.load_addr & 0xffff) + s.len + 0xffff) >> 16;
+                let first_entry = ((s.load_addr & 0x7F_FFFF) >> 16) as usize;
                 for i in 0..npages {
-                    self.mmu[(((s.load_addr & 0x7F_FFFF) >> 16) + i) as usize] = first_page + i;
+                    self.mmu[first_entry + i as usize] = first_page + i;
                 }
             } else {
                 let data = self.flash[start..end].to_vec();
@@ -98,15 +103,24 @@ impl esp_soc::SocBus for SocBus {
     fn sw_reset(&self) -> bool { self.periph.rtc.sw_reset }
     fn reset_cause(&self) -> u32 { self.periph.rtc.reset_cause }
     fn last_fault(&self) -> Option<(u32, bool)> { self.last_fault }
-    fn console_take(&mut self) -> [Vec<u8>; 4] { [std::mem::take(&mut self.periph.usb.tx_out), std::mem::take(&mut self.periph.uart[0].tx_out), Vec::new(), Vec::new()] }
-    fn serial_input(&mut self, data: &[u8]) { self.periph.usb.host_input(data); }
+    fn console_take(&mut self) -> [Vec<u8>; 4] { [std::mem::take(&mut self.periph.usb.tx_out), std::mem::take(&mut self.periph.uart[0].tx_out), std::mem::take(&mut self.periph.uart[1].tx_out), Vec::new()] }
+    fn serial_input(&mut self, data: &[u8]) {
+        let before = self.periph.usb.irq();
+        self.periph.usb.host_input(data);
+        self.irq_dirty |= before != self.periph.usb.irq();
+    }
     fn uart_input(&mut self, n: usize, data: &[u8]) {
         let Some(u) = self.periph.uart.get_mut(n) else { return };
         let before = u.irq();
         u.host_input(data);
         self.irq_dirty |= before != u.irq();
     }
-    fn gpio_set_input(&mut self, pin: u8, level: bool) { self.periph.gpio.set_input(pin, level); if let Some(ev) = &mut self.gpio_events { ev.push((self.cycles, pin, level)); } }
+    fn gpio_set_input(&mut self, pin: u8, level: bool) {
+        let before = self.periph.gpio.input;
+        self.periph.gpio.set_input(pin, level);
+        self.irq_dirty |= before != self.periph.gpio.input;
+        if let Some(ev) = &mut self.gpio_events { ev.push((self.cycles, pin, level)); }
+    }
     fn set_flash_size(&mut self, bytes: usize) {
         self.flash = vec![0xff; bytes];
         let cap = bytes.trailing_zeros() as u8; self.periph.spi1.jedec[2] = cap; self.periph.spi0.jedec[2] = cap;

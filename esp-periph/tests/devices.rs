@@ -105,9 +105,9 @@ fn usb_sof_cadence_follows_the_cpu_clock() {
 fn i2s_frame_rate_from_the_clock_registers() {
     let mut i = I2s::new(240_000_000);
     assert_eq!(i.sample_rate, 44100, "until the clock is programmed");
-    let clkm = |n: u32| (1 << 26) | (1 << 27) | n;           // active, PLL_F160M, integer divider n
-    Device::write(&mut i, 0x2c, (15 << 0) | (3 << 7));       // slot width 16, BCK divider 4
-    Device::write(&mut i, 0x54, 1 << 16);                    // 2 slots
+    let clkm = |n: u32| (1 << 26) | (2 << 27) | n;           // active, PLL_F160M, integer divider n
+    Device::write(&mut i, 0x2c, (15 << 0) | (3 << 7) | (15 << 13) | (15 << 18) | (15 << 24)); // 16-bit stereo, BCK divider 4
+    Device::write(&mut i, 0x54, (1 << 16) | 3);              // 2 enabled slots
     Device::write(&mut i, 0x3c, 0);                          // no fraction
     Device::write(&mut i, 0x34, clkm(8));                    // MCLK = 160 MHz / 8
     assert_eq!(i.sample_rate, 160_000_000 / 8 / 4 / 32);

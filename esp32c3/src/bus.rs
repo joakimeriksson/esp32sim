@@ -124,8 +124,9 @@ impl SocBus {
 
     /// Write straight into flash (image loaders, not the guest).
     pub fn write_flash(&mut self, offset: usize, data: &[u8]) -> Result<(), String> {
-        if offset + data.len() > self.flash.len() { return Err("flash image too large".into()); }
-        self.flash[offset..offset + data.len()].copy_from_slice(data);
+        let target = self.flash.get_mut(offset..).and_then(|tail| tail.get_mut(..data.len()))
+            .ok_or("flash image too large")?;
+        target.copy_from_slice(data);
         Ok(())
     }
 

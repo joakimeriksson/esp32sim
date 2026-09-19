@@ -64,16 +64,18 @@ impl esp_soc::SocBus for SocBus {
     fn misc(&mut self) -> &mut Misc { &mut self.periph.misc }
     fn load_bytes(&mut self, addr: u32, data: &[u8]) -> Result<(), String> { SocBus::load_bytes(self, addr, data) }
     fn write_flash(&mut self, offset: usize, data: &[u8]) -> Result<(), String> {
-        if offset + data.len() > self.flash.len() { return Err("flash image too large".into()); }
-        self.flash[offset..offset + data.len()].copy_from_slice(data);
+        let target = self.flash.get_mut(offset..).and_then(|tail| tail.get_mut(..data.len()))
+            .ok_or("flash image too large")?;
+        target.copy_from_slice(data);
         self.note_written(SRC_FLASH, offset, data.len());
         Ok(())
     }
     /// Copy IRAM/DRAM segments, map IROM/DROM through the MMU, as the 2nd-stage bootloader would.
     fn boot_app(&mut self, app_off: usize) -> Result<u32, String> {
+        let image = self.flash.get(app_off..).ok_or("app offset beyond flash")?;
+        let img = esp_soc::image::parse(image)?;
         self.periph.system.preset_after_bootloader();
         self.periph.rtc.preset_after_bootloader();
-        let img = esp_soc::image::parse(&self.flash[app_off..])?;
         for s in &img.segments {
             let start = app_off + s.file_off as usize;
             let end = start + s.len as usize;
@@ -82,6 +84,10 @@ impl esp_soc::SocBus for SocBus {
             if flash_mapped {
                 // esptool aligns segments so vaddr and flash offset agree modulo 64 KiB
                 if (s.load_addr & 0xffff) != (start as u32 & 0xffff) { return Err(format!("segment {:#x} not page-aligned with flash offset {:#x}", s.load_addr, start)); }
+                let window_end = if s.load_addr < DBUS_HIGH { DBUS_HIGH } else { IBUS_HIGH };
+                if !s.load_addr.checked_add(s.len).is_some_and(|end| end <= window_end) {
+                    return Err("segment beyond the flash window".into());
+                }
                 let first_page = (start as u32) >> 16;
                 let npages = ((s.load_addr & 0xffff) + s.len + 0xffff) >> 16;
                 for i in 0..npages {

@@ -9,14 +9,12 @@ pub struct TimerGroup {
     ram: RegRam,
     pub t: [Timer; 2],
     pub int_raw: u32, pub int_ena: u32,
-    apb_acc: u64,
 }
 #[derive(Default, Clone, Copy)]
 pub struct Timer { pub config: u32, pub count: u64, pub latch: u64, pub alarm: u64, pub load: u64, pub prescale_acc: u64 }
 impl TimerGroup {
-    pub fn new() -> Self { TimerGroup { ram: RegRam::new(), t: [Timer::default(); 2], int_raw: 0, int_ena: 0, apb_acc: 0 } }
+    pub fn new() -> Self { TimerGroup { ram: RegRam::new(), t: [Timer::default(); 2], int_raw: 0, int_ena: 0 } }
     pub fn tick(&mut self, apb_ticks: u64) {
-        let _ = &mut self.apb_acc;
         for i in 0..2 {
             let t = &mut self.t[i];
             if t.config & (1 << 31) == 0 { continue; }   // TIMG_T0_EN
@@ -77,7 +75,7 @@ impl Default for TimerGroup { fn default() -> Self { Self::new() } }
 impl Device for TimerGroup {
     fn read(&mut self, off: u32) -> u32 { TimerGroup::read(self, off) }
     fn write(&mut self, off: u32, v: u32) -> WriteEffect { TimerGroup::write(self, off, v); WriteEffect::NONE }
-    fn irq_sources(&self) -> u64 { (self.int_raw & self.int_ena & 1) as u64 }
+    fn irq_sources(&self) -> u64 { (self.int_raw & self.int_ena & 3) as u64 }
     fn clock(&self) -> Option<ClockDomain> { Some(ClockDomain::Apb) }
     fn tick(&mut self, apb_ticks: u64) { TimerGroup::tick(self, apb_ticks) }
     /// APB ticks until the earliest armed alarm.

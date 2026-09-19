@@ -155,13 +155,8 @@ impl WaveshareAmoled18V2 {
     }
 
     fn queue_touch(&mut self, cycle: VirtualCycle, x: u16, y: u16, down: bool) {
-        let mut touch = self.touch_state.lock().expect("AMOLED touch state mutex poisoned");
-        touch.x = x.min(Co5300::WIDTH as u16 - 1);
-        touch.y = y.min(Co5300::HEIGHT as u16 - 1);
-        if down { touch.down = true; touch.seen = false; touch.release_pending = false; }
-        else if touch.seen { touch.down = false; }
-        else { touch.release_pending = true; }
-        drop(touch);
+        self.touch_state.lock().expect("AMOLED touch state mutex poisoned")
+            .update(x.min(Co5300::WIDTH as u16 - 1), y.min(Co5300::HEIGHT as u16 - 1), down);
         let level = !down;
         let queued_level = self.pending_touch_final.or(self.pending_touch_irq.map(|(_, level)| level)).unwrap_or(self.touch_irq_level);
         if level != queued_level {

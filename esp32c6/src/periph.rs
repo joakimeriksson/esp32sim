@@ -44,10 +44,10 @@ impl Default for IntMatrix { fn default() -> Self { Self::new() } }
 impl IntMatrix {
     pub fn new() -> Self { IntMatrix { map: [0; src::COUNT], ram: RegRam::new() } }
     pub fn read(&self, off: u32) -> u32 {
-        match off { 0x000..=0x130 => self.map[(off / 4) as usize], _ => self.ram.read(off) }
+        match off { off if off < src::COUNT as u32 * 4 => self.map[(off / 4) as usize], _ => self.ram.read(off) }
     }
     pub fn write(&mut self, off: u32, v: u32) {
-        match off { 0x000..=0x130 => self.map[(off / 4) as usize] = v & 0x1f, _ => self.ram.write(off, v) }
+        match off { off if off < src::COUNT as u32 * 4 => self.map[(off / 4) as usize] = v & 0x1f, _ => self.ram.write(off, v) }
     }
 }
 impl Device for IntMatrix {
@@ -61,29 +61,20 @@ impl Device for IntMatrix {
 /// enabled, its priority is at or above the threshold, and `mstatus.MIE` is set; the CPU then
 /// vectors to `mtvec + 4*line`. Level lines follow the source; edge lines latch until cleared.
 pub struct Intc {
-    pub enable: u32,
-    pub int_type: u32,
-    pub pri: [u32; 32],
-    pub thresh: u32,
-    /// latched edge-triggered lines
-    pub edge_pending: u32,
-    /// level lines asserted right now, recomputed when a source changes
-    pub level: u32,
-    /// all mapped lines asserted last time, for edge detection
-    prev: u32,
+    pub lines: esp_periph::intmtx::Lines,
     /// INTPRI_CPU_INTR_FROM_CPU_0..3
     pub sw_int: u32,
     ram: RegRam,
 }
 impl Default for Intc { fn default() -> Self { Self::new() } }
 impl Intc {
-    pub fn new() -> Self { Intc { enable: 0, int_type: 0, pri: [0; 32], thresh: 0, edge_pending: 0, level: 0, prev: 0, sw_int: 0, ram: RegRam::new() } }
+    pub fn new() -> Self { Intc { lines: Default::default(), sw_int: 0, ram: RegRam::new() } }
 
     /// INTPRI register order.
     pub fn intpri_read(&self, off: u32) -> u32 {
         match off {
-            0x00 => self.enable, 0x04 => self.int_type, 0x08 => self.level | self.edge_pending,
-            0x0c..=0x88 => self.pri[((off - 0x0c) / 4) as usize], 0x8c => self.thresh,
+            0x00 => self.lines.enable, 0x04 => self.lines.int_type, 0x08 => self.lines.level | self.lines.edge_pending,
+            0x0c..=0x88 => self.lines.pri[((off - 0x0c) / 4) as usize], 0x8c => self.lines.thresh,
             0x90..=0x9c => (self.sw_int >> ((off - 0x90) / 4)) & 1,
             0xa8 => 0,
             _ => self.ram.read(off),
@@ -91,10 +82,10 @@ impl Intc {
     }
     pub fn intpri_write(&mut self, off: u32, v: u32) {
         match off {
-            0x00 => self.enable = v, 0x04 => self.int_type = v,
-            0x0c..=0x88 => self.pri[((off - 0x0c) / 4) as usize] = v & 0xf, 0x8c => self.thresh = v & 0xf,
+            0x00 => self.lines.enable = v, 0x04 => self.lines.int_type = v,
+            0x0c..=0x88 => self.lines.pri[((off - 0x0c) / 4) as usize] = v & 0xf, 0x8c => self.lines.thresh = v & 0xf,
             0x90..=0x9c => { let b = (off - 0x90) / 4; if v & 1 != 0 { self.sw_int |= 1 << b } else { self.sw_int &= !(1 << b) } }
-            0xa8 => self.edge_pending &= !v,
+            0xa8 => self.lines.edge_pending &= !v,
             _ => self.ram.write(off, v),
         }
     }
@@ -103,44 +94,18 @@ impl Intc {
     /// nesting) and the claim register. The user-level copy at 0x400 is accepted and ignored.
     pub fn plic_read(&self, off: u32) -> u32 {
         match off {
-            0x00 => self.enable, 0x04 => self.int_type, 0x08 => 0, 0x0c => self.level | self.edge_pending,
-            0x10..=0x8c => self.pri[((off - 0x10) / 4) as usize], 0x90 => self.thresh,
-            0x94 => self.pending().unwrap_or(0),          // CLAIM: the line being taken
+            0x00 => self.lines.enable, 0x04 => self.lines.int_type, 0x08 => 0, 0x0c => self.lines.level | self.lines.edge_pending,
+            0x10..=0x8c => self.lines.pri[((off - 0x10) / 4) as usize], 0x90 => self.lines.thresh,
+            0x94 => self.lines.pending().unwrap_or(0),          // CLAIM: the line being taken
             _ => self.ram.read(off),
         }
     }
     pub fn plic_write(&mut self, off: u32, v: u32) {
         match off {
-            0x00 => self.enable = v, 0x04 => self.int_type = v, 0x08 => self.edge_pending &= !v,
-            0x10..=0x8c => self.pri[((off - 0x10) / 4) as usize] = v & 0xf, 0x90 => self.thresh = v & 0xff,
+            0x00 => self.lines.enable = v, 0x04 => self.lines.int_type = v, 0x08 => self.lines.edge_pending &= !v,
+            0x10..=0x8c => self.lines.pri[((off - 0x10) / 4) as usize] = v & 0xf, 0x90 => self.lines.thresh = v & 0xff,
             _ => self.ram.write(off, v),
         }
-    }
-
-    /// Recompute line state from the sources that are currently asserted.
-    pub fn update(&mut self, map: &[u32; src::COUNT], status: &[u32]) {
-        let mut lines = 0u32;
-        for (s, &line) in map.iter().enumerate() {
-            if status[s / 32] & (1 << (s % 32)) == 0 { continue; }
-            if line != 0 { lines |= 1 << line; }
-        }
-        // an edge line latches on the rising edge of its source and stays until cleared
-        self.edge_pending |= lines & !self.prev & self.int_type;
-        self.prev = lines;
-        self.level = lines & !self.int_type;
-    }
-
-    /// The highest-priority line the CPU should take, if any.
-    pub fn pending(&self) -> Option<u32> {
-        let p = (self.level | self.edge_pending) & self.enable & !1;
-        if p == 0 { return None; }
-        // a line at exactly the threshold fires: IDF enables with thresh = 1 and allocates at priority 1
-        let (mut best, mut best_pri) = (None, 0);
-        for n in 1..32 {
-            let pri = self.pri[n];
-            if p & (1 << n) != 0 && pri >= self.thresh && pri > best_pri { best_pri = pri; best = Some(n as u32); }
-        }
-        best
     }
 }
 impl Device for Intc {
@@ -532,7 +497,7 @@ impl Peripherals {
         let st = self.source_status();
         let changed = st != self.last_status;
         self.last_status = st;
-        self.intc.update(&self.intmtx.map, &st);
+        self.intc.lines.update(&self.intmtx.map, &st);
         changed
     }
 }
