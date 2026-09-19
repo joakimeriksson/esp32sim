@@ -97,6 +97,72 @@ fn idle_cut_includes_each_enabled_cores_timer() {
 }
 
 #[test]
+fn mixed_idle_rounds_end_at_the_sleeping_cores_timer() {
+    for vq in [1, 8] {
+        for sleeping in [0, 1] {
+            for wake in [3, 67, 131] {
+                let mut m = machine();
+                m.vq_max = vq;
+                for core in &mut m.cores { core.set_jit(false); }
+                park(&mut m, 0, IRAM, &SPIN);
+                esp_soc::SocBus::load_bytes(&mut m.bus, RESET, &SPIN).unwrap();
+                m.bus.write32(0x600c_0000, 0b010).unwrap();
+                m.run(64);
+                m.cores[sleeping].waiting = true;
+                m.cores[sleeping].ps = 0;
+                m.cores[sleeping].intenable = 1 << xtensa_lx7::state::TIMER_INTERRUPT[0];
+                let before: Vec<_> = m.cores.iter().map(|c| c.ccount).collect();
+                m.cores[sleeping].ccompare[0] = before[sleeping].wrapping_add(wake);
+                let now = m.bus.cycles;
+                m.max_cycles = now + u64::from(wake);
+                assert!(matches!(m.run(u64::MAX), Stop::Halted));
+                assert_eq!(m.bus.cycles, now + u64::from(wake), "vq={vq}, sleeping={sleeping}");
+                for (core, before) in m.cores.iter().zip(before) {
+                    assert_eq!(core.ccount.wrapping_sub(before), wake, "both core clocks stay at the device horizon");
+                }
+                assert!(m.cores[sleeping].irq_pending());
+                if std::env::var_os("ESP32SIM_VQ_NATIVE").is_some() && vq > 1 && wake == 131 {
+                    assert!(m.vq_stats[0] > 0, "exercise the deferred multi-quantum path");
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn software_reset_stops_before_the_siblings_store_and_charges_only_executed_time() {
+    use esp_soc::observers::PcHist;
+    const STORE: [u8; 3] = [0x22, 0x63, 0x00]; // s32i a2,a3,0
+    const SRAM: u32 = 0x3fc9_0000;
+    for mode in 0..4 {
+        let mut m = machine();
+        m.vq_max = 1;
+        if mode == 1 { m.add_observer(Box::new(PcHist::new(1))); }
+        if mode >= 2 { m.set_approximate_jit_timing(1, 64).unwrap(); }
+        if mode == 3 { m.set_approximate_jit_frontiers(true).unwrap(); }
+        park(&mut m, 0, IRAM, &SPIN);
+        esp_soc::SocBus::load_bytes(&mut m.bus, RESET, &SPIN).unwrap();
+        m.bus.write32(0x600c_0000, 0b010).unwrap();
+        m.max_cycles = 64;
+        m.run(u64::MAX);
+        m.max_cycles = u64::MAX;
+        park(&mut m, 0, IRAM + 16, &STORE);
+        park(&mut m, 1, IRAM + 32, &STORE);
+        m.cores[0].set_ar(2, 1 << 31);
+        m.cores[0].set_ar(3, 0x6000_8000); // RTC_CNTL_OPTIONS0.SW_SYS_RST
+        m.cores[1].set_ar(2, 0xdead_beef);
+        m.cores[1].set_ar(3, SRAM);
+        let before = (m.bus.cycles, m.cores[1].insn_count(), m.run_steps());
+        assert!(matches!(m.run(128), Stop::SwReset), "mode={mode}");
+        assert_eq!(m.bus.read32(SRAM).unwrap(), 0, "core 1 must not store after core 0 resets, mode={mode}");
+        assert_eq!((m.bus.cycles, m.cores[1].insn_count()), (before.0 + 1, before.1), "only the reset instruction's time, mode={mode}");
+        assert_eq!(m.run_steps() - before.2, 1);
+        m.reboot();
+        assert_eq!(m.run_steps(), before.2 + 1, "run budget survives chip reset");
+    }
+}
+
+#[test]
 fn precise_trap_observer_reports_fault_after_resumed_hardware_loop() {
     use esp_soc::observe::{Ctx, Observer, Wants};
     use std::sync::{Arc, Mutex};
@@ -253,7 +319,11 @@ fn core1_runs_when_released() {
 fn browser_external_blocks_are_single_core_scheduler_transactions() {
     let mut m = machine();
     park(&mut m, 0, IRAM, &SPIN);
-    assert_eq!(m.browser_external_block_budget(1), Some(64));
+    assert_eq!(m.browser_external_block_budget(0), None);
+    assert_eq!(m.browser_external_block_budget(1), None);
+    assert_eq!(m.browser_external_block_budget(63), None);
+    assert_eq!(m.browser_external_block_budget(64), Some(64));
+    assert_eq!(m.browser_external_block_budget(128), Some(64));
     assert!(m.finish_browser_external_quantum().is_none());
     assert_eq!(m.bus.cycles, 64);
 
@@ -397,6 +467,36 @@ fn observers_count_the_same_instructions_either_way() {
         m.run(u64::MAX);
         let r = m.reports();
         assert!(r.contains(&format!("of {} instructions", m.insns())), "{}", r);
+    }
+}
+
+#[test]
+fn block_observers_keep_working_with_instruction_observers() {
+    use esp_soc::observers::{BlockProfile, Coverage, PcHist};
+    for until in [false, true] {
+        let mut m = machine();
+        park(&mut m, 0, IRAM, &[0x0c, 0x03, 0x1b, 0x33, 0x86, 0xfe, 0xff]);
+        m.add_observer(Box::new(BlockProfile::new(4)));
+        m.add_observer(Box::new(Coverage::new(None)));
+        m.add_observer(Box::new(PcHist::new(4)));
+        if until { m.run_until_cycle(128); } else { m.run(128); }
+        let report = m.reports();
+        assert!(report.contains("[profile-blocks] top 4 functions of 128 instructions"), "{report}");
+        assert!(report.contains("[coverage] 3 block starts"), "{report}");
+    }
+}
+
+#[test]
+fn breakpoints_stop_at_first_fetch_and_at_a_sleeping_pc() {
+    use esp_soc::observers::Breakpoints;
+    for asleep in [false, true] {
+        let mut m = machine();
+        park(&mut m, 0, IRAM, &WAITI_LOOP);
+        m.cores[0].waiting = asleep;
+        m.add_observer(Box::new(Breakpoints { pcs: vec![IRAM] }));
+        assert!(matches!(m.run(64), Stop::Breakpoint(IRAM)));
+        assert_eq!(m.cores[0].insn_count(), 0);
+        assert_eq!(m.bus.cycles, 0);
     }
 }
 
