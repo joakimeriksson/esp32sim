@@ -571,10 +571,19 @@ impl<S: Soc> Machine<S> {
                     let pos = (total - left) as u64;
                     self.vq_stats[0] += 1; self.vq_stats[1] += pos / QUANTUM;
                     if pos < 2 * QUANTUM { self.vq_penalty = (self.vq_penalty * 2 + 1).min(255); self.vq_skip = self.vq_penalty; } else { self.vq_penalty = 0; }
-                    for _ in 0..pos / QUANTUM {
+                    // A stopping instruction belongs to the unfinished round, even when it
+                    // consumes that round's last slot. The ordinary loop returns before its
+                    // device tick and credits only peers dispatched before the busy core.
+                    let completed = if stop.is_some() { pos.saturating_sub(1) / QUANTUM } else { pos / QUANTUM };
+                    for _ in 0..completed {
                         if let Some(s) = self.vq_close_round(&on, &mut n, busy) { return s; }
                     }
-                    if let Some(s) = stop { self.drain_console(); return s; }
+                    if let Some(s) = stop {
+                        for (core, &enabled) in self.cores.iter_mut().zip(&on).take(busy) {
+                            if enabled { core.idle_advance(QUANTUM as u32); }
+                        }
+                        self.drain_console(); return s;
+                    }
                     if pos > 0 && pos.is_multiple_of(QUANTUM) { continue; }
                     resume_at = pos % QUANTUM;
                 }
