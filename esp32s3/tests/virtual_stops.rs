@@ -7,8 +7,8 @@ const IRAM: u32 = 0x4037_0000;
 fn architectural_stop_preserves_unfinished_round() {
     // Native virtual quanta require ESP32SIM_VQ_NATIVE=1 and the interpreter.
     // Cover both round boundaries and partial rounds, with either core busy.
-    for busy in 0..2 {
-        for instructions in [1, 63, 64, 65, 127, 128, 129] {
+    for (quantum, busy) in [32usize, 64, 128].into_iter().flat_map(|q| (0..2).map(move |b| (q, b))) {
+        for instructions in [1, quantum - 1, quantum, quantum + 1, 2 * quantum - 1, 2 * quantum, 2 * quantum + 1] {
             let mut results = Vec::new();
             for vq in [1, 1024] {
                 let mut m = esp32s3::machine([0; 6]);
@@ -28,16 +28,17 @@ fn architectural_stop_preserves_unfinished_round() {
                 m.cores[busy].pc = IRAM + 0x100;
                 m.cores[busy].ps = 0;
                 m.dbg.stop_after_exceptions = 1;
+                m.quantum = quantum as u64;
                 m.vq_max = vq;
-                m.max_cycles = 64 + (instructions as u64).div_ceil(64).max(2) * 64;
+                m.max_cycles = 64 + (instructions as u64).div_ceil(quantum as u64).max(2) * quantum as u64;
                 let stop = m.run(1024);
-                assert!(matches!(stop, Stop::Exceptions(1)), "busy={busy} instructions={instructions} vq={vq}: {stop:?}");
+                assert!(matches!(stop, Stop::Exceptions(1)), "quantum={quantum} busy={busy} instructions={instructions} vq={vq}: {stop:?}");
                 if vq > 1 && std::env::var_os("ESP32SIM_VQ_NATIVE").is_some() {
                     assert!(m.vq_stats[0] > 0);
                 }
                 results.push((m.bus.cycles, m.cores.iter().map(|c| (c.ccount, c.insn_count, c.pc, c.ps)).collect::<Vec<_>>()));
             }
-            assert_eq!(results[0], results[1], "busy={busy} instructions={instructions}");
+            assert_eq!(results[0], results[1], "quantum={quantum} busy={busy} instructions={instructions}");
         }
     }
 }
