@@ -49,9 +49,9 @@ impl Sha {
             sha512_block(&mut h, &w);
             self.set_h64(&h);
         } else {
-            let w0: Vec<u32> = self.m[..16].iter().map(|x| x.swap_bytes()).collect();
+            let w0: [u32; 16] = std::array::from_fn(|i| self.m[i].swap_bytes());
             match self.mode {
-                0 => sha1_block(&mut self.h, &w0),
+                0 => crate::crypto::sha1_block(&mut self.h, &w0),
                 _ => sha256_block(&mut self.h, &w0),
             }
         }
@@ -60,6 +60,7 @@ impl Sha {
     pub fn read(&self, off: u32) -> u32 {
         match off {
             0x0 => self.mode,
+            0x0c => self.block_num,
             0x18 => self.busy as u32,
             0x2c => 0x20190402,
             0x40..=0x7c => { let i = ((off - 0x40) / 4) as usize; self.h[i].swap_bytes() }   // H regs read back as big-endian bytes in memory order
@@ -70,7 +71,7 @@ impl Sha {
     pub fn write(&mut self, off: u32, v: u32) {
         match off {
             0x0 => self.mode = v & 7,
-            0x0c => self.block_num = v,
+            0x0c => self.block_num = v & 0x3f, // SHA_DMA_BLOCK_NUM is a six-bit register.
             0x10 => { self.init(); self.compress(); }
             0x14 => self.compress(),
             0x1c => { self.busy = true; self.dma_pending = true; self.dma_first = true; }    // DMA_START
@@ -145,19 +146,6 @@ fn sha256_block(h: &mut [u32; 16], w0: &[u32]) {
     h[4] = h[4].wrapping_add(e); h[5] = h[5].wrapping_add(f); h[6] = h[6].wrapping_add(g); h[7] = h[7].wrapping_add(hh);
 }
 
-fn sha1_block(h: &mut [u32; 16], w0: &[u32]) {
-    let mut w = [0u32; 80];
-    w[..16].copy_from_slice(&w0[..16]);
-    for i in 16..80 { w[i] = (w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16]).rotate_left(1); }
-    let (mut a, mut b, mut c, mut d, mut e) = (h[0], h[1], h[2], h[3], h[4]);
-    for (i, &wi) in w.iter().enumerate() {
-        let (f, k) = match i { 0..=19 => ((b & c) | (!b & d), 0x5A827999), 20..=39 => (b ^ c ^ d, 0x6ED9EBA1), 40..=59 => ((b & c) | (b & d) | (c & d), 0x8F1BBCDC), _ => (b ^ c ^ d, 0xCA62C1D6) };
-        let t = a.rotate_left(5).wrapping_add(f).wrapping_add(e).wrapping_add(k).wrapping_add(wi);
-        e = d; d = c; c = b.rotate_left(30); b = a; a = t;
-    }
-    h[0] = h[0].wrapping_add(a); h[1] = h[1].wrapping_add(b); h[2] = h[2].wrapping_add(c); h[3] = h[3].wrapping_add(d); h[4] = h[4].wrapping_add(e);
-}
-
 impl Device for Sha {
     fn read(&mut self, off: u32) -> u32 { Sha::read(self, off) }
     fn write(&mut self, off: u32, v: u32) -> WriteEffect { Sha::write(self, off, v); WriteEffect::NONE }
@@ -190,9 +178,19 @@ mod sha_tests {
     #[test]
     fn known_answer_vectors() {
         assert_eq!(digest(0, b"abc", 20), "a9993e364706816aba3e25717850c26c9cd0d89d");
+        assert_eq!(digest(1, b"abc", 28), "23097d223405d8228642a477bda255b32aadbce4bda0b3f7e36c9da7");
         assert_eq!(digest(2, b"abc", 32), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
         assert_eq!(digest(3, b"abc", 48), "cb00753f45a35e8bb5a03d699ac65007272c32ab0eded1631a8b605a43ff5bed8086072ba1e7cc2358baeca134c825a7");
         assert_eq!(digest(4, b"abc", 64), "ddaf35a193617abacc417349ae204131\
 12e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f");
+    }
+
+    #[test]
+    fn dma_block_count_ignores_reserved_bits() {
+        // ESP32-S3 TRM, register 18.12: SHA_DMA_BLOCK_NUM[5:0].
+        let mut sha = Sha::new();
+        sha.write(0x0c, u32::MAX);
+        assert_eq!(sha.block_num, 63);
+        assert_eq!(sha.read(0x0c), 63);
     }
 }

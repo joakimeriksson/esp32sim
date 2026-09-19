@@ -20,6 +20,42 @@ impl Aes {
         k
     }
     pub fn decrypting(&self) -> bool { self.mode & 4 != 0 }
+    /// Transform DMA input with the selected chaining mode, updating the IV and block counter.
+    /// A short final block is zero-padded, matching the register-mode block input.
+    pub fn transform_blocks(&mut self, input: &[u8]) -> Vec<u8> {
+        let key = self.key_bytes();
+        let decrypt = self.decrypting();
+        let mut iv = [0u8; 16];
+        for (i, word) in self.iv.iter().enumerate() { iv[4 * i..4 * i + 4].copy_from_slice(&word.to_le_bytes()); }
+        let mut output = Vec::with_capacity(input.len());
+        for chunk in input.chunks(16) {
+            let mut block = [0u8; 16];
+            block[..chunk.len()].copy_from_slice(chunk);
+            let out = match self.block_mode {
+                1 => { // CBC
+                    let ciphertext = block;
+                    if !decrypt { for i in 0..16 { block[i] ^= iv[i]; } }
+                    let mut out = crate::crypto::aes_block(&key, &block, decrypt);
+                    if decrypt { for i in 0..16 { out[i] ^= iv[i]; } iv = ciphertext; } else { iv = out; }
+                    out
+                }
+                2 | 3 => { // OFB and CTR both encrypt the IV to generate a keystream.
+                    let stream = crate::crypto::aes_block(&key, &iv, false);
+                    for i in 0..16 { block[i] ^= stream[i]; }
+                    if self.block_mode == 2 { iv = stream; }
+                    else { for byte in iv.iter_mut().rev() { *byte = byte.wrapping_add(1); if *byte != 0 { break; } } }
+                    block
+                }
+                _ => crate::crypto::aes_block(&key, &block, decrypt), // ECB
+            };
+            output.extend_from_slice(&out);
+            self.blocks += 1;
+        }
+        for (word, bytes) in self.iv.iter_mut().zip(iv.chunks_exact(4)) {
+            *word = u32::from_le_bytes(bytes.try_into().unwrap());
+        }
+        output
+    }
     pub fn read(&mut self, off: u32) -> u32 {
         match off {
             0x00..=0x1c => self.key[(off / 4) as usize],
@@ -53,13 +89,10 @@ impl Aes {
         }
     }
     fn transform(&mut self) {
-        let decrypt = self.mode & 4 != 0;
-        let key_words = ((self.mode & 3) + 2) as usize * 2;      // mode 0/1/2 -> 128/192/256 bits
-        let mut key = Vec::with_capacity(key_words * 4);
-        for w in &self.key[..key_words.min(8)] { key.extend_from_slice(&w.to_le_bytes()); }
+        let key = self.key_bytes();
         let mut block = [0u8; 16];
         for (i, w) in self.text_in.iter().enumerate() { block[4 * i..4 * i + 4].copy_from_slice(&w.to_le_bytes()); }
-        let out = crate::crypto::aes_block(&key, &block, decrypt);
+        let out = crate::crypto::aes_block(&key, &block, self.decrypting());
         for i in 0..4 { self.text_out[i] = u32::from_le_bytes([out[4 * i], out[4 * i + 1], out[4 * i + 2], out[4 * i + 3]]); }
         self.blocks += 1;
     }
@@ -71,4 +104,56 @@ impl Device for Aes {
     fn read(&mut self, off: u32) -> u32 { Aes::read(self, off) }
     fn write(&mut self, off: u32, v: u32) -> WriteEffect { Aes::write(self, off, v); WriteEffect::NONE }
     fn irq_sources(&self) -> u64 { self.irq() as u64 }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn hex(s: &str) -> Vec<u8> {
+        (0..s.len()).step_by(2).map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap()).collect()
+    }
+
+    fn accelerator(block_mode: u32, decrypt: bool, iv: &str) -> Aes {
+        let mut aes = Aes::new();
+        let key = hex("2b7e151628aed2a6abf7158809cf4f3c");
+        for (i, word) in key.chunks_exact(4).enumerate() {
+            aes.write(i as u32 * 4, u32::from_le_bytes(word.try_into().unwrap()));
+        }
+        for (i, word) in hex(iv).chunks_exact(4).enumerate() {
+            aes.write(0x50 + i as u32 * 4, u32::from_le_bytes(word.try_into().unwrap()));
+        }
+        aes.write(0x40, if decrypt { 4 } else { 0 });
+        aes.write(0x94, block_mode);
+        aes
+    }
+
+    #[test]
+    fn chaining_matches_nist_vectors_across_dma_requests() {
+        // NIST SP 800-38A appendix F: first two AES-128 blocks for ECB, CBC, OFB and CTR.
+        // https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38a.pdf
+        let plain = hex("6bc1bee22e409f96e93d7e117393172aae2d8a571e03ac9c9eb76fac45af8e51");
+        for (mode, initial_iv, cipher, final_iv) in [
+            (0, "000102030405060708090a0b0c0d0e0f",
+                "3ad77bb40d7a3660a89ecaf32466ef97f5d3d58503b9699de785895a96fdbaaf", "000102030405060708090a0b0c0d0e0f"),
+            (1, "000102030405060708090a0b0c0d0e0f",
+                "7649abac8119b246cee98e9b12e9197d5086cb9b507219ee95db113a917678b2", "5086cb9b507219ee95db113a917678b2"),
+            (2, "000102030405060708090a0b0c0d0e0f",
+                "3b3fd92eb72dad20333449f8e83cfb4a7789508d16918f03f53c52dac54ed825", "d9a4dada0892239f6b8b3d7680e15674"),
+            (3, "f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+                "874d6191b620e3261bef6864990db6ce9806f66b7970fdff8617187bb9fffdff", "f0f1f2f3f4f5f6f7f8f9fafbfcfdff01"),
+        ] {
+            let cipher = hex(cipher);
+            for decrypt in [false, true] {
+                let (input, expected) = if decrypt { (&cipher, &plain) } else { (&plain, &cipher) };
+                let mut aes = accelerator(mode, decrypt, initial_iv);
+                let mut output = aes.transform_blocks(&input[..16]);
+                output.extend(aes.transform_blocks(&input[16..]));
+                assert_eq!(&output, expected, "mode {mode}, decrypt {decrypt}");
+                assert_eq!(aes.blocks, 2);
+                let iv: Vec<u8> = aes.iv.iter().flat_map(|word| word.to_le_bytes()).collect();
+                assert_eq!(iv, hex(final_iv), "mode {mode}, decrypt {decrypt}");
+            }
+        }
+    }
 }

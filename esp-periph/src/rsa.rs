@@ -32,7 +32,7 @@ impl Rsa {
         match off {
             0x000..=0x7fc => self.mem[(off / 4) as usize] = v,
             0x800 => self.m_prime = v,
-            0x804 => self.length = v,
+            0x804 => self.length = v & 0x7f, // RSA_LENGTH is seven bits; larger operands do not fit the RAM.
             0x80c => { let n = self.length as usize + 1; let z = crate::crypto::bn_modexp(&self.block(384, n), &self.block(256, n), &self.block(0, n)); self.finish(z, n); }
             0x810 => { let n = self.length as usize + 1; let z = crate::crypto::bn_mod(&crate::crypto::bn_mul(&self.block(384, n), &self.block(256, n)), &self.block(0, n)); self.finish(z, n); }
             0x814 => { let n = (self.length as usize).div_ceil(2); let z = crate::crypto::bn_mul(&self.block(384, n), &self.block(128 + n, n)); self.finish(z, 2 * n); }
@@ -66,6 +66,20 @@ impl Device for Rsa {
 #[cfg(test)]
 mod rsa_tests {
     use super::*;
+
+    #[test]
+    fn multiplication_length_ignores_reserved_bits() {
+        // ESP32-S3 TRM, register 20.2: LENGTH[6:0]. Maximum multiply uses two 64-word operands.
+        let mut rsa = Rsa::new();
+        rsa.write(0x804, u32::MAX);
+        assert_eq!(rsa.read(0x804), 127);
+        rsa.write(0x600, 3);
+        rsa.write(0x300, 7);
+        rsa.write(0x814, 1);
+        assert_eq!(rsa.read(0x200), 21);
+        for off in (0x204..0x400).step_by(4) { assert_eq!(rsa.read(off), 0); }
+        assert_eq!(rsa.int_raw, 1);
+    }
 
     /// Program the block the way `bignum_alt.c` does and check the three operations.
     #[test]

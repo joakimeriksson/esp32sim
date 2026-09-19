@@ -110,7 +110,7 @@ Console-only, real time, from the same mask ROM and binaries. See [wasm.md](wasm
 | CPU | RV32IMC, machine mode, `mstatus`/`mtvec`/`mepc`/`mcause`/`mtval`, vectored traps, WFI |
 | Interrupts | the C3 interrupt matrix: 62 sources → 31 lines, per-line priority and threshold, level and edge, plus the four `FROM_CPU` software interrupts |
 | Memory | 400 KB SRAM (SRAM1 dual-mapped IRAM/DRAM), mask ROM, RTC slow RAM, 8 MB flash cache windows through a 128-entry MMU |
-| Peripherals | UART0/1, USB-Serial/JTAG, systimer, TIMG0/1 + WDTs, GPIO, RTC_CNTL, efuse, SPI0/1 flash controller, GDMA, SHA/AES/RSA, cache controller, hardware RNG |
+| Peripherals | UART0/1, USB-Serial/JTAG, systimer, TIMG0/1, GPIO, RTC_CNTL with RTC watchdog reset stages, efuse, SPI0/1 flash controller, GDMA, SHA/AES/RSA, cache controller, hardware RNG |
 
 Peripheral models are **shared with the S3 through the `esp-periph` crate** wherever the IP is
 identical (which is most of it — same UART, same systimer, same timer groups, same USB-Serial/JTAG,
@@ -129,6 +129,7 @@ RISCV_DIS_FILES=/tmp/rom.dis:/tmp/app.dis cargo test -p riscv-rv32 --release
 
 ## Not there yet
 
+- **Watchdogs.** The [timer-group watchdogs](../esp-periph/src/timg.rs) are register RAM and never fire. The [RTC watchdog](../esp-periph/src/rtc_cntl.rs) supports reset stages, feed and write protection at the C3 register offsets; its interrupt stage sets raw status but does not interrupt the CPU.
 - **`--boot app`** (skipping the ROM and bootloader). The C3 has one 128-entry MMU table shared by
   the data and instruction buses, and software keeps their page ranges disjoint; a direct app boot
   needs the bootloader's split, which is not modelled. The flag fails with that message.
