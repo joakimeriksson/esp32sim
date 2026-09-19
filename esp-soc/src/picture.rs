@@ -24,12 +24,13 @@ fn ppm(d: &[u8]) -> Result<Picture, String> {
         if s == i { return Err("ppm: bad header".into()); }
         nums.push(std::str::from_utf8(&d[s..i]).unwrap().parse::<u32>().map_err(|e| e.to_string())?);
     }
+    if !d.get(i).is_some_and(u8::is_ascii_whitespace) { return Err("ppm: missing pixel separator".into()); }
     i += 1;
     let (w, h) = (nums[0], nums[1]);
     if w == 0 || h == 0 || w as u64 * h as u64 > MAX_PIXELS { return Err(format!("ppm: unreasonable size {}x{}", w, h)); }
     let n = (w as u64 * h as u64 * 3) as usize;
-    if d.len() < i + n { return Err("ppm: truncated".into()); }
-    Ok(Picture { w, h, rgb: d[i..i + n].to_vec() })
+    let rgb = d.get(i..).and_then(|tail| tail.get(..n)).ok_or("ppm: truncated")?.to_vec();
+    Ok(Picture { w, h, rgb })
 }
 
 fn bmp(d: &[u8]) -> Result<Picture, String> {
@@ -40,14 +41,15 @@ fn bmp(d: &[u8]) -> Result<Picture, String> {
     let (wu, hu, flip) = (w.unsigned_abs(), h.unsigned_abs(), h > 0);
     if wu == 0 || hu == 0 || wu as u64 * hu as u64 > MAX_PIXELS { return Err(format!("bmp: unreasonable size {}x{}", wu, hu)); }
     let stride = ((wu as usize * bpp / 8) + 3) & !3;
+    let len = stride.checked_mul(hu as usize).ok_or("bmp: pixel extent overflows")?;
+    let pixels = d.get(off..).and_then(|tail| tail.get(..len)).ok_or("bmp: truncated")?;
     let mut rgb = vec![0u8; (wu as u64 * hu as u64 * 3) as usize];
     for y in 0..hu as usize {
         let src_row = if flip { hu as usize - 1 - y } else { y };
         for x in 0..wu as usize {
-            let p = off + src_row * stride + x * bpp / 8;
-            if p + 2 >= d.len() { return Err("bmp: truncated".into()); }
+            let p = src_row * stride + x * bpp / 8;
             let o = (y * wu as usize + x) * 3;
-            rgb[o] = d[p + 2]; rgb[o + 1] = d[p + 1]; rgb[o + 2] = d[p];
+            rgb[o] = pixels[p + 2]; rgb[o + 1] = pixels[p + 1]; rgb[o + 2] = pixels[p];
         }
     }
     Ok(Picture { w: wu, h: hu, rgb })

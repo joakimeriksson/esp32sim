@@ -18,11 +18,14 @@ pub fn parse(d: &[u8]) -> Result<AppImage, String> {
     let mut off = 24usize;
     let mut segments = Vec::new();
     for _ in 0..nseg {
-        if off + 8 > d.len() { return Err("truncated image".into()); }
-        let load_addr = u32::from_le_bytes(d[off..off + 4].try_into().unwrap());
-        let len = u32::from_le_bytes(d[off + 4..off + 8].try_into().unwrap());
-        segments.push(ImageSegment { load_addr, file_off: (off + 8) as u32, len });
-        off += 8 + len as usize;
+        let header = d.get(off..).and_then(|tail| tail.get(..8)).ok_or("truncated image segment header")?;
+        let load_addr = u32::from_le_bytes(header[..4].try_into().unwrap());
+        let len = u32::from_le_bytes(header[4..].try_into().unwrap());
+        off += 8; // The complete header fits in d.
+        let end = off.checked_add(len as usize).filter(|&end| end <= d.len()).ok_or("truncated image segment data")?;
+        let file_off = u32::try_from(off).map_err(|_| "image segment offset exceeds 32 bits")?;
+        segments.push(ImageSegment { load_addr, file_off, len });
+        off = end;
     }
     Ok(AppImage { entry, segments })
 }
