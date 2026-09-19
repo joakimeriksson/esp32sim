@@ -47,7 +47,8 @@ impl esp_soc::SocBus for SocBus {
     fn next_deadline(&self) -> Option<u64> { Some(SocBus::next_deadline(self)) }
     fn irq_dirty(&mut self) -> &mut bool { &mut self.irq_dirty }
     // Only the WASM JIT helpers currently stop before deferred device accesses.
-    fn can_defer(&self) -> bool { cfg!(target_arch = "wasm32") }
+    // `ESP32SIM_VQ_NATIVE` opts a native run in; it is only sound with `--no-jit`.
+    fn can_defer(&self) -> bool { cfg!(target_arch = "wasm32") || std::env::var_os("ESP32SIM_VQ_NATIVE").is_some() }
     fn set_defer(&mut self, on: bool) { self.defer_mmio = on; self.mmio_deferred = false; }
     fn take_deferred(&mut self) -> bool { std::mem::take(&mut self.mmio_deferred) }
     fn refresh_irq(&mut self) -> bool {
