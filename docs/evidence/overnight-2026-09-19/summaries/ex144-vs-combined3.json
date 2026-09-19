@@ -1,0 +1,102 @@
+{
+  "pairs": 1,
+  "screeningOnly": true,
+  "medianWallSeconds": {
+    "baseline": 43.1996400000155,
+    "candidate": 43.28598000001907
+  },
+  "wallReductionPercent": -0.19986277664245655,
+  "pairsWallReductionPercent": [
+    -0.19986277664245655
+  ],
+  "runs": [
+    {
+      "pair": 1,
+      "arm": "baseline",
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "browser": "Chrome/153.0.8010.53",
+      "v8": "15.3.76.13",
+      "provenance": {
+        "sha256": {
+          "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+          "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+          "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+          "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+          "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+          "asset/wasm": "bcece317dfda42b0bf451a8458ac6795fde3508b22519b341564f2cb2004328f",
+          "harness/battery-failure.test.mjs": "68333b7e686dfeb08bffa1a41c1181e86b9fbf63abcdc371c53b9859f0089014",
+          "harness/battery-worker.mjs": "4856f3531a83b8f81bd5118e07060a183c2b904b900f4b8b2b51e187230a3b81",
+          "harness/battery-workload.test.mjs": "8c827d224c8f7b1315676317fa3d83332624810082efe886cd7cf5d07981b399",
+          "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+          "harness/battery.mjs": "bdbd5d0e3db4b84570eaf78d3db88a5e9d17b5745b91b2062d4886555bae910a",
+          "harness/capture-battery.mjs": "3a6eb7f654af08075d808296bf1b4eea7da5607518687594f7115dbe608a286d",
+          "harness/capture-cpu.mjs": "2a224056be6502fb5b7df1f1f63b29e75ba6946e1aa08768030de40f71ffd9cc",
+          "harness/capture-page-response.mjs": "4e4d38ef935ab2fd565d5f3665889b014321f6f2c8cb82b70d12e5db530420c1",
+          "harness/capture-response.mjs": "74a502f612e24170ba7c3fa329eed79bd3b78b01aab679f7fe67920643f3e4d6",
+          "harness/check-page-input.mjs": "1188b390807ad3096e14a9da2fe4139887b4f256b809640cf752b39edba608eb",
+          "harness/response.html": "2ded61ce3ed5449f249f1db204305ca16d0447cfef628dbe1dbe13e33c3d2051",
+          "harness/response.mjs": "a96554a83c202f5d8eb3c612431e2a8e4ac3dee8b890e748042e063009d28552",
+          "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+          "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+          "harness/verdict.test.mjs": "fc77e45e65a7d5072723613833fb35d592b56f7590d80079201d4a2cfba006f4",
+          "harness/workloads.json": "17877f5594396354093e4c6344aeb987d6ffdfcca42bc0021d0cb33e7fd47f8f",
+          "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+          "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+          "web/wasm/worker.js": "ae1d44840385167b2f0c9a55132cf86a7fc0a9d5c0cf7fa75701c00fd6ce00d3"
+        }
+      },
+      "wallSeconds": 43.1996400000155,
+      "guestSeconds": 47.750049575,
+      "realtimeRatio": 1.105334432763395,
+      "instructions": 9819885134,
+      "passed": true,
+      "jitFailed": 0,
+      "jitBytes": 110973807,
+      "run": "/Users/alice/src/a/esp32sim/work/night-run/runs/ex144-vs-combined3/1-baseline"
+    },
+    {
+      "pair": 1,
+      "arm": "candidate",
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "browser": "Chrome/153.0.8010.53",
+      "v8": "15.3.76.13",
+      "provenance": {
+        "sha256": {
+          "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+          "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+          "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+          "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+          "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+          "asset/wasm": "9d321c95dc83869992af13fe213cf24ec3dcde397d1954a80e405b6d1f7eb837",
+          "harness/battery-failure.test.mjs": "68333b7e686dfeb08bffa1a41c1181e86b9fbf63abcdc371c53b9859f0089014",
+          "harness/battery-worker.mjs": "4856f3531a83b8f81bd5118e07060a183c2b904b900f4b8b2b51e187230a3b81",
+          "harness/battery-workload.test.mjs": "8c827d224c8f7b1315676317fa3d83332624810082efe886cd7cf5d07981b399",
+          "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+          "harness/battery.mjs": "bdbd5d0e3db4b84570eaf78d3db88a5e9d17b5745b91b2062d4886555bae910a",
+          "harness/capture-battery.mjs": "3a6eb7f654af08075d808296bf1b4eea7da5607518687594f7115dbe608a286d",
+          "harness/capture-cpu.mjs": "2a224056be6502fb5b7df1f1f63b29e75ba6946e1aa08768030de40f71ffd9cc",
+          "harness/capture-page-response.mjs": "4e4d38ef935ab2fd565d5f3665889b014321f6f2c8cb82b70d12e5db530420c1",
+          "harness/capture-response.mjs": "74a502f612e24170ba7c3fa329eed79bd3b78b01aab679f7fe67920643f3e4d6",
+          "harness/check-page-input.mjs": "1188b390807ad3096e14a9da2fe4139887b4f256b809640cf752b39edba608eb",
+          "harness/response.html": "2ded61ce3ed5449f249f1db204305ca16d0447cfef628dbe1dbe13e33c3d2051",
+          "harness/response.mjs": "a96554a83c202f5d8eb3c612431e2a8e4ac3dee8b890e748042e063009d28552",
+          "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+          "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+          "harness/verdict.test.mjs": "fc77e45e65a7d5072723613833fb35d592b56f7590d80079201d4a2cfba006f4",
+          "harness/workloads.json": "17877f5594396354093e4c6344aeb987d6ffdfcca42bc0021d0cb33e7fd47f8f",
+          "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+          "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+          "web/wasm/worker.js": "ae1d44840385167b2f0c9a55132cf86a7fc0a9d5c0cf7fa75701c00fd6ce00d3"
+        }
+      },
+      "wallSeconds": 43.28598000001907,
+      "guestSeconds": 47.750049575,
+      "realtimeRatio": 1.1031296871407084,
+      "instructions": 9819885134,
+      "passed": true,
+      "jitFailed": 0,
+      "jitBytes": 112730986,
+      "run": "/Users/alice/src/a/esp32sim/work/night-run/runs/ex144-vs-combined3/1-candidate"
+    }
+  ]
+}
