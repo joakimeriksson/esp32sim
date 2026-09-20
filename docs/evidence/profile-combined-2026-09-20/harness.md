@@ -5,3 +5,8 @@ Start with `tools/browser-benchmark/` at source revision
 [harness.patch](harness.patch) from that checkout root with `git apply`.
 The patch preserves the two modified capture files; the other 26 files matched
 that revision exactly. See the [evidence retention policy](../README.md) for future captures.
+
+For the historical `capture.mjs` layout, copy the patched
+`tools/browser-benchmark/` directory to `harness/` beneath the local capture root.
+The archived script contains the original path labels; adjust its `root`, `tree`
+and firmware paths for the local checkout before reproducing the capture.
