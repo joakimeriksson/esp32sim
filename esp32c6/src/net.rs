@@ -78,14 +78,16 @@ impl Network {
 
     /// Add a node. `mac` is what its efuses report, so two nodes must not share one: Contiki
     /// derives its link-layer address from it and drops a frame that appears to come from itself.
-    pub fn add(&mut self, mac: [u8; 6], flash_bytes: usize, start_ns: u64, x: f64, y: f64, board: &str) -> usize {
+    /// Unknown board names return an error without adding a node.
+    pub fn add(&mut self, mac: [u8; 6], flash_bytes: usize, start_ns: u64, x: f64, y: f64, board: &str) -> Result<usize, String> {
+        let board = crate::board::make_board(board).ok_or_else(|| format!("unknown ESP32-C6 board: {board:?}"))?;
         let mut m = machine(mac, flash_bytes);
         m.bus.set_flash_size(flash_bytes);
-        if let Some(b) = crate::board::make_board(board) { m.bus.board = b; }
+        m.bus.board = board;
         m.console.capture = true;
         m.console.mask = 2;                              // UART0, where the IDF console goes
         self.nodes.push(Node { m, start_ns, booted: false, halted: false, console: Vec::new(), x, y, tx: 0, rx: 0, rx_dropped: 0 });
-        self.nodes.len() - 1
+        Ok(self.nodes.len() - 1)
     }
 
     pub fn boot(&mut self) {
