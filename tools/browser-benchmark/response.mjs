@@ -69,8 +69,7 @@ worker.onmessage = ({data: message}) => {
     if (message[waiters[i].key] !== undefined) { const [pending] = waiters.splice(i, 1); pending.resolve(message); }
   }
   if (message.bin) {
-    frame(message.bin);
-    if (message.ack) worker.postMessage({op: 'frame-ack'});
+    try { frame(message.bin); } finally { if (message.ack) worker.postMessage({op: 'frame-ack'}); }
   }
   if (message.text) {
     const event = JSON.parse(message.text);
@@ -90,7 +89,7 @@ worker.onmessage = ({data: message}) => {
 worker.onerror = event => { status.textContent = event.message; receipt.error = event.message; };
 receipt.assets = await (await fetch('/assets.json')).json();
 const wasm = await (await fetch('/asset/wasm')).arrayBuffer();
-await command({op: 'init', wasm}, 'ready');
+await command({op: 'init', wasm, frameAck: true}, 'ready');
 const experiments = experimentsFromParams(new URL(location.href).searchParams);
 await command({op: 'create', board: 'waveshare-amoled18-v2', flash_mb: 16, psram_mb: 8, experiments}, 'created');
 for (const [name, kind] of [['rom', 0], ['bootloader', 1], ['ptable', 2], ['app', 3], ['elf', 4]]) {

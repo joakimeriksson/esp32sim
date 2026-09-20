@@ -17,7 +17,7 @@ function put(bytes) { const p = wasm.esp32sim_alloc(bytes.length); mem().set(byt
 function withBytes(bytes, f) { const p = put(bytes); try { return f(p, bytes.length); } finally { wasm.esp32sim_free(p, bytes.length); } }
 const blockJit = createJitHost(() => wasm);
 let experiments = [];
-let framesInFlight = 0, pendingFrame = null;
+let frameAck = false, framesInFlight = 0, pendingFrame = null;
 const imports = { env: { ...blockJit.imports, host_log: (p, n) => postMessage({ log: dec.decode(mem().subarray(p, p + n)) }) } };
 
 function drain() {
@@ -27,15 +27,15 @@ function drain() {
     if (kind === 1) postMessage({ text: dec.decode(mem().subarray(p, p + len)) });
     else {
       const display = mem()[p] === 1;
-      // Backpressure: a page that has not painted the last two display frames gets only the
-      // newest one once it has; a queue of 330 KB frames helps nobody.
-      if (display && framesInFlight >= 2) { pendingFrame = mem().slice(p, p + len).buffer; continue; }
-      const buf = new ArrayBuffer(len);
-      new Uint8Array(buf).set(mem().subarray(p, p + len));
+      // Backpressure is opt-in: legacy consumers need not acknowledge frames. A page
+      // that has not handled its last two frames gets only the newest retained frame.
       const frameTrace = traceEnabled && display
         ? { stage: 'worker-frame', atMs: traceNow(), cycles: wasm.esp32sim_cycles(emu) } : undefined;
-      if (display) { framesInFlight++; pendingFrame = null; }
-      postMessage({ bin: buf, frameTrace, ack: display }, [buf]);
+      if (frameAck && display && framesInFlight >= 2) { pendingFrame = { bin: mem().slice(p, p + len).buffer, frameTrace, ack: true }; continue; }
+      const buf = new ArrayBuffer(len);
+      new Uint8Array(buf).set(mem().subarray(p, p + len));
+      if (frameAck && display) { framesInFlight++; pendingFrame = null; }
+      postMessage({ bin: buf, frameTrace, ack: frameAck && display }, [buf]);
     }
   }
 }
@@ -116,11 +116,12 @@ onmessage = async (ev) => {
   const m = ev.data;
   try {
     if (m.op === 'frame-ack') {
+      if (!frameAck) return;
       framesInFlight = Math.max(0, framesInFlight - 1);
-      if (pendingFrame && framesInFlight < 2) { const buf = pendingFrame; pendingFrame = null; framesInFlight++; postMessage({ bin: buf, ack: true }, [buf]); }
+      if (pendingFrame && framesInFlight < 2) { const message = pendingFrame; pendingFrame = null; framesInFlight++; postMessage(message, [message.bin]); }
       return;
     }
-    if (m.op === 'init') { traceEnabled = !!m.touchTrace; const r = await WebAssembly.instantiate(m.wasm, imports); wasm = r.instance.exports;  postMessage({ ready: true }); }
+    if (m.op === 'init') { frameAck = m.frameAck === true; traceEnabled = !!m.touchTrace; const r = await WebAssembly.instantiate(m.wasm, imports); wasm = r.instance.exports;  postMessage({ ready: true }); }
     else if (m.op === 'create') {
       running = false;
       // Keep credits for already posted frames until their ACKs arrive, but never send
