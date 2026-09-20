@@ -71,3 +71,7 @@ Receipts: /Users/alice/src/a/esp32sim-exp/runs/overnight/flags-inl2000-5ce976e6-
 | [combined-tinydraw](runs/combined-tinydraw.json) | 37.943 → 33.311 | 12.21% | 12.44%, 12.96%, 11.97% |
 
 All individual confirmations use three alternating pairs. The combined pocket-tank result uses four balanced-order pairs and TinyDraw uses three alternating pairs. Every arm passed pinned instructions and console-output checks. M3 A/A per-pair differences were 1.27% and 0.51%; these two pairs describe observed control variation, not a statistical bound. The combined pocket-tank reduction corresponds to about 1.62× baseline throughput. Do not pool these measurements with the original laptop sweep.
+
+## Inline follow-up launched
+
+The M3 started inline-campaign.sh at 12:53:03 BST. EX154 compares thresholds 2000 and 4000 against combined.wasm, not the original base. Both use production source 93741045 and Rust 1.98.1 with only -Cllvm-args=-inline-threshold=N added. All builds and per-variant correctness gates precede serial timing. Local launcher: /Users/alice/src/a/esp32sim-exp/m3-transfer/inline-campaign.sh. Local refreshed results: /Users/alice/src/a/esp32sim-exp/results/m3/README.md. Browser hand-testing follows selection of the final artifact.
