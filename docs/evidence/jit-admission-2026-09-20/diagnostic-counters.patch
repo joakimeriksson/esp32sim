@@ -1,0 +1,109 @@
+diff --git a/xtensa-lx7/src/jit/wasm.rs b/xtensa-lx7/src/jit/wasm.rs
+index eaba014e..9091be48 100644
+--- a/xtensa-lx7/src/jit/wasm.rs
++++ b/xtensa-lx7/src/jit/wasm.rs
+@@ -78,6 +78,8 @@ pub struct RegionStats {
+     /// EX153 census: [run calls, calls with budget>=64, whole calls, whole retired, tail-cut calls, tail-cut retired,
+     /// resumed calls, resumed retired, resumed-and-cut-again calls, zero-retired calls, sum of budgets]
+     pub ex153: [Cell<u64>; 12],
++    /// Counts only, not timings. Hot misses use first-failing-guard order.
++    pub admission: [Cell<u64>; 16],
+ }
+ #[cfg(feature = "wasm-jit-profile")]
+ impl RegionStats {
+@@ -89,11 +91,21 @@ impl RegionStats {
+             self.instructions.get(), self.bytes.get(), self.calls.get(), self.rejected.get(), self.retired.get(),
+             self.exits[..5].iter().map(|c| c.get()).collect::<Vec<_>>(),
+             self.left_kinds.iter().map(|c| c.get()).collect::<Vec<_>>())
++            + &format!("\n[jit-admission] labels=total,resumed,observed,hot_epoch,hot_budget,hot_boundary,hot_loop,hot_pages,hot_enter,hot_reject,cold_enter,cold_reject,body,body_loop,body_retired,body_zero counts={:?}",
++                self.admission.iter().map(Cell::get).collect::<Vec<_>>())
+     }
+ }
+ pub static CENSUS: [std::sync::atomic::AtomicU64; 8] = [const { std::sync::atomic::AtomicU64::new(0) }; 8];
+ #[inline(always)]
+ fn census(i: usize, n: u64) { if cfg!(feature = "wasm-cpu-profile") { CENSUS[i].fetch_add(n, std::sync::atomic::Ordering::Relaxed); } }
++#[inline(always)]
++fn admission(_cc: &CodeCache, _index: usize, _count: u64) {
++    #[cfg(feature = "wasm-jit-profile")]
++    {
++        let counter = &_cc.region_stats.admission[_index];
++        counter.set(counter.get() + _count);
++    }
++}
+ const HOT: u32 = 32;
+ /// EX153: chain compiled calls inside the wrapper.
+ const CHAIN: bool = true;
+@@ -566,15 +578,28 @@ unsafe fn run_inner<B: Bus>(
+         .map(|m| (m.tlb, m.page_ver))
+         .unwrap_or((std::ptr::null(), std::ptr::null_mut()));
+     let b = &cc.blocks[code as usize];
++    admission(cc, 0, 1);
++    if entry != 0 { admission(cc, 1, 1); }
++    else if cpu.blocks.observed { admission(cc, 2, 1); }
+     if entry == 0 && !cpu.blocks.observed {
+         // EX136: the facts the checks below would fetch through the owning block, its region and
+         // three of its vectors are cached in this block while no region has been dropped.
+         let hot = b.hot.get();
++        #[cfg(feature = "wasm-jit-profile")]
++        {
++            let miss = if hot.epoch != cc.region_epoch.get() { Some(3) }
++                else if budget < hot.len { Some(4) }
++                else if cpu.boundary_bloom & hot.bloom != 0 { Some(5) }
++                else if cpu.lcount != 0 && cpu.lend.wrapping_sub(hot.lo) <= hot.span { Some(6) }
++                else { None };
++            if let Some(index) = miss { admission(cc, index, 1); }
++        }
+         if hot.epoch == cc.region_epoch.get() && budget >= hot.len && cpu.boundary_bloom & hot.bloom == 0
+             && (cpu.lcount == 0 || cpu.lend.wrapping_sub(hot.lo) > hot.span)
+         {
+             let pv = bus.page_versions();
+             if hot.pages[..hot.npages as usize].iter().all(|&(i, v)| pv.get(i as usize).copied().unwrap_or(0) == v) {
++                admission(cc, 8, 1);
+                 // SAFETY: as for the region call below; the epoch proves slot and sites are live.
+                 let f: Run<B> = unsafe { std::mem::transmute(hot.slot as usize) };
+                 let result = f(cpu, bus, h, budget.min(0xffff), hot.k, tlb, versions);
+@@ -589,8 +614,10 @@ unsafe fn run_inner<B: Bus>(
+                     bus.note_pc(site_pc(site));
+                     return result & 0x7ffff;
+                 }
++                admission(cc, 9, 1);
+                 return run_block_body(cc, code, cpu, bus, h, budget, entry, tlb, versions);
+             }
++            admission(cc, 7, 1);
+         }
+         // The region to run: this block's own, or the one covering this PC.
+         let (owner, k) = if b.region.borrow().is_some() {
+@@ -683,6 +710,7 @@ unsafe fn run_inner<B: Bus>(
+                         b.hot.set(Hot { epoch: cc.region_epoch.get(), bloom: r.bloom, slot: r.slot, k, len: r.lens[k as usize], lo: r.lo,
+                             span: r.hi.wrapping_sub(r.lo), pages, npages: r.pages.len() as u32, nsites: r.sites.len() as u32, sites: r.sites.as_ptr() });
+                     }
++                    admission(cc, 10, 1);
+                     let result = f(cpu, bus, h, budget.min(0xffff), k, tlb, versions);
+                     let site = if (result >> 16) & 7 != CODE_REJECT {
+                         assert!(((result >> 19) as usize) < r.sites.len(), "region {:x}: result {result:#x} sites {}", rb.pc, r.sites.len());
+@@ -694,6 +722,7 @@ unsafe fn run_inner<B: Bus>(
+                         bus.note_pc(site_pc(site));
+                         return result & 0x7ffff;
+                     }
++                    admission(cc, 11, 1);
+                 }
+             }
+         }
+@@ -740,6 +769,8 @@ unsafe fn run_block_body<B: Bus>(cc: &CodeCache, code: u32, cpu: &mut Cpu, bus:
+     let f: Run<B> = unsafe { std::mem::transmute(cc.blocks[code as usize].slot.get() as usize) };
+     let b = &cc.blocks[code as usize];
+     let looping = loop_len(cc, code, cpu);
++    admission(cc, 12, 1);
++    if looping.is_some() { admission(cc, 13, 1); }
+     let initial_lcount = cpu.lcount;
+     let result = if looping.is_some() {
+         let mut guarded = *h;
+@@ -756,6 +787,8 @@ unsafe fn run_block_body<B: Bus>(cc: &CodeCache, code: u32, cpu: &mut Cpu, bus:
+         f(cpu, bus, h, budget.min(0xffff), entry, tlb, versions)
+     };
+     let done = result & 0xffff;
++    admission(cc, 14, done as u64);
++    if done == 0 { admission(cc, 15, 1); }
+     {
+         let bytes = b.pcs.last().unwrap().wrapping_add(b.instructions.last().unwrap().insn.len as u32).wrapping_sub(b.pc);
+         let noloop = initial_lcount == 0 || cpu.lend.wrapping_sub(b.pc) > bytes;
