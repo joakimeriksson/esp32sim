@@ -50,7 +50,8 @@ pub struct Realtime {
     log_insns: (u64, u64),
 }
 
-struct WebState { last_push_cycles: u64, audio_sent: usize, ring_updates: u64, grid_updates: Vec<u64>, px_pending: u64, px_sent: u64, px_deferred: bool, cam_pushed: u64, cam_sent: bool }
+struct WebState { last_push_cycles: u64, /// EX170: `CPU_HZ / display_push_hz()` as of the last evaluation (0 = not evaluated yet); boards are fixed once booted.
+    push_interval: u64, audio_sent: usize, ring_updates: u64, grid_updates: Vec<u64>, px_pending: u64, px_sent: u64, px_deferred: bool, cam_pushed: u64, cam_sent: bool }
 
 pub struct Machine<S: Soc> {
     pub mac: [u8; 6],
@@ -124,7 +125,7 @@ impl<S: Soc> Machine<S> {
             exceptions: 0, interrupts: 0, irq_hist: vec![[0; 32]; S::CORES],
             script: Script { events: Vec::new(), pos: 0, log: true, knob_next: 0 }, max_cycles: u64::MAX,
             console: Console { all: Vec::new(), usb: Vec::new(), uart0: Vec::new(), mask: 3, prefix: false, capture: false },
-            web: None, ws: WebState { last_push_cycles: 0, audio_sent: 0, ring_updates: 0, grid_updates: Vec::new(), px_pending: 0, px_sent: 0, px_deferred: false, cam_pushed: u64::MAX, cam_sent: false },
+            web: None, ws: WebState { last_push_cycles: 0, push_interval: 0, audio_sent: 0, ring_updates: 0, grid_updates: Vec::new(), px_pending: 0, px_sent: 0, px_deferred: false, cam_pushed: u64::MAX, cam_sent: false },
             rt: Realtime { enabled: false, wall_start: None, last_check: 0, behind: 0.0, resyncs: 0, speed: None, speed_mark: None, log: false, log_last: None, log_insns: (0, 0) },
             debug_rom: false, cost: None, model_accesses: Vec::new(), approximate_jit_timing: None, approximate_jit_frontiers: false, model_ready_at: vec![0; S::CORES], model_stop: None, model_attach_error: None,
         }
@@ -805,7 +806,12 @@ impl<S: Soc> Machine<S> {
     #[inline]
     fn after_round_rest(&mut self) -> bool {
         let stopped = self.apply_script_events();
-        if self.web.is_some() && self.bus.cycles().wrapping_sub(self.ws.last_push_cycles) >= S::CPU_HZ / self.bus.board_ref().display_push_hz() { self.ws.last_push_cycles = self.bus.cycles(); self.web_push(); self.web_poll_input(); }
+        // EX170: the cached interval filters the common not-yet-due round without the board call and
+        // division; a due round re-derives it from the board before deciding, as before.
+        if self.web.is_some() && self.bus.cycles().wrapping_sub(self.ws.last_push_cycles) >= self.ws.push_interval {
+            self.ws.push_interval = S::CPU_HZ / self.bus.board_ref().display_push_hz();
+            if self.bus.cycles().wrapping_sub(self.ws.last_push_cycles) >= self.ws.push_interval { self.ws.last_push_cycles = self.bus.cycles(); self.web_push(); self.web_poll_input(); }
+        }
         if self.rt.enabled && self.bus.cycles().wrapping_sub(self.rt.last_check) >= 1 << 16 {
             self.rt.last_check = self.bus.cycles();
             let start = *self.rt.wall_start.get_or_insert_with(std::time::Instant::now);

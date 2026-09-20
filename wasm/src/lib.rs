@@ -387,6 +387,17 @@ pub unsafe extern "C" fn esp32sim_set_approximate_jit_timing(e: *mut Emu, cpi: u
 #[cfg(all(target_arch = "wasm32", feature = "jit-tests"))]
 mod jit_tests;
 
+/// EX170: sweeps the compiled MADD.S/MSUB.S sequence against the fused helper's arithmetic.
+/// Returns mismatches (must be 0); logs the halfway-class count.
+#[cfg(all(target_arch = "wasm32", feature = "jit-tests"))]
+#[no_mangle]
+pub extern "C" fn esp32sim_test_fma_sweep(seed: f64, n: u32) -> u32 {
+    std::panic::set_hook(Box::new(|info| log(&format!("[fma sweep] {info}"))));
+    let (bad, halfway) = xtensa_lx7::jit::tests::fma_sweep(seed as u64, n, &mut |line| log(&line));
+    log(&format!("fma sweep seed={seed} n={n} mismatches={bad} halfway={halfway}"));
+    bad
+}
+
 /// Runs the generated-code differential suite in a real WASM runtime.
 #[cfg(all(target_arch = "wasm32", feature = "jit-tests"))]
 #[no_mangle]

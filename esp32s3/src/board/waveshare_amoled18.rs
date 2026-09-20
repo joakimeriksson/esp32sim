@@ -76,17 +76,46 @@ impl Co5300 {
             // SPI transfers while keeping chip select active. Preserve the command
             // after the header-only transfer so the next transfer sets the window.
             Some(0x2a | 0x2b) => {}
-            Some(0x2c | 0x3c) => {
-                for &byte in data {
-                    match self.pixel_hi.take() {
-                        None => self.pixel_hi = Some(byte),
-                        Some(high) => self.write_pixel(u16::from_be_bytes([high, byte])),
-                    }
-                }
-            }
+            Some(0x2c | 0x3c) => self.write_pixel_bytes(data),
             Some(_) => self.pending = None,
             None => {}
         }
+    }
+
+    /// EX158/EX170: the per-byte loop, a row run at a time. Same window walk and `pixels_written`.
+    fn write_pixel_bytes(&mut self, mut data: &[u8]) {
+        if let Some(high) = self.pixel_hi {
+            let Some((&low, rest)) = data.split_first() else { return };
+            self.pixel_hi = None;
+            self.write_pixel(u16::from_be_bytes([high, low]));
+            data = rest;
+        }
+        let (pairs, rest) = data.as_chunks::<2>();
+        let mut pairs = pairs;
+        while !pairs.is_empty() {
+            let (x, x1) = (self.x as usize, self.x1 as usize);
+            let to_edge = if x < x1 { x1 - x + 1 } else { 1 };
+            let run = to_edge.min(pairs.len());
+            let (now, later) = pairs.split_at(run);
+            if (self.y as usize) < Self::HEIGHT {
+                let lo = x.max(Self::X_OFFSET as usize);
+                let hi = (x + run).min(Self::X_OFFSET as usize + Self::WIDTH);
+                if lo < hi {
+                    let row = self.y as usize * Self::WIDTH;
+                    let xo = Self::X_OFFSET as usize;
+                    for (dst, src) in self.frame[row + lo - xo..row + hi - xo].iter_mut().zip(&now[lo - x..hi - x]) { *dst = u16::from_be_bytes(*src); }
+                    self.pixels_written += (hi - lo) as u64;
+                }
+            }
+            if run == to_edge {
+                self.x = self.x0;
+                if self.y >= self.y1 { self.y = self.y0; } else { self.y += 1; }
+            } else {
+                self.x += run as u16;
+            }
+            pairs = later;
+        }
+        if let [byte] = rest { self.pixel_hi = Some(*byte); }
     }
 
     fn write_pixel(&mut self, pixel: u16) {
@@ -265,6 +294,30 @@ mod amoled_tests {
         spi.write(0, 1 << 24);
         spi.complete_dma_tx(data);
         spi.take_transfer().expect("DMA GP-SPI transfer must be ready").tx
+    }
+
+    #[test]
+    fn bulk_pixel_bytes_match_the_per_byte_walk() {
+        let mut seed = 0x1234_5678u32;
+        let mut rnd = move |n: u32| { seed ^= seed << 13; seed ^= seed >> 17; seed ^= seed << 5; seed % n };
+        for _ in 0..300 {
+            let (mut a, mut b) = (Co5300::new(), Co5300::new());
+            let x0 = rnd(400) as u16; let x1 = if rnd(8) == 0 { x0.saturating_sub(rnd(5) as u16) } else { x0.saturating_add(rnd(420) as u16) };   // also windows with x1 < x0
+            let y0 = rnd(460) as u16; let y1 = y0 + rnd(30) as u16;
+            for p in [&mut a, &mut b] {
+                p.transaction(&[0x02, 0, 0x2a, 0, (x0 >> 8) as u8, x0 as u8, (x1 >> 8) as u8, x1 as u8]);
+                p.transaction(&[0x02, 0, 0x2b, 0, (y0 >> 8) as u8, y0 as u8, (y1 >> 8) as u8, y1 as u8]);
+                p.transaction(&[0x32, 0, 0x2c, 0]);
+            }
+            for _ in 0..rnd(6) + 1 {
+                let mut data: Vec<u8> = (0..rnd(3000)).map(|_| rnd(256) as u8).collect();
+                if let Some(first) = data.first_mut() { *first |= 0x80; } // not a 0x02/0x32 command header
+                a.transaction(&data);
+                for &byte in &data { match b.pixel_hi.take() { None => b.pixel_hi = Some(byte), Some(h) => b.write_pixel(u16::from_be_bytes([h, byte])) } }
+            }
+            assert_eq!((a.x, a.y, a.pixel_hi, a.pixels_written), (b.x, b.y, b.pixel_hi, b.pixels_written));
+            assert!(a.frame == b.frame);
+        }
     }
 
     #[test]

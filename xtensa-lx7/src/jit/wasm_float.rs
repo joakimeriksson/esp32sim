@@ -29,12 +29,38 @@ pub(super) fn emit(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool, 
             g.store(offset_of!(Cpu, fr) + 4 * r as usize);
         }
         MaddS | MsubS => {
+            // EX170: the helper's own common case inline. libm's `fmaf` (fma_wide_round) computes
+            // promote(s) * promote(t) + promote(r) in f64 and narrows it unless the low 29 result
+            // bits are exactly the f32 halfway pattern; only that pattern still calls the helper.
             g.get(0);
+            g.float(s);
+            if i.op == MsubS { g.op(0x8c); }                  // f32.neg: the helper's sign-bit flip
+            g.op(0xbb);                                       // f64.promote_f32
+            g.float(t);
+            g.op(0xbb);
+            g.op(0xa2);                                       // f64.mul
+            g.float(r);
+            g.op(0xbb);
+            g.op(0xa0);                                       // f64.add
+            g.op(0xbd);                                       // i64.reinterpret_f64
+            g.tee(WIDE);
+            g.op(0x42); sleb(&mut g.bytes, 0x1fff_ffff);
+            g.op(0x83);                                       // i64.and
+            g.op(0x42); sleb(&mut g.bytes, 0x1000_0000);
+            g.op(0x52);                                       // i64.ne
+            g.bytes.extend([0x04, 0x7f]);                     // if (result i32)
+            g.ctl.push(Ctl::If(g.pending));
+            g.get(WIDE);
+            g.op(0xbf);                                       // f64.reinterpret_i64
+            g.op(0xb6);                                       // f32.demote_f64
+            g.op(0xbc);                                       // i32.reinterpret_f32
+            g.op(0x05);                                       // else
             g.fr(s);
             g.fr(t);
             g.fr(r);
             g.c((i.op == MsubS) as u32);
             g.helper(offset_of!(Helpers, fused), 1);
+            g.end();
             g.store(offset_of!(Cpu, fr) + 4 * r as usize);
         }
         FloatS | UfloatS => {

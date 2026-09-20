@@ -315,6 +315,29 @@ impl SocBus {
 
     /// Copy `n` guest bytes for the memory-to-memory engine, a word at a time where both ends are aligned.
     pub(super) fn dma_copy(&mut self, src: u32, dst: u32, n: u32) -> Result<(), M2mFault> {
+        // EX170: whole mapping runs with one memmove while both ends are plain host-backed memory.
+        // Anything else (MMIO, unmapped, read-only destination, forward-overlapping ranges) leaves
+        // the rest to the word loop below, which continues from `i` with its own fault position.
+        let mut i = self.dma_copy_runs(src, dst, n);
+        if i == n { return Ok(()); }
+        if (src | dst) & 3 == 0 {
+            while i + 4 <= n {
+                let v = self.read32_unpriced(src.wrapping_add(i)).map_err(|_| M2mFault::Source)?;
+                self.write32_unpriced(dst.wrapping_add(i), v).map_err(|_| M2mFault::Destination)?;
+                i += 4;
+            }
+        }
+        while i < n {
+            let v = self.read8_unpriced(src.wrapping_add(i)).map_err(|_| M2mFault::Source)?;
+            self.write8_unpriced(dst.wrapping_add(i), v).map_err(|_| M2mFault::Destination)?;
+            i += 1;
+        }
+        Ok(())
+    }
+
+    /// The plain per-word copy that `dma_copy` must stay indistinguishable from.
+    #[cfg(test)]
+    pub(super) fn dma_copy_reference(&mut self, src: u32, dst: u32, n: u32) -> Result<(), M2mFault> {
         let mut i = 0u32;
         if (src | dst) & 3 == 0 {
             while i + 4 <= n {
@@ -329,6 +352,59 @@ impl SocBus {
             i += 1;
         }
         Ok(())
+    }
+
+    /// Copy the leading part of an M2M span a mapping run at a time and return how many bytes were
+    /// done. A run is taken only when the word loop would have produced the same bytes: both ends
+    /// inside one mapping each, destination writable, and the host ranges either disjoint or with
+    /// the destination below the source (where a forward copy equals memmove). Page versions get
+    /// exactly the bumps the per-word (aligned) or per-byte writes would have made.
+    fn dma_copy_runs(&mut self, src: u32, dst: u32, n: u32) -> u32 {
+        let words = (src | dst) & 3 == 0;
+        let mut i = 0u32;
+        while i < n {
+            let (s, d) = (src.wrapping_add(i), dst.wrapping_add(i));
+            if Self::is_periph(s) || Self::is_periph(d) { break; }
+            let Some(se) = self.lookup(s) else { break };
+            let Some(de) = self.lookup(d) else { break };
+            if de.writable == 0 { break; }
+            let mut take = (n - i).min(se.hi - s).min(de.hi - d);
+            // The word loop hands the unaligned tail to byte writes, which bump differently: keep
+            // runs word-sized here and let the last 1..3 bytes go through the byte loop below.
+            if words { take &= !3; }
+            if take == 0 { break; }
+            let (so, dof) = (se.off as usize + (s - se.lo) as usize, de.off as usize + (d - de.lo) as usize);
+            let len = take as usize;
+            if so + len > self.buf(se.src as u8).len() || dof + len > self.buf(de.src as u8).len() { break; }
+            if se.src == de.src && dof > so && dof < so + len { break; }      // forward copy would re-read its own output
+            let sp = self.buf(se.src as u8).as_ptr();
+            let dp = self.buf_mut(de.src as u8).as_mut_ptr();
+            // SAFETY: both ranges were bounds-checked against their buffers above; `copy` is memmove.
+            unsafe { std::ptr::copy(sp.add(so), dp.add(dof), len); }
+            self.bump_run(de.vbase, (d - de.lo) as usize, len, words);
+            i += take;
+        }
+        i
+    }
+
+    /// The page-version bumps of `len` bytes written at `off` as aligned words or as single bytes:
+    /// one per write on the write's page, and one on the previous page for each write that starts
+    /// in the first three bytes of a page (see `bump`).
+    fn bump_run(&mut self, vbase: u32, off: usize, len: usize, words: bool) {
+        const SHIFT: usize = xtensa_lx7::bus::VPAGE_SHIFT as usize;
+        const SIZE: usize = 1 << SHIFT;
+        let (mut at, end) = (off, off + len);
+        while at < end {
+            let page_end = ((at >> SHIFT) + 1) << SHIFT;
+            let stop = end.min(page_end);
+            let p = vbase as usize + (at >> SHIFT);
+            let in_page = at & (SIZE - 1);
+            let (writes, early) = if words { ((stop - at) / 4, usize::from(in_page == 0)) }
+                                  else { (stop - at, 3usize.saturating_sub(in_page).min(stop - at)) };
+            self.page_ver[p] = self.page_ver[p].wrapping_add(writes as u32);
+            if early != 0 && p > 0 { self.page_ver[p - 1] = self.page_ver[p - 1].wrapping_add(early as u32); }
+            at = stop;
+        }
     }
 
     /// Hand a filled or EOF-ended IN descriptor back to the CPU (its length, owner, SUC_EOF) and

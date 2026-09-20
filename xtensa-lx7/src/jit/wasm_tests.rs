@@ -331,6 +331,7 @@ mod regions;
 #[path = "wasm_tests/asm.rs"]
 mod asm;
 
+pub use float::fma_sweep;
 pub fn run_tests() -> u32 {
     let mut tests = 0;
     #[cfg(feature = "wasm-cache-inline")]

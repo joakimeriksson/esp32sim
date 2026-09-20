@@ -134,3 +134,38 @@ fn host_peek_does_not_warm_cpu_cache() {
     machine.bus.read32(DBUS_LOW).unwrap();
     assert_eq!(machine.bus.take_timing_penalty(), 120);
 }
+
+/// EX170: the run copy against the per-word loop over random spans that cross mappings, overlap
+/// in both directions, alias SRAM through the instruction bus and run into flash, MMIO and holes.
+#[test]
+fn dma_run_copy_matches_the_word_loop() {
+    let make = || {
+        let mut bus = SocBus::new(4 << 16, 4 << 16, [0; 6]);
+        bus.mmu[0] = MMU_SPIRAM; bus.mmu[1] = MMU_SPIRAM | 1; bus.mmu[2] = 0; bus.mmu[3] = MMU_SPIRAM | 1;   // page 2 is flash, page 3 aliases page 1
+        let mut seed = 0x9e37_79b9u32;
+        for buf in [&mut bus.sram, &mut bus.psram, &mut bus.flash] { for b in buf.iter_mut() { seed = seed.wrapping_mul(1664525).wrapping_add(1013904223); *b = (seed >> 24) as u8; } }
+        bus
+    };
+    let (mut a, mut b) = (make(), make());
+    let mut seed = 0x1234_5678u32;
+    let mut rnd = move |n: u32| { seed ^= seed << 13; seed ^= seed >> 17; seed ^= seed << 5; seed % n };
+    let bases = [DRAM_LOW, DRAM_LOW + 0xff00, IRAM_LOW + 0x8000, DBUS_LOW, DBUS_LOW + 0xff80, DBUS_LOW + 0x1_0000, DBUS_LOW + 0x1_ff00,
+                 DBUS_LOW + 0x2_0000, DBUS_LOW + 0x3_0000, DBUS_LOW + 0x3_ff00, PERIPH_BASE, 0x3FCF_FF00, 0x2000_0000];
+    let (mut fast, mut faults) = (0u32, 0u32);
+    for round in 0..6000 {
+        let align = |v: u32, r: u32| if r.is_multiple_of(3) { v } else { v & !3 };
+        let src = bases[rnd(bases.len() as u32) as usize].wrapping_add(align(rnd(0x300), round));
+        let dst = if rnd(4) == 0 { src.wrapping_add(rnd(64)).wrapping_sub(32) & if round.is_multiple_of(3) { !0 } else { !3 } }
+                  else { bases[rnd(bases.len() as u32) as usize].wrapping_add(align(rnd(0x300), round)) };
+        if SocBus::is_periph(dst) || SocBus::is_periph(dst.wrapping_add(0x1_2000)) { continue; }   // random register writes drive devices
+        let n = match rnd(4) { 0 => rnd(16), 1 => rnd(600), 2 => 4092, _ => rnd(0x1_2000) };
+        (a.last_fault, b.last_fault) = (None, None);
+        let (ra, rb) = (a.dma_copy(src, dst, n), b.dma_copy_reference(src, dst, n));
+        assert_eq!(ra.is_ok(), rb.is_ok(), "{src:#x}->{dst:#x} n={n}");
+        if let (Err(x), Err(y)) = (&ra, &rb) { assert_eq!(std::mem::discriminant(x), std::mem::discriminant(y)); faults += 1; } else { fast += 1; }
+        assert_eq!(a.last_fault, b.last_fault, "{src:#x}->{dst:#x} n={n}");
+        assert!(a.page_ver == b.page_ver, "page versions {src:#x}->{dst:#x} n={n}");
+        assert!(a.sram == b.sram && a.psram == b.psram && a.flash == b.flash, "bytes {src:#x}->{dst:#x} n={n}");
+    }
+    assert!(fast > 1000 && faults > 300, "{fast} {faults}");
+}
