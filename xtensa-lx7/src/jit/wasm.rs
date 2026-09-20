@@ -800,7 +800,10 @@ unsafe fn run_block_body<B: Bus>(cc: &CodeCache, code: u32, cpu: &mut Cpu, bus: 
     }
     // Reuse the offset already reconstructed above instead of scanning decoded PCs
     // again in run_block_inner. Regions never return CODE_CUT.
-    if result >> 16 == CODE_CUT { result | ((offset as u32) << 19) } else { result }
+    if result >> 16 == CODE_CUT {
+        debug_assert_eq!(b.pcs[offset], cpu.pc);
+        result | ((offset as u32) << 19)
+    } else { result }
 }
 
 #[cfg(feature = "wasm-jit-profile")]
