@@ -1,6 +1,6 @@
 # JIT admission descriptor: positive M3 confirmation
 
-Candidate `7d7231b7` reduced median wall time by **2.23% in Pocket Tank** and **2.71% in the TinyDraw benchmark battery**, incrementally against combined + inline 4000. Every candidate pair improved. The Pocket Tank identical-build controls were smaller, at +0.73% and +0.05%. This supports a modest gain in this campaign; it is not a confidence interval or evidence of an iPhone improvement. Adopted locally on `codex/perf-admission-0920`. M3 and local iPhone browser test copies now use the measured artifact; immutable benchmark files are retained. Latest-firmware manual retest remains pending. No push or merge has been performed.
+Candidate `7d7231b7` reduced median wall time by **2.23% in Pocket Tank** and **2.71% in the TinyDraw benchmark battery**, incrementally against combined + inline 4000. Every candidate pair improved. The Pocket Tank identical-build controls were smaller, at +0.73% and +0.05%. This supports a modest gain in this campaign; it is not a confidence interval or evidence of an iPhone improvement. Adopted locally on `codex/perf-admission-0920`. M3 and local iPhone browser test copies now use the measured artifact; immutable benchmark files are retained. Latest-firmware manual retest remains pending. Not merged into main.
 
 | Measurement | Pairs | Median wall-time reduction | Per-pair reductions |
 |---|---:|---:|---|
