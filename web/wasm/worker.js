@@ -16,7 +16,7 @@ const mem = () => new Uint8Array(wasm.memory.buffer);
 function put(bytes) { const p = wasm.esp32sim_alloc(bytes.length); mem().set(bytes, p); return p; }
 function withBytes(bytes, f) { const p = put(bytes); try { return f(p, bytes.length); } finally { wasm.esp32sim_free(p, bytes.length); } }
 const blockJit = createJitHost(() => wasm);
-let experiments = [];
+let experiments = [], setupError = null;
 let frameAck = false, framesInFlight = 0, pendingFrame = null;
 const imports = { env: { ...blockJit.imports, host_log: (p, n) => postMessage({ log: dec.decode(mem().subarray(p, p + n)) }) } };
 
@@ -132,20 +132,23 @@ onmessage = async (ev) => {
       if (emu) { wasm.esp32sim_delete(emu); emu = 0; }
       emu = withBytes(enc.encode(m.board), (p, n) => wasm.esp32sim_new(p, n, m.flash_mb | 0, m.psram_mb | 0));
       if (emu !== 0) wasm.esp32sim_set_jit(emu, m.jit === false ? 0 : 1);
+      setupError = null;
       experiments = m.experiments === undefined ? [] : m.experiments;
       if (emu !== 0 && wasm.esp32sim_cpu_hz) CPU_HZ = wasm.esp32sim_cpu_hz(emu);
       postMessage({ created: emu !== 0 });
     }
     else if (m.op === 'load') { const rc = withBytes(new Uint8Array(m.data), (p, n) => m.at !== undefined ? wasm.esp32sim_load_at(emu, m.at >>> 0, p, n) : wasm.esp32sim_load(emu, m.kind, p, n)); postMessage({ loaded: m.at !== undefined ? 'at' + m.at : m.kind, ok: rc === 0 }); }
-    else if (m.op === 'stub') { withBytes(enc.encode(m.name), (p, n) => wasm.esp32sim_stub(emu, p, n, m.value >>> 0)); }
-    else if (m.op === 'wifi') { withBytes(enc.encode(m.spec), (p, n) => wasm.esp32sim_wifi(emu, p, n)); }
+    else if (m.op === 'stub') { if (withBytes(enc.encode(m.spec), (p, n) => wasm.esp32sim_stub_spec(emu, p, n)) !== 0) setupError ||= 'invalid stub: ' + m.spec; }
+    else if (m.op === 'wifi') { if (withBytes(enc.encode(m.spec), (p, n) => wasm.esp32sim_wifi(emu, p, n)) !== 0) setupError ||= 'invalid WiFi configuration (see console)'; }
     else if (m.op === 'start') {
       // Optional timing-model exports (`?timing=hw`), applied after the loads and before the first instruction.
       running = false;
       if (!emu) throw new Error('no emulator to start');
+      if (setupError) throw new Error(setupError);
       applyExperiments(wasm, emu, experiments);
       const rc = wasm.esp32sim_boot(emu, m.appDirect ? 1 : 0); if (rc === 0) { running = true; t0 = performance.now(); lastStat = { wall: t0, insns: wasm.esp32sim_insns(emu), cycles: wasm.esp32sim_cycles(emu) }; loop(); } postMessage({ started: rc === 0 }); }
     else if (m.op === 'net-create') {
+      setupError = null;
       running = false;
       pendingFrame = null;
       if (net) { wasm.esp32sim_net_delete(net); net = 0; }
@@ -165,8 +168,8 @@ onmessage = async (ev) => {
       postMessage({ created: net !== 0, nodes: netNodes });
     }
     else if (m.op === 'net-load') { const rc = withBytes(new Uint8Array(m.data), (p, n) => wasm.esp32sim_net_load(net, m.node, m.kind, p, n)); postMessage({ loaded: 'n' + m.node + ':' + m.kind, ok: rc === 0 }); }
-    else if (m.op === 'net-stub') { withBytes(enc.encode(m.name), (p, n) => wasm.esp32sim_net_stub(net, m.node, p, n, m.value >>> 0)); }
-    else if (m.op === 'net-start') { const rc = wasm.esp32sim_net_boot(net); if (rc === 0) { running = true; netT0 = performance.now(); netLoop(); } postMessage({ started: rc === 0 }); }
+    else if (m.op === 'net-stub') { if (withBytes(enc.encode(m.spec), (p, n) => wasm.esp32sim_net_stub_spec(net, m.node, p, n)) !== 0) setupError ||= 'invalid stub for node ' + m.node + ': ' + m.spec; }
+    else if (m.op === 'net-start') { if (setupError) throw new Error(setupError); const rc = wasm.esp32sim_net_boot(net); if (rc === 0) { running = true; netT0 = performance.now(); netLoop(); } postMessage({ started: rc === 0 }); }
     else if (m.op === 'stop') { running = false; }
     else if (m.op === 'text') {
       if (traceEnabled && m.touchTrace) {
@@ -177,5 +180,5 @@ onmessage = async (ev) => {
       withBytes(enc.encode(m.data), (p, n) => wasm.esp32sim_in_text(emu, p, n));
     }
     else if (m.op === 'bin') { pacing.input(performance.now()); withBytes(new Uint8Array(m.data), (p, n) => wasm.esp32sim_in_bin(emu, p, n)); }
-  } catch (err) { postMessage({ log: '[worker] ' + (err && err.stack || err) }); running = false; if (m.op === 'start') postMessage({ started: false }); }
+  } catch (err) { postMessage({ log: '[worker] ' + (err && err.stack || err) }); running = false; if (m.op === 'start' || m.op === 'net-start') postMessage({ started: false, error: err.message || String(err) }); }
 };

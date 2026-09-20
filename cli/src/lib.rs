@@ -18,18 +18,7 @@ fn usage(chip: &str) -> ! {
 fn hex(s: &str, what: &str) -> u32 { u32::from_str_radix(s.trim_start_matches("0x"), 16).unwrap_or_else(|_| { eprintln!("--{}: bad hex {}", what, s); std::process::exit(2) }) }
 fn pair(s: &str, dflt: usize) -> (u32, usize) { match s.split_once(',') { Some((a, n)) => (hex(a, "addr"), n.parse().unwrap_or(dflt)), None => (hex(s, "addr"), dflt) } }
 
-fn stub_spec(spec: &str) -> Result<(&str, u32), String> {
-    let (name, value) = spec.split_once('=').unwrap_or((spec, "0"));
-    let value = match value {
-        "true" => 1,
-        "false" => 0,
-        value => match value.strip_prefix("0x") {
-            Some(hex) => u32::from_str_radix(hex, 16),
-            None => value.parse(),
-        }.map_err(|_| format!("invalid return value in {spec:?}: expected u32, true or false"))?,
-    };
-    Ok((name, value))
-}
+use esp_soc::load::stub_spec;
 
 fn console_mask(name: &str) -> u32 {
     esp_soc::Console::parse_mask(name).unwrap_or_else(|| {

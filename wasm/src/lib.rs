@@ -214,6 +214,19 @@ pub unsafe extern "C" fn esp32sim_stub(e: *mut Emu, name: *const u8, len: usize,
     e.m.stub(unsafe { text(name, len) }, value)
 }
 
+/// Parse a complete NAME[=value] stub using the same rules as the CLI.
+/// # Safety
+/// `e` must be live and exclusively borrowed; `spec` must be readable for `len` bytes.
+#[no_mangle]
+pub unsafe extern "C" fn esp32sim_stub_spec(e: *mut Emu, spec: *const u8, len: usize) -> u32 {
+    let e = unsafe { &mut *e };
+    let Ok(spec) = std::str::from_utf8(unsafe { bytes(spec, len) }) else { return 1; };
+    match esp_soc::load::stub_spec(spec) {
+        Ok((name, value)) => e.m.stub(name, value),
+        Err(reason) => { log(&format!("[emu] stub: {reason}")); 1 }
+    }
+}
+
 /// Attach an analysis: `profile-blocks`, `coverage`, `irq-latency` (no argument), `trace-fn`
 /// (arg = symbol prefix as text). Returns 1 for an unknown name.
 ///
