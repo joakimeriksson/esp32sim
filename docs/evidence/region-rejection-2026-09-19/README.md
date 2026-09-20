@@ -1,6 +1,6 @@
 # EX136: cached rejection shortcut, September 19
 
-Candidate: `a5b251ef` on `codex/region-rejection-0919`, based on `d549d4b27b927e7bd32bd2e4e9cc4188738c8e03`. Eight added production lines in `xtensa-lx7/src/jit/wasm.rs`. **Correctness suite passes; performance unmeasured and not adopted.**
+Candidate: `a5b251ef` on `codex/region-rejection-0919`, based on `d549d4b27b927e7bd32bd2e4e9cc4188738c8e03`. Eight added production lines in `xtensa-lx7/src/jit/wasm.rs`. **Correctness suite passes. Later measurement found it slower in seven of seven Pocket Tank pairs; rejected and PR #95 closed. See Outcome below.**
 
 The [existing EX136 active-loop experiment](../../experiments.md#ex136), commit `6b844713`, cached an admitted `(LEND, LBEG)` pair and showed no gain. This candidate leaves that loop test unchanged. It bypasses the cold owner lookup after a cached entry's budget or boundary guard rejects it, but only when its epoch and every code-page version still match.
 
@@ -18,3 +18,7 @@ After the CPU quiet window ended, `tools/wasm-jit-test.sh` passed 78,861 differe
 Production was built first with default features and wasm-opt 132 `-O3`, clearing ambient Rust flags and preserving it before the test build replaced the target artifact. [Build provenance](build.json) records the exact command and toolchain. Optimized SHA-256: `420ddf351c6181b303c980da1d8afc77e9bdf3e3ebe274502e7c93fe157feb73` (7,612,255 bytes). Local artifact: `work/region-rejection-0919/work/ex136-validation/production.wasm` from the repository root.
 
 Pending: screen equal-work pocket-tank against the exact d549d4b2 baseline, checking instruction totals and console hashes before interpreting time. No throughput claim is supported yet.
+
+## Outcome
+
+The pending screen ran against `bf36479b` (the PR's merge base) rather than d549d4b2: [one pair, 0.91% slower](pocket-screen.md). Two three-pair confirmation campaigns then lost every pair, with medians 2.11% and 3.86% slower on a busy host: [confirmation](pocket-confirmation.md). The correctness argument above stands; the change is rejected on speed alone.
