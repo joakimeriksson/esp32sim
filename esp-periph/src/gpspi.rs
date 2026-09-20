@@ -34,7 +34,7 @@ impl GpSpi {
     }
     pub fn write(&mut self, off: u32, v: u32) {
         match off {
-            0x00 => { self.regs.write(0, v & !((1 << 23) | (1 << 24))); if v & (1 << 24) != 0 { self.transfer(); } }
+            0x00 => { self.regs.write(0, v & !((1 << 23) | (1 << 24))); if v & (1 << 24) != 0 && self.pending.is_none() { self.transfer(); } }
             0x34 => self.int_ena = v, 0x38 => self.int_raw &= !v,
             0x98..=0xd4 => self.w[((off - 0x98) / 4) as usize] = v,
             _ => self.regs.write(off, v),
@@ -253,5 +253,21 @@ mod tests {
 
         let transfer = spi.take_transfer().expect("CPU transaction must replace a stale DMA wait");
         assert_eq!(transfer.tx, [0x5a]);
+    }
+}
+
+#[cfg(test)]
+mod busy_rewrite_tests {
+    use super::*;
+    #[test]
+    fn command_read_modify_write_preserves_pending_transfer() {
+        let mut spi = GpSpi::new();
+        spi.write(0x10, 1 << 27);
+        spi.write(0x1c, 7);
+        spi.write(0x98, 0x42);
+        spi.write(0, 1 << 24);
+        spi.write(0x98, 0x99);
+        spi.write(0, spi.read(0));
+        assert_eq!(spi.take_transfer().unwrap().tx, [0x42]);
     }
 }
