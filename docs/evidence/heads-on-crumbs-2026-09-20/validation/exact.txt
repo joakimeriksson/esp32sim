@@ -1,0 +1,17 @@
+{
+ "wasm": "/Users/alice/src/a/esp32sim-x2/wasm/heads-crumbs-clean.wasm",
+ "secs": 30,
+ "framesSha256": "847b5478d0a7b2a6648804b7ada0c0f5f4a756c427e36020779104f14e6f4fdf",
+ "insns": "10073833775",
+ "consoleSha256": "b9d9966e5d9d73984203c11846eb7f8c86507cb53ffe133c4e7e92dff66319d7",
+ "frames": 3094,
+ "panics": 0,
+ "jitFailures": 0,
+ "wallSeconds": 42.353,
+ "refInsns": "10073833775",
+ "refSha": "b9d9966e",
+ "refFrames": 3094,
+ "refFramesSha": "847b5478",
+ "EXACT": true
+}
+EXACT ok (pocket-tank, 30 guest s; Node wall time is NOT a benchmark)
