@@ -103,3 +103,7 @@ Select combined-inl4000.wasm. Its pocket-tank and TinyDraw improvements are cons
 After benchmarks stopped, copied the selected combined-inl4000.wasm into a separate handtest/web tree on the M3. Frozen benchmark artifacts remain unchanged. A loopback HTTP server serves that tree on port 8810. Open on the M3: http://127.0.0.1:8810/run.html?wasm&fw=pocket-tank or http://127.0.0.1:8810/run.html?wasm&fw=tinydraw-latest. Use one emulator at a time.
 
 Sequential headless Chrome checks confirmed rendered frames and no JavaScript errors: [Pocket Tank](handtest/pocket-tank.json), [TinyDraw](handtest/tinydraw-latest.json). TinyDraw also emitted TINYDRAW_VECTOR_V2_READY. This is boot verification, not a manual interaction test. TinyDraw uses the latest local 2.3.0 release demo with matching bootloader and partition table, not the older benchmark battery; [firmware provenance](handtest/provenance.json).
+
+## User browser observations
+
+Alice reported these approximate live UI readings on the M3 Pro after hand-testing the selected combined + inline-4000 artifact on September 20: Pocket Tank about 60% realtime in Safari and 77% in Chrome. TinyDraw appeared realtime in Safari with more testing needed; in Chrome it appeared realtime with observed dips to 94% at drawing start and 71% at another point. These are user-reported interactive observations, not controlled benchmark samples. Browser versions, observation durations and concurrent system activity were not captured for this manual check.
