@@ -76,7 +76,7 @@ pub struct RegionStats {
     pub instructions: Cell<u64>,
     pub bytes: Cell<u64>,
     /// EX153 census: [run calls, calls with budget>=64, whole calls, whole retired, tail-cut calls, tail-cut retired,
-    /// resumed calls, resumed retired, resumed-and-cut-again calls, zero-retired calls, sum of budgets]
+    /// resumed calls, resumed retired, resumed-and-cut-again calls, zero-retired calls, sum of budgets, chained calls]
     pub ex153: [Cell<u64>; 12],
 }
 #[cfg(feature = "wasm-jit-profile")]
@@ -412,7 +412,7 @@ extern "C" fn h_exec<B: Bus>(
     cpu.pc = pc;
     #[cfg(feature = "wasm-jit-profile")]
     {
-        let c = crate::census::get();
+        let mut c = crate::census::get();
         let core = crate::census::core(cpu);
         let i = &instruction.insn;
         use crate::Op::*;
@@ -764,7 +764,7 @@ unsafe fn run_block_body<B: Bus>(cc: &CodeCache, code: u32, cpu: &mut Cpu, bus: 
         f(cpu, bus, h, budget.min(0xffff), entry, tlb, versions)
     };
     let done = result & 0xffff;
-    {
+    if cfg!(feature = "wasm-cpu-profile") {
         let bytes = b.pcs.last().unwrap().wrapping_add(b.instructions.last().unwrap().insn.len as u32).wrapping_sub(b.pc);
         let noloop = initial_lcount == 0 || cpu.lend.wrapping_sub(b.pc) > bytes;
         if entry == 0 && budget as usize >= b.instructions.len() { census(3, 1); census(4, done as u64); }

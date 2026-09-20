@@ -613,6 +613,12 @@ pub(super) fn generate(block: &Block) -> Vec<u8> {
     emit_body(&mut g, block.pc, &block.instructions, block.fast, looping, true, cp);
     g.end();
     {
+        #[cfg(feature = "wasm-jit-tests")]
+        {
+            g.c(super::tests::GUARDED_TAKEN.as_ptr() as u32);
+            g.c(1);
+            g.store(0);
+        }
         let whole_written = g.written;
         g.dynamic = true;
         g.pending = 0;
@@ -768,8 +774,7 @@ fn emit_body(
         if instruction::emit(g, bi, fast, pc, next, last, cp) {
             if whole {
                 g.advance();
-                if let Some((n, loop_depth)) = g.guard_site.filter(|s| s.0 == index + 1) {
-                    let _ = n;
+                if let Some((_, loop_depth)) = g.guard_site.filter(|s| s.0 == index + 1) {
                     g.guarded_backedge(next, loop_depth);
                 }
             } else {

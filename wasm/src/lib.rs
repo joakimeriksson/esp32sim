@@ -298,7 +298,8 @@ pub unsafe extern "C" fn esp32sim_run(e: *mut Emu, cycles: u32, unix_ms: f64) ->
 }
 
 #[cfg(target_arch = "wasm32")]
-#[no_mangle] pub extern "C" fn esp32sim_kernel_census(i: u32) -> f64 { xtensa_lx7::jit::CENSUS[i as usize].load(std::sync::atomic::Ordering::Relaxed) as f64 }
+#[cfg(feature = "cpu-profile")]
+#[no_mangle] pub extern "C" fn esp32sim_kernel_census(i: u32) -> f64 { xtensa_lx7::jit::CENSUS.get(i as usize).map_or(0.0, |n| n.load(std::sync::atomic::Ordering::Relaxed) as f64) }
 
 /// Drain what the machine sent since the last call; then index it with the accessors below.
 ///

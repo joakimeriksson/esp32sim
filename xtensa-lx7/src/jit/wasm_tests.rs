@@ -4,6 +4,7 @@
 use super::*;
 use crate::bus::{tlb_index, TLB_ENTRIES};
 use crate::{Fault, FlatRam, Insn, Op, Trap};
+pub(super) static GUARDED_TAKEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 const BASE: u32 = 0x4037_0000;
 /// A small window above the fast mapping that only the slow bus path can reach.
 const SLOW: u32 = BASE + 0x1_0000;
@@ -219,7 +220,7 @@ fn compare(block: &mut [BlockInsn], case: Case, configure: impl Fn(&mut Cpu)) {
     compare_hinted(block, case, &configure, 0);
 }
 
-fn compare_hinted(block: &mut [BlockInsn], case: Case, configure: &impl Fn(&mut Cpu), hint: u32) {
+fn compare_hinted(block: &mut [BlockInsn], case: Case, configure: &impl Fn(&mut Cpu), hint: u32) -> bool {
     let Case { seed, entry, budget, addr, fast, readonly, loop_end, overflow } = case;
     let priced = PRICED.load(std::sync::atomic::Ordering::Relaxed);
     CONTEXT.with(|c| *c.borrow_mut() = format!("{:?} seed={seed} entry={entry} budget={budget} fast={fast} loop_end={loop_end} overflow={overflow} priced={priced}",
@@ -253,6 +254,7 @@ fn compare_hinted(block: &mut [BlockInsn], case: Case, configure: &impl Fn(&mut 
         }
         configure(c);
     }
+    GUARDED_TAKEN.store(0, std::sync::atomic::Ordering::Relaxed);
     let fm = rb.fast_mem();
     let result = unsafe {
         run(
@@ -317,6 +319,7 @@ fn compare_hinted(block: &mut [BlockInsn], case: Case, configure: &impl Fn(&mut 
     if done > 0 {
         assert_eq!(ra.noted, rb.noted);
     }
+    GUARDED_TAKEN.load(std::sync::atomic::Ordering::Relaxed) != 0
 }
 
 #[path = "wasm_tests/arithmetic.rs"]
@@ -360,5 +363,5 @@ pub fn run_tests() -> u32 {
     tests + arithmetic::integer_ops() + float::floating_point() + float::floating_point_guard_proof()
         + loops::hardware_loops() + control::window_masks() + control::terminal_helpers()
         + control::special_register_blocks() + control::whole_block_guards()
-        + control::entry_and_shifts() + timing::priced_cases()
+        + control::entry_and_shifts() + control::guarded_loop_sites() + control::pie_wide_shifts() + timing::priced_cases()
 }

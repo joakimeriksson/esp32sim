@@ -267,3 +267,47 @@ pub(super) fn helper_continuation() -> u32 {
     }
     tests
 }
+
+// Assert the generated path itself, so silently falling back cannot pass this oracle.
+pub(super) fn guarded_loop_sites() -> u32 {
+    let mut tests = 0;
+    for site in [1, 2, 3] {
+        for entry in 0..3 {
+            for budget in [1, 2, 3, 8] {
+                let mut block = [insn(Op::Add), insn(Op::Xor), insn(Op::Add)];
+                let lend = BASE + site * 3;
+                let configure = |c: &mut Cpu| { c.ps = 0; c.lend = lend; c.lbeg = BASE; c.lcount = 2; };
+                let case = Case { entry, budget, ..Case::default() };
+                assert!(compare_hinted(&mut block, case, &configure, lend), "guarded site={site} entry={entry} budget={budget}");
+                assert!(!compare_hinted(&mut block, case, &configure, 0), "checked site={site} entry={entry} budget={budget}");
+                tests += 2;
+            }
+        }
+    }
+    tests
+}
+
+pub(super) fn pie_wide_shifts() -> u32 {
+    use crate::pie::Role::{Qa, Qs};
+    let mut tests = 0;
+    for name in ["ee.vsr.32", "ee.vsl.32"] {
+        let bytes = asm::pie(name, &[(Qa, 1), (Qs, 0)]);
+        let raw = bytes[0] as u32 | ((bytes[1] as u32) << 8) | ((bytes[2] as u32) << 16);
+        let mut shift = insn(Op::Pie);
+        shift.insn = crate::decode::decode(BASE + 3, raw.to_le_bytes());
+        for sar in 33..64 {
+            let mut block = [insn(Op::Nop), shift, insn(Op::Xor)];
+            for entry in 0..=1 {
+                for budget in [1, 3] {
+                    compare(&mut block, Case { entry, budget, ..Case::default() }, |c| {
+                        c.ps = 0; c.cpenable = 8;
+                        c.write_sr(crate::state::sr::SAR, sar).unwrap();
+                        c.qr[0] = u128::MAX;
+                    });
+                    tests += 1;
+                }
+            }
+        }
+    }
+    tests
+}

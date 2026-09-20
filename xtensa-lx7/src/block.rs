@@ -459,19 +459,8 @@ fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k: 
     let (census_core, census_why) = {
         let core = crate::census::core(cpu);
         let en = &cpu.blocks.entries[ei as usize];
-        let key = (core, en.pc, en.n);
-        let c = crate::census::get();
-        c.interp_dispatches[core as usize] += 1;
-        let base = if let Some(w) = c.reason_cache.get(&key) { w.clone() } else {
-            let ops = &cpu.blocks.arena[en.start as usize..(en.start + en.n as u32) as usize];
-            let fast = bus.fast_mem().is_some();
-            let w = if en.n < 2 { ("short".to_string(), format!("short:{}", crate::census::name(&ops[0].insn))) }
-                else if let Some(b) = ops.iter().enumerate().find(|(n, bi)| { let last = n + 1 == ops.len();
-                    !((!crate::jit::census_terminal(bi.insn.op) || last) && (crate::jit::census_supported(&bi.insn, fast) || (last && crate::jit::census_terminal(bi.insn.op)))) }) {
-                    let nm = crate::census::name(&b.1.insn); (format!("unsup:{nm}"), format!("unsup:{nm}")) }
-                else { ("admitted".to_string(), "admitted".to_string()) };
-            c.reason_cache.insert(key, w.clone()); w };
-        let why = if base.0 == "admitted" { if code == crate::jit::NONE { ("nocode?".to_string(), "nocode?".to_string()) } else if !cpu.blocks.jit_enabled { ("jitoff".to_string(), "jitoff".to_string()) } else { ("cold/other".to_string(), "cold/other".to_string()) } } else { base };
+        let ops = &cpu.blocks.arena[en.start as usize..(en.start + en.n as u32) as usize];
+        let why = crate::census::fallback(core, en.pc, ops, bus.fast_mem().is_some(), code, cpu.blocks.jit_enabled);
         (core, why)
     };
     let (mut done, mut trap, mut pre, mut broke) = (0u32, None, false, false);
@@ -480,8 +469,8 @@ fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k: 
         let e = cpu.blocks.arena[k as usize];
         #[cfg(feature = "wasm-jit-profile")]
         {
-            let c = crate::census::get();
-            c.interp_total[census_core as usize] += 1;
+            let mut c = crate::census::get();
+            if let Some(total) = c.interp_total.get_mut(census_core as usize) { *total += 1; }
             *c.interp.entry((census_core, crate::census::name(&e.insn), census_why.0.clone())).or_default() += 1;
             *c.blockers.entry((census_core, census_why.1.clone())).or_default() += 1;
         }

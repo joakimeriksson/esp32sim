@@ -2,6 +2,7 @@
 use crate::{Insn, Op};
 use std::collections::HashMap;
 use std::fmt::Write;
+use std::sync::{LazyLock, Mutex, MutexGuard};
 
 #[derive(Default)]
 pub struct Census {
@@ -18,9 +19,8 @@ pub struct Census {
     pub interp_dispatches: [u64; 2],
     pub reason_cache: HashMap<(u8, u32, u16), (String, String)>,
 }
-static mut CENSUS: Option<Census> = None;
-#[allow(static_mut_refs)]
-pub fn get() -> &'static mut Census { unsafe { CENSUS.get_or_insert_with(Census::default) } }
+static CENSUS: LazyLock<Mutex<Census>> = LazyLock::new(|| Mutex::new(Census::default()));
+pub fn get() -> MutexGuard<'static, Census> { CENSUS.lock().unwrap() }
 
 pub fn name(i: &Insn) -> String {
     if i.op == Op::Pie { format!("pie:{}", crate::pie::OPS[i.imm as usize].name) }
@@ -62,4 +62,18 @@ pub fn report() -> String {
         for ((_, op, r), n) in v.iter().take(40) { writeln!(t, "[census] slowmem core={core} n={n} op={op} region={r}").unwrap(); }
     }
     t
+}
+
+pub fn fallback(core: u8, pc: u32, ops: &[crate::block::BlockInsn], fast: bool, code: u32, jit_enabled: bool) -> (String, String) {
+    let key = (core, pc, ops.len() as u16);
+    let mut c = get();
+    if let Some(total) = c.interp_dispatches.get_mut(core as usize) { *total += 1; }
+    let base = if let Some(w) = c.reason_cache.get(&key) { w.clone() } else {
+        let w = if ops.len() < 2 { ("short".to_string(), format!("short:{}", crate::census::name(&ops[0].insn))) }
+            else if let Some(b) = ops.iter().enumerate().find(|(n, bi)| { let last = n + 1 == ops.len();
+                !((!crate::jit::census_terminal(bi.insn.op) || last) && (crate::jit::census_supported(&bi.insn, fast) || (last && crate::jit::census_terminal(bi.insn.op)))) }) {
+                let nm = crate::census::name(&b.1.insn); (format!("unsup:{nm}"), format!("unsup:{nm}")) }
+            else { ("admitted".to_string(), "admitted".to_string()) };
+        c.reason_cache.insert(key, w.clone()); w };
+    if base.0 == "admitted" { if code == crate::jit::NONE { ("nocode?".to_string(), "nocode?".to_string()) } else if !jit_enabled { ("jitoff".to_string(), "jitoff".to_string()) } else { ("cold/other".to_string(), "cold/other".to_string()) } } else { base }
 }
