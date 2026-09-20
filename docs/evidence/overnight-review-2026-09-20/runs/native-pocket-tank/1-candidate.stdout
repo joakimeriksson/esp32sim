@@ -1,0 +1,134 @@
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x1 (POWERON),boot:0xf (SPI_FAST_FLASH_BOOT)
+configspi:0x00000008
+SPIWP:0x00
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x170c
+load:0x403c8700,len:0x4
+load:0x403c8704,len:0xec4
+load:0x403cb700,len:0x318c
+entry 0x403c8950
+I (7) boot: ESP-IDF v5.4.1 2nd stage bootloader
+I (7) boot: compile time Sep 11 2026 17:47:33
+I (7) boot: Multicore bootloader
+I (7) boot: chip revision: v0.0
+I (7) boot: efuse block revision: v1.0
+I (7) qio_mode: Enabling default flash chip QIO
+I (8) boot.esp32s3: Boot SPI Speed : 80MHz
+I (8) boot.esp32s3: SPI Mode       : QIO
+I (8) boot.esp32s3: SPI Flash Size : 16MB
+I (8) boot: Enabling RNG early entropy source...
+I (8) boot: Partition Table:
+I (8) boot: ## Label            Usage          Type ST Offset   Length
+I (8) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (8) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (8) boot:  2 factory          factory app      00 00 00010000 00280000
+I (8) boot:  3 model            Unknown data     01 40 00290000 00800000
+I (9) boot:  4 storage          Unknown data     01 82 00a90000 00560000
+I (9) boot: End of partition table
+I (9) esp_image: segment 0: paddr=00010020 vaddr=3c050020 size=163d4h ( 91092) map
+I (15) esp_image: segment 1: paddr=000263fc vaddr=3fc98300 size=032c8h ( 13000) load
+I (16) esp_image: segment 2: paddr=000296cc vaddr=40374000 size=0694ch ( 26956) load
+I (19) esp_image: segment 3: paddr=00030020 vaddr=42000020 size=451c0h (283072) map
+I (37) esp_image: segment 4: paddr=000751e8 vaddr=4037a94c size=0d910h ( 55568) load
+I (42) esp_image: segment 5: paddr=00082b00 vaddr=600fe000 size=00120h (   288) load
+I (45) boot: Loaded app from partition at offset 0x10000
+I (45) boot: Disabling RNG early entropy source...
+I (45) octal_psram: vendor id    : 0x0d (AP)
+I (45) octal_psram: dev id       : 0x01 (generation 2)
+I (46) octal_psram: density      : 0x03 (64 Mbit)
+I (46) octal_psram: good-die     : 0x01 (Pass)
+I (46) octal_psram: Latency      : 0x01 (Fixed)
+I (46) octal_psram: VCC          : 0x00 (1.8V)
+I (46) octal_psram: SRF          : 0x00 (Slow Refresh)
+I (46) octal_psram: BurstType    : 0x00 ( Wrap)
+I (46) octal_psram: BurstLen     : 0x03 (1024 Byte)
+I (46) octal_psram: Readlatency  : 0x02 (10 cycles@Fixed)
+I (46) octal_psram: DriveStrength: 0x00 (1/1)
+W (47) MSPI Timing: tuning fail, best point is fallen back to index 5
+I (47) MSPI Timing: PSRAM timing tuning index: 5
+I (47) esp_psram: Found 8MB PSRAM device
+I (47) esp_psram: Speed: 80MHz
+I (47) cpu_start: Multicore app
+I (55) cpu_start: Pro cpu start user code
+I (55) cpu_start: cpu freq: 240000000 Hz
+I (55) app_init: Application information:
+I (55) app_init: Project name:     pocket_tank
+I (55) app_init: App version:      80b3ee9-dirty
+I (55) app_init: Compile time:     Sep 11 2026 17:47:22
+I (55) app_init: ELF file SHA256:  969f5983f...
+I (55) app_init: ESP-IDF:          v5.4.1
+I (55) efuse_init: Min chip rev:     v0.0
+I (55) efuse_init: Max chip rev:     v0.99 
+I (55) efuse_init: Chip rev:         v0.0
+I (55) heap_init: Initializing. RAM available for dynamic allocation:
+I (55) heap_init: At 3FC9D9E0 len 0004BD30 (303 KiB): RAM
+I (56) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (56) heap_init: At 600FE120 len 00001EC8 (7 KiB): RTCRAM
+I (56) esp_psram: Adding pool of 8192K of PSRAM memory to heap allocator
+I (56) spi_flash: detected chip: generic
+I (56) spi_flash: flash io: qio
+I (56) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (56) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (56) main_task: Started on CPU0
+I (57) esp_psram: Reserving pool of 64K of internal memory for DMA/internal allocations
+I (57) main_task: Calling app_main()
+I (57) pocket-tank: pocket-tank boot
+I (57) gpio: GPIO[0]| InputEn: 1| OutputEn: 0| OpenDrain: 0| Pullup: 1| Pulldown: 0| Intr:0 
+I (59) pocket-tank: PSRAM total 8192 KB free 8189 KB | internal free 302 KB
+I (59) pocket-tank: PSRAM plan OK (need 4228 KB)
+I (59) pocket-tank: dirty mask internal SRAM
+I (59) pocket-tank: card cache internal SRAM
+I (63) advisor: bench: dot100k 11287 us | batch44 flash 36304 us ram 36305 us | decode flash 2557 us ram 2554 us
+I (153) advisor: model dim 384 layers 8 vocab 54 seq 64, schema v3, sampled decoding
+I (153) pocket-tank: model partition 8192 KB mmap'd, advisor LLM
+I (293) sh8601: board revision: V2 (CO5300/CST816)
+I (293) sh8601: LCD panel create success, version: 2.0.1
+W (373) sh8601: The 3Ah command has been used and will be overwritten by external initialization sequence
+I (473) sh8601: panel up: 368x448 portrait, tank frame rotated 90 deg
+I (473) CST816S: IC id: 183
+I (473) touch: CST816 ready
+I (473) battery: AXP2101 fuel gauge up
+I (498) imu: reset acked, ctrl readback 1=0x40 2=0x08 7=0x01 (want 40/08/01)
+I (498) imu: QMI8658 up at 0x6b: orientation axis -Y
+I (498) director: console ready (type help)
+W (498) rtc: RTC was unset; seeded from build time Sep 11 2026 17:47:37
+I (498) pocket-tank: population 2 (cap 5): pip + nori ...
+I (543) display: stats card: redraw 6.8 ms, blit 0.3 ms per frame
+I (543) imu: g=[0 0 0] inverted=0
+I (554) main_task: Returned from app_main()
+I (800) imu: g=[0 0 0] inverted=0
+I (1056) imu: g=[0 0 0] inverted=0
+I (2356) advisor: zone 2 hunger 5 energy 6 stress 1 curiosity 6 bold 1 social 7 stage fry trust 5 food mid 9 shadow none friend mid 2 bubble far 12 reef mid 3 wall mid 5 last explore time day -> seek_food urgency 5 p=0.41  [1813 ms, 24.3 tok/s]
+I (2357) advisor: prof ms: matmul 1226 attn 171 norm/quant 33 rope 7 swiglu 158 decode 209
+I (4181) advisor: zone 5 hunger 3 energy 6 stress 0 curiosity 5 bold 7 social 2 stage fry trust 5 food far 3 shadow none friend mid 2 bubble far 5 reef mid 11 wall mid 9 last explore time day -> follow_friend urgency 3 p=0.13  [1813 ms, 24.3 tok/s]
+I (4181) advisor: prof ms: matmul 1226 attn 171 norm/quant 33 rope 7 swiglu 158 decode 209
+I (6453) advisor: zone 2 hunger 5 energy 6 stress 0 curiosity 6 bold 1 social 7 stage fry trust 5 food near 12 shadow none friend mid 5 bubble far 3 reef far 6 wall mid 11 last seek_food time day -> seek_food urgency 4 p=0.74  [1813 ms, 24.3 tok/s]
+I (6453) advisor: prof ms: matmul 1226 attn 171 norm/quant 33 rope 7 swiglu 158 decode 209
+I (8453) advisor: zone 2 hunger 1 energy 7 stress 0 curiosity 7 bold 1 social 7 stage fry trust 5 food mid 12 shadow none friend far 4 bubble far 1 reef far 4 wall near 9 last seek_food time day -> seek_food urgency 4 p=0.02  [1813 ms, 24.3 tok/s]
+I (8453) advisor: prof ms: matmul 1226 attn 171 norm/quant 33 rope 7 swiglu 158 decode 209
+I (10277) advisor: zone 5 hunger 3 energy 6 stress 0 curiosity 5 bold 7 social 2 stage fry trust 5 food mid 12 shadow none friend mid 12 bubble mid 1 reef mid 6 wall mid 5 last follow_friend time day -> seek_food urgency 4 p=0.20  [1813 ms, 24.3 tok/s]
+I (10277) advisor: prof ms: matmul 1226 attn 171 norm/quant 33 rope 7 swiglu 158 decode 209
+I (10553) display: fb mid 0x0125 corner 0x0000 | scene mid 0x0125 ep 1 | night 0 prefetch 1
+I (10553) display: 62.6 fps | render 3.2 ms flush 6.1 ms | scene 0.1 shafts 0.0 veg 1.2 fd/bub 0.1 fish 1.3 vig 0.5 algae 0.0 | card 0.0 ms x0 | veg 0.36 0.35 0.34
+I (10553) pocket-tank: t=10s 2 fish goals: seek_food seek_food | asks 6 decisions 5 last 1813 ms 24.3 tok/s | starve-ignored 0 | heap int 67 KB psram 4747 KB
+I (12101) advisor: zone 2 hunger 1 energy 7 stress 0 curiosity 6 bold 1 social 7 stage fry trust 5 food near 12 shadow none friend mid 3 bubble mid 1 reef far 3 wall mid 8 last seek_food time day -> follow_friend urgency 3 p=0.78  [1813 ms, 24.3 tok/s]
+I (12101) advisor: prof ms: matmul 1226 attn 171 norm/quant 33 rope 7 swiglu 158 decode 209
+I (13880) advisor: zone 2 hunger 4 energy 6 stress 0 curiosity 5 bold 7 social 2 stage fry trust 5 food none shadow none friend near 11 bubble mid 2 reef far 5 wall mid 10 last seek_food time day -> follow_friend urgency 3 p=0.44  [1767 ms, 24.3 tok/s]
+I (13880) advisor: prof ms: matmul 1195 attn 163 norm/quant 32 rope 7 swiglu 154 decode 209
+I (15656) advisor: zone 3 hunger 0 energy 8 stress 0 curiosity 7 bold 1 social 7 stage fry trust 5 food none shadow none friend near 3 bubble mid 12 reef far 3 wall mid 7 last follow_friend time day -> follow_friend urgency 3 p=0.88  [1768 ms, 24.3 tok/s]
+I (15656) advisor: prof ms: matmul 1195 attn 163 norm/quant 32 rope 7 swiglu 154 decode 209
+I (17477) advisor: zone 2 hunger 4 energy 6 stress 0 curiosity 5 bold 7 social 2 stage fry trust 5 food none shadow far 2 friend near 9 bubble mid 11 reef far 3 wall mid 7 last follow_friend time day -> explore urgency 3 p=0.25  [1813 ms, 24.3 tok/s]
+I (17477) advisor: prof ms: matmul 1226 attn 171 norm/quant 33 rope 7 swiglu 158 decode 209
+I (19301) advisor: zone 3 hunger 0 energy 8 stress 0 curiosity 7 bold 1 social 7 stage fry trust 5 food none shadow far 2 friend near 3 bubble mid 11 reef far 2 wall mid 6 last follow_friend time day -> follow_friend urgency 3 p=0.92  [1813 ms, 24.3 tok/s]
+I (19301) advisor: prof ms: matmul 1226 attn 171 norm/quant 33 rope 7 swiglu 158 decode 209
+I (20555) display: fb mid 0x0125 corner 0x0000 | scene mid 0x0125 ep 1 | night 0 prefetch 1
+I (20556) display: 62.5 fps | render 4.0 ms flush 6.1 ms | scene 0.0 shafts 0.0 veg 1.2 fd/bub 0.1 fish 1.7 vig 0.9 algae 0.0 | card 0.0 ms x0 | veg 0.36 0.35 0.34
+I (20556) pocket-tank: t=20s 2 fish goals: follow_friend explore | asks 12 decisions 10 last 1813 ms 24.3 tok/s | starve-ignored 0 | heap int 67 KB psram 4747 KB
+I (26454) advisor: zone 2 hunger 4 energy 6 stress 0 curiosity 5 bold 7 social 2 stage fry trust 5 food none shadow far 3 friend near 7 bubble mid 8 reef far 12 wall mid 5 last explore time day -> follow_friend urgency 4 p=0.81  [1813 ms, 24.3 tok/s]
+I (26454) advisor: prof ms: matmul 1226 attn 171 norm/quant 33 rope 7 swiglu 158 decode 209
+I (28234) advisor: zone 2 hunger 0 energy 8 stress 0 curiosity 7 bold 1 social 7 stage fry trust 5 food none shadow none friend near 5 bubble mid 12 reef far 4 wall mid 8 last follow_friend time day -> follow_friend urgency 3 p=0.89  [1767 ms, 24.3 tok/s]
+I (28234) advisor: prof ms: matmul 1195 attn 163 norm/quant 32 rope 7 swiglu 154 decode 209
+I (30010) advisor: zone 2 hunger 4 energy 6 stress 0 curiosity 5 bold 7 social 2 stage fry trust 5 food none shadow none friend near 6 bubble mid 7 reef far 10 wall mid 3 last follow_friend time day -> explore urgency 3 p=0.26  [1767 ms, 24.3 tok/s]
+I (30010) advisor: prof ms: matmul 1195 attn 163 norm/quant 32 rope 7 swiglu 154 decode 209
