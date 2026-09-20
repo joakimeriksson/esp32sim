@@ -79,3 +79,5 @@ The M3 started inline-campaign.sh at 12:53:03 BST. EX154 compares thresholds 200
 ## Higher inline thresholds
 
 Alice requested 8000 and 16000 after 2000 and 4000 showed gains. The high-inline-campaign.sh waits for the previous campaign to finish and takes the same exclusive lock. Its baseline is combined-inl4000.wasm, so percentages measure further improvement over 4000. Both candidates must pass differential and full exactness gates before timing; then two A/A pairs, four balanced pocket-tank pairs per threshold and three TinyDraw pairs for consistently positive candidates. No concurrent browser hand-tests. This continues EX154, not a new experiment.
+
+Scope correction: Alice limited this follow-up to 8000 versus 4000. The 16000 candidate is canceled. If 8000 adds no clear gain, retain the validated winner and proceed to browser hand-testing; do not escalate thresholds.
