@@ -1,0 +1,13 @@
+Sun Sep 20 13:52:59 UTC 2026 Building and checking combined-inl4000-turnover-s1s2
+Sun Sep 20 13:55:38 UTC 2026 Starting turnover-s1s2-control-aa (2 pairs, pocket-tank; baseline combined-inl4000)
+{"run":"/Users/alice/bench/esp32sim/runs/turnover-s1s2-control-aa/summary.json","reduction":2.150709410995888,"pairs":[2.3132087726331907,1.9868232863970436]}
+Sun Sep 20 13:58:10 UTC 2026 Starting combined-inl4000-turnover-s1s2 (4 pairs, pocket-tank; baseline combined-inl4000)
+Sun Sep 20 13:58:10 UTC 2026 Turnover s1s2 campaign exit=1
+Sun Sep 20 13:59:03 UTC 2026 Starting combined-inl4000-turnover-s1s2 (4 pairs, pocket-tank; baseline combined-inl4000)
+Sun Sep 20 13:59:04 UTC 2026 Turnover s1s2 campaign exit=1
+Sun Sep 20 13:59:25 UTC 2026 Starting combined-inl4000-turnover-s1s2 (4 pairs, pocket-tank; baseline combined-inl4000)
+{"run":"/Users/alice/bench/esp32sim/runs/combined-inl4000-turnover-s1s2/summary.json","reduction":1.3985294119862934,"pairs":[1.2509520833174248,1.2061077602223302,1.2081257693549396,2.249131549686678]}
+Sun Sep 20 14:04:11 UTC 2026 Starting combined-inl4000-turnover-s1s2-tinydraw (3 pairs, tinydraw; baseline combined-inl4000)
+{"run":"/Users/alice/bench/esp32sim/runs/combined-inl4000-turnover-s1s2-tinydraw/summary.json","reduction":1.8737202263957586,"pairs":[1.6342188055472717,1.8737202263957586,2.3045823177973213]}
+Sun Sep 20 14:07:34 UTC 2026 Turnover s1s2 campaign complete
+Sun Sep 20 14:07:34 UTC 2026 Turnover s1s2 campaign exit=0
