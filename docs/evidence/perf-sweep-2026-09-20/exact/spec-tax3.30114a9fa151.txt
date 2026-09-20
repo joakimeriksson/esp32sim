@@ -1,0 +1,15 @@
+{
+ "wasm": "wasm/spec-tax3.wasm",
+ "secs": 30,
+ "insns": "10073833775",
+ "consoleSha256": "b9d9966e5d9d73984203c11846eb7f8c86507cb53ffe133c4e7e92dff66319d7",
+ "frames": 3094,
+ "panics": 0,
+ "jitFailures": 0,
+ "wallSeconds": 122.563,
+ "refInsns": "10073833775",
+ "refSha": "b9d9966e",
+ "refFrames": 3094,
+ "EXACT": true
+}
+EXACT ok (pocket-tank, 30 guest s; Node wall time is NOT a benchmark)

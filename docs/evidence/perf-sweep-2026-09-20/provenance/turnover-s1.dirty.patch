@@ -1,0 +1,145 @@
+diff --git a/emu-core/src/bus.rs b/emu-core/src/bus.rs
+index 17dde0aa..431b5dc8 100644
+--- a/emu-core/src/bus.rs
++++ b/emu-core/src/bus.rs
+@@ -102,6 +102,10 @@ pub trait Bus {
+     /// True when this dispatch stopped in front of a deferred access (not cleared by reading).
+     #[inline(always)]
+     fn deferred(&self) -> bool { false }
++    /// EX152: true when a multi-block run must return to the machine before the next block:
++    /// everything the scheduler inspects between two block dispatches.
++    #[inline(always)]
++    fn run_break(&self) -> bool { self.block_break() || self.deferred() }
+     /// Direct memory access for generated code, if the bus has a `TlbEntry` table.
+     fn fast_mem(&mut self) -> Option<FastMem> { None }
+     /// Copy guest memory at `addr` into `out` in one piece when the whole range is plain
+diff --git a/emu-core/src/core.rs b/emu-core/src/core.rs
+index 932fe93d..395da0ef 100644
+--- a/emu-core/src/core.rs
++++ b/emu-core/src/core.rs
+@@ -133,6 +133,14 @@ pub trait Core {
+         for i in 0..budget { if let Some(t) = self.step(bus).trap() { return (i + 1, Some(t)); } }
+         (budget, None)
+     }
++    /// EX152: as `run`, but may continue across block boundaries while nothing the machine
++    /// inspects between blocks has happened (`Bus::run_break`, a trap, a sleeping core). Only
++    /// for unobserved runs without stubs or probes. Also returns the last block's entry PC.
++    fn run_many<B: Bus>(&mut self, bus: &mut B, budget: u32) -> (u32, Option<Trap>, u32) {
++        let pc = self.pc();
++        let (used, trap) = self.run(bus, budget);
++        (used, trap, pc)
++    }
+     /// pcs the machine intercepts (stubs, probes) as a bloom over `pc_bit`: a fast path must
+     /// stop at every one of them so the machine can look.
+     fn set_boundaries(&mut self, _bloom: u64) {}
+diff --git a/esp-soc/src/machine.rs b/esp-soc/src/machine.rs
+index 06c0004d..eea22586 100644
+--- a/esp-soc/src/machine.rs
++++ b/esp-soc/src/machine.rs
+@@ -59,7 +59,7 @@ pub struct Machine<S: Soc> {
+     pub stubs: HashMap<u32, u32>,
+     /// one bit per pc bucket for `stubs` / `fn_probes`, so the common case costs a shift and a test
+     /// instead of hashing every pc (a hash lookup per instruction cost ~16% of run time)
+-    stub_bloom: u64, probe_bloom: u64,
++    stub_bloom: u64, probe_bloom: u64, lean: bool,
+     pub stub_hits: u64,
+     /// function-entry tracing: pc -> name (`--trace-fn PREFIX`)
+     pub fn_probes: HashMap<u32, String>,
+@@ -116,7 +116,7 @@ const VQ_DEFAULT: u64 = match option_env!("ESP32SIM_VQ_BUILD") {
+ impl<S: Soc> Machine<S> {
+     pub fn new(mac: [u8; 6], bus: S::Bus) -> Self {
+         Machine {
+-            mac, reboots: 0, stubs: HashMap::new(), stub_bloom: 0, probe_bloom: 0, stub_hits: 0, fn_probes: HashMap::new(),
++            mac, reboots: 0, stubs: HashMap::new(), stub_bloom: 0, probe_bloom: 0, lean: false, stub_hits: 0, fn_probes: HashMap::new(),
+             cores: (0..S::CORES).map(S::new_core).collect(), core_held: (0..S::CORES).map(|i| i > 0).collect(), quantum: QUANTUM, run_steps: 0, vq_stats: [0; 4], vq_skip: 0, vq_penalty: 0, vq_max: std::env::var("ESP32SIM_VQ").ok().and_then(|v| v.parse().ok()).unwrap_or(VQ_DEFAULT),
+             bus, symbols: BTreeMap::new(),
+             dbg: Debug { stop_on_unimplemented: true, stop_after_exceptions: u64::MAX },
+@@ -342,6 +342,16 @@ impl<S: Soc> Machine<S> {
+     fn step_blocks(&mut self, core: usize, budget: u32) -> (u32, Option<Stop>) {
+         // Core::run returns a trap without its faulting PC. One-instruction fragments make
+         // the entry PC exact while retaining callbacks for combined BLOCK/TRAP observers.
++        if self.lean {
++            // EX152: no stub, probe or observer: consecutive blocks run inside the core.
++            let (used, trap, pc) = self.cores[core].run_many(&mut self.bus, budget);
++            if trap.is_some() {
++                if let Some(stop) = self.observe_execution(core, pc, used, trap) { return (used, Some(stop)); }
++                if self.exceptions >= self.dbg.stop_after_exceptions { return (used, Some(Stop::Exceptions(self.exceptions))); }
++            }
++            self.refresh_irq();
++            return (used, None);
++        }
+         let budget = if self.probes.contains(Wants::TRAP_PC) { budget.min(1) } else { budget };
+         let cpu = &mut self.cores[core];
+         let pc = cpu.pc();
+@@ -418,6 +428,7 @@ impl<S: Soc> Machine<S> {
+     /// Run until something stops us, for at most `max_insns` scheduling steps. The no-model path
+     /// uses 64-instruction quanta; the modeled path schedules one priced event at a time.
+     pub fn run(&mut self, max_insns: u64) -> Stop {
++        self.lean = false;
+         self.web_poll_input();
+         self.refresh_irq();
+         if self.cost.is_some() { self.run_modeled(max_insns) } else if self.approximate_jit_frontiers { self.run_approximate_jit_frontiers(max_insns) } else if self.approximate_jit_timing.is_some() { self.run_unmodeled::<true>(max_insns) } else { self.run_unmodeled::<false>(max_insns) }
+@@ -472,6 +483,7 @@ impl<S: Soc> Machine<S> {
+         let blocks = !self.probes.contains(Wants::INSN);
+         let slow_path = self.probes.contains(Wants::NO_IDLE_SKIP);
+         let trace = self.has_observer("trace");
++        self.lean = !APPROXIMATE && blocks && self.probes.0 == 0 && (self.stub_bloom | self.probe_bloom) == 0 && std::env::var_os("ESP32SIM_NO_LEAN").is_none();
+         let mut n = 0u64;
+         let mut on = [true; 4];
+         let mut idle = [true; 4];
+@@ -703,6 +715,7 @@ impl<S: Soc> Machine<S> {
+     /// Nothing else about a run changes: stubs, probes, observers, scripts and the console work
+     /// as in `run`; `max_cycles` is not consulted.
+     pub fn run_until_cycle(&mut self, target: u64) -> RunUntil {
++        self.lean = false;
+         self.web_poll_input();
+         self.refresh_irq();
+         self.stub_bloom = self.stubs.keys().fold(0, |m, &pc| m | pc_bit(pc));
+diff --git a/esp32s3/src/bus.rs b/esp32s3/src/bus.rs
+index 72f4b0ef..c522cacc 100644
+--- a/esp32s3/src/bus.rs
++++ b/esp32s3/src/bus.rs
+@@ -659,6 +659,8 @@ impl Bus for SocBus {
+     #[inline(always)]
+     fn block_break(&self) -> bool { self.irq_dirty || (self.approximate_cache_yield_miss && self.approximate_cache_pending != 0) }
+     #[inline(always)]
++    fn run_break(&self) -> bool { self.irq_dirty || self.mmio_deferred || self.periph.rtc.sw_reset || (self.approximate_cache_yield_miss && self.approximate_cache_pending != 0) }
++    #[inline(always)]
+     fn defer_armed(&self) -> bool { self.defer_mmio }
+     #[inline(always)]
+     fn defer_access(&mut self, addr: u32) -> bool {
+diff --git a/xtensa-lx7/src/block.rs b/xtensa-lx7/src/block.rs
+index efa509fb..06cd7676 100644
+--- a/xtensa-lx7/src/block.rs
++++ b/xtensa-lx7/src/block.rs
+@@ -204,6 +204,18 @@ pub fn run_block<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Optio
+     result
+ }
+ 
++/// EX152: consecutive blocks in one call. The caller guarantees no stub, probe or observer;
++/// every other between-block machine check is covered by the exits below.
++pub fn run_blocks<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Option<Trap>, u32) {
++    let mut total = 0;
++    loop {
++        let pc = cpu.pc;
++        let (used, trap) = run_block(cpu, bus, budget - total);
++        total += used;
++        if trap.is_some() || total >= budget || used == 0 || cpu.waiting || bus.run_break() { return (total, trap, pc); }
++    }
++}
++
+ fn run_block_profiled<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Option<Trap>) {
+     #[cfg(all(target_arch = "wasm32", feature = "wasm-jit-profile"))]
+     {
+diff --git a/xtensa-lx7/src/core.rs b/xtensa-lx7/src/core.rs
+index 23f94a97..86274bc1 100644
+--- a/xtensa-lx7/src/core.rs
++++ b/xtensa-lx7/src/core.rs
+@@ -40,6 +40,7 @@ impl emu_core::Core for Cpu {
+     }
+     fn step<B: Bus>(&mut self, bus: &mut B) -> StepOutcome { crate::exec::step_outcome(self, bus) }
+     fn run<B: Bus>(&mut self, bus: &mut B, budget: u32) -> (u32, Option<Trap>) { crate::block::run_block(self, bus, budget) }
++    fn run_many<B: Bus>(&mut self, bus: &mut B, budget: u32) -> (u32, Option<Trap>, u32) { crate::block::run_blocks(self, bus, budget) }
+     fn set_boundaries(&mut self, bloom: u64) { if self.boundary_bloom != bloom { self.blocks.flush(); self.boundary_bloom = bloom; } }
+     fn set_block_observation(&mut self, enabled: bool) { self.blocks.observed = enabled; }
+     fn flush_caches(&mut self) { self.blocks.flush(); }

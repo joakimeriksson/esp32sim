@@ -1,6 +1,6 @@
 # Review-fix validation — September 19, 2026
 
-The recorded correctness gates passed: 371 native release tests including 14 firmware golden tests, 8 WASM firmware manifests plus JIT handoff, 78,861 default JIT differential cases, workspace Clippy, 16 Node tests, 12 Python tests and worker pacing/channel scripts. The [machine-readable receipt](validation.json) contains the exact commands, exit statuses, suite counts, toolchain versions, source and input identities and artifact hashes. The [review synthesis](../../reviews/2026-09-19-synthesis.md) explains the fixes and remaining gaps.
+The recorded correctness gates passed: 371 native release tests including 14 firmware golden tests, 8 WASM firmware manifests plus JIT handoff, 78,861 default JIT differential cases, workspace Clippy, 16 Node tests, 12 Python tests and worker pacing/channel scripts. The [machine-readable receipt](validation.json) contains the exact commands, exit statuses, suite counts, toolchain versions, source and input identities and artifact hashes. The [review synthesis](findings.md) explains the fixes and remaining gaps.
 
 The receipt identifies source revision `d549d4b27b927e7bd32bd2e4e9cc4188738c8e03` and source tree `f9947f5b8f7173f16e69119ae0f4ec08a0685ae7`. The production WASM build preceded three behavior-preserving Clippy rewrites; the differential rebuild includes them. The [follow-up patch](production-build-followup.patch) records those changes. Production firmware results and differential results therefore refer to distinct artifact hashes, both preserved in the receipt.
 

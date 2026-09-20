@@ -1,6 +1,6 @@
 # Overnight experiments, September 19, 2026
 
-Two sessions worked through the night on the TinyDraw browser battery: a coordinator (Claude) that owned benchmarking, the board and this log, and a peer (GPT-6 Astra, launched separately by the user) that owned isolated patches, differential tests and code review. No subagents were spawned. In the morning, at the user's request, the exact-path work was opened as five draft pull requests (native stack #90, #85–#89 on joakimeriksson/esp32sim). The experiment branches are in this repository as `night/*-0919`; the adopted work is proposed as draft pull requests #85–#89 and #91 (one native stack) and #92.
+Historical measurement evidence for EX133–EX149. Current dispositions and upstream status are maintained only in the [experiment catalog](../../experiments.md).
 
 ## Results
 
@@ -33,13 +33,6 @@ What did not work: EX109 guarded RETW (inside noise), EX121 wasm-opt (about 1%),
 - The timed model is approximate by design: a measurement-informed model with remaining assumptions. Its instruction prices come from earlier hardware ladders (EX067, EX068, EX079, EX080) and from EX081's control cells, captured on September 7 and analysed only tonight; its cache prices from window totals of tonight's Tier-B cohort, which are not isolated miss penalties. Assumed: CALLX = JX, SUB.S/MSUB.S = ADD.S, one-cycle latency for unmeasured FP/PIE writers, round-robin replacement, explicit-`msync` cost for automatic eviction, one fill price for PSRAM and flash. The fit is to one firmware on one board revision.
 - Hardware: the board was fully erased (authorized), ran the frozen gate-1 images for the two reference captures, then the Tier-B calibration images. It was not restored; the last image flashed is the Tier-B XIP-PSRAM one.
 
-## Open items, most valuable first
-
-1. Review and upstream `night/combined-0919` in pieces: EX133 + EX134 guard, the diet, EX135, EX136/137, EX144. EX133's exactness rests on several invariants together (the run-length bounds on device flush, script, page push, peer wake-up and limits; deferral of device registers; the cadence guard) and on the tested contract (pinned totals, console hashes, goldens). `vq_violations` is only a backstop for register accesses that escape deferral, not a correctness certificate. It deserves a reviewer who did not write it.
-2. Timed model: presentation is 7% slow with the fetch cache on and the fetch-line price (404, a window with two misses in its raw records) is provisional; ring-PIE staging 0.93; pocket-tank's inference is 35% slow and neither its 64 KB data cache nor a separate flash price fixes that (sequential data-cache autoload was checked and is off in both firmwares, so that gap is unexplained); the cache geometry should come from the EXTMEM registers; CALLX assumed; 96/160 are window totals, not isolated penalties. The Tier-B cohort captured tonight (`~/Archives/esp32s3/tier-b/`) has the msync and SPI2 decomposition cells still to analyse.
-3. Calls and returns inside regions: 82% of region exits, about 4 s of the remaining 42 s; the peer's design note (`design-calls-in-regions.md`) puts the first step (direct CALL8 → ENTRY as an internal edge) at no more than 4%.
-4. pocket-tank stays at 0.44×: both cores busy, so it needs raw throughput or the timed clock, not scheduling.
-
 ## Files
 
 - `summaries/*.json`: run-pairs summaries and single-run results named in the log.
@@ -47,4 +40,4 @@ What did not work: EX109 guarded RETW (inside noise), EX121 wasm-opt (about 1%),
 - `tools/`: the small wrappers used (`pair.sh`, `battery.sh`, `prof.sh`, `resp.sh`, `cmp-hw.py`, `hash.py`).
 - Raw captures, wasm artifacts, CPU profiles and module dumps stay local in `work/night-run/` (1.4 GB, ignored).
 
-The step-by-step record, with every run and the file it came from, is in [LOG.md](LOG.md) (steps 1–13) and [LOG-2.md](LOG-2.md) (steps 14–26). Step numbers cited in pull requests and in the catalog refer to it.
+The step-by-step record, with every run and the file it came from, is in [Measurement record 1](measurements-1.md) (steps 1–13) and [Measurement record 2](measurements-2.md) (steps 14–26). Step numbers cited in pull requests and in the catalog refer to it.

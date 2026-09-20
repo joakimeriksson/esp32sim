@@ -1,0 +1,1 @@
+flags-sinl-O4: wasm-opt -O4 on flags-simd-inl1000

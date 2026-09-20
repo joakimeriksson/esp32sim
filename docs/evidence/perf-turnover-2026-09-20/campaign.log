@@ -1,0 +1,8 @@
+Sun Sep 20 12:52:08 UTC 2026 Building and checking combined-inl4000-turnover-s1
+Sun Sep 20 12:54:45 UTC 2026 Starting turnover-control-aa (2 pairs, pocket-tank; baseline combined-inl4000)
+{"run":"/Users/alice/bench/esp32sim/runs/turnover-control-aa/summary.json","reduction":0.6913267254103905,"pairs":[2.538782546119911,-1.2037479016583585]}
+Sun Sep 20 12:57:17 UTC 2026 Starting combined-inl4000-turnover-s1 (4 pairs, pocket-tank; baseline combined-inl4000)
+{"run":"/Users/alice/bench/esp32sim/runs/combined-inl4000-turnover-s1/summary.json","reduction":-0.6383893030425414,"pairs":[0.09969179232236502,-1.6458084799193307,-0.8979446267482816,0.03513399443437759]}
+Turnover did not improve consistently; skipping TinyDraw and retaining current artifact.
+Sun Sep 20 13:02:12 UTC 2026 Turnover campaign complete
+Sun Sep 20 13:02:12 UTC 2026 Turnover campaign exit=0
