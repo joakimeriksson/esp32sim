@@ -1,0 +1,9 @@
+Sun Sep 20 14:52:17 UTC 2026 Building and checking combined-inl4000-admission-borrow
+Sun Sep 20 14:55:00 UTC 2026 Starting admission-control-aa (2 pairs, pocket-tank; baseline combined-inl4000)
+{"run":"/Users/alice/bench/esp32sim/runs/admission-control-aa/summary.json","reduction":0.39077173074917315,"pairs":[0.7317468931707705,0.04735821881857172]}
+Sun Sep 20 14:57:33 UTC 2026 Starting combined-inl4000-admission-borrow (4 pairs, pocket-tank; baseline combined-inl4000)
+{"run":"/Users/alice/bench/esp32sim/runs/combined-inl4000-admission-borrow/summary.json","reduction":2.2340322228090237,"pairs":[2.3438484679840332,3.957599008593904,1.553133404772078,1.9408529201932478]}
+Sun Sep 20 15:02:16 UTC 2026 Starting combined-inl4000-admission-borrow-tinydraw (3 pairs, tinydraw; baseline combined-inl4000)
+{"run":"/Users/alice/bench/esp32sim/runs/combined-inl4000-admission-borrow-tinydraw/summary.json","reduction":2.709792447421022,"pairs":[2.504314840244315,2.6803028800479134,2.84341657963213]}
+Sun Sep 20 15:05:39 UTC 2026 Admission campaign complete
+Sun Sep 20 15:05:39 UTC 2026 Admission campaign exit=0
