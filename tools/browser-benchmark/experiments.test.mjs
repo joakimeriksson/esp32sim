@@ -38,6 +38,7 @@ test('diagnostic setters remain supported but invalid argument shapes never disp
 test('board-specific preset setters are selected before boot', () => {
   assert.deepEqual(experimentsFromParams(new URLSearchParams('timing=hw'), 'atech14'), HW.filter((_, n) => n !== 6));
   assert.deepEqual(experimentsFromParams(new URLSearchParams('timing=hw'), 'waveshare-amoled18-v2'), HW);
+  assert.deepEqual(experimentsFromParams(new URLSearchParams('timing=hw'), 'amoled18-v2'), HW);
   for (const board of ['c3', 'esp32c6', 'waveshare-c6-lcd147']) assert.throws(() => experimentsFromParams(new URLSearchParams('timing=hw'), board), /ESP32-S3/);
   assert.throws(() => validateExperiments([['esp32sim_set_icache_fill', 1000001]]));
   assert.throws(() => applyExperiments({esp32sim_set_icache_fill: () => 1}, 1, [['esp32sim_set_icache_fill', 404]]), /esp32sim_set_icache_fill/);

@@ -70,7 +70,7 @@ export function experimentsFromParams(params, board) {
     throw new Error('timing=hw requires an ESP32-S3 board');
   }
   const experiments = timing === null ? [] : HW.filter((_, n) => !dropped.includes(n)
-    && (n !== 6 || !board || board === 'waveshare-amoled18-v2')).map(entry => [...entry]);
+    && (n !== 6 || !board || ['waveshare-amoled18-v2', 'amoled18-v2'].includes(board))).map(entry => [...entry]);
   if (params.has('quantum')) {
     const value = params.get('quantum');
     if (!/^[0-9]+$/.test(value) || !quantum(Number(value))) throw new Error('quantum must be a multiple of 64 from 64 to 4096');
