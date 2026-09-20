@@ -195,3 +195,15 @@ fn i2s_reset_slots_are_enabled() {
     i2s.write(0x24, 1 << 2);
     assert_eq!(i2s.bytes_per_frame, 1);
 }
+
+#[test]
+fn rmt_empty_continuous_frame_yields_without_accumulating_cycles() {
+    let mut rmt = Rmt::new(240_000_000);
+    rmt.write(0x20, 1 | (1 << 3));
+    for _ in 0..3 {
+        rmt.tick(100);
+        assert!(rmt.ch[0].running);
+        assert_eq!(rmt.ch[0].acc_cycles, 0);
+        assert!(rmt.ch[0].bits.is_empty());
+    }
+}

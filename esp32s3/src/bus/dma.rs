@@ -428,7 +428,8 @@ impl SocBus {
     /// A descriptor the CPU still owns parks that side with its DSCR_ERR raised until software
     /// hands it over, and the copy resumes where it stopped. A fault reading a descriptor,
     /// copying or writing back stops that side with DSCR_ERR and writes nothing more back; so
-    /// does a walk longer than `GDMA_DESCRIPTOR_STEP_BUDGET` (a ring of empty OUT descriptors).
+    /// does an unproductive walk longer than `GDMA_DESCRIPTOR_STEP_BUDGET`. Productive copies
+    /// yield at the budget and resume from their descriptor positions on the next pump.
     /// Interrupt inputs are marked for re-evaluation only when a channel's state changed.
     pub(super) fn dma_m2m_step(&mut self) {
         use crate::periph::{GdmaInCh, GdmaOutCh};
@@ -570,7 +571,7 @@ impl SocBus {
     }
 
     /// Gather a finite crypto transaction. Descriptor visits bound both runtime and allocation
-    /// (4096 * 4095 bytes maximum); ownership write-back also rejects cycles on their next lap.
+    /// (4096 * 4095 bytes maximum); a visited set rejects cycles independently of owner checking.
     fn gather_dma_out(&mut self, ch: usize, limit: usize) -> Result<Vec<u8>, DmaDescriptorFault> {
         let mut input = Vec::new();
         let mut desc = self.periph.gdma.out[ch].desc;
