@@ -1,0 +1,13 @@
+{
+  "release": "TinyDraw 2.3.0 ESP32-S3 demo",
+  "files": {
+    "app": "/Users/alice/src/a/tinydraw/out/build/release-230-esp32-demo/tinydraw_esp32.bin",
+    "bootloader": "/Users/alice/src/a/tinydraw/out/build/release-230-esp32-demo/bootloader/bootloader.bin",
+    "ptable": "/Users/alice/src/a/tinydraw/out/build/release-230-esp32-demo/partition_table/partition-table.bin"
+  },
+  "sha256": {
+    "app": "382ca6c4cde94421ddc035cc7e403536440eaa918a71b9ed8b53803bb853a3ec",
+    "bootloader": "8e76aa31096dbc0a52a6a21f06fec07c6cbb55389939139210200df5693ae4ab",
+    "ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d"
+  }
+}
