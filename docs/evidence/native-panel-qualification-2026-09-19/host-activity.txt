@@ -1,72 +1,72 @@
 1-baseline-processes.txt
-10122  95.7 Raycast Backend
-  426  40.7 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
-  695  17.5 /System/Library/PrivateFrameworks/CloudKitDaemon.framework/Support/cloudd
-23626  14.0 node
-61714  10.9 /Applications/ChatGPT.app/Contents/Frameworks/Codex Framework.framework/Versions/153.0.8010.48/Helpers/Codex (Renderer).app/Contents/MacOS/Codex (Renderer)
- 8655  10.8 /Applications/Signal Beta.app/Contents/Frameworks/Signal Beta Helper (Renderer).app/Contents/MacOS/Signal Beta Helper (Renderer)
-61702  10.8 /Applications/ChatGPT.app/Contents/Resources/codex
-  763   8.7 /System/Library/CoreServices/AccessibilityUIServer.app/Contents/MacOS/AccessibilityUIServer
-71428   8.3 /Applications/Helium.app/Contents/Frameworks/Helium Framework.framework/Versions/153.0.8010.52/Helpers/Helium Helper (Renderer).app/Contents/MacOS/Helium Helper (Renderer)
-61641   7.5 /Applications/ChatGPT.app/Contents/MacOS/ChatGPT
+95.7% CPU (process identity omitted)
+40.7% CPU (process identity omitted)
+17.5% CPU (process identity omitted)
+14.0% CPU (process identity omitted)
+10.9% CPU (process identity omitted)
+10.8% CPU (process identity omitted)
+10.8% CPU (process identity omitted)
+8.7% CPU (process identity omitted)
+8.3% CPU (process identity omitted)
+7.5% CPU (process identity omitted)
 
 1-candidate-processes.txt
-10122 107.6 Raycast Backend
-  426  37.7 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
-  982  18.6 /Applications/Dropbox.app/Contents/MacOS/Dropbox
-61641  12.1 /Applications/ChatGPT.app/Contents/MacOS/ChatGPT
-  763   8.7 /System/Library/CoreServices/AccessibilityUIServer.app/Contents/MacOS/AccessibilityUIServer
-  695   8.5 /System/Library/PrivateFrameworks/CloudKitDaemon.framework/Support/cloudd
-71428   8.3 /Applications/Helium.app/Contents/Frameworks/Helium Framework.framework/Versions/153.0.8010.52/Helpers/Helium Helper (Renderer).app/Contents/MacOS/Helium Helper (Renderer)
-61714   7.0 /Applications/ChatGPT.app/Contents/Frameworks/Codex Framework.framework/Versions/153.0.8010.48/Helpers/Codex (Renderer).app/Contents/MacOS/Codex (Renderer)
-  522   2.8 /usr/libexec/syspolicyd
- 8655   2.8 /Applications/Signal Beta.app/Contents/Frameworks/Signal Beta Helper (Renderer).app/Contents/MacOS/Signal Beta Helper (Renderer)
+107.6% CPU (process identity omitted)
+37.7% CPU (process identity omitted)
+18.6% CPU (process identity omitted)
+12.1% CPU (process identity omitted)
+8.7% CPU (process identity omitted)
+8.5% CPU (process identity omitted)
+8.3% CPU (process identity omitted)
+7.0% CPU (process identity omitted)
+2.8% CPU (process identity omitted)
+2.8% CPU (process identity omitted)
 
 2-baseline-processes.txt
-10122  74.3 Raycast Backend
-  426  39.1 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
-60576  20.5 /System/Library/PrivateFrameworks/MediaAnalysis.framework/Versions/A/mediaanalysisd
-  724  12.0 /System/Library/Frameworks/ApplicationServices.framework/Frameworks/ATS.framework/Support/fontd
-  695   9.5 /System/Library/PrivateFrameworks/CloudKitDaemon.framework/Support/cloudd
-  763   8.2 /System/Library/CoreServices/AccessibilityUIServer.app/Contents/MacOS/AccessibilityUIServer
-71323   6.6 /Applications/Helium.app/Contents/MacOS/Helium
-71428   6.3 /Applications/Helium.app/Contents/Frameworks/Helium Framework.framework/Versions/153.0.8010.52/Helpers/Helium Helper (Renderer).app/Contents/MacOS/Helium Helper (Renderer)
- 8855   5.1 /Applications/Ghostty.app/Contents/MacOS/ghostty
-23825   4.6 /Applications/Helium.app/Contents/Frameworks/Helium Framework.framework/Versions/153.0.8010.52/Helpers/Helium Helper (Renderer).app/Contents/MacOS/Helium Helper (Renderer)
+74.3% CPU (process identity omitted)
+39.1% CPU (process identity omitted)
+20.5% CPU (process identity omitted)
+12.0% CPU (process identity omitted)
+9.5% CPU (process identity omitted)
+8.2% CPU (process identity omitted)
+6.6% CPU (process identity omitted)
+6.3% CPU (process identity omitted)
+5.1% CPU (process identity omitted)
+4.6% CPU (process identity omitted)
 
 2-candidate-processes.txt
-61714 262.6 /Applications/ChatGPT.app/Contents/Frameworks/Codex Framework.framework/Versions/153.0.8010.48/Helpers/Codex (Renderer).app/Contents/MacOS/Codex (Renderer)
-10122  61.4 Raycast Backend
-  426  45.1 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
-  982  34.2 /Applications/Dropbox.app/Contents/MacOS/Dropbox
-    1  16.3 /sbin/launchd
-61665  15.3 /Applications/ChatGPT.app/Contents/Frameworks/Codex Framework.framework/Versions/153.0.8010.48/Helpers/Codex (Service).app/Contents/MacOS/Codex (Service)
-  695  10.6 /System/Library/PrivateFrameworks/CloudKitDaemon.framework/Support/cloudd
-20547  10.0 /usr/libexec/PerfPowerServices
-  763   9.4 /System/Library/CoreServices/AccessibilityUIServer.app/Contents/MacOS/AccessibilityUIServer
-61641   9.4 /Applications/ChatGPT.app/Contents/MacOS/ChatGPT
+262.6% CPU (process identity omitted)
+61.4% CPU (process identity omitted)
+45.1% CPU (process identity omitted)
+34.2% CPU (process identity omitted)
+16.3% CPU (process identity omitted)
+15.3% CPU (process identity omitted)
+10.6% CPU (process identity omitted)
+10.0% CPU (process identity omitted)
+9.4% CPU (process identity omitted)
+9.4% CPU (process identity omitted)
 
 3-baseline-processes.txt
-10122 125.9 Raycast Backend
-  426  40.7 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
-61714  16.7 /Applications/ChatGPT.app/Contents/Frameworks/Codex Framework.framework/Versions/153.0.8010.48/Helpers/Codex (Renderer).app/Contents/MacOS/Codex (Renderer)
-  763   7.4 /System/Library/CoreServices/AccessibilityUIServer.app/Contents/MacOS/AccessibilityUIServer
-71428   6.0 /Applications/Helium.app/Contents/Frameworks/Helium Framework.framework/Versions/153.0.8010.52/Helpers/Helium Helper (Renderer).app/Contents/MacOS/Helium Helper (Renderer)
-95973   4.2 pi
-61641   2.9 /Applications/ChatGPT.app/Contents/MacOS/ChatGPT
- 8655   2.6 /Applications/Signal Beta.app/Contents/Frameworks/Signal Beta Helper (Renderer).app/Contents/MacOS/Signal Beta Helper (Renderer)
-  982   2.2 /Applications/Dropbox.app/Contents/MacOS/Dropbox
-  560   2.0 /System/Library/DriverExtensions/com.apple.DriverKit-AppleBCMWLAN.dext/com.apple.DriverKit-AppleBCMWLAN
+125.9% CPU (process identity omitted)
+40.7% CPU (process identity omitted)
+16.7% CPU (process identity omitted)
+7.4% CPU (process identity omitted)
+6.0% CPU (process identity omitted)
+4.2% CPU (process identity omitted)
+2.9% CPU (process identity omitted)
+2.6% CPU (process identity omitted)
+2.2% CPU (process identity omitted)
+2.0% CPU (process identity omitted)
 
 3-candidate-processes.txt
-10122 107.9 Raycast Backend
-  426  38.9 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
-  695  15.3 /System/Library/PrivateFrameworks/CloudKitDaemon.framework/Support/cloudd
-  982  12.4 /Applications/Dropbox.app/Contents/MacOS/Dropbox
-  600   9.3 /usr/sbin/coreaudiod
-71428   8.7 /Applications/Helium.app/Contents/Frameworks/Helium Framework.framework/Versions/153.0.8010.52/Helpers/Helium Helper (Renderer).app/Contents/MacOS/Helium Helper (Renderer)
-  763   7.7 /System/Library/CoreServices/AccessibilityUIServer.app/Contents/MacOS/AccessibilityUIServer
- 8855   6.7 /Applications/Ghostty.app/Contents/MacOS/ghostty
-  560   5.9 /System/Library/DriverExtensions/com.apple.DriverKit-AppleBCMWLAN.dext/com.apple.DriverKit-AppleBCMWLAN
-61702   5.5 /Applications/ChatGPT.app/Contents/Resources/codex
+107.9% CPU (process identity omitted)
+38.9% CPU (process identity omitted)
+15.3% CPU (process identity omitted)
+12.4% CPU (process identity omitted)
+9.3% CPU (process identity omitted)
+8.7% CPU (process identity omitted)
+7.7% CPU (process identity omitted)
+6.7% CPU (process identity omitted)
+5.9% CPU (process identity omitted)
+5.5% CPU (process identity omitted)
 
