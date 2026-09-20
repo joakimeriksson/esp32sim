@@ -51,6 +51,12 @@ fn name(strings: &[u8], off: usize) -> Result<String, String> {
 }
 
 pub fn parse(d: &[u8]) -> Result<Elf, String> {
+    // Segments and sections may overlap in the file. Bound their combined owned payloads,
+    // rather than allowing each header to multiply the input's memory footprint.
+    parse_with_copy_limit(d, 256 * 1024 * 1024)
+}
+
+fn parse_with_copy_limit(d: &[u8], mut remaining: usize) -> Result<Elf, String> {
     if d.len() < 52 || &d[0..4] != b"\x7fELF" { return Err("not an ELF file".into()); }
     if d[4] != 1 || d[5] != 1 { return Err("need ELF32 little-endian".into()); }
     let entry = u32le(d, 24);
@@ -73,7 +79,9 @@ pub fn parse(d: &[u8]) -> Result<Elf, String> {
         let memsz = u32le(p, 20);
         let flags = u32le(p, 24);
         if filesz > memsz as usize { return Err("ELF segment file size exceeds memory size".into()); }
-        let data = bytes(d, offset, filesz)?.to_vec();
+        let payload = bytes(d, offset, filesz)?;
+        remaining = remaining.checked_sub(payload.len()).ok_or("ELF copied payload exceeds 256 MiB limit")?;
+        let data = payload.to_vec();
         if memsz == 0 { continue; }
         segments.push(Segment { vaddr, paddr, data, memsz, flags });
     }
@@ -90,8 +98,15 @@ pub fn parse(d: &[u8]) -> Result<Elf, String> {
     for s in section_headers.clone() {
         let (stype, flags, addr, size) = (u32le(s, 4), u32le(s, 8), u32le(s, 12), u32le(s, 20));
         if size > 0 && addr != 0 && (stype == 1 || (stype == 8 && flags & 2 != 0)) {   // ROM ELFs mark RAM initialisers W-only (no SHF_ALLOC)
-            let name = if shstrndx == 0 { String::new() } else { name(section_names, u32le(s, 0) as usize)? };
-            let data = if stype == 1 { section_data(d, s)?.to_vec() } else { Vec::new() };
+            let name = if shstrndx == 0 { String::new() } else {
+                let Ok(name) = name(section_names, u32le(s, 0) as usize) else { continue };
+                name
+            };
+            let data = if stype == 1 {
+                let payload = section_data(d, s)?;
+                remaining = remaining.checked_sub(payload.len()).ok_or("ELF copied payload exceeds 256 MiB limit")?;
+                payload.to_vec()
+            } else { Vec::new() };
             alloc_sections.push(Section { name, addr, data, is_bss: stype == 8 });
         }
     }
@@ -109,11 +124,31 @@ pub fn parse(d: &[u8]) -> Result<Elf, String> {
             let value = u32le(e, 4);
             let info = e[12];
             let typ = info & 0xf;
-            let name = name(strings, name_off)?;
+            let Ok(name) = name(strings, name_off) else { continue };
             if name.is_empty() { continue; }
             by_name.entry(name.clone()).or_insert(value);
             if typ == 1 || typ == 2 { symbols.entry(value).or_insert(name); }   // OBJECT / FUNC
         }
     }
     Ok(Elf { entry, segments, sections: alloc_sections, symbols, by_name })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn copy_limit_counts_segment_and_section_payloads_together() {
+        let mut d = vec![0; 128];
+        d[..6].copy_from_slice(b"\x7fELF\x01\x01");
+        d[42] = 32; d[44] = 1; d[46] = 40; d[48] = 1;
+        for (off, value) in [(28, 52u32), (32, 84), (52, 1), (56, 124), (68, 4),
+                             (72, 4), (88, 1), (96, 0x4000), (100, 124), (104, 4)] {
+            d[off..off + 4].copy_from_slice(&value.to_le_bytes());
+        }
+        let e = parse_with_copy_limit(&d, 8).unwrap();
+        assert_eq!(e.segments[0].data.len(), 4);
+        assert_eq!(e.sections[0].data.len(), 4);
+        assert!(parse_with_copy_limit(&d, 7).is_err());
+    }
 }

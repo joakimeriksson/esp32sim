@@ -109,10 +109,17 @@ fn elf_with_symbols() -> Vec<u8> {
 fn elf_bounds_symbol_records_and_strings_to_their_sections() {
     let d = elf_with_symbols();
     assert_eq!(elf::parse(&d).unwrap().by_name["f"], 0x4000_0000);
-    for (off, value) in [(108, u32::MAX), (148, u32::MAX), (152, 2), (172, 3), (128, 1)] {
+    for (off, value) in [(108, u32::MAX), (148, u32::MAX), (128, 1)] {
         let mut broken = d.clone();
         put_u32(&mut broken, off, value);
         assert!(elf::parse(&broken).is_err(), "accepted invalid field at {off}");
+    }
+    for (off, value) in [(152, 2), (172, 3)] {
+        let mut broken_name = d.clone();
+        put_u32(&mut broken_name, off, value);
+        let e = elf::parse(&broken_name).unwrap();
+        assert!(e.symbols.is_empty());
+        assert!(e.by_name.is_empty());
     }
 }
 
@@ -128,14 +135,14 @@ fn elf_allows_unnamed_symbols_with_an_empty_string_table() {
 }
 
 #[test]
-fn elf_rejects_section_names_outside_the_string_table() {
+fn elf_skips_section_names_outside_the_string_table() {
     let mut d = elf_with_symbols();
     d[50] = 2;
     put_u32(&mut d, 96, 1); // PROGBITS section with a load address.
     put_u32(&mut d, 104, 0x3fc0_0000);
     for name in [3, u32::MAX] {
         put_u32(&mut d, 92, name);
-        assert!(elf::parse(&d).is_err());
+        assert!(elf::parse(&d).unwrap().sections.is_empty());
     }
 }
 
@@ -161,6 +168,7 @@ fn bmp_validates_the_pixel_extent_before_allocating() {
     d[28] = 24;
     d[54..57].copy_from_slice(&[3, 2, 1]);
     assert_eq!(picture::parse(&d).unwrap().rgb, [1, 2, 3]);
+    assert_eq!(picture::parse(&d[..57]).unwrap().rgb, [1, 2, 3]);
     assert!(picture::parse(&d[..56]).is_err());
     put_u32(&mut d, 10, u32::MAX);
     assert!(picture::parse(&d).is_err());
@@ -168,6 +176,13 @@ fn bmp_validates_the_pixel_extent_before_allocating() {
     put_u32(&mut d, 18, 8192);
     put_u32(&mut d, 22, 8192);
     assert!(picture::parse(&d).is_err());
+}
+
+#[test]
+fn ppm_requires_one_separator_without_eating_pixel_whitespace() {
+    assert!(picture::parse(b"P6\n1 1\n255").is_err());
+    assert!(picture::parse(b"P6\n1 1\n255#abc").is_err());
+    assert_eq!(picture::parse(b"P6\n1 1\n255\n \n\t").unwrap().rgb, b" \n\t");
 }
 
 /// Real images still parse: a truncated one must fail, not panic, and the whole one must parse.

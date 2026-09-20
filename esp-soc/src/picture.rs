@@ -41,7 +41,8 @@ fn bmp(d: &[u8]) -> Result<Picture, String> {
     let (wu, hu, flip) = (w.unsigned_abs(), h.unsigned_abs(), h > 0);
     if wu == 0 || hu == 0 || wu as u64 * hu as u64 > MAX_PIXELS { return Err(format!("bmp: unreasonable size {}x{}", wu, hu)); }
     let stride = ((wu as usize * bpp / 8) + 3) & !3;
-    let len = stride.checked_mul(hu as usize).ok_or("bmp: pixel extent overflows")?;
+    // Row padding separates rows; no decoder read needs padding after the final row.
+    let len = stride.checked_mul(hu as usize - 1).and_then(|n| n.checked_add(wu as usize * bpp / 8)).ok_or("bmp: pixel extent overflows")?;
     let pixels = d.get(off..).and_then(|tail| tail.get(..len)).ok_or("bmp: truncated")?;
     let mut rgb = vec![0u8; (wu as u64 * hu as u64 * 3) as usize];
     for y in 0..hu as usize {
