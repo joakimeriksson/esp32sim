@@ -1,0 +1,38 @@
+{
+  "baseline": {
+    "tree": "/Users/alice/src/a/esp32sim/work/pr95-bench-base-bf36479b",
+    "commit": "bf36479b5c9b905447a51fb97fd9fd09564efcc5",
+    "suppliedWasm": null,
+    "rustflags": null,
+    "buildFeatures": [],
+    "buildCommand": [
+      "/Users/alice/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+      "build",
+      "--release",
+      "--target",
+      "wasm32-unknown-unknown",
+      "-p",
+      "esp32sim-wasm"
+    ],
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)\nbinary: rustc\ncommit-hash: 48a229ceaefd4985c50990b14116b6d856af0985\ncommit-date: 2026-09-01\nhost: aarch64-apple-darwin\nrelease: 1.98.1\nLLVM version: 22.1.8",
+    "wasmSha256": "08829fcfb3cd423cdd8943feebe7990d0a5818a66130c5d8521bde3ed6e01404"
+  },
+  "candidate": {
+    "tree": "/Users/alice/src/a/esp32sim/work/region-rejection-0919",
+    "commit": "5fd61b699bed18b43f412af52cde8277dfc867cf",
+    "suppliedWasm": null,
+    "rustflags": null,
+    "buildFeatures": [],
+    "buildCommand": [
+      "/Users/alice/.rustup/toolchains/stable-aarch64-apple-darwin/bin/cargo",
+      "build",
+      "--release",
+      "--target",
+      "wasm32-unknown-unknown",
+      "-p",
+      "esp32sim-wasm"
+    ],
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)\nbinary: rustc\ncommit-hash: 48a229ceaefd4985c50990b14116b6d856af0985\ncommit-date: 2026-09-01\nhost: aarch64-apple-darwin\nrelease: 1.98.1\nLLVM version: 22.1.8",
+    "wasmSha256": "ba19ee4035bc330762395506f4f12fe5553e6c98e3f032fc51b990d7ed73722c"
+  }
+}
