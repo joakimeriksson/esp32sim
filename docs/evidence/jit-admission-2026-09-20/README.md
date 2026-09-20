@@ -23,3 +23,5 @@ The [runner](campaign.sh) used combined-inl4000 as baseline, completed correctne
 This follows the [exploratory profiles](../profile-combined-2026-09-20/README.md), which may overlap Lightroom activity. It is distinct from EX030's 36-byte helper-decoration copy and EX136's previously unsuccessful active-loop and rejection shortcuts.
 
 Separate follow-up: the user reported unexpectedly slow performance on an iPhone 17 Pro during manual testing. No cause or numeric result has been established; investigate that separately from this candidate.
+
+[Post-adoption manual observations](manual-observations.md) record Pocket Tank at roughly 57% realtime on M1 Pro and 69–78% on M3 Pro depending on `feed 6`/`shadow` activity. TinyDraw is reported realtime, with a separate cursor-to-drawing offset on both Macs. These are user estimates, not controlled comparisons.
