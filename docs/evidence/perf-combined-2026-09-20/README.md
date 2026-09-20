@@ -1,6 +1,6 @@
 # September 20 combination and M3 confirmation
 
-Status: combined production build and correctness gates passed on the M3; browser measurements running.
+Status: M3 campaign completed September 20 at 12:41:33 BST. All correctness and timing checks passed; combination retained on the local integration branch.
 
 The combination starts at cf1187a6 and includes kernel-s1, coverage-s1,
 onecall-s1r and deadlines-a. Its production source commit is 93741045.
@@ -49,6 +49,25 @@ balanced; the four-pair combined run is balanced.
 
 Build passed with Rust 1.98.1. Native tests: 117 S3 tests and 20 Xtensa tests passed. WASM differential suite: 78,903 cases passed, 81,884 compiled modules released. The 30-second Node gate matched 10,073,833,775 instructions, console SHA-256 b9d9966e5d9d73984203c11846eb7f8c86507cb53ffe133c4e7e92dff66319d7 and 3,094 frames, with zero panics and JIT failures. Node elapsed time is not a browser benchmark. Local copies of logs: /Users/alice/src/a/esp32sim-exp/results/m3/logs/.
 
-Timing remains pending. The original single-pair results are recorded in EX153, EX155, EX156
-and EX157, including the negative checked-region-copy variant. The combined
-artifact is experimental until its correctness and timing results are known.
+Final M3 timings are below. The original single-pair results are recorded in EX153, EX155, EX156
+and EX157, including the negative checked-region-copy variant. The combined artifact passed the planned correctness and timing gates; it has not been pushed or merged into main.
+
+## Deferred compiler-flag follow-up
+
+Alice flagged inline thresholds 2000 and 4000 for later confirmation on September 20. Original-laptop first-pass screens: flags-inl2000 74.117685→70.342445 s (5.09% reduction), flags-inl4000 72.899460→68.292615 s (6.32%), flags-inl250 72.033045→71.774190 s (0.36%). Each preserves the pinned instruction total and console hash. These are single pairs, with an earlier same-machine A/A apparent improvement of 4.63%; neither larger threshold is confirmed.
+
+Receipts: /Users/alice/src/a/esp32sim-exp/runs/overnight/flags-inl2000-5ce976e6-pocket-tank--p1/summary.json and flags-inl4000-8c091acf-pocket-tank--p1/summary.json in the same directory. Proposed follow-up: compare the combined production build with and without each flag, using a same-host baseline and repeated alternating pairs. Do not add the standalone percentages to the combined result. This follow-up is deferred; do not alter the running M3 campaign.
+
+## Final M3 results
+
+| Candidate | Median baseline → candidate (s) | Reduction | Per-pair reductions |
+|---|---:|---:|---|
+| [control-aa](runs/control-aa.json) | 57.714 → 57.199 | 0.89% | 1.27%, 0.51% |
+| [kernel-s1](runs/kernel-s1.json) | 57.119 → 52.069 | 8.84% | 7.85%, 8.66%, 9.33% |
+| [coverage-s1](runs/coverage-s1.json) | 56.938 → 51.542 | 9.48% | 9.16%, 10.01%, 9.79% |
+| [onecall-s1r](runs/onecall-s1r.json) | 57.096 → 50.037 | 12.36% | 13.68%, 12.36%, 12.32% |
+| [deadlines-a](runs/deadlines-a.json) | 57.216 → 51.775 | 9.51% | 9.22%, 9.04%, 9.89% |
+| [combined](runs/combined.json) | 57.161 → 35.359 | 38.14% | 37.94%, 37.53%, 38.34%, 38.33% |
+| [combined-tinydraw](runs/combined-tinydraw.json) | 37.943 → 33.311 | 12.21% | 12.44%, 12.96%, 11.97% |
+
+All individual confirmations use three alternating pairs. The combined pocket-tank result uses four balanced-order pairs and TinyDraw uses three alternating pairs. Every arm passed pinned instructions and console-output checks. M3 A/A per-pair differences were 1.27% and 0.51%; these two pairs describe observed control variation, not a statistical bound. The combined pocket-tank reduction corresponds to about 1.62× baseline throughput. Do not pool these measurements with the original laptop sweep.
