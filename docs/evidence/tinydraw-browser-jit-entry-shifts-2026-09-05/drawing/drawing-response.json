@@ -365,12 +365,12 @@
     }
   ],
   "assets": {
-    "wasm": "/Users/sarah/src/a/esp32sim/target/browser-entry-shifts/candidate.wasm",
-    "rom": "/Users/sarah/.espressif/tools/esp-rom-elfs/20241011/esp32s3_rev0_rom.elf",
-    "bootloader": "/Users/sarah/src/a/esp32sim/target/tinydraw-battery-2026-09-04/firmware/bootloader/bootloader.bin",
-    "ptable": "/Users/sarah/src/a/esp32sim/target/tinydraw-battery-2026-09-04/firmware/partition_table/partition-table.bin",
-    "app": "/Users/sarah/src/a/esp32sim/target/tinydraw-battery-2026-09-04/firmware/tinydraw_esp32.bin",
-    "elf": "/Users/sarah/src/a/esp32sim/target/tinydraw-battery-2026-09-04/firmware/tinydraw_esp32.elf"
+    "wasm": "/Users/alice/src/a/esp32sim/target/browser-entry-shifts/candidate.wasm",
+    "rom": "/Users/alice/.espressif/tools/esp-rom-elfs/20241011/esp32s3_rev0_rom.elf",
+    "bootloader": "/Users/alice/src/a/esp32sim/target/tinydraw-battery-2026-09-04/firmware/bootloader/bootloader.bin",
+    "ptable": "/Users/alice/src/a/esp32sim/target/tinydraw-battery-2026-09-04/firmware/partition_table/partition-table.bin",
+    "app": "/Users/alice/src/a/esp32sim/target/tinydraw-battery-2026-09-04/firmware/tinydraw_esp32.bin",
+    "elf": "/Users/alice/src/a/esp32sim/target/tinydraw-battery-2026-09-04/firmware/tinydraw_esp32.elf"
   },
   "summary": {
     "strokes": 3,
@@ -422,7 +422,7 @@
     "endpoint": "Queued input to changed pixels near its position submitted to canvas; lift report is firmware console arrival. Not optical presentation."
   },
   "_rawArtifact": {
-    "url": "https://github.com/aliceisjustplaying/esp32sim/blob/c774a5b60144b5aee980a8f845ae7e8465088f4a/docs/evidence/tinydraw-browser-jit-entry-shifts-2026-09-05/drawing/drawing-response.json",
+    "url": "https://github.com/aliceisjustplaying/esp32sim/blob/sanitized-c774a5b60144b5aee980a8f845ae7e8465088f4a/docs/evidence/tinydraw-browser-jit-entry-shifts-2026-09-05/drawing/drawing-response.json",
     "sha256": "e4f2249ab39dab20d0c20a0176b0e4734d4c553bdd3aff8f70adf9abe420c525",
     "bytes": 133764,
     "omittedFields": [

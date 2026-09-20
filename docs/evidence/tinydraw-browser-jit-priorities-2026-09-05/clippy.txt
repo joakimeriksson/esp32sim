@@ -1,8 +1,8 @@
-    Checking emu-core v0.1.0 (/Users/sarah/src/a/esp32sim/emu-core)
-   Compiling esp32sim-wasm v0.1.0 (/Users/sarah/src/a/esp32sim/wasm)
-    Checking esp-periph v0.1.0 (/Users/sarah/src/a/esp32sim/esp-periph)
-    Checking riscv-rv32 v0.1.0 (/Users/sarah/src/a/esp32sim/riscv-rv32)
-    Checking xtensa-lx7 v0.1.0 (/Users/sarah/src/a/esp32sim/xtensa-lx7)
+    Checking emu-core v0.1.0 (/Users/alice/src/a/esp32sim/emu-core)
+   Compiling esp32sim-wasm v0.1.0 (/Users/alice/src/a/esp32sim/wasm)
+    Checking esp-periph v0.1.0 (/Users/alice/src/a/esp32sim/esp-periph)
+    Checking riscv-rv32 v0.1.0 (/Users/alice/src/a/esp32sim/riscv-rv32)
+    Checking xtensa-lx7 v0.1.0 (/Users/alice/src/a/esp32sim/xtensa-lx7)
 warning: output of `xcrun` while finding MacOSX.sdk
   |
   = note: xcrun: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
@@ -12,10 +12,10 @@ warning: linker stderr: cc: confstr() failed with code 5: couldn't get path of D
   = note: `#[warn(linker_messages)]` on by default
   = note: the `linker_messages` lint ignores `-D warnings`
 
-    Checking esp-soc v0.1.0 (/Users/sarah/src/a/esp32sim/esp-soc)
+    Checking esp-soc v0.1.0 (/Users/alice/src/a/esp32sim/esp-soc)
 warning: `esp32sim-wasm` (build script) generated 2 warnings
-    Checking esp32s3 v0.1.0 (/Users/sarah/src/a/esp32sim/esp32s3)
-    Checking esp32c6 v0.1.0 (/Users/sarah/src/a/esp32sim/esp32c6)
-    Checking esp32c3 v0.1.0 (/Users/sarah/src/a/esp32sim/esp32c3)
-    Checking esp32sim-wasm-jit v0.1.0 (/Users/sarah/src/a/esp32sim/wasm-jit)
+    Checking esp32s3 v0.1.0 (/Users/alice/src/a/esp32sim/esp32s3)
+    Checking esp32c6 v0.1.0 (/Users/alice/src/a/esp32sim/esp32c6)
+    Checking esp32c3 v0.1.0 (/Users/alice/src/a/esp32sim/esp32c3)
+    Checking esp32sim-wasm-jit v0.1.0 (/Users/alice/src/a/esp32sim/wasm-jit)
     Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.90s
