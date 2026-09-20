@@ -237,3 +237,100 @@ pub(super) fn retention() {
     cc.reset();
     assert_eq!(cc.blocks.len(), RETAIN_BLOCKS);
 }
+
+/// Computed edges cannot form regions, so this proves wrapper chaining itself.
+pub(super) fn wrapper_chain() {
+    for mode in 0..3 {
+        let counter_successor = mode == 1;
+        let store_successor = mode == 2;
+        let mut program = vec![0; 128];
+        let mut first = asm::addi_n(2, 2, 1);
+        if store_successor { first.extend(asm::s8i(7, 8, 0)); }
+        first.extend([0xa0, 0x04, 0x00]); // jx a4
+        program[..first.len()].copy_from_slice(&first);
+        let mut second = Vec::new();
+        if counter_successor { second.extend(asm::rsr(6, 234)); }
+        for _ in 0..10 { second.extend(asm::addi_n(3, 3, 1)); }
+        second.extend([0xa0, 0x05, 0x00]); // jx a5
+        program[64..64 + second.len()].copy_from_slice(&second);
+        let (mut a, mut b) = (cpu(0), cpu(0));
+        let (mut ra, mut rb) = (Ram::new(true, false), Ram::new(true, false));
+        for r in [&mut ra, &mut rb] { r.ram.mem[..program.len()].copy_from_slice(&program); }
+        for c in [&mut a, &mut b] { c.pc = BASE; c.ps = 0; c.set_ar(4, BASE + 64); c.set_ar(5, BASE); c.set_ar(7, 0x42); c.set_ar(8, BASE + 0x2000); }
+        let jump = BASE + if store_successor { 5 } else { 2 };
+        assert_eq!(crate::decode::decode(jump, ra.fetch(jump).unwrap()).op, Op::Jx);
+        let check = |a: &mut Cpu, b: &mut Cpu, ra: &mut Ram, rb: &mut Ram, budget| {
+            let (done, trap) = crate::block::run_block(b, rb, budget);
+            let mut oracle = None;
+            for _ in 0..done { if let Err(t) = crate::step(a, ra) { oracle = Some(t); break; } }
+            assert_eq!(trap, oracle);
+            same(a, b);
+            (done, trap)
+        };
+        for _ in 0..1200 { check(&mut a, &mut b, &mut ra, &mut rb, 1); }
+        assert!(b.blocks.jit_instructions > 100);
+        for c in [&mut a, &mut b] { c.pc = BASE; }
+        if store_successor {
+            // The inline store invalidates the already-compiled successor before lookup.
+            for c in [&mut a, &mut b] { c.set_ar(8, BASE + 127); }
+            assert_eq!(check(&mut a, &mut b, &mut ra, &mut rb, 32).0, 3, "modified successor must redispatch");
+            assert_eq!(ra.ram.mem, rb.ram.mem);
+            assert_eq!(ra.versions, rb.versions);
+            continue;
+        }
+        let (done, _) = check(&mut a, &mut b, &mut ra, &mut rb, 5);
+
+        if counter_successor {
+            assert_eq!(done, 2, "RSR CCOUNT successor must redispatch");
+            check(&mut a, &mut b, &mut ra, &mut rb, 5);
+            continue;
+        }
+        assert_eq!(done, 5, "must cut inside the chained successor");
+        assert_ne!(b.blocks.chain_ei, NONE, "must retain chained CUT entry");
+        check(&mut a, &mut b, &mut ra, &mut rb, 4); // resume that CUT
+        for c in [&mut a, &mut b] { c.pc = BASE; c.boundary_bloom = crate::block::pc_bit(BASE + 64); }
+        assert_eq!(check(&mut a, &mut b, &mut ra, &mut rb, 32).0, 2, "probed successor must redispatch");
+        for c in [&mut a, &mut b] {
+            c.pc = BASE; c.boundary_bloom = 0;
+            c.ccompare[0] = c.ccount.wrapping_add(5); c.intenable = 1 << 6;
+        }
+        let mut interrupted = false;
+        for _ in 0..4 {
+            if matches!(check(&mut a, &mut b, &mut ra, &mut rb, 32).1, Some(Trap::Interrupt(_))) { interrupted = true; break; }
+        }
+        assert!(interrupted, "deadline inside chained successor");
+    }    for underflow in [false, true] {
+        let (mut a, mut b) = (cpu(0), cpu(0));
+        let (mut ra, mut rb) = (Ram::new(true, false), Ram::new(true, false));
+        for r in [&mut ra, &mut rb] {
+            r.ram.mem[..5].copy_from_slice(&[0x3d, 0xf0, 0xa0, 0x04, 0x00]); // nop.n; jx a4
+            r.ram.mem[64..66].copy_from_slice(&asm::nop_n());
+            r.ram.mem[66..68].copy_from_slice(&asm::retw_n());
+        }
+        let reset = |c: &mut Cpu, pc, missing| {
+            c.pc = pc; c.ps = ps::WOE; c.windowbase = 3;
+            c.windowstart = (1 << 3) | if missing { 0 } else { 1 << 2 };
+            c.set_ar(0, BASE); c.set_ar(4, BASE + 64);
+        };
+        let check = |a: &mut Cpu, b: &mut Cpu, ra: &mut Ram, rb: &mut Ram, budget| {
+            let (done, trap) = crate::block::run_block(b, rb, budget);
+            let mut oracle = None;
+            for _ in 0..done { if let Err(t) = crate::step(a, ra) { oracle = Some(t); break; } }
+            assert_eq!(trap, oracle);
+            same(a, b);
+            (done, trap)
+        };
+        for _ in 0..40 {
+            for pc in [BASE, BASE + 64] {
+                for c in [&mut a, &mut b] { reset(c, pc, false); }
+                check(&mut a, &mut b, &mut ra, &mut rb, 2);
+            }
+        }
+        for c in [&mut a, &mut b] { reset(c, BASE, underflow); }
+        let (done, trap) = check(&mut a, &mut b, &mut ra, &mut rb, 4);
+        assert_eq!(done, 4, "RETW successor must be reached in the chain");
+        assert_ne!(b.blocks.chain_ei, NONE);
+        assert_eq!(trap, if underflow { Some(Trap::Exception(0x301)) } else { None });
+    }
+
+}
