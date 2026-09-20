@@ -363,6 +363,8 @@ impl<S: Soc> Machine<S> {
 
     /// Common completion boundary for blocks and individual instructions. Keeping block
     /// callbacks here makes BLOCK observers compose with observers that force single-stepping.
+    /// `pc` is the dispatch-start address, including for trap and Simcall reporting;
+    /// the WASM wrapper may have chained through later blocks before it returns.
     #[inline]
     fn observe_execution(&mut self, core: usize, pc: u32, used: u32, trap: Option<Trap>) -> Option<Stop> {
         if self.probes.contains(Wants::BLOCK | Wants::TRAP | Wants::TRAP_PC) {

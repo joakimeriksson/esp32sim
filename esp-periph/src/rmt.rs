@@ -107,7 +107,7 @@ impl Rmt {
                     self.int_raw |= 1 << (4 + n);
                     break;
                 }
-                if c.rd != 0 && c.rd % mem_words == 0 && c.conf0 & (1 << 3) != 0 { c.bits.clear(); }
+                if c.rd != 0 && c.rd.is_multiple_of(mem_words) && c.conf0 & (1 << 3) != 0 { c.bits.clear(); }
                 let sym = self.mem[base + (c.rd % mem_words)];
                 let (d0, l0, d1, l1) = ((sym & 0x7fff) as i64, sym & 0x8000 != 0, ((sym >> 16) & 0x7fff) as i64, sym & 0x8000_0000 != 0);
                 if d0 == 0 { // end marker
