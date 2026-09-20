@@ -62,6 +62,7 @@ pub struct BlockCache {
     /// spawning a new block at the cut point: (entry index, arena index, pc at that index).
     resume: (u32, u32, u32),
     /// EX153: decoded entry of the block the WASM wrapper chained into last; a CUT resumes in it.
+    #[cfg(target_arch = "wasm32")]
     pub(crate) chain_ei: u32,
     pub builds: u64,
     pub flushes: u64,
@@ -88,7 +89,9 @@ impl BlockCache {
         BlockCache {
                      #[cfg(all(target_arch = "wasm32", feature = "wasm-jit-profile"))]
                      profile: crate::jit::profile::Profile::default(),
-                     entries: vec![Entry::EMPTY; ENTRIES], arena: Vec::with_capacity(ARENA_MAX + MAX_LEN), extras: Vec::new(), resume: (0, 0, 1), chain_ei: u32::MAX, builds: 0, flushes: 0,
+                     #[cfg(target_arch = "wasm32")]
+                     chain_ei: u32::MAX,
+                     entries: vec![Entry::EMPTY; ENTRIES], arena: Vec::with_capacity(ARENA_MAX + MAX_LEN), extras: Vec::new(), resume: (0, 0, 1), builds: 0, flushes: 0,
                      code, jit_enabled: crate::jit::AVAILABLE, observed: false, compiled: 0, jit_instructions: 0 }
     }
     pub fn flush(&mut self) {
@@ -107,6 +110,7 @@ impl BlockCache {
     }
     /// EX153: a valid decoded entry with compiled code at `pc` whose first instruction needs no
     /// exact block-boundary state.
+    #[cfg(target_arch = "wasm32")]
     #[inline(always)]
     pub(crate) fn chain_target(&self, pc: u32, pv: &[u32]) -> Option<(u32, u32)> {
         let ei = Self::index(pc);
