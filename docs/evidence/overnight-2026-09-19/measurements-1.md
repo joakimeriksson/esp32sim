@@ -220,4 +220,4 @@ Peer review of the pricing commits found five real defects (double charge on div
 - First run: the page booted the battery in 79.7 s wall (the board needs 77.4 s plus boot) but **no stroke registered**. Bisecting the exports found `esp32sim_set_measured_te`: it swaps in a new board before boot and re-attaches its I2C devices, and `I2c::attach` appended, so the old board's touch controller kept answering while input went to the new one. The battery never touches the screen, so EX056/EX066 could not see it. Fix: attach replaces a device at an occupied address.
 - After the fix (`resp-timed-hw-r3`): boot to READY 80.1 s wall, 3/3 strokes committed, 24/24 movement points, movement → canvas median 38.3 ms (max 49.3), screenshot correct. So the page now keeps device time through the whole battery and stays interactive.
 
-Steps 14 to 26 continue in [LOG-2.md](measurements-2.md).
+Steps 14 to 26 continue in [measurements-2.md](measurements-2.md).

@@ -83,3 +83,12 @@ The adopted runtime bundle is EX153/EX155/EX156/EX157 with EX154 inline threshol
 Frame suppression and old-cadence probes intentionally change presentation, so matching retired work and console output cannot qualify those as product candidates. Spec-tax variants measure tracking overhead, not a completed speculative scheduler speedup. Elastic blockq variants fail the pinned instruction/output contract and are not comparable exact-work speedups. Spin-loop fast-forward was rejected from census evidence before implementation. Remaining unqueued region-formation and in-region-call work is incomplete, not a negative benchmark result.
 
 The latest local TinyDraw 2.3.0 release was used for browser boot/manual checks; timed TinyDraw comparisons used the older pinned benchmark battery. Manual Safari/Chrome realtime readings remain observations, not controlled timing results; see the combined evidence.
+
+## Snapshot manifest verification
+
+`manifest.json` records the earlier snapshot. Its `README.md` hash predates the
+closeout rewrite and is intentionally historical. `closeout-manifest.json` records
+the closeout snapshot; its README hash predates this clarification. Verify either
+README entry against the corresponding committed snapshot rather than the current
+README. The other entries retain their original hashes; files removed under the
+[evidence retention policy](../README.md) remain in the [capture archive](../ARCHIVE.md).
