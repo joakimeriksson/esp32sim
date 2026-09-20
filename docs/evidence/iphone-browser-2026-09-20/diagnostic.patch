@@ -1,0 +1,88 @@
+--- a/web/emu.js
++++ b/web/emu.js
+@@ -5,6 +5,7 @@
+ // may not redistribute (the Espressif mask ROM, third-party firmware).
+ (() => {
+   const q = new URLSearchParams(location.search);
++  const diagnosticUI = q.get('diagnostics') === '1' ? import('./diagnostics.mjs').then(m => m.createPanel(q)) : null;
+   // wasm mode: asked for explicitly, or the page is on a static host that cannot be the native emulator
+   if (!q.has('wasm') && !/\.github\.io$/.test(location.hostname)) return;
+   const worker = new Worker('wasm/worker.js', { type: 'module' });
+@@ -25,6 +26,7 @@
+   const pending = new Map();
+   worker.onmessage = (ev) => {
+     const m = ev.data;
++    if (m.diagnostic) { diagnosticUI?.then(ui => ui.update(m.diagnostic)); return; }
+     if (m.touchTrace) { window.recordTouchTrace?.(m.touchTrace); return; }
+     if (m.frameTrace) window.recordTouchTrace?.(m.frameTrace);
+     if (m.text !== undefined) { onmessage && onmessage(m.text); return; }
+@@ -52,7 +54,7 @@
+     connect(handler, status) {
+       onmessage = handler; setStatus = status; if (failure) setStatus(failure);
+       fetch('wasm/esp32sim.wasm').then((r) => { if (!r.ok) throw new Error('wasm/esp32sim.wasm: ' + r.status + (r.status === 404 ? ' — build it: tools/wasm-build.sh' : '')); return r.arrayBuffer(); })
+-        .then((buf) => worker.postMessage({ op: 'init', wasm: buf, touchTrace: q.has('touchTrace') }, [buf]))
++        .then((buf) => worker.postMessage({ op: 'init', wasm: buf, touchTrace: q.has('touchTrace'), diagnostics: q.get('diagnostics') === '1' }, [buf]))
+         .catch((e) => setStatus('cannot load wasm: ' + e.message));
+       return { send: (d, timing) => { if (!started) return; if (typeof d === 'string') post({ op: 'text', data: d, touchTrace: timing }); else { const b = d.buffer ? d.buffer.slice(d.byteOffset, d.byteOffset + d.byteLength) : d; post({ op: 'bin', data: b }, [b]); } } };
+     },
+--- a/web/wasm/worker.js
++++ b/web/wasm/worker.js
+@@ -1,3 +1,5 @@
++import { DiagnosticTimer } from './diagnostics.mjs';
++let diagnostic = null;
+ import { createJitHost } from './jit.mjs';
+ import { createPacing } from './pacing.mjs';
+ import { applyExperiments } from './experiments.mjs';
+@@ -43,6 +45,7 @@
+ function loop() {
+   if (!running) return;
+   const now = performance.now();
++  diagnostic?.enter(now);
+   let cur = wasm.esp32sim_cycles(emu);
+   let target = (now - t0) / 1000 * CPU_HZ;
+   if (target - cur > CPU_HZ * 0.5) { t0 = now - cur / CPU_HZ * 1000; target = cur + CPU_HZ * 0.02; resyncs++; }   // hopelessly behind: skip, don't burst
+@@ -53,11 +56,15 @@
+     const previous = cur;
+     const inputTraceIds = pendingInputTrace;
+     if (inputTraceIds.length) { postMessage({ touchTrace: { stage: 'run-entry', ids: inputTraceIds, atMs: traceNow(), cycles: cur } }); pendingInputTrace = []; }
++    const runStart = diagnostic ? performance.now() : 0;
+     const rc = wasm.esp32sim_run(emu, remaining, Date.now());
++    if (diagnostic) diagnostic.runMs += performance.now() - runStart;
+     cur = wasm.esp32sim_cycles(emu);
+     if (inputTraceIds.length) postMessage({ touchTrace: { stage: 'run-exit', ids: inputTraceIds, atMs: traceNow(), cycles: cur } });
+     pacing.observe(cur - previous, performance.now() - before);
++    const drainStart = diagnostic ? performance.now() : 0;
+     drain();
++    if (diagnostic) diagnostic.drainMs += performance.now() - drainStart;
+     if (rc !== 0) { running = false; postMessage({ stopped: rc }); return; }
+     if (performance.now() - now >= turnMs) break;                       // let messages flow, come back
+   }
+@@ -73,6 +80,10 @@
+   // Only yield immediately when this turn left catch-up work unfinished. Once we reach
+   // its target, sleep even if running the guest has put us slightly behind wall time.
+   // MessageChannel avoids the nested timer clamp during expensive interactive turns.
++  if (diagnostic) {
++    const report = diagnostic.leave(performance.now(), cur, CPU_HZ, blockJit.stats, cur < target);
++    if (report) postMessage({ diagnostic: report });
++  }
+   if (cur < target) yieldPort.postMessage(0);
+   else setTimeout(loop, Math.max(1, Math.min(20, aheadMs)));
+ }
+@@ -120,7 +131,7 @@
+       if (pendingFrame && framesInFlight < 2) { const buf = pendingFrame; pendingFrame = null; framesInFlight++; postMessage({ bin: buf, ack: true }, [buf]); }
+       return;
+     }
+-    if (m.op === 'init') { traceEnabled = !!m.touchTrace; const r = await WebAssembly.instantiate(m.wasm, imports); wasm = r.instance.exports;  postMessage({ ready: true }); }
++    if (m.op === 'init') { diagnostic = m.diagnostics ? new DiagnosticTimer() : null; traceEnabled = !!m.touchTrace; const r = await WebAssembly.instantiate(m.wasm, imports); wasm = r.instance.exports;  postMessage({ ready: true }); }
+     else if (m.op === 'create') {
+       running = false;
+       // Keep credits for already posted frames until their ACKs arrive, but never send
+@@ -143,7 +154,7 @@
+       running = false;
+       if (!emu) throw new Error('no emulator to start');
+       applyExperiments(wasm, emu, experiments);
+-      const rc = wasm.esp32sim_boot(emu, m.appDirect ? 1 : 0); if (rc === 0) { running = true; t0 = performance.now(); lastStat = { wall: t0, insns: wasm.esp32sim_insns(emu), cycles: wasm.esp32sim_cycles(emu) }; loop(); } postMessage({ started: rc === 0 }); }
++      const rc = wasm.esp32sim_boot(emu, m.appDirect ? 1 : 0); if (rc === 0) { running = true; t0 = performance.now(); lastStat = { wall: t0, insns: wasm.esp32sim_insns(emu), cycles: wasm.esp32sim_cycles(emu) }; diagnostic?.reset(t0, lastStat.cycles); loop(); } postMessage({ started: rc === 0 }); }
+     else if (m.op === 'net-create') {
+       running = false;
+       pendingFrame = null;

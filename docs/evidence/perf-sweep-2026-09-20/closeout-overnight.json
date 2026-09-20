@@ -1,0 +1,1662 @@
+{
+ "rows": [
+  {
+   "id": "kernel-s1-f2717977-pocket-tank",
+   "name": "kernel-s1",
+   "agent": "kernel",
+   "note": "EX156 s1: guarded block body: resumed/cut block calls enter via br_table and pay one STOP compare per instruction instead of checked-body entry/budget/LEND/pending checks; LEND hinted at compile time gives one static loop-end site. Census (12 guest s): checked body carried 1.44G of 4.28G insns. Commit 94f2cef4 on base.",
+   "workload": "pocket-tank",
+   "rev": "94f2cef4dc13edb45cf160b1b4aac6f1658fc103",
+   "artifact": "wasm/kernel-g1.wasm",
+   "ts": "2026-09-19 20:44:28",
+   "pairs": [
+    {
+     "base": 72.64668999999762,
+     "cand": 63.91667500001192,
+     "passed": true,
+     "red": 12.017085706156728,
+     "insns": 10073833775,
+     "dir": "kernel-s1-f2717977-pocket-tank--p1"
+    },
+    {
+     "base": 76.1138450000286,
+     "cand": 67.41491000002623,
+     "passed": true,
+     "red": 11.428847143379905,
+     "insns": 10073833775,
+     "dir": "kernel-s1-f2717977-pocket-tank--p2"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 4,
+   "mean": 11.722966424768316,
+   "min": 11.428847143379905
+  },
+  {
+   "id": "coverage-s1-be80f476-pocket-tank",
+   "name": "coverage-s1",
+   "agent": "coverage",
+   "note": "EX155 s1: inline WUR/RUR SAR_BYTE + ee.src.q[.qup], ee.vsr/vsl.32, vsubs/vadds s8/s16, vmin/vmax: core-1 4-bit unpack kernel compiles (interp 208.9M->14.1M insns). On plain base.",
+   "workload": "pocket-tank",
+   "rev": "10b01db507ee6d5554b07c1148f7f253b17d27bf",
+   "artifact": "wasm/coverage-s1.wasm",
+   "ts": "2026-09-19 20:45:19",
+   "pairs": [
+    {
+     "base": 73.93958499997854,
+     "cand": 66.0102650000453,
+     "passed": true,
+     "red": 10.724052616653912,
+     "insns": 10073833775,
+     "dir": "coverage-s1-be80f476-pocket-tank--p1"
+    },
+    {
+     "base": 76.79608999997377,
+     "cand": 67.99750499999523,
+     "passed": true,
+     "red": 11.457074181747473,
+     "insns": 10073833775,
+     "dir": "coverage-s1-be80f476-pocket-tank--p2"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 4,
+   "mean": 11.090563399200693,
+   "min": 10.724052616653912
+  },
+  {
+   "id": "turnover-s1-b505b798-pocket-tank",
+   "name": "turnover-s1",
+   "agent": "turnover",
+   "note": "EX152 s1: run_many - consecutive blocks inside Cpu (block.rs run_blocks) instead of returning to machine step_blocks per block; lean flag when no probes/stubs/observers; alone on base",
+   "workload": "pocket-tank",
+   "rev": "cf1187a6c237767917e5230cdf5ab80c013ceb5d",
+   "artifact": "wasm/turnover-s1.wasm",
+   "ts": "2026-09-19 20:45:19",
+   "pairs": [
+    {
+     "base": 72.88093000000715,
+     "cand": 69.63542500001192,
+     "passed": true,
+     "red": 4.45316079253505,
+     "insns": 10073833775,
+     "dir": "turnover-s1-b505b798-pocket-tank--p1"
+    },
+    {
+     "base": 75.42927000004053,
+     "cand": 70.21720500004291,
+     "passed": true,
+     "red": 6.909870664259143,
+     "insns": 10073833775,
+     "dir": "turnover-s1-b505b798-pocket-tank--p2"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 4,
+   "mean": 5.6815157283970965,
+   "min": 4.45316079253505
+  },
+  {
+   "id": "onecall-s1-b0dbc7f7-pocket-tank",
+   "name": "onecall-s1",
+   "agent": "onecall",
+   "note": "EX153 s1: wrapper chains compiled calls (plain END/LEFT, no interpreter helper; helpers incl. RETW break the chain). onecall 74a3000e. counters: wrapper calls 398M->194M",
+   "workload": "pocket-tank",
+   "rev": "74a3000e4922e38bd8e94f005ee646c0255c88f9",
+   "artifact": "wasm/onecall-c2.wasm",
+   "ts": "2026-09-19 20:45:33",
+   "pairs": [
+    {
+     "base": 74.3325,
+     "cand": 71.82305000001192,
+     "passed": true,
+     "red": 3.3759795513242263,
+     "insns": 10073833775,
+     "dir": "onecall-s1-b0dbc7f7-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 3.3759795513242263,
+   "min": 3.3759795513242263
+  },
+  {
+   "id": "onecall-s1r-7067f8d2-pocket-tank",
+   "name": "onecall-s1r",
+   "agent": "onecall",
+   "note": "EX153 s1r: s1 + chain also after non-trapping RET/RETW helpers. onecall 21dc368b. wrapper calls 398M->165M",
+   "workload": "pocket-tank",
+   "rev": "21dc368b4a0056762946a2d39a18b38665be74b4",
+   "artifact": "wasm/onecall-c3.wasm",
+   "ts": "2026-09-19 20:45:33",
+   "pairs": [
+    {
+     "base": 73.58686999994516,
+     "cand": 65.85136000001431,
+     "passed": true,
+     "red": 10.512079124899076,
+     "insns": 10073833775,
+     "dir": "onecall-s1r-7067f8d2-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 10.512079124899076,
+   "min": 10.512079124899076
+  },
+  {
+   "id": "deadlines-a-54ad01a7-pocket-tank",
+   "name": "deadlines-a",
+   "agent": "deadlines",
+   "note": "EX157 s1: passive GDMA IN channel no longer holds the 256-cycle cadence guard (native census: 26.9M of 27.0M due flushes were held only by gdma.inp running; flushes 29.2M->2.7M). commit fb506140 on base",
+   "workload": "pocket-tank",
+   "rev": "62da929adae9ec2b40402a2ecadcbd0562fd510c",
+   "artifact": "wasm/deadlines-a.wasm",
+   "ts": "2026-09-19 20:45:43",
+   "pairs": [
+    {
+     "base": 72.25927499997616,
+     "cand": 64.9544850000143,
+     "passed": true,
+     "red": 10.10913823860572,
+     "insns": 10073833775,
+     "dir": "deadlines-a-54ad01a7-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 10.10913823860572,
+   "min": 10.10913823860572
+  },
+  {
+   "id": "frames-a-nopub-bebd6b97-pocket-tank",
+   "name": "frames-a-nopub",
+   "agent": "frames",
+   "note": "EX158 probe A (upper bound, not a candidate): no display frame publication at all; exact, 0 binary frames vs 3094",
+   "workload": "pocket-tank",
+   "rev": "813be7e01de4c8d45920fc32c22fdb36193f1d87",
+   "artifact": "wasm/frames-a-nopub.wasm",
+   "ts": "2026-09-19 20:48:06",
+   "pairs": [
+    {
+     "base": 74.79118499994279,
+     "cand": 73.40558499997854,
+     "passed": true,
+     "red": 1.8526247444338506,
+     "insns": 10073833775,
+     "dir": "frames-a-nopub-bebd6b97-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 1.8526247444338506,
+   "min": 1.8526247444338506
+  },
+  {
+   "id": "frames-b-oldcadence-92243a4f-pocket-tank",
+   "name": "frames-b-oldcadence",
+   "agent": "frames",
+   "note": "EX158 probe B (upper bound): pre-PR89 AMOLED cadence 50 Hz + quiet-interval deferral; exact, 737 frames vs 3094",
+   "workload": "pocket-tank",
+   "rev": "56c764cd90376848b00ccb06fbb75198435c5ac0",
+   "artifact": "wasm/frames-b-oldcadence.wasm",
+   "ts": "2026-09-19 20:48:07",
+   "pairs": [
+    {
+     "base": 75.35229999995232,
+     "cand": 73.14392000001669,
+     "passed": true,
+     "red": 2.9307400038711906,
+     "insns": 10073833775,
+     "dir": "frames-b-oldcadence-92243a4f-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 2.9307400038711906,
+   "min": 2.9307400038711906
+  },
+  {
+   "id": "deadlines-q60k-b1c22417-pocket-tank",
+   "name": "deadlines-q60k",
+   "agent": "deadlines",
+   "note": "EX157 s1+quiet cap 59904 (ESP32SIM_DEFER_BUILD=59904, just under one USB SOF period): stacks on deadlines-a (fb506140). a-cnt: VQ runs mostly hit the 32768 quiet cap (k 256-511 quanta); this ~doubles it",
+   "workload": "pocket-tank",
+   "rev": "fb50614052de1a0ad90ade7e5377941762925ca7",
+   "artifact": "wasm/deadlines-q60k.wasm",
+   "ts": "2026-09-19 21:00:04",
+   "pairs": [
+    {
+     "base": 73.58144499999285,
+     "cand": 66.74883999997377,
+     "passed": true,
+     "red": 9.285771705108193,
+     "insns": 10073833775,
+     "dir": "deadlines-q60k-b1c22417-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 9.285771705108193,
+   "min": 9.285771705108193
+  },
+  {
+   "id": "onecall-s2-18d20624-pocket-tank",
+   "name": "onecall-s2",
+   "agent": "onecall",
+   "note": "EX153 s2: s1r chain + checked chunk copies inside regions (region cuts itself, per-instruction spill at each cut point; region bytes ~4x). onecall 6d36fd9b --features ex153-checked",
+   "workload": "pocket-tank",
+   "rev": "6d36fd9b68e573345c8410aa571a410ea2c39bc4",
+   "artifact": "wasm/onecall-s2.wasm",
+   "ts": "2026-09-19 21:00:16",
+   "pairs": [
+    {
+     "base": 74.54113499999046,
+     "cand": 71.75777500003576,
+     "passed": true,
+     "red": 3.733991976316231,
+     "insns": 10073833775,
+     "dir": "onecall-s2-18d20624-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 3.733991976316231,
+   "min": 3.733991976316231
+  },
+  {
+   "id": "onecall-s2b-9d3496a5-pocket-tank",
+   "name": "onecall-s2b",
+   "agent": "onecall",
+   "note": "EX153 s2b: s2 + short-credit dispatch enters the chunk's checked copy (no budget_lt_len gate). onecall 6d36fd9b --features ex153-short. counters: block tail-cut calls 82.9M->7.7M, wrapper calls 398M->165M",
+   "workload": "pocket-tank",
+   "rev": "6d36fd9b68e573345c8410aa571a410ea2c39bc4",
+   "artifact": "wasm/onecall-s2b.wasm",
+   "ts": "2026-09-19 21:00:16",
+   "pairs": [
+    {
+     "base": 73.50676499998569,
+     "cand": 71.36995999997855,
+     "passed": true,
+     "red": 2.9069501290222233,
+     "insns": 10073833775,
+     "dir": "onecall-s2b-9d3496a5-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 2.9069501290222233,
+   "min": 2.9069501290222233
+  },
+  {
+   "id": "onecall-s2only-602b1cbf-pocket-tank",
+   "name": "onecall-s2only",
+   "agent": "onecall",
+   "note": "EX153 s2only: checked copies + short entry WITHOUT wrapper chaining (isolates (b)). onecall 6d36fd9b --features ex153-short,ex153-nochain",
+   "workload": "pocket-tank",
+   "rev": "6d36fd9b68e573345c8410aa571a410ea2c39bc4",
+   "artifact": "wasm/onecall-s2only.wasm",
+   "ts": "2026-09-19 21:00:17",
+   "pairs": [
+    {
+     "base": 70.95105000001192,
+     "cand": 75.99904000002145,
+     "passed": true,
+     "red": -7.114750239790224,
+     "insns": 10073833775,
+     "dir": "onecall-s2only-602b1cbf-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": -7.114750239790224,
+   "min": -7.114750239790224
+  },
+  {
+   "id": "calls-s1-09cc6fa1-pocket-tank",
+   "name": "calls-s1",
+   "agent": "calls",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact calls-s1, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "c41b4e8a73def7db5b2ec03ba914dbb6685c1693",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/calls-s1.wasm",
+   "ts": "2026-09-20 10:44:26",
+   "pairs": [
+    {
+     "base": 72.62749500000477,
+     "cand": 74.10537999999524,
+     "passed": true,
+     "red": -2.034883620852357,
+     "insns": 10073833775,
+     "dir": "calls-s1-09cc6fa1-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": -2.034883620852357,
+   "min": -2.034883620852357
+  },
+  {
+   "id": "calls-s1s2a-db128518-pocket-tank",
+   "name": "calls-s1s2a",
+   "agent": "calls",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact calls-s1s2a, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "57df0252cdaba1c1c734e2d819de1122681d9b17",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/calls-s1s2a.wasm",
+   "ts": "2026-09-20 10:44:26",
+   "pairs": [
+    {
+     "base": 73.41856499999761,
+     "cand": 74.42431999999285,
+     "passed": true,
+     "red": -1.369891934002343,
+     "insns": 10073833775,
+     "dir": "calls-s1s2a-db128518-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": -1.369891934002343,
+   "min": -1.369891934002343
+  },
+  {
+   "id": "calls-s1s2as3-f4108bf2-pocket-tank",
+   "name": "calls-s1s2as3",
+   "agent": "calls",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact calls-s1s2as3, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "02542b213877120ed4966285d8b303ec135c730c",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/calls-s1s2as3.wasm",
+   "ts": "2026-09-20 10:44:26",
+   "pairs": [
+    {
+     "base": 71.15663500005007,
+     "cand": 72.30221499997377,
+     "passed": true,
+     "red": -1.6099412232223997,
+     "insns": 10073833775,
+     "dir": "calls-s1s2as3-f4108bf2-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": -1.6099412232223997,
+   "min": -1.6099412232223997
+  },
+  {
+   "id": "calls-s2-3b7c7cd5-pocket-tank",
+   "name": "calls-s2",
+   "agent": "calls",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact calls-s2, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "742a2bb052ec3202b1e900f27e45e550b9028c68",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/calls-s2.wasm",
+   "ts": "2026-09-20 10:44:27",
+   "pairs": [
+    {
+     "base": 71.62419499999285,
+     "cand": 70.48786500000953,
+     "passed": true,
+     "red": 1.5865169583873628,
+     "insns": 10073833775,
+     "dir": "calls-s2-3b7c7cd5-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 1.5865169583873628,
+   "min": 1.5865169583873628
+  },
+  {
+   "id": "calls-s3-39e89862-pocket-tank",
+   "name": "calls-s3",
+   "agent": "calls",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact calls-s3, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "ddb2bed891f537f0ed411c5773ac769d003a7a56",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/calls-s3.wasm",
+   "ts": "2026-09-20 10:44:27",
+   "pairs": [
+    {
+     "base": 73.07289499998093,
+     "cand": 73.62335499995947,
+     "passed": true,
+     "red": -0.7533025754333122,
+     "insns": 10073833775,
+     "dir": "calls-s3-39e89862-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": -0.7533025754333122,
+   "min": -0.7533025754333122
+  },
+  {
+   "id": "deadlines-u256k-b391b6b0-pocket-tank",
+   "name": "deadlines-u256k",
+   "agent": "deadlines",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact deadlines-u256k, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "14665647e84c52a41b1a904ea8c0152289791e19",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/deadlines-u256k.wasm",
+   "ts": "2026-09-20 10:44:27",
+   "pairs": [
+    {
+     "base": 72.8957350000143,
+     "cand": 65.76815999996663,
+     "passed": true,
+     "red": 9.777766833747236,
+     "insns": 10073833775,
+     "dir": "deadlines-u256k-b391b6b0-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 9.777766833747236,
+   "min": 9.777766833747236
+  },
+  {
+   "id": "deadlines-u64k-05ed799a-pocket-tank",
+   "name": "deadlines-u64k",
+   "agent": "deadlines",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact deadlines-u64k, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "14665647e84c52a41b1a904ea8c0152289791e19",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/deadlines-u64k.wasm",
+   "ts": "2026-09-20 10:44:27",
+   "pairs": [
+    {
+     "base": 71.82353499996663,
+     "cand": 65.75367500001192,
+     "passed": true,
+     "red": 8.45107387147893,
+     "insns": 10073833775,
+     "dir": "deadlines-u64k-05ed799a-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 8.45107387147893,
+   "min": 8.45107387147893
+  },
+  {
+   "id": "flags-abort-cdd97cf4-pocket-tank",
+   "name": "flags-abort",
+   "agent": "flags",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact flags-abort, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "cf1187a6c237767917e5230cdf5ab80c013ceb5d",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/flags-abort.wasm",
+   "ts": "2026-09-20 10:44:27",
+   "pairs": [
+    {
+     "base": 71.22078499996663,
+     "cand": 71.84599000000954,
+     "passed": true,
+     "red": -0.8778406472818245,
+     "insns": 10073833775,
+     "dir": "flags-abort-cdd97cf4-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": -0.8778406472818245,
+   "min": -0.8778406472818245
+  },
+  {
+   "id": "flags-all-nosimd-08809cfd-pocket-tank",
+   "name": "flags-all-nosimd",
+   "agent": "flags",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact flags-all-nosimd, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "cf1187a6c237767917e5230cdf5ab80c013ceb5d",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/flags-all-nosimd.wasm",
+   "ts": "2026-09-20 10:44:27",
+   "pairs": [
+    {
+     "base": 72.73268000000715,
+     "cand": 74.39523000001907,
+     "passed": true,
+     "red": -2.285836298087407,
+     "insns": 10073833775,
+     "dir": "flags-all-nosimd-08809cfd-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": -2.285836298087407,
+   "min": -2.285836298087407
+  },
+  {
+   "id": "flags-all-e971ebbf-pocket-tank",
+   "name": "flags-all",
+   "agent": "flags",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact flags-all, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "cf1187a6c237767917e5230cdf5ab80c013ceb5d",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/flags-all.wasm",
+   "ts": "2026-09-20 10:44:27",
+   "pairs": [
+    {
+     "base": 75.36890999996662,
+     "cand": 73.55422000002861,
+     "passed": true,
+     "red": 2.4077434580635604,
+     "insns": 10073833775,
+     "dir": "flags-all-e971ebbf-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 2.4077434580635604,
+   "min": 2.4077434580635604
+  },
+  {
+   "id": "flags-base-O3-f38df6bc-pocket-tank",
+   "name": "flags-base-O3",
+   "agent": "flags",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact flags-base-O3, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "cf1187a6c237767917e5230cdf5ab80c013ceb5d",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/flags-base-O3.wasm",
+   "ts": "2026-09-20 10:44:27",
+   "pairs": [
+    {
+     "base": 73.15283999997378,
+     "cand": 73.83989499998093,
+     "passed": true,
+     "red": -0.9392048210396187,
+     "insns": 10073833775,
+     "dir": "flags-base-O3-f38df6bc-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": -0.9392048210396187,
+   "min": -0.9392048210396187
+  },
+  {
+   "id": "flags-base-O3inl-cfc3d6c9-pocket-tank",
+   "name": "flags-base-O3inl",
+   "agent": "flags",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact flags-base-O3inl, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "cf1187a6c237767917e5230cdf5ab80c013ceb5d",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/flags-base-O3inl.wasm",
+   "ts": "2026-09-20 10:44:28",
+   "pairs": [
+    {
+     "base": 73.83982000005246,
+     "cand": 74.19117000001668,
+     "passed": true,
+     "red": -0.4758272703860644,
+     "insns": 10073833775,
+     "dir": "flags-base-O3inl-cfc3d6c9-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": -0.4758272703860644,
+   "min": -0.4758272703860644
+  },
+  {
+   "id": "flags-base-O4-33b86dcc-pocket-tank",
+   "name": "flags-base-O4",
+   "agent": "flags",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact flags-base-O4, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "cf1187a6c237767917e5230cdf5ab80c013ceb5d",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/flags-base-O4.wasm",
+   "ts": "2026-09-20 10:44:28",
+   "pairs": [
+    {
+     "base": 73.08112000000477,
+     "cand": 74.51624500000477,
+     "passed": true,
+     "red": -1.9637424823263583,
+     "insns": 10073833775,
+     "dir": "flags-base-O4-33b86dcc-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": -1.9637424823263583,
+   "min": -1.9637424823263583
+  },
+  {
+   "id": "flags-bulk-e3b68a44-pocket-tank",
+   "name": "flags-bulk",
+   "agent": "flags",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact flags-bulk, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "cf1187a6c237767917e5230cdf5ab80c013ceb5d",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/flags-bulk.wasm",
+   "ts": "2026-09-20 10:44:28",
+   "pairs": [
+    {
+     "base": 73.33506499999761,
+     "cand": 75.42585000002384,
+     "passed": true,
+     "red": -2.8510031320300833,
+     "insns": 10073833775,
+     "dir": "flags-bulk-e3b68a44-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": -2.8510031320300833,
+   "min": -2.8510031320300833
+  },
+  {
+   "id": "flags-inl2000-5ce976e6-pocket-tank",
+   "name": "flags-inl2000",
+   "agent": "flags",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact flags-inl2000, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "cf1187a6c237767917e5230cdf5ab80c013ceb5d",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/flags-inl2000.wasm",
+   "ts": "2026-09-20 10:44:28",
+   "pairs": [
+    {
+     "base": 74.11768500000238,
+     "cand": 70.34244499999285,
+     "passed": true,
+     "red": 5.093575170365094,
+     "insns": 10073833775,
+     "dir": "flags-inl2000-5ce976e6-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 5.093575170365094,
+   "min": 5.093575170365094
+  },
+  {
+   "id": "flags-inl250-a5094223-pocket-tank",
+   "name": "flags-inl250",
+   "agent": "flags",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact flags-inl250, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "cf1187a6c237767917e5230cdf5ab80c013ceb5d",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/flags-inl250.wasm",
+   "ts": "2026-09-20 10:44:28",
+   "pairs": [
+    {
+     "base": 72.03304500001668,
+     "cand": 71.77418999999762,
+     "passed": true,
+     "red": 0.3593559039729688,
+     "insns": 10073833775,
+     "dir": "flags-inl250-a5094223-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 0.3593559039729688,
+   "min": 0.3593559039729688
+  },
+  {
+   "id": "flags-inl4000-8c091acf-pocket-tank",
+   "name": "flags-inl4000",
+   "agent": "flags",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact flags-inl4000, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "cf1187a6c237767917e5230cdf5ab80c013ceb5d",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/flags-inl4000.wasm",
+   "ts": "2026-09-20 10:44:28",
+   "pairs": [
+    {
+     "base": 72.89945999997855,
+     "cand": 68.29261500000953,
+     "passed": true,
+     "red": 6.319450102881929,
+     "insns": 10073833775,
+     "dir": "flags-inl4000-8c091acf-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 6.319450102881929,
+   "min": 6.319450102881929
+  },
+  {
+   "id": "flags-inl500-c020cd86-pocket-tank",
+   "name": "flags-inl500",
+   "agent": "flags",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact flags-inl500, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "cf1187a6c237767917e5230cdf5ab80c013ceb5d",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/flags-inl500.wasm",
+   "ts": "2026-09-20 10:44:29",
+   "pairs": [
+    {
+     "base": 72.68678499996662,
+     "cand": 72.35844499999284,
+     "passed": true,
+     "red": 0.4517189747406336,
+     "insns": 10073833775,
+     "dir": "flags-inl500-c020cd86-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 0.4517189747406336,
+   "min": 0.4517189747406336
+  },
+  {
+   "id": "flags-inline1000-5dc81c51-pocket-tank",
+   "name": "flags-inline1000",
+   "agent": "flags",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact flags-inline1000, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "cf1187a6c237767917e5230cdf5ab80c013ceb5d",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/flags-inline1000.wasm",
+   "ts": "2026-09-20 10:44:29",
+   "pairs": [
+    {
+     "base": 72.90537000000477,
+     "cand": 72.28248000001908,
+     "passed": true,
+     "red": 0.8543815085029327,
+     "insns": 10073833775,
+     "dir": "flags-inline1000-5dc81c51-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 0.8543815085029327,
+   "min": 0.8543815085029327
+  },
+  {
+   "id": "flags-nodebug-f33104f1-pocket-tank",
+   "name": "flags-nodebug",
+   "agent": "flags",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact flags-nodebug, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "cf1187a6c237767917e5230cdf5ab80c013ceb5d",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/flags-nodebug.wasm",
+   "ts": "2026-09-20 10:44:29",
+   "pairs": [
+    {
+     "base": 77.38282499998807,
+     "cand": 74.79868500000238,
+     "passed": true,
+     "red": 3.3394231859409262,
+     "insns": 10073833775,
+     "dir": "flags-nodebug-f33104f1-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 3.3394231859409262,
+   "min": 3.3394231859409262
+  },
+  {
+   "id": "flags-opts-a03c18e9-pocket-tank",
+   "name": "flags-opts",
+   "agent": "flags",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact flags-opts, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "cf1187a6c237767917e5230cdf5ab80c013ceb5d",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/flags-opts.wasm",
+   "ts": "2026-09-20 10:44:29",
+   "pairs": [
+    {
+     "base": 75.0212200000286,
+     "cand": 84.61953999996186,
+     "passed": true,
+     "red": -12.794140111197327,
+     "insns": 10073833775,
+     "dir": "flags-opts-a03c18e9-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": -12.794140111197327,
+   "min": -12.794140111197327
+  },
+  {
+   "id": "flags-simd-O3-5ba54786-pocket-tank",
+   "name": "flags-simd-O3",
+   "agent": "flags",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact flags-simd-O3, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "cf1187a6c237767917e5230cdf5ab80c013ceb5d",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/flags-simd-O3.wasm",
+   "ts": "2026-09-20 10:44:29",
+   "pairs": [
+    {
+     "base": 76.29026999998092,
+     "cand": 77.0016549999714,
+     "passed": true,
+     "red": -0.9324714671879564,
+     "insns": 10073833775,
+     "dir": "flags-simd-O3-5ba54786-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": -0.9324714671879564,
+   "min": -0.9324714671879564
+  },
+  {
+   "id": "flags-simd-extc-0201ac68-pocket-tank",
+   "name": "flags-simd-extc",
+   "agent": "flags",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact flags-simd-extc, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "cf1187a6c237767917e5230cdf5ab80c013ceb5d",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/flags-simd-extc.wasm",
+   "ts": "2026-09-20 10:44:29",
+   "pairs": [
+    {
+     "base": 74.52726999998093,
+     "cand": 74.67058500003814,
+     "passed": true,
+     "red": -0.1922987385117647,
+     "insns": 10073833775,
+     "dir": "flags-simd-extc-0201ac68-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": -0.1922987385117647,
+   "min": -0.1922987385117647
+  },
+  {
+   "id": "flags-simd-inl1000-b1686279-pocket-tank",
+   "name": "flags-simd-inl1000",
+   "agent": "flags",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact flags-simd-inl1000, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "cf1187a6c237767917e5230cdf5ab80c013ceb5d",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/flags-simd-inl1000.wasm",
+   "ts": "2026-09-20 10:44:29",
+   "pairs": [
+    {
+     "base": 74.5062349999547,
+     "cand": 71.26242000001669,
+     "passed": true,
+     "red": 4.35374972301309,
+     "insns": 10073833775,
+     "dir": "flags-simd-inl1000-b1686279-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 4.35374972301309,
+   "min": 4.35374972301309
+  },
+  {
+   "id": "flags-simd-tail-a0d50c14-pocket-tank",
+   "name": "flags-simd-tail",
+   "agent": "flags",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact flags-simd-tail, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "cf1187a6c237767917e5230cdf5ab80c013ceb5d",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/flags-simd-tail.wasm",
+   "ts": "2026-09-20 10:44:29",
+   "pairs": [
+    {
+     "base": 74.69741499996185,
+     "cand": 76.89798000001907,
+     "passed": true,
+     "red": -2.9459720929544186,
+     "insns": 10073833775,
+     "dir": "flags-simd-tail-a0d50c14-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": -2.9459720929544186,
+   "min": -2.9459720929544186
+  },
+  {
+   "id": "flags-simd-78be7c25-pocket-tank",
+   "name": "flags-simd",
+   "agent": "flags",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact flags-simd, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "cf1187a6c237767917e5230cdf5ab80c013ceb5d",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/flags-simd.wasm",
+   "ts": "2026-09-20 10:44:30",
+   "pairs": [
+    {
+     "base": 73.18777500003576,
+     "cand": 72.82878499996662,
+     "passed": true,
+     "red": 0.49050541578694595,
+     "insns": 10073833775,
+     "dir": "flags-simd-78be7c25-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 0.49050541578694595,
+   "min": 0.49050541578694595
+  },
+  {
+   "id": "flags-sinl-O3-2f1ed3c9-pocket-tank",
+   "name": "flags-sinl-O3",
+   "agent": "flags",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact flags-sinl-O3, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "cf1187a6c237767917e5230cdf5ab80c013ceb5d",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/flags-sinl-O3.wasm",
+   "ts": "2026-09-20 10:44:30",
+   "pairs": [
+    {
+     "base": 74.42765999996662,
+     "cand": 72.8082350000143,
+     "passed": true,
+     "red": 2.1758375850497558,
+     "insns": 10073833775,
+     "dir": "flags-sinl-O3-2f1ed3c9-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 2.1758375850497558,
+   "min": 2.1758375850497558
+  },
+  {
+   "id": "flags-sinl-O4-73ac2afb-pocket-tank",
+   "name": "flags-sinl-O4",
+   "agent": "flags",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact flags-sinl-O4, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "cf1187a6c237767917e5230cdf5ab80c013ceb5d",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/flags-sinl-O4.wasm",
+   "ts": "2026-09-20 10:44:30",
+   "pairs": [
+    {
+     "base": 74.10837999999524,
+     "cand": 74.26724500000476,
+     "passed": true,
+     "red": -0.2143684695435688,
+     "insns": 10073833775,
+     "dir": "flags-sinl-O4-73ac2afb-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": -0.2143684695435688,
+   "min": -0.2143684695435688
+  },
+  {
+   "id": "flags-unroll600-4a58c696-pocket-tank",
+   "name": "flags-unroll600",
+   "agent": "flags",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact flags-unroll600, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "cf1187a6c237767917e5230cdf5ab80c013ceb5d",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/flags-unroll600.wasm",
+   "ts": "2026-09-20 10:44:30",
+   "pairs": [
+    {
+     "base": 75.78142500001192,
+     "cand": 73.7263299999833,
+     "passed": true,
+     "red": 2.7118716757151162,
+     "insns": 10073833775,
+     "dir": "flags-unroll600-4a58c696-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 2.7118716757151162,
+   "min": 2.7118716757151162
+  },
+  {
+   "id": "frames-s1-d8f187d9-pocket-tank",
+   "name": "frames-s1",
+   "agent": "frames",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact frames-s1, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "738a38c669d99982ab982335167f63bac33d5ee0",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/frames-s1.wasm",
+   "ts": "2026-09-20 10:44:30",
+   "pairs": [
+    {
+     "base": 73.68181000000239,
+     "cand": 73.42274499994517,
+     "passed": true,
+     "red": 0.3515996689782863,
+     "insns": 10073833775,
+     "dir": "frames-s1-d8f187d9-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 0.3515996689782863,
+   "min": 0.3515996689782863
+  },
+  {
+   "id": "frames-s1a-75a1048a-pocket-tank",
+   "name": "frames-s1a",
+   "agent": "frames",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact frames-s1a, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "9c2ac06d6addbb360d2f2a3168340c59bb4f675c",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/frames-s1a.wasm",
+   "ts": "2026-09-20 10:44:30",
+   "pairs": [
+    {
+     "base": 73.05318999999761,
+     "cand": 73.32164499998093,
+     "passed": true,
+     "red": -0.3674788191772693,
+     "insns": 10073833775,
+     "dir": "frames-s1a-75a1048a-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": -0.3674788191772693,
+   "min": -0.3674788191772693
+  },
+  {
+   "id": "frames-s1b-155f7517-pocket-tank",
+   "name": "frames-s1b",
+   "agent": "frames",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact frames-s1b, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "23318f635c33c05faf20ba6984e333bd9a7d4ed8",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/frames-s1b.wasm",
+   "ts": "2026-09-20 10:44:30",
+   "pairs": [
+    {
+     "base": 76.07508499997854,
+     "cand": 74.54824000000954,
+     "passed": true,
+     "red": 2.007023718697698,
+     "insns": 10073833775,
+     "dir": "frames-s1b-155f7517-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 2.007023718697698,
+   "min": 2.007023718697698
+  },
+  {
+   "id": "frames-s1s3-a4640d81-pocket-tank",
+   "name": "frames-s1s3",
+   "agent": "frames",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact frames-s1s3, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "edd3bab08bade31bd8e93e6e6ac7c53fed835120",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/frames-s1s3.wasm",
+   "ts": "2026-09-20 10:44:31",
+   "pairs": [
+    {
+     "base": 74.43476499998569,
+     "cand": 74.65122000002862,
+     "passed": true,
+     "red": -0.29079825810287563,
+     "insns": 10073833775,
+     "dir": "frames-s1s3-a4640d81-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": -0.29079825810287563,
+   "min": -0.29079825810287563
+  },
+  {
+   "id": "frames-s3-0ac83196-pocket-tank",
+   "name": "frames-s3",
+   "agent": "frames",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact frames-s3, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "51a17319d2b58f0b63ea432fc43208aebe03abf4",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/frames-s3.wasm",
+   "ts": "2026-09-20 10:44:31",
+   "pairs": [
+    {
+     "base": 74.86211500000954,
+     "cand": 72.46240499997138,
+     "passed": true,
+     "red": 3.2055065503263536,
+     "insns": 10073833775,
+     "dir": "frames-s3-0ac83196-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 3.2055065503263536,
+   "min": 3.2055065503263536
+  },
+  {
+   "id": "hwloop-s2b-b924ac73-pocket-tank",
+   "name": "hwloop-s2b",
+   "agent": "hwloop",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact hwloop-s2b, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "4023927c16d8bed768a53fedf55e155ddf2b7ce5",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/hwloop-s2b.wasm",
+   "ts": "2026-09-20 10:44:31",
+   "pairs": [
+    {
+     "base": 73.76891999995709,
+     "cand": 72.47257500004768,
+     "passed": true,
+     "red": 1.7573051088590752,
+     "insns": 10073833775,
+     "dir": "hwloop-s2b-b924ac73-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 1.7573051088590752,
+   "min": 1.7573051088590752
+  },
+  {
+   "id": "hwloop-s2be-efa41ae8-pocket-tank",
+   "name": "hwloop-s2be",
+   "agent": "hwloop",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact hwloop-s2be, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "4023927c16d8bed768a53fedf55e155ddf2b7ce5",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/hwloop-s2be.wasm",
+   "ts": "2026-09-20 10:44:31",
+   "pairs": [
+    {
+     "base": 72.75521499997377,
+     "cand": 72.29621500003338,
+     "passed": true,
+     "red": 0.6308826108761489,
+     "insns": 10073833775,
+     "dir": "hwloop-s2be-efa41ae8-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 0.6308826108761489,
+   "min": 0.6308826108761489
+  },
+  {
+   "id": "kernel-s1s2-b2a0ac89-pocket-tank",
+   "name": "kernel-s1s2",
+   "agent": "kernel",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact kernel-s1s2, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "bd146414c7f68d7f742513c37d153cd7ff21fba3",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/kernel-s1s2.wasm",
+   "ts": "2026-09-20 10:44:31",
+   "pairs": [
+    {
+     "base": 73.25309999996423,
+     "cand": 64.520625,
+     "passed": true,
+     "red": 11.920963071826996,
+     "insns": 10073833775,
+     "dir": "kernel-s1s2-b2a0ac89-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 11.920963071826996,
+   "min": 11.920963071826996
+  },
+  {
+   "id": "kernel-s1s2s3-cbc02ff6-pocket-tank",
+   "name": "kernel-s1s2s3",
+   "agent": "kernel",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact kernel-s1s2s3, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "110574be6f712558609d068a2c9dbdad644bd828",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/kernel-s1s2s3.wasm",
+   "ts": "2026-09-20 10:44:31",
+   "pairs": [
+    {
+     "base": 73.76464499998093,
+     "cand": 64.83728500002623,
+     "passed": true,
+     "red": 12.10249164753251,
+     "insns": 10073833775,
+     "dir": "kernel-s1s2s3-cbc02ff6-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 12.10249164753251,
+   "min": 12.10249164753251
+  },
+  {
+   "id": "kernel-s2-02afd0fa-pocket-tank",
+   "name": "kernel-s2",
+   "agent": "kernel",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact kernel-s2, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "ccdb8bef6ffa678f487fd6ab794af5b2049f0584",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/kernel-s2.wasm",
+   "ts": "2026-09-20 10:44:31",
+   "pairs": [
+    {
+     "base": 75.66982499998808,
+     "cand": 73.89600499999523,
+     "passed": true,
+     "red": 2.3441576612515336,
+     "insns": 10073833775,
+     "dir": "kernel-s2-02afd0fa-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 2.3441576612515336,
+   "min": 2.3441576612515336
+  },
+  {
+   "id": "kernel-s2s3-a35c7315-pocket-tank",
+   "name": "kernel-s2s3",
+   "agent": "kernel",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact kernel-s2s3, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "48d2f92eb9120560eaa83ac13ecb7de87e013b67",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/kernel-s2s3.wasm",
+   "ts": "2026-09-20 10:44:32",
+   "pairs": [
+    {
+     "base": 72.46637999999523,
+     "cand": 73.52387999999523,
+     "passed": true,
+     "red": -1.4592974010845694,
+     "insns": 10073833775,
+     "dir": "kernel-s2s3-a35c7315-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": -1.4592974010845694,
+   "min": -1.4592974010845694
+  },
+  {
+   "id": "onecall-c1-6125df00-pocket-tank",
+   "name": "onecall-c1",
+   "agent": "onecall",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact onecall-c1, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "ea42f20b472578d2dda02471cc0d9be758de4848",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/onecall-c1.wasm",
+   "ts": "2026-09-20 10:44:32",
+   "pairs": [
+    {
+     "base": 73.3193900000453,
+     "cand": 66.38401999998092,
+     "passed": true,
+     "red": 9.459121250272396,
+     "insns": 10073833775,
+     "dir": "onecall-c1-6125df00-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 9.459121250272396,
+   "min": 9.459121250272396
+  },
+  {
+   "id": "spec-tax-e23efb72-pocket-tank",
+   "name": "spec-tax",
+   "agent": "spec",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact spec-tax, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "cb737a145a59d1f419539000a5d294575ada2bb2",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/spec-tax.wasm",
+   "ts": "2026-09-20 10:44:32",
+   "pairs": [
+    {
+     "base": 72.25991000002622,
+     "cand": 81.20670499998332,
+     "passed": true,
+     "red": -12.381408999753596,
+     "insns": 10073833775,
+     "dir": "spec-tax-e23efb72-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": -12.381408999753596,
+   "min": -12.381408999753596
+  },
+  {
+   "id": "spec-tax1-f1687a3f-pocket-tank",
+   "name": "spec-tax1",
+   "agent": "spec",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact spec-tax1, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "966d447ffd6b63447f83f6f1b847b56876debf8d",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/spec-tax1.wasm",
+   "ts": "2026-09-20 10:44:32",
+   "pairs": [
+    {
+     "base": 76.72692000001669,
+     "cand": 75.40978499996662,
+     "passed": true,
+     "red": 1.7166530339674635,
+     "insns": 10073833775,
+     "dir": "spec-tax1-f1687a3f-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 1.7166530339674635,
+   "min": 1.7166530339674635
+  },
+  {
+   "id": "spec-tax2-a31e1614-pocket-tank",
+   "name": "spec-tax2",
+   "agent": "spec",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact spec-tax2, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "966d447ffd6b63447f83f6f1b847b56876debf8d",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/spec-tax2.wasm",
+   "ts": "2026-09-20 10:44:32",
+   "pairs": [
+    {
+     "base": 72.56643000000716,
+     "cand": 75.202905000031,
+     "passed": true,
+     "red": -3.633188238726337,
+     "insns": 10073833775,
+     "dir": "spec-tax2-a31e1614-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": -3.633188238726337,
+   "min": -3.633188238726337
+  },
+  {
+   "id": "spec-tax3-30114a9f-pocket-tank",
+   "name": "spec-tax3",
+   "agent": "spec",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact spec-tax3, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "8ae67ad02b7ecbdcbc34f4a997d10bd35c841a78",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/spec-tax3.wasm",
+   "ts": "2026-09-20 10:44:32",
+   "pairs": [
+    {
+     "base": 75.03121499997377,
+     "cand": 75.92593000000716,
+     "passed": true,
+     "red": -1.1924570327612294,
+     "insns": 10073833775,
+     "dir": "spec-tax3-30114a9f-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": -1.1924570327612294,
+   "min": -1.1924570327612294
+  },
+  {
+   "id": "spec-tax4-7ea8bc5c-pocket-tank",
+   "name": "spec-tax4",
+   "agent": "spec",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact spec-tax4, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "966d447ffd6b63447f83f6f1b847b56876debf8d",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/spec-tax4.wasm",
+   "ts": "2026-09-20 10:44:32",
+   "pairs": [
+    {
+     "base": 71.09516500002145,
+     "cand": 76.05590500003099,
+     "passed": true,
+     "red": -6.977605298486944,
+     "insns": 10073833775,
+     "dir": "spec-tax4-7ea8bc5c-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": -6.977605298486944,
+   "min": -6.977605298486944
+  },
+  {
+   "id": "spec-tax7-70697d75-pocket-tank",
+   "name": "spec-tax7",
+   "agent": "spec",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact spec-tax7, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "966d447ffd6b63447f83f6f1b847b56876debf8d",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/spec-tax7.wasm",
+   "ts": "2026-09-20 10:44:33",
+   "pairs": [
+    {
+     "base": 73.72324500000477,
+     "cand": 77.64026999998093,
+     "passed": true,
+     "red": -5.313147840923049,
+     "insns": 10073833775,
+     "dir": "spec-tax7-70697d75-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": -5.313147840923049,
+   "min": -5.313147840923049
+  },
+  {
+   "id": "spills-m1-f0efcd1b-pocket-tank",
+   "name": "spills-m1",
+   "agent": "spills",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact spills-m1, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "56c65b7e936e4acc23c57ba8fc8c6c94bb174071",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/spills-m1.wasm",
+   "ts": "2026-09-20 10:44:33",
+   "pairs": [
+    {
+     "base": 72.97053499996662,
+     "cand": 74.53447999995947,
+     "passed": true,
+     "red": -2.143255493458529,
+     "insns": 10073833775,
+     "dir": "spills-m1-f0efcd1b-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": -2.143255493458529,
+   "min": -2.143255493458529
+  },
+  {
+   "id": "spills-m2-8ef8ff94-pocket-tank",
+   "name": "spills-m2",
+   "agent": "spills",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact spills-m2, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "56c65b7e936e4acc23c57ba8fc8c6c94bb174071",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/spills-m2.wasm",
+   "ts": "2026-09-20 10:44:33",
+   "pairs": [
+    {
+     "base": 74.02105000001193,
+     "cand": 74.62929500001668,
+     "passed": true,
+     "red": -0.8217189569786676,
+     "insns": 10073833775,
+     "dir": "spills-m2-8ef8ff94-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": -0.8217189569786676,
+   "min": -0.8217189569786676
+  },
+  {
+   "id": "turnover-s1s2-6ddaceff-pocket-tank",
+   "name": "turnover-s1s2",
+   "agent": "turnover",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact turnover-s1s2, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "4d90d32191d0fbdd75a52412d2d16dcafb713cca",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/turnover-s1s2.wasm",
+   "ts": "2026-09-20 10:44:33",
+   "pairs": [
+    {
+     "base": 77.69254000002145,
+     "cand": 71.36077499997616,
+     "passed": true,
+     "red": 8.149772166083835,
+     "insns": 10073833775,
+     "dir": "turnover-s1s2-6ddaceff-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 8.149772166083835,
+   "min": 8.149772166083835
+  },
+  {
+   "id": "turnover-s1s2s3-16a3e375-pocket-tank",
+   "name": "turnover-s1s2s3",
+   "agent": "turnover",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact turnover-s1s2s3, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "9947165bbd293a8833b26db2cfa74e19fe54ef60",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/turnover-s1s2s3.wasm",
+   "ts": "2026-09-20 10:44:33",
+   "pairs": [
+    {
+     "base": 75.9258900000453,
+     "cand": 72.16800999999046,
+     "passed": true,
+     "red": 4.9494052688122565,
+     "insns": 10073833775,
+     "dir": "turnover-s1s2s3-16a3e375-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 4.9494052688122565,
+   "min": 4.9494052688122565
+  },
+  {
+   "id": "turnover-s2-c58b96eb-pocket-tank",
+   "name": "turnover-s2",
+   "agent": "turnover",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact turnover-s2, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "3859d3c239b53cb02663860f6170ea840a6228e8",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/turnover-s2.wasm",
+   "ts": "2026-09-20 10:44:33",
+   "pairs": [
+    {
+     "base": 73.437,
+     "cand": 76.81984500002861,
+     "passed": true,
+     "red": -4.606458597203877,
+     "insns": 10073833775,
+     "dir": "turnover-s2-c58b96eb-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": -4.606458597203877,
+   "min": -4.606458597203877
+  },
+  {
+   "id": "turnover-s3-b3fefc2f-pocket-tank",
+   "name": "turnover-s3",
+   "agent": "turnover",
+   "note": "auto-queued by exact-all.sh after EXACT ok; artifact turnover-s3, see its agent note/commits",
+   "workload": "pocket-tank",
+   "rev": "5cb07d58f3c21df0c0c9d26f440ee6c6cb7b315b",
+   "artifact": "/Users/alice/src/a/esp32sim-exp/wasm/turnover-s3.wasm",
+   "ts": "2026-09-20 10:44:33",
+   "pairs": [
+    {
+     "base": 74.68894499999284,
+     "cand": 73.37143499994278,
+     "passed": true,
+     "red": 1.7639959970651486,
+     "insns": 10073833775,
+     "dir": "turnover-s3-b3fefc2f-pocket-tank--p1"
+    }
+   ],
+   "tinydraw": [],
+   "attempted": 2,
+   "mean": 1.7639959970651486,
+   "min": 1.7639959970651486
+  }
+ ],
+ "controls": [
+  {
+   "base": 72.87084500002861,
+   "cand": 73.18206000000238,
+   "passed": true,
+   "red": -0.4270775232174895,
+   "insns": 10073833775,
+   "dir": "CONTROL-aa--c000"
+  },
+  {
+   "base": 74.53606999999285,
+   "cand": 71.08847500002385,
+   "passed": true,
+   "red": 4.625404854279724,
+   "insns": 10073833775,
+   "dir": "CONTROL-aa--c001"
+  },
+  {
+   "base": 70.32268000000715,
+   "cand": 72.05277499997615,
+   "passed": true,
+   "red": -2.460223358906144,
+   "insns": 10073833775,
+   "dir": "CONTROL-aa--c002"
+  },
+  {
+   "base": 73.66104000002146,
+   "cand": 73.16013499999046,
+   "passed": true,
+   "red": 0.6800134779944011,
+   "insns": 10073833775,
+   "dir": "CONTROL-aa--c003"
+  },
+  {
+   "base": 74.4931549999714,
+   "cand": 73.84734999996424,
+   "passed": true,
+   "red": 0.8669320020173732,
+   "insns": 10073833775,
+   "dir": "CONTROL-aa--c004"
+  },
+  {
+   "base": 75.489875,
+   "cand": 76.18782499998808,
+   "passed": true,
+   "red": -0.9245610752277589,
+   "insns": 10073833775,
+   "dir": "CONTROL-aa--c005"
+  },
+  {
+   "base": 72.71808499997854,
+   "cand": 73.41875,
+   "passed": true,
+   "red": -0.9635360997496845,
+   "insns": 10073833775,
+   "dir": "CONTROL-aa--c006"
+  },
+  {
+   "base": 76.89689500004053,
+   "cand": 73.71318999999761,
+   "passed": true,
+   "red": 4.140225687969901,
+   "insns": 10073833775,
+   "dir": "CONTROL-aa--c007"
+  },
+  {
+   "base": 77.58539999997616,
+   "cand": 75.7472350000143,
+   "passed": true,
+   "red": 2.3692150842328896,
+   "insns": 10073833775,
+   "dir": "CONTROL-aa--c008"
+  }
+ ]
+}

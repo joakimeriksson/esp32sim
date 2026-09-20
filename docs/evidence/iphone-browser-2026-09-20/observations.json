@@ -1,0 +1,42 @@
+{
+  "device": "iPhone 17 Pro",
+  "os": "iOS 27 release (user report)",
+  "lowPowerMode": false,
+  "lockdownMode": false,
+  "source": "User screenshots IMG_3351.PNG and IMG_3352.PNG; transcription, not exported timing history",
+  "jitOn": {
+    "elapsedSeconds": 61,
+    "currentRealtimePercent": 1.9,
+    "averageRealtimePercent": 2.4,
+    "executePercent": 100,
+    "outputPercent": 0,
+    "betweenTurnsPercent": 0,
+    "otherPercent": 0,
+    "catchupGapPercent": 0,
+    "maxGapMs": 0,
+    "compiled": 4173,
+    "failed": 0,
+    "compileSeconds": 0.48,
+    "liveModules": 4143,
+    "peakModules": 4143,
+    "generatedWasmMiB": 39.56
+  },
+  "jitOff": {
+    "elapsedSeconds": 103,
+    "currentRealtimePercent": 0.7,
+    "averageRealtimePercent": 0.9,
+    "executePercent": 100,
+    "outputPercent": 0,
+    "betweenTurnsPercent": 0,
+    "otherPercent": 0,
+    "catchupGapPercent": 0,
+    "maxGapMs": 0,
+    "compiled": 0,
+    "failed": 0,
+    "compileSeconds": 0,
+    "liveModules": 0,
+    "peakModules": 0,
+    "generatedWasmMiB": 0
+  },
+  "decision": "Deferred at user request. No standalone arithmetic probe was run."
+}

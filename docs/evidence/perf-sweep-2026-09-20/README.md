@@ -1,5 +1,7 @@
 # September 20 experiment snapshot
 
+**Superseded for final coverage by the [round closeout](closeout.md).** This earlier snapshot is retained for chronology; pending entries below now have first-pass results.
+
 Captured 2026-09-20T13:06:35.150Z. This is a frozen snapshot of an ongoing two-pass campaign, not a completion report. 65 queued jobs; 56 have at least one completed Pocket Tank pair in this snapshot.
 
 The original laptop sweep compares against cf1187a6. M3 results use separate baselines and are linked below. Positive percentages mean less wall time. Single pairs are preliminary screens; neither a positive screen nor an exactness pass establishes an improvement. Do not add standalone or cross-campaign percentages.
