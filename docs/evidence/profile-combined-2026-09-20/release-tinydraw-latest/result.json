@@ -1,0 +1,59 @@
+{
+  "version": {
+    "Browser": "Chrome/153.0.8010.53",
+    "Protocol-Version": "1.3",
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+    "V8-Version": "15.3.76.13",
+    "WebKit-Version": "537.36 (@792bf6722e73a45aa9e47c163b9901bdc17f3230)",
+    "webSocketDebuggerUrl": "ws://127.0.0.1:9236/devtools/browser/25ac3f61-8258-42d6-aa82-b1c8785d7dd5"
+  },
+  "result": {
+    "strokes": 3,
+    "responded": 3,
+    "committed": 3,
+    "downToCanvasMs": [
+      27.519999980926514,
+      13.235000014305115,
+      14.735000014305115
+    ],
+    "movementPoints": 24,
+    "movementResponded": 24,
+    "movementToCanvasMs": [
+      29.024999976158142,
+      28.719999969005585,
+      18.2150000333786,
+      25.030000030994415,
+      14.129999995231628,
+      14.230000019073486,
+      17.01500004529953,
+      14.384999990463257,
+      16.040000021457672,
+      11.410000026226044,
+      14.2049999833107,
+      21.07499998807907,
+      17.1599999666214,
+      18.055000007152557,
+      19.680000007152557,
+      20.89000004529953,
+      11.694999992847443,
+      19.069999992847443,
+      10.5450000166893,
+      7.610000014305115,
+      10.504999995231628,
+      15.854999959468842,
+      13.09500002861023,
+      12.34500002861023
+    ],
+    "upToCommitReportMs": [
+      28.584999978542328,
+      20.389999985694885,
+      45.08500003814697
+    ],
+    "upToLastCanvasChangeMs": [
+      209.14999997615814,
+      167.96999996900558,
+      146.53000003099442
+    ],
+    "endpoint": "Queued input to changed pixels near its position submitted to canvas; lift report is firmware console arrival. Not optical presentation."
+  }
+}

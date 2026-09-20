@@ -1,0 +1,47 @@
+{
+  "version": "tinydraw-gate1-v1",
+  "marker": "TINYDRAW_GATE1_AUTOMATED_DONE",
+  "gates": [
+    "native_kernels",
+    "minimap_navigation",
+    "color_dialog",
+    "cooperative_compose",
+    "stress",
+    "stress_100",
+    "stress_400",
+    "overlap_ready",
+    "overlap_cold",
+    "general_cold_ready",
+    "general_cold",
+    "owner_document",
+    "workload",
+    "paced_cold",
+    "hard_100",
+    "hard_400",
+    "pan_100",
+    "pan_400",
+    "ring_local",
+    "pan_seq",
+    "pan_boundary",
+    "live_overlay",
+    "draw_fill",
+    "cache",
+    "full_world_cache",
+    "cache_tour",
+    "mixed_draw",
+    "idle_repair",
+    "ink_trace",
+    "hairline_capacity",
+    "long_gesture",
+    "history_latency",
+    "settle_timing",
+    "export_encode",
+    "export_reserve",
+    "return"
+  ],
+  "receipts": {
+    "ssaa_receipt": [
+      "yellow"
+    ]
+  }
+}

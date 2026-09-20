@@ -1,0 +1,334 @@
+{
+  "receiptVersion": 1,
+  "date": "2026-09-06",
+  "workload": "TinyDraw gate-1 firmware on waveshare-amoled18-v2",
+  "captureMode": "timing",
+  "pairs": 3,
+  "executionOrder": [
+    "1-baseline",
+    "1-candidate",
+    "2-candidate",
+    "2-baseline",
+    "3-baseline",
+    "3-candidate"
+  ],
+  "builds": {
+    "baseline": {
+      "commit": "ea1de070bf5bec37cfddb2e9147799d5165d9412",
+      "buildFeatures": [],
+      "wasmSha256": "acd40fcee6ec895639effe211fab5e0417d06861a25d0e31255482a3aa71f001",
+      "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)\nbinary: rustc\ncommit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea\ncommit-date: 2026-08-18\nhost: aarch64-apple-darwin\nrelease: 1.98.0\nLLVM version: 22.1.8",
+      "command": [
+        "cargo",
+        "build",
+        "--release",
+        "--target",
+        "wasm32-unknown-unknown",
+        "-p",
+        "esp32sim-wasm"
+      ]
+    },
+    "candidate": {
+      "commit": "ddaac9af88c519c163658fb3858e8d1a50c68233",
+      "buildFeatures": [],
+      "wasmSha256": "a5563ca1e1a71a82e61a7a9f57c9cc4df8db6c8951e14f22d3a7e3830eeaf8d8",
+      "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)\nbinary: rustc\ncommit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea\ncommit-date: 2026-08-18\nhost: aarch64-apple-darwin\nrelease: 1.98.0\nLLVM version: 22.1.8",
+      "command": [
+        "cargo",
+        "build",
+        "--release",
+        "--target",
+        "wasm32-unknown-unknown",
+        "-p",
+        "esp32sim-wasm"
+      ]
+    }
+  },
+  "browser": "Chrome/152.0.7977.77",
+  "v8": "15.2.124.19",
+  "sharedInputSha256": {
+    "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+    "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+    "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+    "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+    "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+    "harness/battery-failure.test.mjs": "68333b7e686dfeb08bffa1a41c1181e86b9fbf63abcdc371c53b9859f0089014",
+    "harness/battery-worker.mjs": "785f050152f8052188a050f6e5aec80cd45041eaa34f656a1eb7a6ad855d291b",
+    "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+    "harness/battery.mjs": "676923fb69ac4006caecfbbb95f63e1c76475e20381f04895041474149bf83f2",
+    "harness/capture-battery.mjs": "3a6eb7f654af08075d808296bf1b4eea7da5607518687594f7115dbe608a286d",
+    "harness/capture-cpu.mjs": "2a224056be6502fb5b7df1f1f63b29e75ba6946e1aa08768030de40f71ffd9cc",
+    "harness/capture-page-response.mjs": "473f31c8396d7b2d1104a7ac64ca12c35bebde2d94997e12e5205f29fc5c2041",
+    "harness/capture-response.mjs": "74a502f612e24170ba7c3fa329eed79bd3b78b01aab679f7fe67920643f3e4d6",
+    "harness/check-page-input.mjs": "95965d86aff8a799fe76602e49dd43df5c0bff8893693478271575353e561935",
+    "harness/response.html": "2ded61ce3ed5449f249f1db204305ca16d0447cfef628dbe1dbe13e33c3d2051",
+    "harness/response.mjs": "a96554a83c202f5d8eb3c612431e2a8e4ac3dee8b890e748042e063009d28552",
+    "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+    "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+    "harness/verdict.test.mjs": "fc77e45e65a7d5072723613833fb35d592b56f7590d80079201d4a2cfba006f4",
+    "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+    "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+    "web/wasm/worker.js": "b1f32a2f9d1bc30a83c87c5127820952e896d1e143b68d2d2e33110cbd840fc8"
+  },
+  "medianWallSeconds": {
+    "baseline": 115.5477350000143,
+    "candidate": 90.4221100000143
+  },
+  "wallReductionPercent": 21.744800969051358,
+  "pairsWallReductionPercent": [
+    17.21986255814192,
+    21.802655846106124,
+    21.362328364296822
+  ],
+  "runs": [
+    {
+      "pair": 1,
+      "arm": "baseline",
+      "wallSeconds": 109.23165000000596,
+      "guestSeconds": 47.750049575,
+      "realtimeRatio": 0.4371448163146615,
+      "instructions": 9819885134,
+      "passed": true,
+      "jitFailed": 0,
+      "jitBytes": 84618535,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "instrumented": false,
+      "verdictValidation": {
+        "schema": "tinydraw-gate1-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+      "jit": {
+        "compiled": 12924,
+        "failed": 0,
+        "released": 8613,
+        "compileMs": 935.0900000929832,
+        "bytes": 84618535,
+        "liveBytes": 26414103,
+        "peakBytes": 32671121,
+        "peakModules": 5336,
+        "instructions": 8817690648
+      }
+    },
+    {
+      "pair": 1,
+      "arm": "candidate",
+      "wallSeconds": 90.4221100000143,
+      "guestSeconds": 47.750049575,
+      "realtimeRatio": 0.5280793555358578,
+      "instructions": 9819885134,
+      "passed": true,
+      "jitFailed": 0,
+      "jitBytes": 111231226,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "instrumented": false,
+      "verdictValidation": {
+        "schema": "tinydraw-gate1-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+      "jit": {
+        "compiled": 16259,
+        "failed": 0,
+        "released": 9576,
+        "compileMs": 1385.7700011134148,
+        "bytes": 111231226,
+        "liveBytes": 43509771,
+        "peakBytes": 51146202,
+        "peakModules": 7735,
+        "instructions": 9309145706
+      }
+    },
+    {
+      "pair": 2,
+      "arm": "candidate",
+      "wallSeconds": 90.35525999999047,
+      "guestSeconds": 47.750049575,
+      "realtimeRatio": 0.5284700589097417,
+      "instructions": 9819885134,
+      "passed": true,
+      "jitFailed": 0,
+      "jitBytes": 111231226,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "instrumented": false,
+      "verdictValidation": {
+        "schema": "tinydraw-gate1-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+      "jit": {
+        "compiled": 16259,
+        "failed": 0,
+        "released": 9576,
+        "compileMs": 1423.5650023519993,
+        "bytes": 111231226,
+        "liveBytes": 43509771,
+        "peakBytes": 51146202,
+        "peakModules": 7735,
+        "instructions": 9309145706
+      }
+    },
+    {
+      "pair": 2,
+      "arm": "baseline",
+      "wallSeconds": 115.5477350000143,
+      "guestSeconds": 47.750049575,
+      "realtimeRatio": 0.4132495507159365,
+      "instructions": 9819885134,
+      "passed": true,
+      "jitFailed": 0,
+      "jitBytes": 84618535,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "instrumented": false,
+      "verdictValidation": {
+        "schema": "tinydraw-gate1-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+      "jit": {
+        "compiled": 12924,
+        "failed": 0,
+        "released": 8613,
+        "compileMs": 1100.6700007915497,
+        "bytes": 84618535,
+        "liveBytes": 26414103,
+        "peakBytes": 32671121,
+        "peakModules": 5336,
+        "instructions": 8817690648
+      }
+    },
+    {
+      "pair": 3,
+      "arm": "baseline",
+      "wallSeconds": 116.9621100000143,
+      "guestSeconds": 47.750049575,
+      "realtimeRatio": 0.40825229277237013,
+      "instructions": 9819885134,
+      "passed": true,
+      "jitFailed": 0,
+      "jitBytes": 84618535,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "instrumented": false,
+      "verdictValidation": {
+        "schema": "tinydraw-gate1-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+      "jit": {
+        "compiled": 12924,
+        "failed": 0,
+        "released": 8613,
+        "compileMs": 1103.284997522831,
+        "bytes": 84618535,
+        "liveBytes": 26414103,
+        "peakBytes": 32671121,
+        "peakModules": 5336,
+        "instructions": 8817690648
+      }
+    },
+    {
+      "pair": 3,
+      "arm": "candidate",
+      "wallSeconds": 91.9762800000012,
+      "guestSeconds": 47.750049575,
+      "realtimeRatio": 0.5191561299826366,
+      "instructions": 9819885134,
+      "passed": true,
+      "jitFailed": 0,
+      "jitBytes": 111231226,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "instrumented": false,
+      "verdictValidation": {
+        "schema": "tinydraw-gate1-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+      "jit": {
+        "compiled": 16259,
+        "failed": 0,
+        "released": 9576,
+        "compileMs": 1400.3149986565113,
+        "bytes": 111231226,
+        "liveBytes": 43509771,
+        "peakBytes": 51146202,
+        "peakModules": 7735,
+        "instructions": 9309145706
+      }
+    }
+  ],
+  "pageValidation": {
+    "candidateCommit": "ddaac9af88c519c163658fb3858e8d1a50c68233",
+    "wasmSha256": "a5563ca1e1a71a82e61a7a9f57c9cc4df8db6c8951e14f22d3a7e3830eeaf8d8",
+    "summary": {
+      "visibleStrokeColumns": [
+        121,
+        121,
+        121
+      ],
+      "inputSamples": 157,
+      "workerReceived": 157,
+      "runEntered": 157,
+      "pageSamplingMs": {
+        "n": 157,
+        "p50": 7.39990234375,
+        "p95": 16,
+        "p99": 16.5,
+        "max": 16.5
+      },
+      "pageToWorkerMs": {
+        "n": 157,
+        "p50": 1.300048828125,
+        "p95": 7.199951171875,
+        "p99": 8,
+        "max": 8.400146484375
+      },
+      "workerToRunEntryMs": {
+        "n": 157,
+        "p50": 5,
+        "p95": 5.10009765625,
+        "p99": 5.199951171875,
+        "max": 5.199951171875
+      },
+      "inputRunDurationMs": {
+        "n": 157,
+        "p50": 7.7001953125,
+        "p95": 12.300048828125,
+        "p99": 13.599853515625,
+        "max": 18.89990234375
+      },
+      "arrivalToRunEntryMs": {
+        "n": 157,
+        "p50": 14.7001953125,
+        "p95": 24.400146484375,
+        "p99": 27.199951171875,
+        "max": 29.10009765625
+      },
+      "changedCanvasFrames": 138,
+      "changedFrameGapMs": {
+        "n": 137,
+        "p50": 41.5,
+        "p95": 222.2001953125,
+        "p99": 2094.10009765625,
+        "max": 2124
+      },
+      "framesDuringContacts": [
+        37,
+        46,
+        44
+      ],
+      "commitReports": 4
+    }
+  }
+}

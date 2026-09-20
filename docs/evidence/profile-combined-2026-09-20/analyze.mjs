@@ -1,0 +1,10 @@
+import fs from 'node:fs';
+const root=import.meta.dirname;
+const symbols=fs.readFileSync(root+'/tinydraw-symbols.txt','utf8').split('\n').map(l=>l.match(/^([0-9a-f]+) [tTwW] (.+)$/)).filter(Boolean).map(m=>[parseInt(m[1],16),m[2]]).sort((a,b)=>a[0]-b[0]);
+function symbol(pc){let lo=0,hi=symbols.length;while(lo<hi){let mid=(lo+hi)>>1;if(symbols[mid][0]<=pc)lo=mid+1;else hi=mid;}return lo&&pc-symbols[lo-1][0]<65536?symbols[lo-1][1]:'unknown';}
+const report={};
+for(const dir of fs.readdirSync(root)){const folder=root+'/'+dir;if(!fs.statSync(folder).isDirectory())continue;const name=fs.readdirSync(folder).find(n=>n.endsWith('.cpuprofile'));if(!name)continue;const p=JSON.parse(fs.readFileSync(folder+'/'+name));const nodes=new Map(p.nodes.map(n=>[n.id,n.callFrame]));let total=0,idle=0;const cats={},fns={};
+ for(let i=0;i<p.samples.length;i++){const f=nodes.get(p.samples[i]),t=p.timeDeltas[i];total+=t;if(f.functionName==='(idle)'){idle+=t;continue;}let c='other';const n=f.functionName;if(f.url.startsWith('wasm:')&&!f.url.includes('esp32sim_wasm'))c='generated blocks';else if(n.includes('run_inner'))c='JIT admission and wrapper';else if(n.includes('step_blocks'))c='machine block wrapper';else if(n.includes('run_block_inner'))c='block dispatch';else if(n.includes('run_unmodeled'))c='scheduler';else if(n.includes('exec_insn'))c='interpreter';else if(n.includes('find_block'))c='decoded-block lookup';else if(n.includes('dma_copy')||n.includes('spi_transfer'))c='DMA and display transfer';cats[c]=(cats[c]||0)+t;let key=n;const m=n.match(/^xtensa_([0-9a-f]{8})$/);if(m&&dir.includes('tinydraw'))key+=' '+symbol(parseInt(m[1],16));fns[key]=(fns[key]||0)+t;}
+ report[dir]={sampledSeconds:total/1e6,idleSeconds:idle/1e6,nonIdleSeconds:(total-idle)/1e6,categories:Object.entries(cats).sort((a,b)=>b[1]-a[1]).map(([name,us])=>({name,seconds:us/1e6,nonIdlePercent:100*us/(total-idle)})),topFunctions:Object.entries(fns).sort((a,b)=>b[1]-a[1]).slice(0,25).map(([name,us])=>({name,seconds:us/1e6,nonIdlePercent:100*us/(total-idle)}))};
+}
+fs.writeFileSync(root+'/analysis.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));

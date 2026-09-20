@@ -1,0 +1,41 @@
+WARN `--no-project` was provided, but no project was found
+Sampled interval: 21.032 s; exclusive samples, not inclusive call-tree totals.
+  16.297 s  77.5%  other
+   2.672 s  12.7%  generated blocks
+   0.930 s   4.4%  block dispatch / interpreted loop
+   0.444 s   2.1%  interpreter instruction execution
+   0.366 s   1.7%  machine block wrapper
+   0.321 s   1.5%  JIT invocation wrapper
+   0.001 s   0.0%  PIE and 128-bit helpers
+
+Largest exclusive functions:
+  11.923 s  (idle)
+   1.380 s  _RINvNtNtCsiC04ccAUUrS_10xtensa_lx73jit6native9run_innerNtNtCs1dGorymGPUm_7esp32s33bus6SocBusECsjNj4ZJhj47X_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-03004ed6
+   0.930 s  _RINvNtCsiC04ccAUUrS_10xtensa_lx75block15run_block_innerNtNtCs1dGorymGPUm_7esp32s33bus6SocBusECsjNj4ZJhj47X_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-03004ed6
+   0.500 s  _RINvMNtCs54gAw4bpYdk_7esp_soc7machineINtB3_7MachineNtNtCs1dGorymGPUm_7esp32s33soc2S3E13run_unmodeledKb0_ECsjNj4ZJhj47X_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-03004ed6
+   0.444 s  _RINvNtCsiC04ccAUUrS_10xtensa_lx74exec9exec_insnNtNtCs1dGorymGPUm_7esp32s33bus6SocBusECsjNj4ZJhj47X_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-03004ed6
+   0.366 s  _RNvMNtCs54gAw4bpYdk_7esp_soc7machineINtB2_7MachineNtNtCs1dGorymGPUm_7esp32s33soc2S3E11step_blocksCsjNj4ZJhj47X_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-03004ed6
+   0.321 s  _RINvNtNtCsiC04ccAUUrS_10xtensa_lx73jit6native3runNtNtCs1dGorymGPUm_7esp32s33bus6SocBusECsjNj4ZJhj47X_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-03004ed6
+   0.294 s  _RINvNtCsiC04ccAUUrS_10xtensa_lx75block10find_blockNtNtCs1dGorymGPUm_7esp32s33bus6SocBusECsjNj4ZJhj47X_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-03004ed6
+   0.261 s  loop  http://127.0.0.1:8796/web/wasm/worker.js
+   0.201 s  _RINvNtNtCsiC04ccAUUrS_10xtensa_lx73jit6native6h_execNtNtCs1dGorymGPUm_7esp32s33bus6SocBusECsjNj4ZJhj47X_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-03004ed6
+   0.151 s  Module
+   0.101 s  (program)
+   0.087 s  _RNvXs1_NtCs1dGorymGPUm_7esp32s33busNtB5_6SocBusNtNtCs3QQYunS8OH3_8emu_core3bus3Bus7write32  wasm://wasm/esp32sim_wasm.wasm-03004ed6
+   0.081 s  _RNvMNtCs54gAw4bpYdk_7esp_soc7machineINtB2_7MachineNtNtCs1dGorymGPUm_7esp32s33soc2S3E16after_round_restCsjNj4ZJhj47X_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-03004ed6
+   0.076 s  _RNvMs2_NtCs1dGorymGPUm_7esp32s33busNtB5_6SocBus11flush_ticks  wasm://wasm/esp32sim_wasm.wasm-03004ed6
+   0.076 s  _RNvXNtCsiC04ccAUUrS_10xtensa_lx74coreNtNtB4_5state3CpuNtNtCs3QQYunS8OH3_8emu_core4core4Core14advance_cycles  wasm://wasm/esp32sim_wasm.wasm-03004ed6
+   0.073 s  _RNvMNtCsiC04ccAUUrS_10xtensa_lx74execNtNtB4_5state3Cpu16check_interrupts  wasm://wasm/esp32sim_wasm.wasm-03004ed6
+   0.068 s  _RNvXs0_NtCs58i1S6PDf40_10esp_periph4gpioNtB5_4GpioNtNtB7_6device6Device11irq_sources  wasm://wasm/esp32sim_wasm.wasm-03004ed6
+   0.065 s  _RNvXs1_NtCs1dGorymGPUm_7esp32s33busNtB5_6SocBusNtNtCs3QQYunS8OH3_8emu_core3bus3Bus6read32  wasm://wasm/esp32sim_wasm.wasm-03004ed6
+   0.056 s  _RNvMs2_NtCs1dGorymGPUm_7esp32s33busNtB5_6SocBus9tick_impl  wasm://wasm/esp32sim_wasm.wasm-03004ed6
+   0.053 s  xtensa_403826cf  wasm://wasm/0004625a
+   0.048 s  _RNvNtCsiC04ccAUUrS_10xtensa_lx76decode6decode  wasm://wasm/esp32sim_wasm.wasm-03004ed6
+   0.040 s  _RNvXNtCsiC04ccAUUrS_10xtensa_lx74coreNtNtB4_5state3CpuNtNtCs3QQYunS8OH3_8emu_core4core4Core17cycles_until_wake  wasm://wasm/esp32sim_wasm.wasm-03004ed6
+   0.040 s  _RNvMNtCs1dGorymGPUm_7esp32s33busNtB2_6SocBus12periph_write  wasm://wasm/esp32sim_wasm.wasm-03004ed6
+   0.038 s  _RNvXNtCsiC04ccAUUrS_10xtensa_lx74coreNtNtB4_5state3CpuNtNtCs3QQYunS8OH3_8emu_core4core4Core11irq_pending  wasm://wasm/esp32sim_wasm.wasm-03004ed6
+   0.037 s  postMessage
+   0.033 s  esp32sim_cycles  wasm://wasm/esp32sim_wasm.wasm-03004ed6
+   0.033 s  xtensa_400559cc  wasm://wasm/630350de
+   0.033 s  _RNvXs1_NtCs1dGorymGPUm_7esp32s33busNtB5_6SocBusNtNtCs3QQYunS8OH3_8emu_core3bus3Bus4tick  wasm://wasm/esp32sim_wasm.wasm-03004ed6
+   0.031 s  xtensa_403939e4  wasm://wasm/000227ae

@@ -1,0 +1,39 @@
+WARN `--no-project` was provided, but no project was found
+Sampled interval: 48.056 s; exclusive samples, not inclusive call-tree totals.
+  21.340 s  44.4%  other
+  20.716 s  43.1%  generated blocks
+   5.214 s  10.9%  machine block wrapper
+   0.777 s   1.6%  interpreter instruction execution
+   0.009 s   0.0%  PIE and 128-bit helpers
+
+Largest exclusive functions:
+   9.018 s  _RINvNtNtCs5F2i29bsihg_10xtensa_lx73jit6native9run_innerNtNtCs7lxvt5igX0z_7esp32s33bus6SocBusECsetaQYfaB9Ca_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   5.214 s  _RNvMNtCslrqzjCal6eM_7esp_soc7machineINtB2_7MachineNtNtCs7lxvt5igX0z_7esp32s33soc2S3E11step_blocksCsetaQYfaB9Ca_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   1.968 s  _RINvMNtCslrqzjCal6eM_7esp_soc7machineINtB3_7MachineNtNtCs7lxvt5igX0z_7esp32s33soc2S3E13run_unmodeledKb0_ECsetaQYfaB9Ca_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   1.901 s  (idle)
+   1.398 s  _RNvMs_NtNtCs7lxvt5igX0z_7esp32s33bus3dmaNtB6_6SocBus8dma_copy  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   1.336 s  wasm-function[0]  wasm://wasm/0001835a
+   1.289 s  wasm-function[0]  wasm://wasm/00092ea2
+   1.186 s  _RINvNtCs5F2i29bsihg_10xtensa_lx75block10find_blockNtNtCs7lxvt5igX0z_7esp32s33bus6SocBusECsetaQYfaB9Ca_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.974 s  wasm-function[0]  wasm://wasm/00099c8e
+   0.788 s  wasm-function[0]  wasm://wasm/000242b2
+   0.777 s  _RINvNtCs5F2i29bsihg_10xtensa_lx74exec9exec_insnNtNtCs7lxvt5igX0z_7esp32s33bus6SocBusECsetaQYfaB9Ca_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.773 s  _RNvXs2_NtNtCs7lxvt5igX0z_7esp32s35board18waveshare_amoled18NtB5_19WaveshareAmoled18V2NtNtCslrqzjCal6eM_7esp_soc5board10BoardModel12spi_transfer  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.630 s  wasm-function[0]  wasm://wasm/f9be7092
+   0.593 s  wasm-function[0]  wasm://wasm/00053206
+   0.576 s  wasm-function[0]  wasm://wasm/0009e54e
+   0.494 s  Module
+   0.417 s  wasm-function[0]  wasm://wasm/000a3df2
+   0.402 s  wasm-function[0]  wasm://wasm/000394e6
+   0.384 s  wasm-function[0]  wasm://wasm/0003a62a
+   0.366 s  _RINvNtNtCs5F2i29bsihg_10xtensa_lx73jit6native6h_execNtNtCs7lxvt5igX0z_7esp32s33bus6SocBusECsetaQYfaB9Ca_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.354 s  _RINvMs0_NtCs7lxvt5igX0z_7esp32s33busNtB6_6SocBus14write32_accessKb0_EB8_  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.350 s  _RINvMs0_NtCs7lxvt5igX0z_7esp32s33busNtB6_6SocBus13read32_accessKb0_EB8_  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.313 s  _RNvMNtCslrqzjCal6eM_7esp_soc7machineINtB2_7MachineNtNtCs7lxvt5igX0z_7esp32s33soc2S3E16after_round_restCsetaQYfaB9Ca_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.311 s  fmaf  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.302 s  wasm-function[0]  wasm://wasm/0002469a
+   0.294 s  wasm-function[0]  wasm://wasm/0002641e
+   0.279 s  _RNvNtNtCs5F2i29bsihg_10xtensa_lx73jit6native7h_fused  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.252 s  _RNvXs0_NtCs58i1S6PDf40_10esp_periph4gpioNtB5_4GpioNtNtB7_6device6Device11irq_sources  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.215 s  wasm-function[0]  wasm://wasm/00010a76
+   0.214 s  wasm-function[0]  wasm://wasm/180f76ae
