@@ -8,9 +8,7 @@ rustup target list --installed | grep -q wasm32-unknown-unknown || rustup target
 # a non-rustup cargo/rustc on PATH (Homebrew) has no wasm32 std: build with rustup's toolchain
 RUSTC="$(rustup which rustc)"; export RUSTC
 CARGO="$(rustup which cargo)"
-# EX154: validated on the combined runtime with Rust 1.98.1. An explicitly
-# supplied RUSTFLAGS (including an empty value) overrides this default.
-RUSTFLAGS="${RUSTFLAGS--Cllvm-args=-inline-threshold=4000}"; export RUSTFLAGS
+. ./tools/wasm-rustflags.sh
 # rust-lld looks for libLLVM.dylib next to itself; the toolchain keeps it in lib/
 DYLD_FALLBACK_LIBRARY_PATH="$(dirname "$(dirname "$RUSTC")")/lib${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}"; export DYLD_FALLBACK_LIBRARY_PATH
 "$CARGO" build --release --target wasm32-unknown-unknown -p esp32sim-wasm
