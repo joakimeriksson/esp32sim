@@ -19,3 +19,5 @@ Commands match the CI workflow, with local ROMs supplied through `ESP32SIM_ROM_D
 Benchmark speed, work/output equality and measurement limits are in the [M3 report](README.md). Review dispositions and unresolved qualification requests are in [reviews.md](reviews.md).
 
 The integrated native CLI also completed an ESP-IDF WPA2 join/DHCP and a controlled Linux-on-S3 TCP download of an exact 27-byte marker. See [firmware commands, input hashes and limits](firmware-qualification/result.txt). Separate lwIP application traffic and loss/retransmission stress are not established by that smoke test.
+
+Two pre-existing test-harness Clippy warnings were corrected at `25030721` without changing runtime code. The combined WASM test/profiling configuration now passes warnings-as-errors [Clippy](validation/profile-clippy.log), and all 79,628 differential cases passed again on that final test source ([log](validation/profile-final.log)).
