@@ -31,18 +31,18 @@ fn address(a: &[u8; 4], port: u16) -> SocketAddr { SocketAddr::new(IpAddr::V4(ip
 // A permit belongs to the blocking connect worker, not its guest flow. Removing a flow with RST
 // must not free a slot while connect_timeout is still running on the host.
 static CONNECTING: AtomicUsize = AtomicUsize::new(0);
-struct ConnectPermit;
-impl ConnectPermit {
-    fn acquire() -> Option<Self> {
-        CONNECTING.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| (n < MAX_CONNECTS).then_some(n + 1)).ok().map(|_| Self)
+struct ConnectPermit<'a>(&'a AtomicUsize);
+impl<'a> ConnectPermit<'a> {
+    fn acquire(counter: &'a AtomicUsize) -> Option<Self> {
+        counter.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |n| (n < MAX_CONNECTS).then_some(n + 1)).ok().map(|_| Self(counter))
     }
 }
-impl Drop for ConnectPermit {
-    fn drop(&mut self) { CONNECTING.fetch_sub(1, Ordering::Relaxed); }
+impl Drop for ConnectPermit<'_> {
+    fn drop(&mut self) { self.0.fetch_sub(1, Ordering::Relaxed); }
 }
 
 fn connect(addr: SocketAddr) -> Option<Receiver<io::Result<TcpStream>>> {
-    let permit = ConnectPermit::acquire()?;
+    let permit = ConnectPermit::acquire(&CONNECTING)?;
     let (tx, rx) = channel();
     std::thread::Builder::new().name("nat-connect".into()).spawn(move || {
         let _permit = permit;
@@ -177,13 +177,14 @@ pub struct Nat {
     pub resolver: [u8; 4],
     pub log: bool,
     pub tcp_opened: u64, pub tcp_refused: u64, pub udp_flows: u64,
+    pub udp_evicted: u64, pub udp_send_errors: u64,
     pub bytes_to_host: u64, pub bytes_to_guest: u64,
 }
 
 impl Nat {
     pub fn new(log: bool) -> Self {
         Self { tcp: Vec::new(), udp: Vec::new(), isn: 0x1000, resolver: host_resolver(), log,
-            tcp_opened: 0, tcp_refused: 0, udp_flows: 0, bytes_to_host: 0, bytes_to_guest: 0 }
+            tcp_opened: 0, tcp_refused: 0, udp_flows: 0, udp_evicted: 0, udp_send_errors: 0, bytes_to_host: 0, bytes_to_guest: 0 }
     }
 
     /// Forward a UDP datagram through a connected socket, which accepts replies only from its peer.
@@ -194,9 +195,14 @@ impl Nat {
         let idx = match idx {
             Some(i) => i,
             None => {
-                if self.udp.len() >= MAX_FLOWS { return; }
                 let Ok(sock) = UdpSocket::bind("0.0.0.0:0") else { return };
                 if sock.connect(address(dip, dport)).is_err() || sock.set_nonblocking(true).is_err() { return; }
+                if self.udp.len() >= MAX_FLOWS {
+                    let oldest = self.udp.iter().enumerate().max_by_key(|(_, f)| now_us.wrapping_sub(f.last_activity_us)).unwrap().0;
+                    self.udp.remove(oldest);
+                    self.udp_evicted += 1;
+                    if self.log { eprintln!("[nat] UDP evicted least recently active flow (table full)"); }
+                }
                 self.udp.push(Udp { guest_mac: *gmac, guest_ip: *gip, guest_port: sport, dst_ip: *dip, dst_port: dport,
                     reply_src: *reply_src, sock, last_activity_us: now_us });
                 self.udp_flows += 1;
@@ -206,10 +212,22 @@ impl Nat {
         };
         let flow = &mut self.udp[idx];
         flow.last_activity_us = now_us;
-        if let Ok(n) = flow.sock.send(payload) { self.bytes_to_host += n as u64; }
+        match flow.sock.send(payload) {
+            Ok(n) => self.bytes_to_host += n as u64,
+            Err(e) => {
+                self.udp_send_errors += 1;
+                if self.log { eprintln!("[nat] UDP {}:{} send failed: {}", ip(dip), dport, e); }
+            }
+        }
     }
 
     pub fn tcp_in(&mut self, gmac: &[u8; 6], gip: &[u8; 4], dip: &[u8; 4], seg: &[u8], now_us: u64) -> Vec<Vec<u8>> {
+        self.tcp_in_with_connect(gmac, gip, dip, seg, now_us, connect)
+    }
+
+    #[allow(clippy::too_many_arguments, reason = "inject the connector without process-global state in admission tests")]
+    fn tcp_in_with_connect(&mut self, gmac: &[u8; 6], gip: &[u8; 4], dip: &[u8; 4], seg: &[u8], now_us: u64,
+                           connector: impl FnOnce(SocketAddr) -> Option<Receiver<io::Result<TcpStream>>>) -> Vec<Vec<u8>> {
         if seg.len() < 20 { return Vec::new(); }
         let off = ((seg[12] >> 4) as usize) * 4;
         if off < 20 || off > seg.len() { return Vec::new(); }
@@ -222,12 +240,13 @@ impl Nat {
         let window = u16::from_be_bytes([seg[14], seg[15]]);
         let idx = self.tcp.iter().position(|c| c.guest_ip == *gip && c.guest_port == sport && c.dst_port == dport && c.dst_ip == *dip);
         if flags & (SYN | ACK | RST) == SYN && idx.is_none() {
-            if self.tcp.len() >= MAX_FLOWS {
+            let evict = if self.tcp.len() >= MAX_FLOWS {
                 // Finished flows remember final ACKs only while their bounded slots are spare.
                 let Some(i) = self.tcp.iter().position(|c| matches!(c.transport, Transport::TimeWait | Transport::Closed)) else { return Vec::new() };
-                self.tcp.remove(i);
-            }
-            let Some(pending) = connect(address(dip, dport)) else { return Vec::new() };
+                Some(i)
+            } else { None };
+            let Some(pending) = connector(address(dip, dport)) else { return Vec::new() };
+            if let Some(i) = evict { self.tcp.remove(i); }
             self.isn = self.isn.wrapping_add(0x10000);
             self.tcp.push(Tcp { guest_mac: *gmac, guest_ip: *gip, guest_port: sport, dst_ip: *dip, dst_port: dport,
                 transport: Transport::Connecting(pending), guest_write: GuestWrite::Open, host_closed: false,

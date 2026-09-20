@@ -71,18 +71,24 @@ impl VirtualNet {
         vec![self.frame(src, 0x0806, &r)]
     }
 
+    fn invalid_ipv4(&mut self) -> Vec<Vec<u8>> {
+        self.unhandled += 1;
+        if self.log { eprintln!("[net] ignoring malformed or fragmented IPv4 packet"); }
+        Vec::new()
+    }
+
     fn ipv4(&mut self, p: &[u8], src: &[u8; 6]) -> Vec<Vec<u8>> {
-        if p.len() < 20 { return Vec::new(); }
+        if p.len() < 20 { return self.invalid_ipv4(); }
         let ihl = ((p[0] & 0xf) as usize) * 4;
-        if p[0] >> 4 != 4 || ihl < 20 || p.len() < ihl { return Vec::new(); }
+        if p[0] >> 4 != 4 || ihl < 20 || p.len() < ihl { return self.invalid_ipv4(); }
         // Trust the header's total length: the frame may carry padding or a trailing FCS.
         let total = u16::from_be_bytes([p[2], p[3]]) as usize;
-        if total < ihl || total > p.len() || be16(&p[6..8]) & 0x3fff != 0 { return Vec::new(); }
+        if total < ihl || total > p.len() || be16(&p[6..8]) & 0x3fff != 0 { return self.invalid_ipv4(); }
         let (proto, mut body) = (p[9], &p[ihl..total]);
         if proto == 17 {
-            if body.len() < 8 { return Vec::new(); }
+            if body.len() < 8 { return self.invalid_ipv4(); }
             let len = be16(&body[4..6]) as usize;
-            if len < 8 || len > body.len() { return Vec::new(); }
+            if len < 8 || len > body.len() { return self.invalid_ipv4(); }
             body = &body[..len];
         }
         let mut sip = [0u8; 4]; sip.copy_from_slice(&p[12..16]);
@@ -279,6 +285,38 @@ mod tests {
         packet[6] = 0x20; // fragments are not reassembled by this relay
         assert!(net.ipv4(&packet, &[2; 6]).is_empty());
         assert_eq!(net.pings, 0);
+        assert_eq!(net.unhandled, 22);
+    }
+
+    #[test]
+    fn ipv4_options_df_and_frame_padding_preserve_icmp_payload() {
+        let mut net = VirtualNet::new(false);
+        let request = [8, 0, 0, 0, 0x12, 0x34, 0, 1, 0x42];
+        let mut packet = ip_packet(1, &net.sta_ip, &net.gw_ip, &request);
+        packet.splice(20..20, [1, 1, 0, 0]); // Four bytes of IPv4 options.
+        packet[0] = 0x46;
+        packet[6] = 0x40; // DF does not require fragment reassembly.
+        let total = packet.len() as u16;
+        packet[2..4].copy_from_slice(&total.to_be_bytes());
+        packet.extend_from_slice(&[0; 12]); // Link-layer trailer is outside total_len.
+        let reply = net.ipv4(&packet, &[2; 6]);
+        assert_eq!(reply.len(), 1);
+        assert_eq!(&reply[0][38..], &request[4..]);
+        assert_eq!(net.unhandled, 0);
+    }
+
+    #[test]
+    fn udp_length_excludes_extra_ip_body_bytes() {
+        let mut net = VirtualNet::new(false);
+        let mut request = [0; 48]; request[0] = 0x23;
+        let mut udp = udp_packet(&net.sta_ip, &net.gw_ip, 1234, 123, &request);
+        udp.extend_from_slice(b"padding");
+        let packet = ip_packet(17, &net.sta_ip, &net.gw_ip, &udp);
+        let reply = net.ipv4(&packet, &[2; 6]);
+        assert_eq!(reply.len(), 1);
+        assert_eq!(reply[0].len(), 14 + 20 + 8 + 48);
+        assert_eq!(net.ntp_answers, 1);
+        assert_eq!(net.unhandled, 0);
     }
 
     #[test]

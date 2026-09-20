@@ -196,20 +196,53 @@ fn zero_window_probe_recovers_a_lost_window_update() {
 
 #[test]
 fn connector_permits_are_bounded_until_the_worker_drops_them() {
-    let mut permits: Vec<_> = (0..MAX_CONNECTS).map(|_| ConnectPermit::acquire().unwrap()).collect();
-    assert!(ConnectPermit::acquire().is_none());
+    let counter = AtomicUsize::new(0);
+    let mut permits: Vec<_> = (0..MAX_CONNECTS).map(|_| ConnectPermit::acquire(&counter).unwrap()).collect();
+    assert!(ConnectPermit::acquire(&counter).is_none());
+    permits.pop();
+    assert!(ConnectPermit::acquire(&counter).is_some());
+}
 
+#[test]
+fn time_wait_is_evicted_only_after_a_connect_worker_is_admitted() {
     // Final-ACK retry records cannot monopolize live-flow slots during connection churn.
-    // Holding the permits makes this admission check independent of real connect workers.
+    // Inject admission results so concurrent real workers cannot affect this test.
     let mut nat = Nat::new(false);
     for port in 0..MAX_FLOWS {
         let mut c = flow(); c.guest_port = port as u16; c.transport = Transport::TimeWait;
         nat.tcp.push(c);
     }
-    nat.tcp_in(&[2; 6], &[10, 0, 2, 15], &[127, 0, 0, 1], &segment(199, 0, SYN, &[]), 0);
-    assert_eq!(nat.tcp.len(), MAX_FLOWS - 1);
-    permits.pop();
-    assert!(ConnectPermit::acquire().is_some());
+    nat.tcp_in_with_connect(&[2; 6], &[10, 0, 2, 15], &[127, 0, 0, 1], &segment(199, 0, SYN, &[]), 0, |_| None);
+    assert_eq!(nat.tcp.len(), MAX_FLOWS);
+    assert!(nat.tcp.iter().all(|c| matches!(c.transport, Transport::TimeWait)));
+    let (_tx, rx) = channel();
+    nat.tcp_in_with_connect(&[2; 6], &[10, 0, 2, 15], &[127, 0, 0, 1], &segment(199, 0, SYN, &[]), 0, |_| Some(rx));
+    assert_eq!(nat.tcp.len(), MAX_FLOWS);
+    assert!(matches!(nat.tcp.last().unwrap().transport, Transport::Connecting(_)));
+}
+
+#[test]
+fn udp_at_capacity_reuses_existing_flows_and_evicts_the_least_recent() {
+    let receiver = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+    receiver.set_read_timeout(Some(std::time::Duration::from_secs(1))).unwrap();
+    let port = receiver.local_addr().unwrap().port();
+    let mut nat = Nat::new(false);
+    let mut bytes = [0; 16];
+    for sport in 0..MAX_FLOWS as u16 {
+        nat.udp_out(&[2; 6], &[10, 0, 2, 15], sport, &[127, 0, 0, 1], &[127, 0, 0, 1], port, b"one", sport as u64);
+        assert_eq!(receiver.recv_from(&mut bytes).unwrap().0, 3);
+    }
+    nat.udp_out(&[2; 6], &[10, 0, 2, 15], 0, &[127, 0, 0, 1], &[127, 0, 0, 1], port, b"reuse", 100);
+    assert_eq!(receiver.recv_from(&mut bytes).unwrap().0, 5);
+    assert_eq!(nat.udp_flows, MAX_FLOWS as u64);
+    nat.udp_out(&[2; 6], &[10, 0, 2, 15], 1234, &[127, 0, 0, 1], &[127, 0, 0, 1], port, b"new", 101);
+    assert_eq!(receiver.recv_from(&mut bytes).unwrap().0, 3);
+    assert_eq!(nat.udp.len(), MAX_FLOWS);
+    assert_eq!(nat.udp_evicted, 1);
+    assert!(nat.udp.iter().any(|f| f.guest_port == 0));
+    assert!(!nat.udp.iter().any(|f| f.guest_port == 1));
+    assert!(nat.udp.iter().any(|f| f.guest_port == 1234));
+    assert_eq!(nat.udp_send_errors, 0);
 }
 
 #[test]
