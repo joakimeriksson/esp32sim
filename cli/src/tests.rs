@@ -36,3 +36,32 @@ fn reset_loop_spends_one_run_budget() {
     assert!(m.reboots > 0 && m.reboots < 10, "reboots: {}", m.reboots);
     assert!(m.insns() < 100, "instructions: {}", m.insns());
 }
+
+#[test]
+fn approximate_options_reject_unsupported_combinations() {
+    for chip in ["c3", "c6", "esp32c3", "esp32c6"] {
+        for flag in ["--approximate-timing", "--approximate-cache", "--approximate-memory"] {
+            let mut args = vec!["esp32sim".into(), flag.into()];
+            if flag == "--approximate-memory" { args.push("3".into()); }
+            assert!(validate_timing(&parse(&args, chip)).unwrap_err().contains("require --chip s3"));
+        }
+    }
+    let mut o = Opts { chip: "s3".into(), memory_contention: true, ..Default::default() };
+    assert!(validate_timing(&o).unwrap_err().contains("requires --approximate-memory"));
+    o.approximate_timing = true;
+    o.approximate_memory = Some(3);
+    assert!(validate_timing(&o).unwrap_err().contains("requires --boot rom"));
+    o.boot = Some("rom".into());
+    assert!(validate_timing(&o).is_ok());
+}
+
+#[test]
+fn timing_cycle_values_report_usage_errors() {
+    for name in ["--approximate-memory", "ESP32SIM_CACHE_FILL", "ESP32SIM_CACHE_WRITEBACK"] {
+        for value in ["", "wrong", "-1", "4294967296"] {
+            assert!(timing_cycles(value, name).unwrap_err().starts_with(name));
+        }
+        assert_eq!(timing_cycles("0", name), Ok(0));
+        assert_eq!(timing_cycles("4294967295", name), Ok(u32::MAX));
+    }
+}

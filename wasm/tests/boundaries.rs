@@ -58,7 +58,8 @@ fn stub_symbols_take_precedence_over_hexadecimal_spelling() {
     machine.symbols.insert(0x5678, "0xcafe".into());
     assert_eq!(machine.resolve_stub("deadbeef"), Some(0x1234));
     assert_eq!(machine.resolve_stub("0xcafe"), Some(0x5678));
-    assert_eq!(machine.resolve_stub("cafe"), Some(0xcafe));
+    for missing in ["add", "cafe", "dead", "f"] { assert_eq!(machine.resolve_stub(missing), None); }
+    assert_eq!(machine.resolve_stub("0x123abc"), Some(0x123abc));
     assert_eq!(machine.resolve_stub("0x0xcafe"), None);
 }
 

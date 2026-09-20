@@ -67,10 +67,10 @@ impl<S: Soc> Machine<S> {
         }
     }
 
-    /// Resolve a symbol first, then a hexadecimal address with an optional `0x` prefix.
+    /// Resolve a symbol first, then a hexadecimal address with a required `0x` prefix.
     pub fn resolve_stub(&self, name: &str) -> Option<u32> {
         self.sym_addr(name).or_else(|| {
-            u32::from_str_radix(name.strip_prefix("0x").unwrap_or(name), 16).ok()
+            u32::from_str_radix(name.strip_prefix("0x")?, 16).ok()
         })
     }
 

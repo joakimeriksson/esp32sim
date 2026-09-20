@@ -126,9 +126,17 @@ fn header<'a>(head: &'a str, name: &str) -> Option<&'a str> {
 }
 
 /// Browsers always send Origin; only pages served by this loopback listener may
-/// control it. Native tools without Origin remain trusted local clients.
+/// control it, including a forwarded loopback Host port. Native tools without Origin remain trusted local clients.
 fn local_origin(head: &str, port: u16) -> bool {
     let Some(origin) = header(head, "Origin") else { return true; };
+    if let Some(host) = header(head, "Host") {
+        let (name, port_text) = match host.rsplit_once(':') {
+            Some((name, port)) => (name, Some(port)), None => (host, None),
+        };
+        let loopback = matches!(name, "localhost" | "127.0.0.1" | "[::1]");
+        let valid_port = port_text.is_none_or(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()) && p.parse::<u16>().is_ok());
+        if loopback && valid_port && origin == format!("http://{host}") { return true; }
+    }
     ["127.0.0.1", "localhost"].iter().any(|host| {
         origin == format!("http://{host}:{port}") || (port == 80 && origin == format!("http://{host}"))
     })

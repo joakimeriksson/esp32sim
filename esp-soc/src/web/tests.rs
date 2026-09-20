@@ -217,3 +217,16 @@ fn static_symlinks_cannot_escape_root() {
     assert_eq!(static_file(&root.public(), "/leak.txt"), None);
     assert_eq!(static_file(&root.public(), "/alias.txt"), Some(b"public".to_vec()));
 }
+
+#[test]
+fn websocket_origin_accepts_matching_forwarded_loopback_host() {
+    for host in ["localhost:9000", "127.0.0.1:9000", "[::1]:9000", "localhost"] {
+        let request = format!("GET /ws HTTP/1.1\r\nHost: {host}\r\nOrigin: http://{host}\r\n\r\n");
+        assert!(local_origin(&request, 8080), "{host}");
+    }
+    for host in ["localhost.evil:9000", "evil:9000", "127.0.0.1:9000@evil", "localhost:65536", "localhost:", "localhost:+80"] {
+        let request = format!("GET /ws HTTP/1.1\r\nHost: {host}\r\nOrigin: http://{host}\r\n\r\n");
+        assert!(!local_origin(&request, 8080), "{host}");
+    }
+    assert!(!local_origin("GET /ws HTTP/1.1\r\nHost: localhost:9000\r\nOrigin: http://localhost:9001\r\n\r\n", 8080));
+}

@@ -15,6 +15,37 @@ fn usage(chip: &str) -> ! {
     std::process::exit(2)
 }
 
+fn usage_error(message: &str) -> ! { eprintln!("{message}"); std::process::exit(2) }
+
+fn timing_cycles(value: &str, name: &str) -> Result<u32, String> {
+    value.parse().map_err(|_| format!("{name}: expected a nonnegative u32 cycle count, got {value:?}"))
+}
+
+fn validate_timing(o: &Opts) -> Result<(), String> {
+    if o.approximate_timing && !matches!(o.chip.as_str(), "s3" | "esp32s3") {
+        return Err("--approximate-timing, --approximate-memory and --approximate-cache require --chip s3".into());
+    }
+    if o.memory_contention && o.approximate_memory.is_none() {
+        return Err("--memory-contention requires --approximate-memory".into());
+    }
+    if o.approximate_memory.is_some() && o.boot.as_deref() != Some("rom") {
+        return Err("--approximate-memory requires --boot rom for its MMU shadow".into());
+    }
+    Ok(())
+}
+
+fn cache_config() -> Result<esp32s3::approximate_cache::CacheConfig, String> {
+    let mut cache = esp32s3::approximate_cache::CacheConfig::default();
+    for (name, cycles) in [("ESP32SIM_CACHE_FILL", &mut cache.fill_cycles), ("ESP32SIM_CACHE_WRITEBACK", &mut cache.writeback_cycles)] {
+        match std::env::var(name) {
+            Ok(value) => *cycles = timing_cycles(&value, name)?,
+            Err(std::env::VarError::NotPresent) => {},
+            Err(_) => return Err(format!("{name}: expected a UTF-8 cycle count")),
+        }
+    }
+    Ok(cache)
+}
+
 fn hex(s: &str, what: &str) -> u32 { u32::from_str_radix(s.trim_start_matches("0x"), 16).unwrap_or_else(|_| { eprintln!("--{}: bad hex {}", what, s); std::process::exit(2) }) }
 fn pair(s: &str, dflt: usize) -> (u32, usize) { match s.split_once(',') { Some((a, n)) => (hex(a, "addr"), n.parse().unwrap_or(dflt)), None => (hex(s, "addr"), dflt) } }
 
@@ -59,7 +90,7 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
         let mut next = || { i += 1; args.get(i).cloned().unwrap_or_else(|| usage(default_chip)) };
         match a {
             "--approximate-timing" => o.approximate_timing = true,
-            "--approximate-memory" => { o.approximate_timing = true; o.approximate_memory = Some(next().parse().expect("memory extra cycles")); }
+            "--approximate-memory" => { o.approximate_timing = true; o.approximate_memory = Some(timing_cycles(&next(), "--approximate-memory").unwrap_or_else(|e| usage_error(&e))); }
             "--memory-contention" => o.memory_contention = true,
             "--approximate-cache" => { o.approximate_timing = true; o.approximate_cache = true; },
             "--chip" => o.chip = next().to_ascii_lowercase(),
@@ -144,6 +175,8 @@ fn find_rom(name: &str) -> Option<PathBuf> {
 pub fn run_cli(default_chip: &str) {
     let args: Vec<String> = std::env::args().collect();
     let mut o = parse(&args, default_chip);
+    validate_timing(&o).unwrap_or_else(|e| usage_error(&e));
+    if o.approximate_cache { cache_config().unwrap_or_else(|e| usage_error(&e)); }
     if o.cooja { return run_cooja(&mut o); }
     match o.chip.as_str() {
         "s3" | "esp32s3" => { let m = setup_s3(&o); run(m, &o) }
@@ -265,26 +298,22 @@ fn run<S: Soc>(mut m: Machine<S>, o: &Opts) {
     let approximate = o.approximate_timing.then(|| {
         let mut config = esp32s3::ApproximateTimingConfig::default();
         if o.approximate_cache && o.approximate_memory.is_none() {
-            let mut cache = esp32s3::approximate_cache::CacheConfig::default();
-            if let Ok(value) = std::env::var("ESP32SIM_CACHE_FILL") { cache.fill_cycles = value.parse().expect("ESP32SIM_CACHE_FILL cycles"); }
-            if let Ok(value) = std::env::var("ESP32SIM_CACHE_WRITEBACK") { cache.writeback_cycles = value.parse().expect("ESP32SIM_CACHE_WRITEBACK cycles"); }
-            config.data_cache = Some(cache);
+            config.data_cache = Some(cache_config().unwrap_or_else(|e| usage_error(&e)));
         }
         esp32s3::ApproximateCostModel::new(config)
     });
     let memory_model = o.approximate_memory.map(|extra| {
         use esp32s3::rough_memory::{MemoryConfig, MemoryPrice};
-        assert_eq!(o.boot.as_deref(), Some("rom"), "memory MMU shadow requires --boot rom");
         let external = MemoryPrice { latency: extra, ..MemoryPrice::FREE };
         let model = esp32s3::memory_cost_model::MemoryCostModel::new(approximate.as_ref().unwrap().clone(),
             MemoryConfig { flash: external, psram: external, contention: o.memory_contention, ..Default::default() });
-        if o.approximate_cache { model.with_cache(esp32s3::approximate_cache::CacheConfig::default()) } else { model }
+        if o.approximate_cache { model.with_cache(cache_config().unwrap_or_else(|e| usage_error(&e))) } else { model }
     });
     if let Some(model) = &approximate {
         let cost: Box<dyn emu_core::CostModel> = match &memory_model {
             Some(memory) => Box::new(memory.clone()), None => Box::new(model.clone()),
         };
-        m.set_cost_model(cost).expect("approximate timing attachment");
+        m.set_cost_model(cost).unwrap_or_else(|e| usage_error(&format!("--approximate-timing: {e}")));
         eprintln!("[emu] APPROXIMATE timing: {:?}; use --boot rom; accuracy unvalidated", model.config);
     }
     let boot = prepare(&mut m, o);
