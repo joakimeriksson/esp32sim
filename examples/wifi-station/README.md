@@ -4,6 +4,9 @@ The ESP-IDF `wifi/getting_started/station` example, WPA2-PSK, SSID `esp32sim`, p
 `esp32sim-pass`, built for the S3
 (`idf.py set-target esp32s3 build`). Used to reverse-engineer and drive the WiFi MAC model.
 
+Build first with ESP-IDF 5.5.4 (`idf.py set-target esp32s3 build`): the binaries
+and ELF under `build/` are generated locally and are not committed. Then run:
+
     ../../target/release/esp32sim --board none --boot rom --console usb --max-seconds 15 \
       --bootloader build/bootloader/bootloader.bin --ptable build/partition_table/partition-table.bin \
       --app build/wifi_station.bin --elf build/wifi_station.elf --wifi ssid=esp32sim,psk=esp32sim-pass
