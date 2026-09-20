@@ -1,6 +1,9 @@
 //! ESP32-S3 capabilities exposed by the browser ABI.
 use super::{Emu, log, bytes};
 
+// Keep user-supplied per-event prices bounded well below the u32 timing accumulator.
+const MAX_TIMING_PRICE: u32 = 1_000_000;
+
 /// Attach the virtual access point and subnet: `ssid=NAME,psk=PASS,chan=N`. No NAT — the browser
 /// has no sockets — so DHCP, DNS, SNTP and ICMP answer, and connections past the gateway are refused.
 ///
@@ -100,7 +103,7 @@ pub unsafe extern "C" fn esp32sim_set_approximate_jit_frontiers(e: *mut Emu, ena
 pub unsafe extern "C" fn esp32sim_set_approximate_jit_cache(e: *mut Emu, fill: u32, writeback: u32, fast_internal: u32) -> u32 {
     let e = unsafe { &mut *e };
     let Some(m) = e.m.s3_mut() else { return 1 };
-    if m.insns() != 0 || !m.has_approximate_jit_timing() || fast_internal > 3 || fill > 1_000_000 || writeback > 1_000_000 { return 1; }
+    if m.insns() != 0 || !m.has_approximate_jit_timing() || fast_internal > 3 || fill > MAX_TIMING_PRICE || writeback > MAX_TIMING_PRICE { return 1; }
     if fast_internal >= 2 && !cfg!(all(target_arch = "wasm32", feature = "cache-inline")) { return 1; }
     // `fast_internal` values 2 and 3 both select the inline probe; 3 also selects the 64 KB data
     // cache some firmware configures (EXTMEM_DCACHE_CTRL size mode 1; pocket-tank does).
@@ -171,7 +174,7 @@ pub unsafe extern "C" fn esp32sim_set_quantum(e: *mut Emu, instructions: u32) ->
 pub unsafe extern "C" fn esp32sim_set_icache_fill(e: *mut Emu, cycles: u32) -> u32 {
     let e = unsafe { &mut *e };
     let Some(m) = e.m.s3_mut() else { return 1 };
-    if m.insns() != 0 || cycles > 1_000_000 || (cycles != 0 && !m.has_approximate_jit_timing()) { return 1; }
+    if m.insns() != 0 || cycles > MAX_TIMING_PRICE || (cycles != 0 && !m.has_approximate_jit_timing()) { return 1; }
     m.cores[0].fetch_cache.reset();
     for cpu in &mut m.cores { cpu.icache_fill = cycles; }
     #[cfg(target_arch = "wasm32")]
@@ -210,7 +213,7 @@ pub unsafe extern "C" fn esp32sim_set_approximate_cache_contention(e: *mut Emu, 
 pub unsafe extern "C" fn esp32sim_set_approximate_cache_fill_service(e: *mut Emu, cycles: u32) -> u32 {
     let e = unsafe { &mut *e };
     let Some(m) = e.m.s3_mut() else { return 1 };
-    if m.insns() != 0 || cycles > 1_000_000 || m.bus.approximate_cache_stats().is_none() { return 1; }
+    if m.insns() != 0 || cycles > MAX_TIMING_PRICE || m.bus.approximate_cache_stats().is_none() { return 1; }
     u32::from(!m.bus.set_approximate_cache_fill_service(cycles))
 }
 
@@ -222,7 +225,7 @@ pub unsafe extern "C" fn esp32sim_set_approximate_cache_fill_service(e: *mut Emu
 pub unsafe extern "C" fn esp32sim_set_approximate_flash_timing(e: *mut Emu, ready: u32, service: u32) -> u32 {
     let e = unsafe { &mut *e };
     let Some(m) = e.m.s3_mut() else { return 1 };
-    if m.insns() != 0 || ready > 1_000_000 || service > 1_000_000 { return 1; }
+    if m.insns() != 0 || ready > MAX_TIMING_PRICE || service > MAX_TIMING_PRICE { return 1; }
     u32::from(!m.bus.set_approximate_flash_timing(ready, service))
 }
 

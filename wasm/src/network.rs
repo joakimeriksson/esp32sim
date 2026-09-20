@@ -48,9 +48,11 @@ pub struct Net { net: esp32c6::net::Network, console: Vec<u8> }
     // SAFETY: The caller provides a readable board name for this call.
     let board = unsafe { text(board, board_len) };
     let board = if board.is_empty() { "none" } else { board };
-    if esp32c6::board::make_board(board).is_none() { log("[emu] net: unknown board"); return u32::MAX; }
     let Some(flash) = mib_bytes(flash_mb.max(1)) else { log("[emu] net flash size exceeds 32 MiB"); return u32::MAX };
-    n.net.add(m, flash, start_ns.max(0.0) as u64, x, y, board) as u32
+    match n.net.add(m, flash, start_ns.max(0.0) as u64, x, y, board) {
+        Ok(index) => index as u32,
+        Err(reason) => { log(&format!("[emu] net: {reason}")); u32::MAX }
+    }
 }
 
 /// Load an image into one node: the same `kind` numbering as `esp32sim_load`.

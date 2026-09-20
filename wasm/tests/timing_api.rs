@@ -108,3 +108,22 @@ fn wait_query_does_not_alias_invalid_cores() {
         }
     }
 }
+
+#[test]
+fn excessive_prices_are_rejected_before_mutation() {
+    let e = Emulator::new("atech14");
+    // SAFETY: all calls exclusively borrow this wrapper's live emulator.
+    unsafe {
+        assert_eq!(esp32sim_set_approximate_jit_timing(e.0, 1, 512), 0);
+        for price in [1_000_001, u32::MAX] {
+            assert_eq!(esp32sim_set_approximate_jit_cache(e.0, price, 40, 0), 1);
+            assert_eq!(esp32sim_set_approximate_jit_cache(e.0, 96, price, 0), 1);
+            assert_eq!(esp32sim_set_icache_fill(e.0, price), 1);
+        }
+        assert_eq!(esp32sim_set_approximate_jit_cache(e.0, 96, 40, 0), 0);
+        assert_eq!(esp32sim_set_approximate_cache_fill_service(e.0, u32::MAX), 1);
+        assert_eq!(esp32sim_set_approximate_flash_timing(e.0, 96, u32::MAX), 1);
+        assert_eq!(esp32sim_set_approximate_flash_timing(e.0, u32::MAX, 96), 1);
+        assert_eq!(esp32sim_set_approximate_flash_timing(e.0, 96, 160), 0);
+    }
+}

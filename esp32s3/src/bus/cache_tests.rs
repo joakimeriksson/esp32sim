@@ -167,3 +167,19 @@ fn approximate_cache_keeps_only_internal_mappings_direct() {
     assert!(!bus.block_break());
 }
 
+
+#[test]
+fn cache_reconfiguration_discards_inline_and_fast_internal_modes() {
+    let mut bus = SocBus::new(65536, 65536, [0; 6]);
+    bus.enable_approximate_cache(Default::default());
+    // Simulate the prior inline mode, including on native where inline codegen is unavailable.
+    bus.approximate_cache_inline = true;
+    bus.approximate_cache_fast_internal = true;
+    bus.enable_approximate_cache(Default::default());
+    assert!(!bus.approximate_cache_inline);
+    assert!(!bus.approximate_cache_fast_internal);
+    assert!(bus.fast_cache().is_none());
+    bus.set_approximate_cache_fast_internal(true);
+    assert!(!bus.approximate_cache_inline);
+    assert!(bus.fast_cache().is_none());
+}
