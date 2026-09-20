@@ -17,3 +17,5 @@ The fixes were integrated above pre-review stack tip `661623ea`. Runtime source 
 Commands match the CI workflow, with local ROMs supplied through `ESP32SIM_ROM_DIR`. The profiling command used `cargo build --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests,jit-profile,cpu-profile` followed by `node tools/wasm-jit-test.mjs`; `tools/wasm-rustflags.sh` supplied the same default threshold as production. Native VQ used `ESP32SIM_VQ_NATIVE=1`. These local results do not claim that unmodified lower PR heads were independently retested.
 
 Benchmark speed, work/output equality and measurement limits are in the [M3 report](README.md). Review dispositions and unresolved qualification requests are in [reviews.md](reviews.md).
+
+The integrated native CLI also completed an ESP-IDF WPA2 join/DHCP and a controlled Linux-on-S3 TCP download of an exact 27-byte marker. See [firmware commands, input hashes and limits](firmware-qualification/result.txt). Separate lwIP application traffic and loss/retransmission stress are not established by that smoke test.

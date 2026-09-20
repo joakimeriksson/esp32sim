@@ -1,0 +1,15 @@
+24 uart0 root
+27 uart0 changeme123
+29 uart0 killall ntpd
+30 uart0 iptables -P OUTPUT DROP
+31 uart0 iptables -A OUTPUT -p udp --dport 67 -j ACCEPT
+32 uart0 iptables -A OUTPUT -d 127.0.0.1 -p tcp --dport 18799 -j ACCEPT
+34 uart0 wifi-setup esp32sim esp32sim-pass
+52 uart0 ifconfig espsta0
+54 uart0 sysctl -w net.ipv4.conf.all.route_localnet=1
+55 uart0 ip rule del pref 0
+56 uart0 ip rule add pref 0 to 127.0.0.1 lookup main
+57 uart0 ip rule add pref 1 lookup local
+58 uart0 ip route add 127.0.0.1/32 via 10.0.2.2 dev espsta0
+60 uart0 wget -T 5 -O - http://127.0.0.1:18799/qualification
+68 uart0 iptables -nvL OUTPUT

@@ -1,0 +1,743 @@
+[emu] virtual AP 'esp32sim' bssid 02:53:49:4d:00:01 channel 6 (WPA2-PSK)
+[emu] NAT to the host network enabled (DNS via 172.20.10.1)
+[emu] virtual network: station 10.0.2.15, gateway 10.0.2.2 (DHCP, ARP, ICMP, DNS, NTP)
+[emu] ROM loaded from /Users/user/.espressif/tools/esp-rom-elfs/20241011/esp32s3_rev0_rom.elf
+[emu] ROM boot from reset vector 0x40000400
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x1 (POWERON),boot:0xf (SPI_FAST_FLASH_BOOT)
+configspi:0x00000008
+SPIWP:0x00
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x152c
+load:0x403c8700,len:0xce4
+load:0x403cb700,len:0x2efc
+entry 0x403c8920
+I (7) boot: ESP-IDF v5.5.4 2nd stage bootloader
+I (7) boot: compile time Aug 25 2026 21:30:25
+I (7) boot: Multicore bootloader
+I (7) boot: chip revision: v0.0
+I (7) boot: efuse block revision: v1.0
+I (7) boot.esp32s3: Boot SPI Speed : 80MHz
+I (7) boot.esp32s3: SPI Mode       : DIO
+I (7) boot.esp32s3: SPI Flash Size : 2MB
+I (7) boot: Enabling RNG early entropy source...
+I (7) boot: Partition Table:
+I (7) boot: ## Label            Usage          Type ST Offset   Length
+I (7) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (7) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (7) boot:  2 factory          factory app      00 00 00010000 00100000
+I (8) boot: End of partition table
+I (8) esp_image: segment 0: paddr=00010020 vaddr=3c080020 size=202ech (131820) map
+I (16) esp_image: segment 1: paddr=00030314 vaddr=3fc99e00 size=04ce4h ( 19684) load
+I (18) esp_image: segment 2: paddr=00035000 vaddr=40374000 size=0b018h ( 45080) load
+I (22) esp_image: segment 3: paddr=00040020 vaddr=42000020 size=7846ch (492652) map
+I (54) esp_image: segment 4: paddr=000b8494 vaddr=4037f018 size=0acech ( 44268) load
+I (57) esp_image: segment 5: paddr=000c3188 vaddr=50000000 size=00020h (    32) load
+I (61) boot: Loaded app from partition at offset 0x10000
+I (61) boot: Disabling RNG early entropy source...
+D (61) rtcinit: core voltage not decided in efuse, use default value.
+I (62) cpu_start: Multicore app
+D (62) cpu_start: Pro cpu up
+D (62) cpu_start: Starting app cpu, entry point is 0x40375410
+D (0) cpu_start: App cpu up
+D (70) clk: RTC_SLOW_CLK calibration value: 3495245
+D (70) cpu_start: calling init function: 0x4200194c on core: 0
+D (70) cpu_start: calling init function: 0x42001f1c on core: 0
+I (70) cpu_start: Pro cpu start user code
+I (70) cpu_start: cpu freq: 160000000 Hz
+D (70) cpu_start: calling init function: 0x4200187c on core: 0
+I (70) app_init: Application information:
+I (70) app_init: Project name:     wifi_station
+I (70) app_init: App version:      5e3e19c-dirty
+I (70) app_init: Compile time:     Aug 25 2026 21:30:21
+I (70) app_init: ELF file SHA256:  2f88bd958...
+I (70) app_init: ESP-IDF:          v5.5.4
+D (70) cpu_start: calling init function: 0x42001960 on core: 0
+I (70) efuse_init: Min chip rev:     v0.0
+I (70) efuse_init: Max chip rev:     v0.99 
+I (70) efuse_init: Chip rev:         v0.0
+D (71) cpu_start: calling init function: 0x420038fc on core: 0
+D (71) memory_layout: Checking 6 reserved memory ranges:
+D (71) memory_layout: Reserved memory range 0x3fc84000 - 0x3fc99e00
+D (71) memory_layout: Reserved memory range 0x3fc99e00 - 0x3fca2710
+D (71) memory_layout: Reserved memory range 0x3fceee34 - 0x3fcf0000
+D (71) memory_layout: Reserved memory range 0x40374000 - 0x40389e00
+D (71) memory_layout: Reserved memory range 0x600fe000 - 0x600fe000
+D (71) memory_layout: Reserved memory range 0x600fffe8 - 0x60100000
+D (71) memory_layout: Building list of available memory regions:
+D (71) memory_layout: Available memory region 0x3fca2710 - 0x3fcb0000
+D (71) memory_layout: Available memory region 0x3fcb0000 - 0x3fcc0000
+D (71) memory_layout: Available memory region 0x3fcc0000 - 0x3fcd0000
+D (71) memory_layout: Available memory region 0x3fcd0000 - 0x3fce0000
+D (71) memory_layout: Available memory region 0x3fce0000 - 0x3fce9710
+D (71) memory_layout: Available memory region 0x3fce9710 - 0x3fceee34
+D (71) memory_layout: Available memory region 0x3fcf0000 - 0x3fcf8000
+D (71) memory_layout: Available memory region 0x600fe000 - 0x600fffe8
+I (71) heap_init: Initializing. RAM available for dynamic allocation:
+D (71) heap_init: New heap initialised at 0x3fca2710
+I (71) heap_init: At 3FCA2710 len 00047000 (284 KiB): RAM
+I (71) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+D (72) heap_init: New heap initialised at 0x3fcf0000
+I (72) heap_init: At 3FCF0000 len 00008000 (32 KiB): DRAM
+D (72) heap_init: New heap initialised at 0x600fe000
+I (72) heap_init: At 600FE000 len 00001FE8 (7 KiB): RTCRAM
+D (72) cpu_start: calling init function: 0x42001608 on core: 0
+D (72) cpu_start: calling init function: 0x42006988 on core: 0
+D (72) cpu_start: calling init function: 0x42001f68 on core: 0
+D (72) intr_alloc: Connected src 39 to int 1 (cpu 0)
+D (72) cpu_start: calling init function: 0x42001f78 on core: 0
+D (72) cpu_start: calling init function: 0x420077c0 on core: 0
+D (72) cpu_start: calling init function: 0x42008ce8 on core: 0
+D (72) cpu_start: calling init function: 0x420079f8 on core: 0
+D (72) cpu_start: calling init function: 0x42006994 on core: 0
+D (72) cpu_start: calling init function: 0x42001f84 on core: 0
+D (72) spi_flash: trying chip: issi
+D (72) spi_flash: trying chip: gd
+D (72) spi_flash: trying chip: mxic
+D (72) spi_flash: trying chip: winbond
+D (72) spi_flash: trying chip: boya
+D (72) spi_flash: trying chip: th
+D (72) spi_flash: trying chip: mxic (opi)
+D (72) spi_flash: trying chip: generic
+I (73) spi_flash: detected chip: generic
+I (73) spi_flash: flash io: dio
+W (73) spi_flash: Detected size(8192k) larger than the size in the binary image header(2048k). Using the size in the binary image header.
+D (73) cpu_start: calling init function: 0x420019fc on core: 0
+D (73) cpu_start: calling init function: 0x4203ee00 on core: 0
+D (73) intr_alloc: Connected src 59 to int 2 (cpu 0)
+D (73) cpu_start: calling init function: 0x4206ff04 on core: 0
+D (73) cpu_start: calling init function: 0x4200477c on core: 0
+I (73) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (73) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+D (73) cpu_start: calling init function: 0x42001fb8 on core: 0
+D (73) cpu_start: calling init function: 0x42007090 on core: 0
+D (73) cpu_start: calling init function: 0x42001fc4 on core: 0
+D (74) intr_alloc: Connected src 79 to int 3 (cpu 0)
+D (74) app_start: Starting scheduler on CPU0
+D (74) intr_alloc: Connected src 57 to int 5 (cpu 0)
+D (74) intr_alloc: ConnectedI s r(c7 4) m8ai0n t_ot aisnkt:  S0t (acrpteu d o1n )C
+PU0D 
+(74) app_start: Starting scheduler on CPU1
+D (74) intr_alloc: Connected src 58 to int 1 (cpu 1)
+D (74) heap_init: New heap initialised at 0x3fce9710
+D (74) intr_alloc: Connected src 52 to int 8 (cpu 0)
+I (74) main_task: Calling app_main()
+I (74) wifi station: ESP_WIFI_MODE_STA
+D (74) esp_netif_lwip: LwIP stack has been initialized
+D (74) esp_netif_lwip: esp-netif has been successfully initialized
+D (74) event: running task for loop 0x3fceb1c4
+D (74) event: created task for loop 0x3fceb1c4
+D (74) event: created event loop 0x3fceb1c4
+D (74) esp_netif_lwip: check: remote, if=0x3fca5fe0 fn=0x4200fae4
+D (74) esp_netif_objects: esp_netif_add_to_list_unsafe netif added successfully (total netifs: 1)
+D (74) esp_netif_lwip: call api in lwip: ret=0x0, give sem
+I (74) pp: pp rom version: e7ae62f
+I (74) net80211: net80211 rom version: e7ae62f
+D (74) nvs: nvs_open_from_partition misc 1
+I (84) wifi:wifi driver task: 3fceec10, prio:23, stack:6656, core=0
+D (84) efuse: BLK1 REG1 [8-15], len=8 bits
+D (84) efuse: BLK1 REG1 [0-7], len=8 bits
+D (84) efuse: BLK1 REG0 [24-31], len=8 bits
+D (84) efuse: BLK1 REG0 [16-23], len=8 bits
+D (84) efuse: BLK1 REG0 [8-15], len=8 bits
+D (84) efuse: BLK1 REG0 [0-7], len=8 bits
+D (84) nvs: nvs_open_from_partition nvs.net80211 1
+D (84) nvs: nvs_get opmode 1
+D (84) nvs: nvs_get_str_or_blob sta.ssid
+D (84) nvs: nvs_get sta.authmode 1
+D (84) nvs: nvs_get_str_or_blob sta.pswd
+D (84) nvs: nvs_get_str_or_blob sta.pmk
+D (84) nvs: nvs_get sta.chan 1
+D (84) nvs: nvs_get auto.conn 1
+D (84) nvs: nvs_get bssid.set 1
+D (84) nvs: nvs_get_str_or_blob sta.bssid
+D (84) nvs: nvs_get sta.lis_intval 2
+D (84) nvs: nvs_get sta.phym 1
+D (84) nvs: nvs_get sta.phybw 1
+D (84) nvs: nvs_get_str_or_blob sta.apsw
+D (84) nvs: nvs_get_str_or_blob sta.apinfo
+D (84) nvs: nvs_get sta.scan_method 1
+D (84) nvs: nvs_get sta.sort_method 1
+D (84) nvs: nvs_get sta.minrssi 1
+D (84) nvs: nvs_get sta.minauth 1
+D (84) nvs: nvs_get sta.pmf_e 1
+D (84) nvs: nvs_get sta.pmf_r 1
+D (84) nvs: nvs_get sta.btm_e 1
+D (84) nvs: nvs_get sta.rrm_e 1
+D (84) nvs: nvs_get sta.mbo_e 1
+D (84) nvs: nvs_get_str_or_blob ap.ssid
+D (84) nvs: nvs_get_str_or_blob ap.passwd
+D (84) nvs: nvs_get_str_or_blob ap.pmk
+D (84) nvs: nvs_get ap.chan 1
+D (84) nvs: nvs_get ap.authmode 1
+D (84) nvs: nvs_get ap.hidden 1
+D (84) nvs: nvs_get ap.max.conn 1
+D (84) nvs: nvs_get bcn.interval 2
+D (84) nvs: nvs_get ap.phym 1
+D (84) nvs: nvs_get ap.phybw 1
+D (84) nvs: nvs_get ap.sndchan 1
+D (84) nvs: nvs_get ap.pmf_e 1
+D (84) nvs: nvs_get ap.pmf_r 1
+D (84) nvs: nvs_get ap.p_cipher 1
+D (84) nvs: nvs_get lorate 1
+D (84) nvs: nvs_get_str_or_blob country
+D (84) nvs: nvs_get ap.ftm_r 1
+D (84) nvs: nvs_get sta.ft 1
+D (84) nvs: nvs_get sta.owe 1
+D (84) nvs: nvs_get sta.trans_d 1
+D (84) nvs: nvs_get sta.sae_h2e 1
+D (84) nvs: nvs_get sta.sae_pk_mode 1
+D (84) nvs: nvs_get sta.bss_retry 1
+D (84) nvs: nvs_get_str_or_blob sta.owe_data
+D (84) nvs: nvs_get sta.he_dcm 1
+D (84) nvs: nvs_get sta.he_dcm_c_tx 1
+D (84) nvs: nvs_get sta.he_dcm_c_rx 1
+D (84) nvs: nvs_get sta.he_mcs9_d 1
+D (84) nvs: nvs_get sta.he_su_b_d 1
+D (84) nvs: nvs_get sta.he_su_b_f_d 1
+D (84) nvs: nvs_get sta.he_mu_b_f_d 1
+D (84) nvs: nvs_get sta.he_cqi_f_d 1
+D (84) nvs: nvs_get_str_or_blob sta.sae_h2e_id
+D (84) nvs: nvs_get ap.sae_h2e 1
+D (84) nvs: nvs_get_str_or_blob ap.pmk_info
+D (84) nvs: nvs_get nan.phym 1
+D (84) nvs: nvs_get sta.pwr_reset 1
+D (84) nvs: nvs_get band_mode 1
+D (84) nvs: nvs_get sta.phym5g 1
+D (84) nvs: nvs_get ap.phym5g 1
+D (84) nvs: nvs_get sta.phybw5g 1
+D (84) nvs: nvs_get ap.phybw5g 1
+D (84) nvs: nvs_get ap.sndchan5g 1
+D (84) nvs: nvs_get ap.chan5g 1
+D (84) nvs: nvs_get ap.chanisset 1
+D (84) nvs: nvs_get ap.chan5gisset 1
+D (84) nvs: nvs_get sta.lowrate 1
+D (84) nvs: nvs_get ap.lowrate 1
+D (84) nvs: nvs_get sta.rssi_5g_adj 1
+D (84) nvs: nvs_get ap.csa_count 1
+D (84) nvs: nvs_get ap.dtim_period 1
+D (84) nvs: nvs_get ap.trans_d 1
+D (84) nvs: nvs_get ap.sae_ext 1
+D (84) nvs: nvs_get ap.bssmaxidle 2
+D (84) nvs: nvs_get ap.pro_keep_a 1
+D (84) nvs: nvs_get ap.gtk_rekey 2
+D (84) nvs: nvs_get sta.vht_su_b_d 1
+D (84) nvs: nvs_get sta.vht_mu_b_d 1
+D (84) nvs: nvs_get sta.vht_mcs8_e 1
+D (84) nvs: nvs_get sta.ina_time 2
+D (84) nvs: nvs_get ap.ina_time 2
+D (84) nvs: nvs_set ap.sndchan 1 1
+I (84) wifi:wifi firmware version: 0947e8b
+I (84) wifi:wifi certification version: v7.0
+I (84) wifi:config NVS flash: enabled
+I (84) wifi:config nano formatting: disabled
+I (84) wifi:Init data frame dynamic rx buffer num: 32
+I (84) wifi:Init static rx mgmt buffer num: 5
+I (84) wifi:Init management short buffer num: 32
+I (84) wifi:Init dynamic tx buffer num: 32
+I (84) wifi:Init static tx FG buffer num: 2
+I (84) wifi:Init static rx buffer size: 1600
+I (84) wifi:Init static rx buffer num: 10
+I (84) wifi:Init dynamic rx buffer num: 32
+D (84) wifi:Reset scan defaults in ms : min,max,passive,chan_dwell :(0,120,360,30)
+I (84) wifi_init: rx ba win: 6
+I (84) wifi_init: accept mbox: 6
+I (84) wifi_init: tcpip mbox: 32
+I (84) wifi_init: udp mbox: 6
+I (84) wifi_init: tcp mbox: 6
+I (84) wifi_init: tcp tx win: 5760
+I (84) wifi_init: tcp rx win: 5760
+I (84) wifi_init: tcp mss: 1440
+I (84) wifi_init: WiFi IRAM OP enabled
+I (84) wifi_init: WiFi RX IRAM OP enabled
+D (84) nvs: nvs_get opmode 1
+D (84) wifi:clear blacklist
+D (84) nvs: nvs_set_blob sta.ssid 36
+D (84) nvs: nvs_set_blob sta.pswd 65
+D (84) nvs: nvs_set bssid.set 1 0
+D (84) nvs: nvs_set sta.lis_intval 2 3
+D (84) nvs: nvs_set sta.chan 1 0
+D (84) nvs: nvs_set sta.scan_method 1 0
+D (84) nvs: nvs_set sta.sort_method 1 0
+D (84) nvs: nvs_set sta.minrssi 1 -127
+D (84) nvs: nvs_set sta.minauth 1 3
+D (84) nvs: nvs_set_blob sta.apsw 2
+D (84) nvs: nvs_set sta.pmf_e 1 1
+D (84) nvs: nvs_set sta.pmf_r 1 0
+D (84) nvs: nvs_set sta.rrm_e 1 0
+D (84) nvs: nvs_set sta.btm_e 1 0
+D (84) nvs: nvs_set sta.mbo_e 1 0
+D (84) nvs: nvs_set sta.ft 1 0
+D (84) nvs: nvs_set sta.owe 1 0
+D (84) nvs: nvs_set sta.bss_retry 1 0
+D (84) nvs: nvs_set sta.trans_d 1 0
+D (84) nvs: nvs_set sta.sae_h2e 1 2
+D (84) nvs: nvs_set sta.sae_pk_mode 1 0
+D (84) nvs: nvs_set_blob sta.sae_h2e_id 32
+D (84) nvs: nvs_set_blob sta.apinfo 700
+I (94) phy_init: phy_version 711,97bcf0a2,Aug 25 2025,19:04:10
+D (94) phy_init: loading PHY init data from application binary
+D (94) nvs: nvs_open_from_partition phy 0
+D (94) phy_init: esp_phy_load_cal_data_from_nvs: failed to open NVS namespace (0x1102)
+W (94) phy_init: failed to load RF calibration data (0x1102), falling back to full calibration
+D (94) efuse: BLK1 REG1 [8-15], len=8 bits
+D (94) efuse: BLK1 REG1 [0-7], len=8 bits
+D (94) efuse: BLK1 REG0 [24-31], len=8 bits
+D (94) efuse: BLK1 REG0 [16-23], len=8 bits
+D (94) efuse: BLK1 REG0 [8-15], len=8 bits
+D (94) efuse: BLK1 REG0 [0-7], len=8 bits
+I (94) phy: error: pll_cal exceeds 2ms!!!
+I (94) phy: error: pll_cal exceeds 2ms!!!
+I (94) phy: error: pll_cal exceeds 2ms!!!
+D (94) temperature_sensor: range changed, change to index 2
+I (104) phy: error: pll_cal exceeds 2ms!!!
+I (104) phy: error: pll_cal exceeds 2ms!!!
+I (104) phy: error: pll_cal exceeds 2ms!!!
+I (104) phy_init: Saving new calibration data due to checksum failure or outdated calibration data, mode(2)
+D (104) nvs: nvs_open_from_partition phy 1
+D (104) nvs: nvs_set_blob cal_data 1904
+D (104) efuse: BLK1 REG1 [8-15], len=8 bits
+D (104) efuse: BLK1 REG1 [0-7], len=8 bits
+D (104) efuse: BLK1 REG0 [24-31], len=8 bits
+D (104) efuse: BLK1 REG0 [16-23], len=8 bits
+D (104) efuse: BLK1 REG0 [8-15], len=8 bits
+D (104) efuse: BLK1 REG0 [0-7], len=8 bits
+D (104) nvs: nvs_set_blob cal_mac 6
+D (104) nvs: nvs_set cal_version 4 711
+D (104) nvs: nvs_close 3
+D (104) wifi:filter: set rx policy=0
+I (104) wifi:mode : sta (44:1b:f6:75:dc:e0)
+I (104) wifi:enable tsf
+D (104) wifi:filter: set rx policy=1
+D (104) wifi:connect status 0 -> 0
+D (104) event: running post WIFI_EVENT:43 with handler 0x42008cf4 and context 0x3fced1b4 on loop 0x3fceb1c4
+D (104) event: running post WIFI_EVENT:2 with handler 0x4201235c and context 0x3fcec320 on loop 0x3fceb1c4
+D (104) wifi_init_default: wifi_start esp-netif:0x3fcec104 event-id2
+D (104) wifi_init_default: WIFI mac address: 44 1b f6 75 dc e0
+D (104) esp_netif_lwip: check: remote, if=0x3fcec104 fn=0x4200f288
+D (104) esp_netif_lwip: call api in lwip: ret=0x0, give sem
+D (104) esp_netif_handlers: esp_netif action has started with netif0x3fcec104 from event_id=2
+D (104) esp_netif_lwip: check: remote, if=0x3fcec104 fn=0x4200fd08
+I (104) wifi station: wifi_init_sta finished.
+D (104) esp_netif_lwip: esp_netif_start_api 0x3fcec104
+D (104) esp_netif_lwip: esp_netif_get_hostname esp_netif:0x3fcec104
+D (104) esp_netif_lwip: call api in lwip: ret=0x0, give sem
+D (104) event: running post WIFI_EVENT:2 with handler 0x42008cf4 and context 0x3fced1b4 on loop 0x3fceb1c4
+D (104) wifi:Start wifi connect
+D (104) wifi:connect status 0 -> 0
+D (104) wifi:connect chan=0
+D (104) wifi:first chan=1
+D (104) wifi:connect status 0 -> 1
+D (104) wifi:filter: set rx policy=3
+D (104) wifi:clear scan ap list
+D (104) wifi:start scan: type=0x50f, priority=2, cb=0x4202ad30, arg=0x0, ss_state=0x1, time=0, index=0
+[wifi] TX slot 0 desc 0x3fcae5fc pkt 0x3fcae62c 57 bytes probe-req (0/4) a1=ff:ff:ff:ff:ff:ff a2=44:1b:f6:75:dc:e0 a3=ff:ff:ff:ff:ff:ff ssid='esp32sim' ssid='' ssid=''
+[wifi] AP -> 101 bytes probe-resp (0/5) a1=44:1b:f6:75:dc:e0 a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim' (t+61063 us)
+D (114) wifi:perform scan: ss_state=0x9, chan<1,0>, dur<0,120>
+[wifi] RX -> desc 0x3fca989c 101 bytes probe-resp (0/5) a1=44:1b:f6:75:dc:e0 a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98a8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+D (234) wifi:scan end: arg=0x3fca1044, status=0, ss_state=0x3
+[wifi] TX slot 0 desc 0x3fcae5fc pkt 0x3fcae62c 57 bytes probe-req (0/4) a1=ff:ff:ff:ff:ff:ff a2=44:1b:f6:75:dc:e0 a3=ff:ff:ff:ff:ff:ff ssid='esp32sim' ssid='' ssid=''
+[wifi] AP -> 101 bytes probe-resp (0/5) a1=44:1b:f6:75:dc:e0 a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim' (t+181305 us)
+D (234) wifi:perform scan: ss_state=0x9, chan<2,0>, dur<0,120>
+[wifi] RX -> desc 0x3fca98b4 101 bytes probe-resp (0/5) a1=44:1b:f6:75:dc:e0 a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98c0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] TX slot 0 desc 0x3fcae5fc pkt 0x3fcae62c 57 bytes probe-req (0/4) a1=ff:ff:ff:ff:ff:ff a2=44:1b:f6:75:dc:e0 a3=ff:ff:ff:ff:ff:ff ssid='esp32sim' ssid='' ssid=''
+[wifi] AP -> 101 bytes probe-resp (0/5) a1=44:1b:f6:75:dc:e0 a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim' (t+301547 us)
+D (354) wifi:scan end: arg=0x3fca1044, status=0, ss_state=0x3
+D (354) wifi:perform scan: ss_state=0x9, chan<3,0>, dur<0,120>
+[wifi] RX -> desc 0x3fca98cc 101 bytes probe-resp (0/5) a1=44:1b:f6:75:dc:e0 a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98d8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98e4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+D (474) wifi:scan end: arg=0x3fca1044, status=0, ss_state=0x3
+D (474) wifi:perform scan: ss_state=0x9, chan<4,0>, dur<0,120>
+[wifi] TX slot 0 desc 0x3fcae5fc pkt 0x3fcae62c 57 bytes probe-req (0/4) a1=ff:ff:ff:ff:ff:ff a2=44:1b:f6:75:dc:e0 a3=ff:ff:ff:ff:ff:ff ssid='esp32sim' ssid='' ssid=''
+[wifi] AP -> 101 bytes probe-resp (0/5) a1=44:1b:f6:75:dc:e0 a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim' (t+421789 us)
+[wifi] RX -> desc 0x3fca98f0 101 bytes probe-resp (0/5) a1=44:1b:f6:75:dc:e0 a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98fc 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+D (594) wifi:scan end: arg=0x3fca1044, status=0, ss_state=0x3
+[wifi] TX slot 0 desc 0x3fcae5fc pkt 0x3fcae62c 57 bytes probe-req (0/4) a1=ff:ff:ff:ff:ff:ff a2=44:1b:f6:75:dc:e0 a3=ff:ff:ff:ff:ff:ff ssid='esp32sim' ssid='' ssid=''
+[wifi] AP -> 101 bytes probe-resp (0/5) a1=44:1b:f6:75:dc:e0 a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim' (t+542031 us)
+D (594) wifi:perform scan: ss_state=0x9, chan<5,0>, dur<0,120>
+[wifi] RX -> desc 0x3fca9908 101 bytes probe-resp (0/5) a1=44:1b:f6:75:dc:e0 a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca989c 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] TX slot 0 desc 0x3fcae5fc pkt 0x3fcae62c 57 bytes probe-req (0/4) a1=ff:ff:ff:ff:ff:ff a2=44:1b:f6:75:dc:e0 a3=ff:ff:ff:ff:ff:ff ssid='esp32sim' ssid='' ssid=''
+[wifi] AP -> 101 bytes probe-resp (0/5) a1=44:1b:f6:75:dc:e0 a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim' (t+662273 us)
+D (714) wifi:scan end: arg=0x3fca1044, status=0, ss_state=0x3
+D (714) wifi:perform scan: ss_state=0x9, chan<6,0>, dur<0,120>
+[wifi] RX -> desc 0x3fca98a8 101 bytes probe-resp (0/5) a1=44:1b:f6:75:dc:e0 a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+D (714) wifi:rsn valid: gcipher=3 ucipher=3 akm=5 mac=02:53:49:4d:00:01
+D (714) wifi:profile match: ss_state=0x7
+D (714) wifi:scan end: arg=0x3fca1044, status=0, ss_state=0x7
+D (714) wifi:find first mathched ssid, scan done
+D (714) wifi:filter: set rx policy=4
+D (714) wifi:first chan=1
+D (714) wifi:handoff_cb: status=0
+D (714) wifi:ap found, mac=02:53:49:4d:00:01
+D (714) wpa: WPA: set AP RSNXE - hexdump(len=0):
+D (714) wpa:  [NULL]
+D (744) nvs: nvs_set_blob sta.apinfo 700
+D (754) wifi:going for connection with bssid=02:53:49:4d:00:01
+D (754) wifi:new_bss=0x3fc9fdb0, cur_bss=0x0, new_chan=<6,0>, cur_chan=1
+D (754) wifi:filter: set rx policy=5
+I (754) wifi:new:<6,0>, old:<1,0>, ap:<255,255>, sta:<6,0>, prof:1, snd_ch_cfg:0x0
+D (754) wifi:connect_op: status=0, auth=5, cipher=3 
+D (754) wifi:auth mode is not none
+D (754) wifi:connect_bss: auth=1, reconnect=0
+I (754) wifi:state: init -> auth (0xb0)
+D (754) nvs: nvs_get sta.pwr_reset 1
+D (754) nvs: nvs_set sta.pwr_reset 1 1
+[wifi] TX slot 0 desc 0x3fcae654 pkt 0x3fcae684 30 bytes deauth (0/12) a1=02:53:49:4d:00:01 a2=44:1b:f6:75:dc:e0 a3=02:53:49:4d:00:01 ssid=''
+[wifi] TX slot 0 desc 0x3fcae6d8 pkt 0x3fcae708 34 bytes auth (0/11) a1=02:53:49:4d:00:01 a2=44:1b:f6:75:dc:e0 a3=02:53:49:4d:00:01 ssid=''
+[wifi] station AUTH req alg=0 seq=1 status=0 hex=[b0, 00, 00, 00, 02, 53, 49, 4d, 00, 01, 44, 1b, f6, 75, dc, e0, 02, 53, 49, 4d, 00, 01, 70, a7, 00, 00, 01, 00, 00, 00, 00, 00, ef, be]
+[wifi] AP -> 30 bytes auth (0/11) a1=44:1b:f6:75:dc:e0 a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01  hex=[b0, 00, 00, 00, 44, 1b, f6, 75, dc, e0, 02, 53, 49, 4d, 00, 01, 02, 53, 49, 4d, 00, 01, c0, 00, 00, 00, 02, 00, 00, 00]
+D (754) wifi:start 1000ms AUTH timer
+D (754) wifi:clear scan ap list
+D (754) event: running post WIFI_EVENT:43 with handler 0x42008cf4 and context 0x3fced1b4 on loop 0x3fceb1c4
+[wifi] RX AUTH/ASSOC -> desc 0x3fca98b4 buf 0x3fcaa5e0 30 bytes auth (0/11) a1=44:1b:f6:75:dc:e0 a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01
+D (754) wifi:recv auth: seq=2, status=0, algo=0
+[wifi] TX slot 0 desc 0x3fcae654 pkt 0x3fcae684 80 bytes assoc-req (0/0) a1=02:53:49:4d:00:01 a2=44:1b:f6:75:dc:e0 a3=02:53:49:4d:00:01 ssid='esp32sim' ssid='' ssid=''
+[wifi] AP -> 46 bytes assoc-resp (0/1) a1=44:1b:f6:75:dc:e0 a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01  hex=[10, 00, 00, 00, 44, 1b, f6, 75, dc, e0, 02, 53, 49, 4d, 00, 01, 02, 53, 49, 4d, 00, 01, d0, 00, 11, 04, 00, 00, 01, c0, 01, 08, 82, 84, 8b, 96, 0c, 12, 18, 24, 32, 04, 30, 48, 60, 6c]
+[wifi] AP -> 131 bytes data (2/0) a1=44:1b:f6:75:dc:e0 a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ethertype=0x888e  hex=[08, 02, 00, 00, 44, 1b, f6, 75, dc, e0, 02, 53, 49, 4d, 00, 01, 02, 53, 49, 4d, 00, 01, e0, 00, aa, aa, 03, 00, 00, 00, 88, 8e, 02, 03, 00, 5f, 02, 00, 8a, 00, 10, 00, 00, 00, 00, 00, 00, 00, 01, 4d, ad, 43, bc, e0, 54, c9, 54, b7, 53, 20, 7d, 9d, ac, 18, ce, 99, a8, 25, e3, 59, b9, 57, a8, fc, 48, d5, 48, a3, 47, 34, 69, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00]
+I (754) wifi:state: auth -> assoc (0x0)
+D (754) nvs: nvs_get sta.pwr_reset 1
+D (754) wifi:restart connect 1000ms timer for assoc
+[wifi] RX AUTH/ASSOC -> desc 0x3fca98c0 buf 0x3fcaac44 46 bytes assoc-resp (0/1) a1=44:1b:f6:75:dc:e0 a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01
+D (754) wifi:recv assoc: type=0x10
+D (754) wifi:filter: set rx policy=6
+I (754) wifi:state: assoc -> run (0x10)
+D (754) nvs: nvs_get sta.pwr_reset 1
+D (754) wifi:start 10s connect timer for 4 way handshake
+D (754) wpa: WPA: Association event - clear replay counter
+D (754) wpa: WPA: Clear old PTK
+[wifi] RX -> desc 0x3fca98cc 131 bytes data (2/0) a1=44:1b:f6:75:dc:e0 a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ethertype=0x888e
+D (784) wpa: IEEE 802.1X RX: version=2 type=3 length=95
+[wifi] RX -> desc 0x3fca98d8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+D (784) wpa:   EAPOL-Key type=2
+D (784) wpa:   key_info 0x8a (ver=2 keyidx=0 rsvd=0 Pairwise Ack)
+D (784) wpa:   key_length=16 key_data_length=0
+D (784) wpa:   replay_counter - hexdump(len=8):
+D (784) wpa: 00 00 00 00 00 00 00 01 
+D (784) wpa:   key_nonce - hexdump(len=32):
+D (784) wpa: 4d ad 43 bc e0 54 c9 54 b7 53 20 7d 9d ac 18 ce 
+D (784) wpa: 99 a8 25 e3 59 b9 57 a8 fc 48 d5 48 a3 47 34 69 
+D (784) wpa:   key_iv - hexdump(len=16):
+D (784) wpa: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+D (784) wpa:   key_rsc - hexdump(len=8):
+D (784) wpa: 00 00 00 00 00 00 00 00 
+D (784) wpa:   key_id (reserved) - hexdump(len=8):
+D (784) wpa: 00 00 00 00 00 00 00 00 
+D (784) wpa:   key_mic - hexdump(len=16):
+D (784) wpa: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+D (784) wpa: WPA 1/4-Way Handshake
+D (784) wpa: RSN: msg 1/4 key data - hexdump(len=0):
+D (784) wpa: WPA: Renewed SNonce - hexdump(len=32):
+D (784) wpa: b5 82 df 58 11 67 45 cf 17 30 a1 87 71 fe d4 05 
+D (784) wpa: ad 81 c3 73 07 b2 09 30 d0 ca c1 e1 ce 9a 4d 86 
+D (784) wpa: WPA: PTK derivation - A1=44:1b:f6:75:dc:e0 A2=02:53:49:4d:00:01
+
+D (784) wpa: WPA: PTK - hexdump(len=48):
+D (784) wpa: 39 8d b3 a5 a5 6b df 01 34 73 7c 14 f3 74 66 bd 
+D (784) wpa: 03 45 55 c9 f5 42 23 bd e3 21 31 91 dc 8b 2c b9 
+D (784) wpa: 5d d8 1a e9 71 fc d8 bb bb 2e de 8c a7 29 08 31 
+D (784) wpa: WPA: KCK - hexdump(len=16):
+D (784) wpa: 39 8d b3 a5 a5 6b df 01 34 73 7c 14 f3 74 66 bd 
+D (784) wpa: WPA: KEK - hexdump(len=16):
+D (784) wpa: 03 45 55 c9 f5 42 23 bd e3 21 31 91 dc 8b 2c b9 
+D (784) wpa: WPA: TK - hexdump(len=16):
+D (784) wpa: 5d d8 1a e9 71 fc d8 bb bb 2e de 8c a7 29 08 31 
+D (784) wpa: WPA Send EAPOL-Key 2/4
+D (784) wpa: WPA: KCK - hexdump(len=16):
+D (784) wpa: 39 8d b3 a5 a5 6b df 01 34 73 7c 14 f3 74 66 bd 
+D (784) wpa: WPA: Derived Key MIC - hexdump(len=16):
+D (784) wpa: 79 ce fc ec 1c 48 96 c4 ff c6 66 2f f9 71 ac 8e 
+[wifi] TX slot 0 desc 0x3fcaee54 pkt 0x3fcaee96 157 bytes data (2/0) a1=02:53:49:4d:00:01 a2=44:1b:f6:75:dc:e0 a3=02:53:49:4d:00:01 ethertype=0x888e
+[wifi] WPA2 msg2: PTK derived, station MIC VERIFIED (recv [79, ce, fc, ec] calc [79, ce, fc, ec])
+[wifi] AP -> 187 bytes data (2/0) a1=44:1b:f6:75:dc:e0 a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ethertype=0x888e  hex=[08, 02, 00, 00, 44, 1b, f6, 75, dc, e0, 02, 53, 49, 4d, 00, 01, 02, 53, 49, 4d, 00, 01, 00, 01, aa, aa, 03, 00, 00, 00, 88, 8e, 02, 03, 00, 97, 02, 13, ca, 00, 10, 00, 00, 00, 00, 00, 00, 00, 02, 4d, ad, 43, bc, e0, 54, c9, 54, b7, 53, 20, 7d, 9d, ac, 18, ce, 99, a8, 25, e3, 59, b9, 57, a8, fc, 48, d5, 48, a3, 47, 34, 69, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, cd, a0, 9d, a1, eb, 34, 02, 7c, 61, 15, f8, db, d3, b3, 70, 61, 00, 38, 94, 35, 24, c7, c1, 61, e3, bf, f6, c8, 11, 78, 76, c2, cf, be, d2, f9, ea, ac, 44, 11, 20, f3, f7, fb, 13, 42, fb, b3, 00, e5, 32, 63, 29, 1f, c8, 50, bd, db, be, f5, 98, 9b, bf, be, 24, 57, 5a, 50, 22, 75, 36, 0f, eb, 85]
+D (784) wpa: 2/4 txcb, flags=0, txfail 0
+[wifi] RX -> desc 0x3fca98e4 187 bytes data (2/0) a1=44:1b:f6:75:dc:e0 a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ethertype=0x888e
+D (784) wpa: IEEE 802.1X RX: version=2 type=3 length=151
+D (784) wpa:   EAPOL-Key type=2
+D (784) wpa:   key_info 0x13ca (ver=2 keyidx=0 rsvd=0 Pairwise Install Ack MIC Secure Encr)
+D (784) wpa:   key_length=16 key_data_length=56
+D (784) wpa:   replay_counter - hexdump(len=8):
+D (784) wpa: 00 00 00 00 00 00 00 02 
+D (784) wpa:   key_nonce - hexdump(len=32):
+D (784) wpa: 4d ad 43 bc e0 54 c9 54 b7 53 20 7d 9d ac 18 ce 
+D (784) wpa: 99 a8 25 e3 59 b9 57 a8 fc 48 d5 48 a3 47 34 69 
+D (784) wpa:   key_iv - hexdump(len=16):
+D (784) wpa: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 
+D (784) wpa:   key_rsc - hexdump(len=8):
+D (784) wpa: 00 00 00 00 00 00 00 00 
+D (784) wpa:   key_id (reserved) - hexdump(len=8):
+D (784) wpa: 00 00 00 00 00 00 00 00 
+D (784) wpa:   key_mic - hexdump(len=16):
+D (784) wpa: cd a0 9d a1 eb 34 02 7c 61 15 f8 db d3 b3 70 61 
+D (784) wpa: RSN: encrypted key data - hexdump(len=56):
+D (784) wpa: 94 35 24 c7 c1 61 e3 bf f6 c8 11 78 76 c2 cf be 
+D (784) wpa: d2 f9 ea ac 44 11 20 f3 f7 fb 13 42 fb b3 00 e5 
+D (784) wpa: 32 63 29 1f c8 50 bd db be f5 98 9b bf be 24 57 
+D (784) wpa: 5a 50 22 75 36 0f eb 85 
+D (784) intr_alloc: Connected src 77 to int 9 (cpu 0)
+D (794) wpa: WPA: decrypted EAPOL-Key key data - hexdump(len=48):
+D (794) wpa: 30 14 01 00 00 0f ac 04 01 00 00 0f ac 04 01 00 
+D (794) wpa: 00 0f ac 02 00 00 dd 16 00 0f ac 01 01 00 e5 be 
+D (794) wpa: 0b 95 09 e5 00 70 2c cb fb 4c 9b d3 e3 6d dd 00 
+D (794) wpa: WPA 3/4-Way Handshake
+D (794) wpa: WPA: RSN IE in EAPOL-Key - hexdump(len=22):
+D (794) wpa: 30 14 01 00 00 0f ac 04 01 00 00 0f ac 04 01 00 
+D (794) wpa: 00 0f ac 02 00 00 
+D (794) wpa: WPA: GTK in EAPOL-Key - hexdump(len=24):
+D (794) wpa: dd 16 00 0f ac 01 01 00 e5 be 0b 95 09 e5 00 70 
+D (794) wpa: 2c cb fb 4c 9b d3 e3 6d 
+D (794) wpa: WPA: IE KeyData - hexdump(len=48):
+D (794) wpa: 30 14 01 00 00 0f ac 04 01 00 00 0f ac 04 01 00 
+D (794) wpa: 00 0f ac 02 00 00 dd 16 00 0f ac 01 01 00 e5 be 
+D (794) wpa: 0b 95 09 e5 00 70 2c cb fb 4c 9b d3 e3 6d dd 00 
+D (794) wpa: WPA: RSC - hexdump(len=8):
+D (794) wpa: 00 00 00 00 00 00 00 00 
+D (794) wpa: RSN: received GTK in pairwise handshake - hexdump(len=18):
+D (794) wpa: 01 00 e5 be 0b 95 09 e5 00 70 2c cb fb 4c 9b d3 
+D (794) wpa: e3 6d 
+D (794) wpa: tx 4/4 txcb_flags=8192
+D (794) wpa: WPA Send EAPOL-Key 4/4
+D (794) wpa: WPA: KCK - hexdump(len=16):
+D (794) wpa: 39 8d b3 a5 a5 6b df 01 34 73 7c 14 f3 74 66 bd 
+D (794) wpa: WPA: Derived Key MIC - hexdump(len=16):
+D (794) wpa: f9 5d db 17 e8 b1 9c 01 fc 80 b9 61 88 18 54 20 
+[wifi] TX slot 0 desc 0x3fcaef68 pkt 0x3fcaefaa 135 bytes data (2/0) a1=02:53:49:4d:00:01 a2=44:1b:f6:75:dc:e0 a3=02:53:49:4d:00:01 ethertype=0x888e
+[wifi] WPA2 four-way handshake complete
+D (794) wpa: WPA: Installing PTK to the driver.
+D (794) wpa: WPA: Group Key - hexdump(len=16):
+D (794) wpa: e5 be 0b 95 09 e5 00 70 2c cb fb 4c 9b d3 e3 6d 
+D (794) wpa: WPA: Judge GTK: (keyidx=1 len=16).
+D (794) wpa: WPA: Installing GTK to the driver (keyidx=1 tx=0 len=16).
+D (794) wpa: WPA: RSC - hexdump(len=6):
+D (794) wpa: 00 00 00 00 00 00 
+D (794) wpa: WPA: Key negotiation completed with 02:53:49:4d:00:01 [PTK=CCMP GTK=CCMP]
+
+I (794) wifi:connected with esp32sim, aid = 1, channel 6, BW20, bssid = 02:53:49:4d:00:01
+I (794) wifi:security: WPA2-PSK, phy: bg, rssi: -40, cipher(pairwise:0x3, group:0x3), pmf:0
+D (794) wifi:remove all except 02:53:49:4d:00:01 from rc list
+D (794) wifi:clear blacklist
+D (794) nvs: nvs_set sta.chan 1 6
+D (804) nvs: nvs_set_blob sta.apinfo 700
+D (804) wifi:filter: set rx policy=7
+I (804) wifi:pm start, type: 1
+
+I (804) wifi:dp: 1, bi: 102400, li: 3, scale listen interval from 307200 us to 307200 us
+I (804) wifi:set rx beacon pti, rx_bcn_pti: 0, bcn_timeout: 25000, mt_pti: 0, mt_time: 10000
+D (804) wifi:Send sta connected event
+D (804) wifi:connect status 1 -> 5
+D (804) wifi:obss scan is disabled
+D (804) wifi:start obss scan: obss scan is stopped
+D (804) event: running post WIFI_EVENT:4 with handler 0x420121e4 and context 0x3fcec380 on loop 0x3fceb1c4
+D (804) esp_netif_handlers: esp_netif action connected with netif0x3fcec104 from event_id=4
+D (804) esp_netif_lwip: check: remote, if=0x3fcec104 fn=0x4200ff2c
+D (804) esp_netif_lwip: esp_netif_up_api esp_netif:0x3fcec104
+D (804) esp_netif_lwip: call api in lwip: ret=0x0, give sem
+D (804) esp_netif_lwip: check: remote, if=0x3fcec104 fn=0x4200f740
+D (804) esp_netif_lwip: esp_netif_dhcpc_start_api esp_netif:0x3fcec104
+D (804) esp_netif_lwip: esp_netif_start_ip_lost_timer esp_netif:0x3fcec104
+D (804) esp_netif_lwip: if0x3fcec104 start ip lost tmr: interval=120
+D (804) esp_netif_lwip: starting dhcp client
+[wifi] TX slot 0 desc 0x3fcaeabc pkt 0x3fcaeaf6 388 bytes data (2/0) a1=02:53:49:4d:00:01 a2=44:1b:f6:75:dc:e0 a3=ff:ff:ff:ff:ff:ff
+[net] DHCP DISCOVER -> OFFER for 10.0.2.15
+[wifi] RX -> desc 0x3fca98f0 376 bytes data (2/0) a1=44:1b:f6:75:dc:e0 a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:02
+D (804) wifi:D (804) esp_netif_lwip: call api in lwip: ret=0x0, give sem
+eb is dhcp or dns sport = 68, dport = 67
+D (804) event: running post WIFI_EVENT:4 with handler 0x42008cf4[wifi] TX slot 0 desc 0x3fcaeabc pkt 0x3fcaeaf6 388 bytes data (2/0) a1=02:53:49:4d:00:01 a2=44:1b:f6:75:dc:e0 a3=ff:ff:ff:ff:ff:ff
+[net] DHCP REQUEST -> ACK for 10.0.2.15
+[wifi] RX -> desc 0x3fca98fc 376 bytes data (2/0) a1=44:1b:f6:75:dc:e0 a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:02
+ and context 0x3fced1b4 on loop 0x3fceb1c4
+D (804) wifi:eb is dhcp or dns sport = 68, dport = 67
+[wifi] TX slot 0 desc 0x3fcae960 pkt 0x3fcae99a 80 bytes data (2/0) a1=02:53:49:4d:00:01 a2=44:1b:f6:75:dc:e0 a3=ff:ff:ff:ff:ff:ff
+[wifi] TX slot 0 desc 0x3fcae934 pkt 0x3fcae964 28 bytes null (2/4) a1=02:53:49:4d:00:01 a2=44:1b:f6:75:dc:e0 a3=02:53:49:4d:00:01
+[wifi] RX -> desc 0x3fca9908 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+I (864) wifi:AP's beacon interval = 102400 us, DTIM period = 1
+[wifi] RX -> desc 0x3fca989c 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] TX slot 0 desc 0x3fcae934 pkt 0x3fcae96e 80 bytes data (2/0) a1=02:53:49:4d:00:01 a2=44:1b:f6:75:dc:e0 a3=ff:ff:ff:ff:ff:ff
+[wifi] RX -> desc 0x3fca98a8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] TX slot 0 desc 0x3fcae934 pkt 0x3fcae964 28 bytes null (2/4) a1=02:53:49:4d:00:01 a2=44:1b:f6:75:dc:e0 a3=02:53:49:4d:00:01
+[wifi] RX -> desc 0x3fca98b4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98c0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] TX slot 0 desc 0x3fcae920 pkt 0x3fcae95a 80 bytes data (2/0) a1=02:53:49:4d:00:01 a2=44:1b:f6:75:dc:e0 a3=ff:ff:ff:ff:ff:ff
+[wifi] TX slot 0 desc 0x3fcae920 pkt 0x3fcae950 28 bytes null (2/4) a1=02:53:49:4d:00:01 a2=44:1b:f6:75:dc:e0 a3=02:53:49:4d:00:01
+[wifi] RX -> desc 0x3fca98cc 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98d8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98e4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98f0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98fc 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+D (1804) esp_netif_lwip: esp_netif_internal_dhcpc_cb lwip-netif:0x3fcec194
+D (1804) esp_netif_lwip: check: local, if=0x3fcec104 fn=0x42010330
+D (1804) esp_netif_lwip: esp_netif_update_default_netif_lwip 0x3fcec104
+D (1804) esp_netif_lwip: if0x3fcec104 ip changed=1
+D (1804) event: running post IP_EVENT:0 with handler 0x42012174 and context 0x3fcec3f4 on loop 0x3fceb1c4
+D (1804) wifi_init_default: Got IP wifi default handler entered
+D (1804) esp_netif_handlers: esp_netif action got_ip with netif0x3fcec104 from event_id=0
+I (1804) esp_netif_handlers: sta ip: 10.0.2.15, mask: 255.255.255.0, gw: 10.0.2.2
+D (1804) event: running post IP_EVENT:0 with handler 0x42008cf4 and context 0x3fcadc4c on loop 0x3fceb1c4
+I (1804) wifi station: got ip:10.0.2.15
+I (1804) wifi station: connected to ap SSID:esp32sim password:esp32sim-pass
+I (1804) main_task: Returned from app_main()
+[wifi] RX -> desc 0x3fca9908 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca989c 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] TX slot 0 desc 0x3fcae920 pkt 0x3fcae95a 80 bytes data (2/0) a1=02:53:49:4d:00:01 a2=44:1b:f6:75:dc:e0 a3=ff:ff:ff:ff:ff:ff
+[wifi] RX -> desc 0x3fca98a8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] TX slot 0 desc 0x3fcae920 pkt 0x3fcae950 28 bytes null (2/4) a1=02:53:49:4d:00:01 a2=44:1b:f6:75:dc:e0 a3=02:53:49:4d:00:01
+[wifi] RX -> desc 0x3fca98b4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98c0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98cc 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98d8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98e4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98f0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98fc 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca9908 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca989c 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] TX slot 0 desc 0x3fcae920 pkt 0x3fcae95a 80 bytes data (2/0) a1=02:53:49:4d:00:01 a2=44:1b:f6:75:dc:e0 a3=ff:ff:ff:ff:ff:ff
+[wifi] RX -> desc 0x3fca98a8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] TX slot 0 desc 0x3fcae920 pkt 0x3fcae950 28 bytes null (2/4) a1=02:53:49:4d:00:01 a2=44:1b:f6:75:dc:e0 a3=02:53:49:4d:00:01
+[wifi] RX -> desc 0x3fca98b4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98c0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98cc 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98d8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98e4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98f0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98fc 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca9908 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca989c 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] TX slot 0 desc 0x3fcae920 pkt 0x3fcae95a 80 bytes data (2/0) a1=02:53:49:4d:00:01 a2=44:1b:f6:75:dc:e0 a3=ff:ff:ff:ff:ff:ff
+[wifi] TX slot 0 desc 0x3fcae920 pkt 0x3fcae950 28 bytes null (2/4) a1=02:53:49:4d:00:01 a2=44:1b:f6:75:dc:e0 a3=02:53:49:4d:00:01
+[wifi] RX -> desc 0x3fca98a8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98b4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98c0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98cc 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98d8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98e4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98f0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98fc 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca9908 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca989c 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] TX slot 0 desc 0x3fcae920 pkt 0x3fcae95a 80 bytes data (2/0) a1=02:53:49:4d:00:01 a2=44:1b:f6:75:dc:e0 a3=ff:ff:ff:ff:ff:ff
+[wifi] TX slot 0 desc 0x3fcae920 pkt 0x3fcae950 28 bytes null (2/4) a1=02:53:49:4d:00:01 a2=44:1b:f6:75:dc:e0 a3=02:53:49:4d:00:01
+[wifi] RX -> desc 0x3fca98a8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98b4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98c0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98cc 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98d8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98e4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98f0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98fc 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca9908 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca989c 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98a8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98b4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98c0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98cc 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98d8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98e4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98f0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98fc 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca9908 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca989c 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98a8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98b4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98c0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98cc 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98d8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98e4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98f0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98fc 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca9908 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca989c 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98a8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98b4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98c0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98cc 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98d8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98e4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98f0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98fc 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca9908 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca989c 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98a8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98b4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98c0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98cc 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98d8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98e4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98f0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98fc 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca9908 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca989c 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98a8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98b4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98c0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98cc 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98d8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98e4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98f0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98fc 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca9908 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca989c 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98a8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98b4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98c0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98cc 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98d8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98e4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98f0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98fc 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca9908 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca989c 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98a8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98b4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98c0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98cc 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98d8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98e4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98f0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98fc 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca9908 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca989c 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98a8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98b4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98c0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98cc 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98d8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98e4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98f0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98fc 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca9908 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca989c 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98a8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98b4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98c0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98cc 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98d8 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98e4 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+[wifi] RX -> desc 0x3fca98f0 101 bytes beacon (0/8) a1=ff:ff:ff:ff:ff:ff a2=02:53:49:4d:00:01 a3=02:53:49:4d:00:01 ssid='esp32sim'
+
+[emu] stop: Halted — core0 30041762 + core1 4982935 insns in 1.6s wall = 21.6 Minsn/s; emulated 15.000s (3600000000 cycles); 61596 exceptions, 4003 interrupts
+[irq] per core, cpu-int: count (peripheral sources mapped to it)
+  core0 int0        184  sources [0,2]
+  core0 int2         42  sources [59]
+  core0 int3        348  sources [79]
+  core0 int5       1499  sources [57]
+  core1 int0        433  sources [80]
+  core1 int1       1497  sources [58]
+
+[emu] i2s frames out: 0 (i2s0 @ 44100 Hz) 0 (i2s1 @ 44100 Hz)
+[emu] wifi: 27 frames sent by the station, 158 received (0 dropped: no descriptor); AP: 146 beacons, 6 probe responses, 9 data frames from the station, state Associated
+[emu] net: 1 DHCP leases, 0 ARP replies, 0 DNS answers, 0 NTP answers, 0 TCP refused, 0 pings, 0 frames ignored
+[emu] nat: 0 TCP connections (0 failed), 0 UDP flows, 0 bytes out, 0 bytes in
+[emu] crypto: 36 AES blocks, 44589 SHA blocks, 0 RSA/MPI operations
+[emu] blocks: 24067 built (0 cache flushes) core0, 2755 (0) core1; jit: 26822 compiled, 23013 KB code
+core0: pc=40379dbe esp_cpu_wait_for_intr+0x6  ps=00060620 wb=8 ws=0150 sar=30 lcount=0 exccause=4 excvaddr=00000000 epc1=42076b79 intenable=1300032f interrupt=00000000 ccount=3606009250 insns=30041762
+a0 =82076b79 a1 =3fca6920 a2 =00000000 a3 =ffffffff a4 =3fc9f09c a5 =00060623 a6 =00000001 a7 =0000cdcd 
+a8 =8200aa16 a9 =3fca68e0 a10=00000000 a11=00000000 a12=00060620 a13=3fca5f80 a14=3fcef940 a15=3fca6af4 
+core1: pc=40379dbe esp_cpu_wait_for_intr+0x6  ps=00060720 wb=9 ws=02a0 sar=0 lcount=0 exccause=4 excvaddr=00000000 epc1=42076b79 intenable=13000003 interrupt=00000000 ccount=3595418576 insns=4982935
+a0 =82076b79 a1 =3fca7080 a2 =00000000 a3 =00000000 a4 =3fca3f40 a5 =3fca3f20 a6 =40375a28 a7 =00000001 
+a8 =8200aa16 a9 =3fca7040 a10=00000000 a11=00000000 a12=3fca3f20 a13=3fca3f00 a14=00000001 a15=3fca7254 
+

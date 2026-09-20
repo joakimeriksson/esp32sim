@@ -1,0 +1,7 @@
+0302fb6dc6545d93207e18cddd02855b0d08098d173dc4c13d67e3c9c747492a  /Users/user/tmp/esp32-review-night/firmware-qualification/wifi/bootloader.bin
+7f00b6c042a89b15b0cac534f82ed988caf29278ff5700b0c511eb1b5bb7c820  /Users/user/tmp/esp32-review-night/firmware-qualification/wifi/partition-table.bin
+fcb459809eb6ece09d6f03bb7d964361ead918ed176af4b2423883ed46a81f94  /Users/user/tmp/esp32-review-night/firmware-qualification/wifi/wifi_station.bin
+2f88bd958bcf22cd02e99d9ed8d61e6387fa4c3845e973e4f701680dcd4c0a5a  /Users/user/tmp/esp32-review-night/firmware-qualification/wifi/wifi_station.elf
+f54db6154a03030cad0bf110a0dac0e47d66331d4dd5f3236ebd18383ecca80e  /Users/user/tmp/esp32-review-integration/target/release/esp32sim
+c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd  /Users/user/.espressif/tools/esp-rom-elfs/20241011/esp32s3_rev0_rom.elf
+e264b4abbce7610bdc0164d0f31c341c45fae98277c701039f67eded8580961d  /Users/user/src/a/esp32sim/work/night-combined/web/wasm/fw/linux-esp32s3-native-full.bin

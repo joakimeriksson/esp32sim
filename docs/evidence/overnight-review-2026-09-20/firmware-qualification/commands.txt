@@ -1,0 +1,23 @@
+Working directory: /Users/user/tmp/esp32-review-night/firmware-qualification
+CLI binary: /Users/user/tmp/esp32-review-integration/target/release/esp32sim
+Integration checkout HEAD observed before runs: f5932e32e52b36f2b49d4e1cc3b5a4ddc6e2f0ec (clean)
+WiFi binary source revision: 4348b729c76461f9eee47f6b949b39a454929bc7 (origin/docs/agents-experiment-catalog)
+Extracted with git show <revision>:examples/wifi-station/build/<path>:
+bootloader/bootloader.bin, partition_table/partition-table.bin, wifi_station.bin, wifi_station.elf
+No firmware rebuild. Firmware construction is described by examples/wifi-station/README.md.
+
+esp32sim --board none --boot rom --console usb --max-seconds 15 --bootloader wifi/bootloader.bin --ptable wifi/partition-table.bin --app wifi/wifi_station.bin --elf wifi/wifi_station.elf --wifi ssid=esp32sim,psk=esp32sim-pass --net nat --debug wifi-frames,net > wifi-qualification.log 2>&1
+
+Linux input: existing local web/wasm/fw/linux-esp32s3-native-full.bin in work/night-combined.
+SHA256 matched tools/fetch-demo-assets.sh pinned e264b4abbce7610bdc0164d0f31c341c45fae98277c701039f67eded8580961d.
+Upstream provenance: svermigo/Linux-on-esp32-S3 9a543fb18a1385eafe7afea973ec1021f6479679/images/linux-esp32s3-native-full.bin.
+
+esp32sim --board none --boot rom --console all --max-seconds 42 --flash-mb 16 --psram-mb 8 --flash-image /Users/user/src/a/esp32sim/work/night-combined/web/wasm/fw/linux-esp32s3-native-full.bin --stub 0x4200f094=0xffffffff --wifi ssid=esp32sim,psk=esp32sim-pass --net nat --debug net --script linux-actions.txt > linux-inspect.log 2>&1
+
+Build provenance confirmed by coordinator: CLI was compiled from cb2ec043394e58df0d6469d6b16627c31a963ac2. Later checkout commits were Clippy/comment-only and documentation-only. SHA256 is pinned in inputs.sha256.
+Node runtime: v26.9.0.
+
+Controlled NAT endpoint: node local-http.cjs > local-only-http.log 2>&1
+esp32sim --board none --boot rom --console all --max-seconds 72 --flash-mb 16 --psram-mb 8 --flash-image /Users/user/src/a/esp32sim/work/night-combined/web/wasm/fw/linux-esp32s3-native-full.bin --stub 0x4200f094=0xffffffff --wifi ssid=esp32sim,psk=esp32sim-pass --net nat --debug net --script linux-local-only-actions.txt > linux-local-only.log 2>&1
+
+Exploratory runs: linux-inspect.log uses linux-actions.txt (42 seconds); linux-network-config.log uses linux-network-actions.txt (39 seconds); linux-nat.log uses linux-nat-actions.txt (72 seconds). The first NAT run allowed stock Linux background DNS/NTP. The final local-only run kills ntpd and restricts guest OUTPUT to DHCP and the local TCP test endpoint before connecting WiFi. Guest-only routing rules send 127.0.0.1 through the virtual gateway so NAT reaches the host loopback listener rather than the guest loopback interface. No integration code was modified.

@@ -1,0 +1,340 @@
+[emu] virtual AP 'esp32sim' bssid 02:53:49:4d:00:01 channel 6 (WPA2-PSK)
+[emu] NAT to the host network enabled (DNS via 172.20.10.1)
+[emu] virtual network: station 10.0.2.15, gateway 10.0.2.2 (DHCP, ARP, ICMP, DNS, NTP)
+[emu] ROM loaded from /Users/user/.espressif/tools/esp-rom-elfs/20241011/esp32s3_rev0_rom.elf
+[emu] stub 0x4200f094 @ 0x4200f094 -> returns 0xffffffff
+[emu] ROM boot from reset vector 0x40000400
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x1 (POWERON),boot:0xf (SPI_FAST_FLASH_BOOT)
+configspi:0x00000008
+SPIWP:0x00
+mode:DIO, clock div:1
+load:0x3fce3818,len:0x10f0
+load:0x403c9700,len:0x4
+load:0x403c9704,len:0x9b4
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x1 (POWERON),boot:0xf (SPI_FAST_FLASH_BOOT)
+configspi:0x00000008
+SPIWP:0x00
+mode:DIO, clock div:1
+load:0x3fce3818,len:0x10f0
+load:0x403c9700,len:0x4
+load:0x403c9704,len:0x9b4
+load:0x403cc700,len:0x2c74
+entry 0x403c9880
+load:0x403cc700,len:0x2c74
+entry 0x403c9880
+pp rom version: e7ae62f
+net80211 rom version: e7ae62f
+pp rom version: e7ae62f
+net80211 rom version: e7ae62f
+MMU: first_free_mmu=10 (firmware uses entries 0..9)
+MMU: kernel e0x14=0x0014 rootfs e0x54=0x0054
+MMU: first_free_mmu=10 (firmware uses entries 0..9)
+MMU: kernel e0x14=0x0014 rootfs e0x54=0x0054
+linux ptr = 0x42140000
+vectors ptr = 0x4037f000
+linux ptr = 0x42140000
+vectors ptr = 0x4037f000
+[    0.000000] Linux version 6.11.0-forkbank (builder@esp32-repro) (xtensa-esp32s3-linux-uclibcfdpic-gcc (crosstool-NG UNKNOWN) 14.1.0, GNU ld (crosstool-NG UNKNOWN) 2.42.50.20240224) #1 PREEMPT Sat Sep 5 00:00:00 UTC 2026
+[    0.000000] config ID: c2ecfafe:22f86edf
+[    0.000000] built for config ID: c2f0fffe:23090f1f
+[    0.000000] earlycon: esp32s3uart0 at MMIO32 0x60000000 (options '115200n8,40000000')
+[    0.000000] printk: legacy bootconsole [esp32s3uart0] enabled
+[    0.000000] **********************************************************
+[    0.000000] **   NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE   **
+[    0.000000] **                                                      **
+[    0.000000] ** This system shows unhashed kernel memory addresses   **
+[    0.000000] ** via the console, logs, and other interfaces. This    **
+[    0.000000] ** might reduce the security of your system.            **
+[    0.000000] **                                                      **
+[    0.000000] ** If you see this message and you are not debugging    **
+[    0.000000] ** the kernel, report this immediately to your system   **
+[    0.000000] ** administrator!                                       **
+[    0.000000] **                                                      **
+[    0.000000] **   NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE NOTICE   **
+[    0.000000] **********************************************************
+[    0.000000] Zone ranges:
+[    0.000000]   Normal   [mem 0x000000003d800000-0x000000003dffffff]
+[    0.000000] Movable zone start for each node
+[    0.000000] Early memory node ranges
+[    0.000000]   node   0: [mem 0x000000003d800000-0x000000003dffffff]
+[    0.000000] Initmem setup node 0 [mem 0x000000003d800000-0x000000003dffffff]
+[    0.000000] Kernel command line: earlycon=esp32s3uart,mmio32,0x60000000,115200n8,40000000 console=ttyS0,115200n8 rw root=mtd:rootfs no_hash_pointers 
+[    0.000000] Dentry cache hash table entries: 1024 (order: 0, 4096 bytes, linear)
+[    0.000000] Inode-cache hash table entries: 1024 (order: 0, 4096 bytes, linear)
+[    0.000000] Built 1 zonelists, mobility grouping off.  Total pages: 2048
+[    0.000000] mem auto-init: stack:off, heap alloc:off, heap free:off
+[    0.000000] virtual kernel memory layout:
+[    0.000000]     lowmem  : 0x3d800000 - 0x3e000000  (    8 MB)
+[    0.000000]     .text   : 0x42140000 - 0x42389834  ( 2342 kB)
+[    0.000000]     .rodata : 0x4238a000 - 0x423ec000  (  392 kB)
+[    0.000000]     .data   : 0x3d800000 - 0x3d87f280  (  508 kB)
+[    0.000000]     .init   : 0x3d87f280 - 0x3d8838e8  (   17 kB)
+[    0.000000]     .bss    : 0x3d8838e8 - 0x3d8ba180  (  218 kB)
+[    0.000000] SLUB: HWalign=16, Order=0-3, MinObjects=0, CPUs=1, Nodes=1
+[    0.000000] rcu: Preemptible hierarchical RCU implementation.
+[    0.000000] rcu: RCU calculated value of scheduler-enlistment delay is 10 jiffies.
+[    0.000000] NR_IRQS: 33
+[    0.000000] rcu: srcu_init: Setting srcu_struct sizes based on contention.
+[    0.000000] Calibrating CPU frequency 240.00 MHz
+[    0.000000] clocksource: ccount: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 7963585194 ns
+[    0.000001] sched_clock: 32 bits at 240MHz, resolution 4ns, wraps every 8947848189ns
+[    0.000226] Calibrating delay loop (skipped)... 240.00 BogoMIPS preset
+[    0.000267] pid_max: default: 32768 minimum: 301
+[    0.000525] Mount-cache hash table entries: 1024 (order: 0, 4096 bytes, linear)
+[    0.000584] Mountpoint-cache hash table entries: 1024 (order: 0, 4096 bytes, linear)
+[    0.002201] rcu: Hierarchical SRCU implementation.
+[    0.002230] rcu: 	Max phase no-delay instances is 1000.
+[    0.002592] Memory: 7008K/8192K available (2342K kernel code, 508K rwdata, 392K rodata, 99K init, 218K bss, 884K reserved, 0K cma-reserved)
+[    0.002888] devtmpfs: initialized
+[    0.007224] clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 19112604462750000 ns
+[    0.007290] futex hash table entries: 256 (order: -1, 3072 bytes, linear)
+[    0.007373] pinctrl core: initialized pinctrl subsystem
+[    0.009646] NET: Registered PF_NETLINK/PF_ROUTE protocol family
+[    0.014582] platform soc: Fixed dependency cycle(s) with /soc/intc@600c2000
+[    0.022495] platform soc: Fixed dependency cycle(s) with /soc/intc@600c2000
+[    0.026162] clocksource: Switched to clocksource ccount
+[    0.028217] NET: Registered PF_INET protocol family
+[    0.028697] IP idents hash table entries: 2048 (order: 2, 16384 bytes, linear)
+[    0.030810] tcp_listen_portaddr_hash hash table entries: 1024 (order: 0, 4096 bytes, linear)
+[    0.030902] Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+[    0.030967] TCP established hash table entries: 1024 (order: 0, 4096 bytes, linear)
+[    0.031056] TCP bind hash table entries: 1024 (order: 1, 8192 bytes, linear)
+[    0.031150] TCP: Hash tables configured (established 1024 bind 1024)
+[    0.031271] UDP hash table entries: 256 (order: 0, 4096 bytes, linear)
+[    0.031345] UDP-Lite hash table entries: 256 (order: 0, 4096 bytes, linear)
+[    0.031582] NET: Registered PF_UNIX/PF_LOCAL protocol family
+[    0.038272] Initialise system trusted keyrings
+[    0.038623] workingset: timestamp_bits=30 max_order=11 bucket_order=0
+[    0.038747] jffs2: version 2.2. (NAND) © 2001-2006 Red Hat, Inc.
+[    0.038839] Key type asymmetric registered
+[    0.038869] Asymmetric key parser 'x509' registered
+[    0.038942] io scheduler mq-deadline registered
+[    0.038974] io scheduler kyber registered
+[    0.042210] pinctrl-single 60004154.gpio_in_mux: 256 pins, size 1024
+[    0.042719] pinctrl-single 60008484.pinctrl: 22 pins, size 88
+[    0.043338] pinctrl-single 60009004.pinctrl: 49 pins, size 196
+[    0.124717] 60000000.serial: ttyS0 at MMIO 0x60000000 (irq = 2, base_baud = 2500000) is a ESP32S3 UART
+[    0.124813] printk: legacy console [ttyS0] enabled
+[    0.124813] printk: legacy console [ttyS0] enabled
+[    0.124870] printk: legacy bootconsole [esp32s3uart0] disabled
+[    0.124870] printk: legacy bootconsole [esp32s3uart0] disabled
+[    0.147260] 60038000.acm: ttyGS3 at MMIO 0x60038000 (irq = 3, base_baud = 0) is a ESP32S3 ACM
+[    0.148134] random: crng init done
+[    0.151079] physmap-flash 42000000.flash: physmap platform flash device: [mem 0x42000000-0x42ffffff]
+[    0.160796] 7 esp32 partitions found on MTD device 42000000.flash
+[    0.160837] Creating 7 MTD partitions on "42000000.flash":
+[    0.160877] 0x00000000a000-0x00000000f000 : "nvs"
+[    0.160917] mtd: partition "nvs" doesn't start on an erase/write block boundary -- force read-only
+[    0.162411] 0x00000000f000-0x000000010000 : "phy_init"
+[    0.162453] mtd: partition "phy_init" doesn't start on an erase/write block boundary -- force read-only
+[    0.163879] 0x000000010000-0x0000000d0000 : "factory"
+[    0.165319] 0x0000000d0000-0x000000140000 : "etc"
+[    0.166764] 0x000000140000-0x000000540000 : "linux"
+[    0.168183] 0x000000540000-0x000000cc0000 : "rootfs"
+[    0.169598] 0x000000cc0000-0x000001000000 : "home"
+[    0.172703] i2c_dev: i2c /dev entries driver
+[    0.173356] mmc_spi spi0.0: ASSUMING 3.2-3.4 V slot power
+[    0.180828] Chipset=ESP32-S3 ID=09 detected over shmem IPC
+[    0.196274] mmc_spi spi0.0: SD/MMC host mmc0, no WP, no poweroff, cd polling
+[    0.197801] esp32s3-rsa: selftest 512-bit PASS
+[    0.215888] esp32s3-rsa: selftest 2048-bit PASS
+[    0.215926] esp32s3-rsa: hardware RSA registered (rsa-esp32s3)
+[    0.222478] NET: Registered PF_INET6 protocol family
+[    0.224082] Segment Routing with IPv6
+[    0.224203] In-situ OAM (IOAM) with IPv6
+[    0.224432] sit: IPv6, IPv4 and MPLS over IPv4 tunneling driver
+[    0.225511] NET: Registered PF_PACKET protocol family
+[    0.225572] Key type dns_resolver registered
+[    0.235023] Loading compiled-in X.509 certificates
+[    0.244308] i2c-gpio i2c0: using lines 582 (SDA) and 583 (SCL)
+[    0.244690] cfg80211: Loading compiled-in X.509 certificates for regulatory database
+[    0.249455] Loaded X.509 cert 'sforshee: 00b28ddf47aef9cea7'
+[    0.253524] Loaded X.509 cert 'wens: 61c038651aabdcf94bd0ac7ff06c7248db18c600'
+[    0.253662] platform regulatory.0: Direct firmware load for regulatory.db failed with error -2
+[    0.253716] cfg80211: failed to load regulatory.db
+[    0.253762] clk: Disabling unused clocks
+[    0.254143] cramfs: checking physical address 0x42540000 for linear cramfs image
+[    0.254186] cramfs: linear cramfs image on mtd:rootfs appears to be 7632 KB in size
+[    0.254252] VFS: Mounted root (cramfs filesystem) readonly on device 31:5.
+[    0.254331] devtmpfs: mounted
+[    0.254398] Freeing unused kernel image (initmem) memory: 12K
+[    0.254436] This architecture does not have kernel memory protection.
+[    0.254481] Run /sbin/init as init process
+Starting syslogd: OK
+Starting klogd: OK
+Running sysctl: OK
+Starting network (background): OK
+Starting inetd: OK
+Starting BLE WiFi setup: OK
+Starting cron: OK
+
+Welcome to Buildroot
+buildroot login: [script] t=24.000s Uart(0, "root\n")
+root
+Password: [script] t=27.000s Uart(0, "changeme123\n")
+
+[?2004h# [script] t=29.000s Uart(0, "killall ntpd\n")
+killall ntpd
+[?2004lkillall: ntpd: no process killed
+[?2004h# [script] t=30.000s Uart(0, "iptables -P OUTPUT DROP\n")
+iptables -P OUTPUT DROP
+[?2004l[?2004h# [script] t=31.000s Uart(0, "iptables -A OUTPUT -p udp --dport 67 -j ACCEPT\n")
+iptables -A OUTPUT -p udp --dport 67 -j ACCEPT
+[?2004l[?2004h# [script] t=32.000s Uart(0, "iptables -A OUTPUT -d 127.0.0.1 -p tcp --dport 18799 -j ACCEPT\n")
+iptables -A OUTPUT -d 127.0.0.1 -p tcp --dport 18799 -j ACCEPT
+[?2004l[?2004h# [script] t=34.000s Uart(0, "wifi-setup esp32sim esp32sim-pass\n")
+wifi-setup esp32sim esp32sim-pass
+[?2004lConnecting to 'esp32sim'...
+Successfully initialized wpa_supplicant
+Done. Check with: wifi status
+[?2004h# [net] ignoring ethertype 0x86dd (94 bytes)
+[net] ignoring ethertype 0x86dd (94 bytes)
+[net] DHCP DISCOVER -> OFFER for 10.0.2.15
+[net] DHCP REQUEST -> ACK for 10.0.2.15
+[net] DHCP DISCOVER -> OFFER for 10.0.2.15
+[net] DHCP REQUEST -> ACK for 10.0.2.15
+[script] t=52.000s Uart(0, "ifconfig espsta0\n")
+ifconfig espsta0
+[?2004lbash: fork: Cannot allocate memory
+bash: wait_for: No record of process 168
+bash cannot fork with 784 KiB free; switching to dash and retrying.
+This choice persists across logins. Undo it with: use-shell bash
+retrying: ifconfig espsta0
+espsta0   Link encap:Ethernet  HWaddr 44:1B:F6:75:DC:E0  
+          inet addr:10.0.2.15  Bcast:10.0.2.255  Mask:255.255.255.0
+          inet6 addr: fe80::461b:f6ff:fe75:dce0/64 Scope:Link
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:4 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:8 errors:0 dropped:16 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000 
+          RX bytes:1312 (1.2 KiB)  TX bytes:1908 (1.8 KiB)
+
+# [script] t=54.000s Uart(0, "sysctl -w net.ipv4.conf.all.route_localnet=1\n")
+sysctl -w net.ipv4.conf.all.route_localnet=1
+net.ipv4.conf.all.route_localnet = 1
+# [script] t=55.000s Uart(0, "ip rule del pref 0\n")
+ip rule del pref 0
+# [script] t=56.000s Uart(0, "ip rule add pref 0 to 127.0.0.1 lookup main\n")
+ip rule add pref 0 to 127.0.0.1 lookup main
+# [script] t=57.000s Uart(0, "ip rule add pref 1 lookup local\n")
+ip rule add pref 1 lookup local
+# [script] t=58.000s Uart(0, "ip route add 127.0.0.1/32 via 10.0.2.2 dev espsta0\n")
+ip route add 127.0.0.1/32 via 10.0.2.2 dev espsta0
+# [net] ignoring ethertype 0x86dd (74 bytes)
+[script] t=60.000s Uart(0, "wget -T 5 -O - http://127.0.0.1:18799/qualification\n")
+wget -T 5 -O - http://127.0.0.1:18799/qualification
+Connecting to 127.0.0.1:18799 (127.0.0.1:18799)
+[net] ARP who-has 10.0.2.2 -> 02:53:49:4d:00:02
+[nat] TCP 10.0.2.15:43556 -> 127.0.0.1:18799 connecting
+[nat] TCP 127.0.0.1:18799 connected
+[nat] TCP 127.0.0.1:18799 -> guest 148 bytes (seq 69633)
+writing to stdout
+esp32sim-nat-loopback-pass
+-                    100% |********************************|    27  0:00:00 ETA
+written to stdout
+# [script] t=68.000s Uart(0, "iptables -nvL OUTPUT\n")
+iptables -nvL OUTPUT
+[   66.935736] iptables: page allocation failure: order:7, mode:0xcc0(GFP_KERNEL), nodemask=(null)
+[   66.935804] CPU: 0 UID: 0 PID: 235 Comm: iptables Not tainted 6.11.0-forkbank #1
+[   66.935866] Stack:
+[   66.935904] > 00000100 00000000 3ded59f0 423c8925
+[   66.935953]   423c8925 00000000 3dec5f18 3d8850a8
+[   66.936002]   8219ed90 3ded5a40 00000000 3dec5f18
+[   66.936049]   3ded5a20 00000004 00060000 00000000
+[   66.936098]   8219f2c9 3ded5a60 00000cc0 00000000
+[   66.936146] > 3ded5a7c 00000cc0 3ded5a90 00000000
+[   66.936194]   8219f325 3ded5ae0 00000000 00000007
+[   66.936240] > 00000000 00000000 00000000 00000000
+[   66.936289]   3ded5ac0 3ded5aa0 0000000c 423c82be
+[   66.936337]   3ded5a70 00000000 3d87eab8 00000cc0
+[   66.936383]   00000cc0 00000000 00000000 00000006
+[   66.936430]   00000006 3ded4000 00000015 00000007
+[   66.936478]   3ded4000 3d87eab8 00000000 00000000
+[   66.936525]   00000001 00000007 3ded4000 00000000
+[   66.936573]   8219f438 3ded5b60 00000000 00000cc0
+[   66.936621] > 00000000 00000000 3d87eab0 00140cca
+[   66.936655] Call Trace:
+[   66.936680]  [<42384371>] 0x42384371
+[   66.936718]  [<4219ed90>] 0x4219ed90
+[   66.936757]  [<4219f2c9>] 0x4219f2c9
+[   66.936795]  [<4219f325>] 0x4219f325
+[   66.936833]  [<4219f438>] 0x4219f438
+[   66.936871]  [<4219f4b1>] 0x4219f4b1
+[   66.936910]  [<4219c101>] 0x4219c101
+[   66.936948]  [<42196cb3>] 0x42196cb3
+[   66.936986]  [<42196ce8>] 0x42196ce8
+[   66.937025]  [<421cd092>] 0x421cd092
+[   66.937063]  [<421cd4f0>] 0x421cd4f0
+[   66.937101]  [<421a8005>] 0x421a8005
+[   66.937140]  [<421a86af>] 0x421a86af
+[   66.937178]  [<421a8e76>] 0x421a8e76
+[   66.937216]  [<42140770>] 0x42140770
+[   66.937255]  [<421404fa>] 0x421404fa
+[   66.941559] Mem-Info:
+[   66.941582] active_anon:0 inactive_anon:0 isolated_anon:0
+[   66.941582]  active_file:0 inactive_file:4 isolated_file:0
+[   66.941582]  unevictable:18 dirty:0 writeback:0
+[   66.941582]  slab_reclaimable:131 slab_unreclaimable:812
+[   66.941582]  mapped:0 shmem:0 pagetables:0
+[   66.941582]  sec_pagetables:0 bounce:0
+[   66.941582]  kernel_misc_reclaimable:0
+[   66.941582]  free:310 free_pcp:0 free_cma:0
+[   66.941758] Node 0 active_anon:0kB inactive_anon:0kB active_file:0kB inactive_file:16kB unevictable:72kB isolated(anon):0kB isolated(file):0kB mapped:0kB dirty:0kB writeback:0kB shmem:0kB writeback_tmp:0kB kernel_stack:368kB pagetables:0kB sec_pagetables:0kB all_unreclaimable? no
+[   66.941894] Normal free:1240kB boost:0kB min:340kB low:424kB high:508kB reserved_highatomic:0KB active_anon:0kB inactive_anon:0kB active_file:0kB inactive_file:16kB unevictable:72kB writepending:0kB present:8192kB managed:7320kB mlocked:0kB bounce:0kB free_pcp:0kB local_pcp:0kB free_cma:0kB
+[   66.942045] lowmem_reserve[]: 0 0
+[   66.942098] Normal: 50*4kB (U) 34*8kB (U) 12*16kB (U) 2*32kB (U) 4*64kB (U) 0*128kB 1*256kB (U) 0*512kB 0*1024kB 0*2048kB 0*4096kB = 1240kB
+[   66.942386] 23 total pagecache pages
+[   66.942414] 2048 pages RAM
+[   66.942440] 0 pages HighMem/MovableOnly
+[   66.942469] 218 pages reserved
+[   66.942497] nommu: Allocation of length 344064 from process 235 (iptables) failed
+[   66.942543] Mem-Info:
+[   66.942566] active_anon:0 inactive_anon:0 isolated_anon:0
+[   66.942566]  active_file:0 inactive_file:4 isolated_file:0
+[   66.942566]  unevictable:18 dirty:0 writeback:0
+[   66.942566]  slab_reclaimable:131 slab_unreclaimable:812
+[   66.942566]  mapped:0 shmem:0 pagetables:0
+[   66.942566]  sec_pagetables:0 bounce:0
+[   66.942566]  kernel_misc_reclaimable:0
+[   66.942566]  free:310 free_pcp:0 free_cma:0
+[   66.942741] Node 0 active_anon:0kB inactive_anon:0kB active_file:0kB inactive_file:16kB unevictable:72kB isolated(anon):0kB isolated(file):0kB mapped:0kB dirty:0kB writeback:0kB shmem:0kB writeback_tmp:0kB kernel_stack:368kB pagetables:0kB sec_pagetables:0kB all_unreclaimable? no
+[   66.942878] Normal free:1240kB boost:0kB min:340kB low:424kB high:508kB reserved_highatomic:0KB active_anon:0kB inactive_anon:0kB active_file:0kB inactive_file:16kB unevictable:72kB writepending:0kB present:8192kB managed:7320kB mlocked:0kB bounce:0kB free_pcp:0kB local_pcp:0kB free_cma:0kB
+[   66.943028] lowmem_reserve[]: 0 0
+[   66.943082] Normal: 50*4kB (U) 34*8kB (U) 12*16kB (U) 2*32kB (U) 4*64kB (U) 0*128kB 1*256kB (U) 0*512kB 0*1024kB 0*2048kB 0*4096kB = 1240kB
+[   66.943369] 23 total pagecache pages
+[   66.943398] 2048 pages RAM
+[   66.943424] 0 pages HighMem/MovableOnly
+[   66.943453] 218 pages reserved
+Segmentation fault
+# 
+[emu] stop: Halted — core0 52343126 + core1 752387669 insns in 15.1s wall = 53.4 Minsn/s; emulated 72.000s (17280000000 cycles); 960796 exceptions, 19238 interrupts
+[emu] last bus fault: read 0x3fc00008
+[irq] per core, cpu-int: count (peripheral sources mapped to it)
+  core0 int0        756  sources [0,2]
+  core0 int3         53  sources [59]
+  core0 int9       9765  sources [79]
+  core0 int12      7196  sources [57]
+  core0 int13       100  sources [82]
+  core1 int1         15  sources [27]
+  core1 int2        125  sources [81]
+  core1 int3        100  sources [96]
+  core1 int6       1128  sources [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,17,18,19,20,22,23,24,25,26,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,82,83,84,85,86,87,88,89,90,91,92,93,94,95,97,98]
+
+[emu] i2s frames out: 0 (i2s0 @ 44100 Hz) 0 (i2s1 @ 44100 Hz)
+[emu] wifi: 45 frames sent by the station, 718 received (12 dropped: no descriptor); AP: 703 beacons, 12 probe responses, 13 data frames from the station, state Associated
+[emu] net: 2 DHCP leases, 1 ARP replies, 0 DNS answers, 0 NTP answers, 0 TCP refused, 0 pings, 3 frames ignored
+[emu] nat: 1 TCP connections (0 failed), 0 UDP flows, 91 bytes out, 148 bytes in
+[emu] crypto: 0 AES blocks, 11021 SHA blocks, 4 RSA/MPI operations
+[emu] blocks: 31300 built (1 cache flushes) core0, 475283 (2) core1; jit: 506583 compiled, 189465 KB code
+[emu] stubs hit 1 times
+core0: pc=4038028e   ps=00060b20 wb=13 ws=2a00 sar=31 lcount=0 exccause=4 excvaddr=00000000 epc1=42020ab8 intenable=1200320d interrupt=00018040 ccount=120014924 insns=52343126
+a0 =82020ab8 a1 =3fcf4220 a2 =00000000 a3 =4205f79c a4 =00060220 a5 =00000001 a6 =03c9be4c a7 =3fc9be4c 
+a8 =80384e5c a9 =3fcf4200 a10=3fcf3c78 a11=3fc9b6b0 a12=3fc9b6b0 a13=00000000 a14=00060220 a15=3fc9b6c0 
+core1: pc=4237e9ba   ps=00060100 wb=5 ws=802a sar=0 lcount=0 exccause=4 excvaddr=00000000 epc1=4217b9d9 intenable=00000346 interrupt=00018000 ccount=4143877009 insns=752387669
+a0 =82140ad1 a1 =3d801ef0 a2 =00000005 a3 =00000001 a4 =00000001 a5 =00000000 a6 =00000000 a7 =3d870c38 
+a8 =8238469c a9 =3d801ed0 a10=00000005 a11=00000010 a12=00000001 a13=ffffffff a14=7fffffff a15=3d8048f0 
+
