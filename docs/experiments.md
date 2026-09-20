@@ -18,7 +18,7 @@ FP means floating-point arithmetic. PIE is the ESP32-S3 vector instruction exten
 
 ## The list
 
-All 164 entries below are the one status list. Use text search for a mechanism or alias. The result column preserves runtime, scope and uncertainty; the last column says whether the work is adopted and what would justify reopening it. Open the supporting receipts when you need measurement details or are preparing a related experiment.
+The entries below are the one status list. Use text search for a mechanism or alias. The result column preserves runtime, scope and uncertainty; the last column says whether the work is adopted and what would justify reopening it. Open the supporting receipts when you need measurement details or are preparing a related experiment.
 
 | ID | Idea and known aliases | Outcome | Result and limits | Adoption or next condition; receipts |
 | --- | --- | --- | --- | --- |
