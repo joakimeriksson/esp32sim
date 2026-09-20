@@ -1,11 +1,11 @@
 {
   "ordinary": {
-    "path": "/Users/sarah/src/a/esp32sim/web/wasm/esp32sim.wasm",
+    "path": "/Users/alice/src/a/esp32sim/web/wasm/esp32sim.wasm",
     "sha256": "1ec1c78da46537fdcd3d9cf5ff903c33f0f2c5ca70c95643b8e0f268aae03fae",
     "hash_provenance": "Carried from the preceding delivery receipt; not independently recaptured before this profile."
   },
   "diagnostic": {
-    "path": "/Users/sarah/src/a/esp32sim/target/browser-cpu-profile/named-boundaries.wasm",
+    "path": "/Users/alice/src/a/esp32sim/target/browser-cpu-profile/named-boundaries.wasm",
     "sha256": "61853592832463583b0cee1c02f58bcc38b837e9d0e53028752c06552f406b5c"
   },
   "base_commit": "3900590025ed058a8b108469926ccfcca79ab2a8",
