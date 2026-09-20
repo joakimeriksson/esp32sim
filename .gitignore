@@ -3,6 +3,7 @@ target/
 # checkout keeps a local build tree here, which is no longer this repo's
 /boards/
 *.log
+!docs/evidence/**/*.log
 *.wav
 *.png
 !web/assets/*
