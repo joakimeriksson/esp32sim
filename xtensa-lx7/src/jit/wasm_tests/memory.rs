@@ -39,6 +39,7 @@ pub(super) fn inline_cache_hits() -> u32 {
             tests += 1;
         }
     }
+    super::CACHE_PROBES.store(false, std::sync::atomic::Ordering::Relaxed);
     tests
 }
 
