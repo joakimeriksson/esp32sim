@@ -15,7 +15,7 @@ mod memory;
 mod instruction;
 pub(super) use policy::{admitted, supported_insn, loop_safe, terminal_helper};
 #[cfg(feature = "wasm-jit-tests")]
-pub(super) use policy::supported;
+pub(super) use policy::supported_opcode;
 use policy::coprocessors;
 
 // Parameters: cpu, bus, helpers, budget, entry, TLB, versions.
