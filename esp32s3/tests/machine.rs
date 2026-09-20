@@ -630,3 +630,81 @@ fn light_grid_reports_the_glass_not_the_chain() {
         assert_eq!(g11.leds[cell11.0 * 3 + cell11.1], [51, 0, 0], "chain {} on port 11", chain_i);
     }
 }
+
+#[test]
+fn unmatched_breakpoints_preserve_idle_timeline() {
+    use esp_soc::observers::Breakpoints;
+    for until in [false, true] {
+        let mut results = Vec::new();
+        for observed in [false, true] {
+            let mut m = machine();
+            park(&mut m, 0, IRAM, &WAITI_LOOP);
+            m.script.events = vec![(71, ScriptAction::Stop)];
+            if observed { m.add_observer(Box::new(Breakpoints { pcs: vec![IRAM + 100] })); }
+            if until { m.run_until_cycle(1000); } else { m.run(1000); }
+            results.push((m.bus.cycles, m.insns(), m.cores[0].pc, m.cores[0].ccount));
+        }
+        assert_eq!(results[0], results[1], "until={until}");
+        assert_eq!(results[1].0, 71);
+    }
+}
+
+#[test]
+fn block_profile_does_not_count_idle_single_steps() {
+    use esp_soc::observers::{BlockProfile, PcHist};
+    let mut m = machine();
+    park(&mut m, 0, IRAM, &WAITI_LOOP);
+    m.add_observer(Box::new(PcHist::new(4)));
+    m.add_observer(Box::new(BlockProfile::new(4)));
+    m.run(128);
+    assert!(m.reports().contains("[profile-blocks] top 4 functions of 1 instructions"));
+}
+
+#[test]
+fn reset_partial_round_delivers_mmio_and_round_observations() {
+    use esp_soc::observe::{Ctx, Observer, Wants};
+    use std::sync::{Arc, Mutex};
+    #[derive(Default)]
+    struct Events { writes: Vec<u32>, rounds: Vec<u64> }
+    struct Watch(Arc<Mutex<Events>>);
+    impl Observer<esp32s3::S3> for Watch {
+        fn name(&self) -> &'static str { "reset-observer" }
+        fn wants(&self) -> Wants { Wants::MMIO | Wants::ROUND }
+        fn on_mmio(&mut self, _: &Ctx, _: u32, addr: u32, _: u32, write: bool) {
+            if write { self.0.lock().unwrap().writes.push(addr); }
+        }
+        fn on_round(&mut self, cx: &Ctx) { self.0.lock().unwrap().rounds.push(cx.cycles); }
+    }
+    for until in [false, true] {
+        let mut m = machine();
+        park(&mut m, 0, IRAM, &[0x22, 0x63, 0]); // s32i a2,a3,0
+        m.cores[0].set_ar(2, 1 << 31);
+        m.cores[0].set_ar(3, 0x6000_8000);
+        let events = Arc::new(Mutex::new(Events::default()));
+        m.add_observer(Box::new(Watch(events.clone())));
+        if until { assert!(matches!(m.run_until_cycle(64), esp_soc::RunUntil::Stop(Stop::SwReset))); }
+        else { assert!(matches!(m.run(64), Stop::SwReset)); }
+        let events = events.lock().unwrap();
+        assert_eq!(events.writes, [0x6000_8000]);
+        assert_eq!(events.rounds, [1]);
+    }
+}
+
+#[test]
+fn zero_display_rate_is_safe_and_virtual_rounds_reuse_the_interval() {
+    use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+    struct DisplayRate(Arc<AtomicUsize>);
+    impl esp_soc::board::BoardModel for DisplayRate {
+        fn name(&self) -> &'static str { "zero-rate" }
+        fn display_push_hz(&self) -> u64 { self.0.fetch_add(1, Ordering::Relaxed); 0 }
+    }
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut m = machine();
+    m.bus.board = Box::new(DisplayRate(calls.clone()));
+    m.web = Some(esp_soc::web::WebServer::queued());
+    m.vq_max = 1024;
+    for core in &mut m.cores { core.set_jit(false); }
+    park(&mut m, 0, IRAM, &SPIN);
+    assert!(matches!(m.run(8192), Stop::MaxInsns));
+    assert_eq!(calls.load(Ordering::Relaxed), 1, "one configuration read, no per-round division");
+}

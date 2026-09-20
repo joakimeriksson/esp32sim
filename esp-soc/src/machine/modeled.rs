@@ -96,7 +96,7 @@ impl<S: Soc> Machine<S> {
             else { self.drain_console(); return Stop::Halted; };
             // EX139: a core running alone may batch up to the next deadline; device registers are
             // then reached only at settled time (the batch stops in front of them).
-            let solo = self.vq_max > 1 && self.bus.can_defer() && (0..S::CORES).all(|i| i == core || !on[i] || (self.cores[i].waiting() && !self.cores[i].irq_pending()));
+            let solo = blocks && self.vq_max > 1 && self.bus.can_defer() && (0..S::CORES).all(|i| i == core || !on[i] || (self.cores[i].waiting() && !self.cores[i].irq_pending()));
             let mut cycles = u64::from(if solo { quantum.max(4096) } else { quantum }) * u64::from(cpi);
             if let Some(delta) = self.bus.next_deadline() { cycles = cycles.min(delta.max(1)); }
             if let Some(&(at, _)) = self.script.events.get(self.script.pos) { cycles = cycles.min(at.saturating_sub(now).max(1)); }
@@ -239,6 +239,7 @@ impl<S: Soc> Machine<S> {
             let now = self.bus.cycles();
             if now >= self.max_cycles { return Err(Stop::Halted); }
 
+            if let Some(stop) = self.observe_idle_pcs(&on[..S::CORES]) { return Err(stop); }
             let next_core = (0..S::CORES)
                 .filter(|&i| on[i] && (force_idle || !self.cores[i].waiting() || self.cores[i].irq_pending()))
                 .map(|i| self.model_ready_at[i].max(now))

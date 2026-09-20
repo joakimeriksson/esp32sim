@@ -36,6 +36,7 @@ fn architectural_stop_preserves_unfinished_round() {
                 if vq > 1 && std::env::var_os("ESP32SIM_VQ_NATIVE").is_some() {
                     assert!(m.vq_stats[0] > 0);
                 }
+                assert_eq!(m.bus.vq_violations, 0, "no undeferred device accesses");
                 results.push((m.bus.cycles, m.cores.iter().map(|c| (c.ccount, c.insn_count, c.pc, c.ps)).collect::<Vec<_>>()));
             }
             assert_eq!(results[0], results[1], "quantum={quantum} busy={busy} instructions={instructions}");
@@ -85,6 +86,7 @@ fn waiti_inside_virtual_round_preserves_timer_ordering() {
                     if vq > 1 && std::env::var_os("ESP32SIM_VQ_NATIVE").is_some() {
                         assert!(m.vq_stats[0] > 0 && m.vq_stats[3] > 0, "exercise a virtual run cut by WAITI");
                     }
+                    assert_eq!(m.bus.vq_violations, 0, "no undeferred device accesses");
                     results.push((m.bus.cycles, m.run_steps(), m.irq_hist.clone(), m.cores.iter()
                         .map(|c| (c.ccount, c.insn_count, c.pc, c.ps, c.interrupt, c.epc, c.waiting)).collect::<Vec<_>>()));
                 }
@@ -92,4 +94,52 @@ fn waiti_inside_virtual_round_preserves_timer_ordering() {
             }
         }
     }
+}
+
+#[test]
+fn virtual_runs_stop_before_register_reads_and_script_events() {
+    let mut results = Vec::new();
+    for vq in [1, 1024] {
+        let mut m = esp32s3::machine([0; 6]);
+        m.console.capture = true;
+        for core in &mut m.cores { core.set_jit(false); }
+        let mut code = [0x3d, 0xf0].repeat(150); // nop.n
+        code.extend([0x22, 0x23, 0x00]); // l32i a2,a3,0: device access cuts virtual run
+        code.extend([0x06, 0xff, 0xff]); // j .
+        m.bus.load_bytes(IRAM, &code).unwrap();
+        m.cores[0].pc = IRAM;
+        m.cores[0].ps = 0;
+        m.cores[0].set_ar(3, 0x6002_3000); // SYSTIMER configuration register
+        m.vq_max = vq;
+        m.script.log = false;
+        m.script.events = vec![(192, esp_soc::ScriptAction::Serial("event".into())), (320, esp_soc::ScriptAction::Stop)];
+        assert!(matches!(m.run(1024), Stop::Halted));
+        assert_eq!(m.bus.vq_violations, 0);
+        assert_eq!(m.script.pos, 2);
+        assert_eq!(m.bus.periph.usb.rx.iter().copied().collect::<Vec<_>>(), b"event");
+        if vq > 1 && std::env::var_os("ESP32SIM_VQ_NATIVE").is_some() {
+            assert!(m.vq_stats[0] > 0 && m.vq_stats[2] > 0, "exercise register deferral");
+        }
+        results.push((m.bus.cycles, m.insns(), m.cores[0].ccount, m.cores[0].pc, m.cores[0].get_ar(2)));
+    }
+    assert_eq!(results[0], results[1]);
+    assert_eq!(results[0].0, 320);
+}
+
+#[test]
+fn frontier_instruction_observers_do_not_arm_mmio_deferral() {
+    let mut m = esp32s3::machine([0; 6]);
+    m.console.capture = true;
+    m.vq_max = 1024;
+    m.set_approximate_jit_timing(1, 64).unwrap();
+    m.set_approximate_jit_frontiers(true).unwrap();
+    m.add_observer(Box::new(esp_soc::observers::Breakpoints { pcs: vec![IRAM + 100] }));
+    // The second instruction reads MMIO after the batch has already spent cycles.
+    m.bus.load_bytes(IRAM, &[0x3d, 0xf0, 0x22, 0x23, 0, 0x06, 0xff, 0xff]).unwrap();
+    m.cores[0].pc = IRAM;
+    m.cores[0].ps = 0;
+    m.cores[0].set_ar(3, 0x6002_3000);
+    m.max_cycles = 128;
+    assert!(matches!(m.run(1024), Stop::Halted));
+    assert_eq!(m.bus.vq_violations, 0);
 }

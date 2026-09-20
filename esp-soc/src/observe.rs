@@ -30,6 +30,8 @@ impl Wants {
     /// `on_trap` at the exact instruction PC; bounds fast-path runs to one instruction.
     /// Requests trap callbacks itself; combine with `BLOCK` to observe those fragments.
     pub const TRAP_PC: Wants = Wants(256);
+    /// Inspect sleeping cores' PCs at scheduling boundaries via `on_insn`, without stepping.
+    pub const IDLE_PC: Wants = Wants(512);
     pub fn contains(self, o: Wants) -> bool { self.0 & o.0 != 0 }
 }
 impl std::ops::BitOr for Wants { type Output = Wants; fn bitor(self, o: Wants) -> Wants { Wants(self.0 | o.0) } }
