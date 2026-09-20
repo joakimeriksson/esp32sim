@@ -147,6 +147,9 @@ impl SocBus {
         self.cache_resource.writeback_cycles = config.writeback_cycles;
         self.approximate_cache = Some(crate::approximate_cache::CacheTiming::new(config));
         self.approximate_cache_pending = 0;
+        self.approximate_cache_inline = false;
+        self.approximate_cache_fast_internal = false;
+        self.invalidate_tlb();
     }
 
     /// Chip reset drops shared cache contents and timing debt, not experiment settings.

@@ -6,8 +6,8 @@ const parse = query => experimentsFromParams(new URLSearchParams(query));
 test('page and response timing parameters preserve valid models and bisects', () => {
   assert.deepEqual(parse(''), []);
   assert.deepEqual(parse('timing=hw'), HW);
-  assert.deepEqual(parse('timing=hw-2-8'), HW.filter((_, n) => n !== 2 && n !== 8));
-  assert.deepEqual(parse('timing=hw-0'), HW.slice(1)); // wasm enforces prerequisites, not the bisect parser
+  assert.deepEqual(parse('timing=hw-2-8'), HW.filter((_, n) => ![2, 3, 4, 8].includes(n)));
+  assert.deepEqual(parse('timing=hw-0'), HW.filter((_, n) => [5, 6].includes(n)));
   for (const n of [64, 128, 4096]) assert.deepEqual(parse(`quantum=${n}`), [['esp32sim_set_quantum', n]]);
 });
 test('malformed bisects and ineffective quantum combinations reject', () => {
@@ -33,4 +33,12 @@ test('diagnostic setters remain supported but invalid argument shapes never disp
   let called = false;
   assert.throws(() => applyExperiments({esp32sim_set_quantum() { called = true; return 0; }}, 1, [['esp32sim_set_quantum', 64], ['esp32sim_delete']]));
   assert.equal(called, false, 'whole list validated before first setter');
+});
+
+test('board-specific preset setters are selected before boot', () => {
+  assert.deepEqual(experimentsFromParams(new URLSearchParams('timing=hw'), 'atech14'), HW.filter((_, n) => n !== 6));
+  assert.deepEqual(experimentsFromParams(new URLSearchParams('timing=hw'), 'waveshare-amoled18-v2'), HW);
+  for (const board of ['c3', 'esp32c6', 'waveshare-c6-lcd147']) assert.throws(() => experimentsFromParams(new URLSearchParams('timing=hw'), board), /ESP32-S3/);
+  assert.throws(() => validateExperiments([['esp32sim_set_icache_fill', 1000001]]));
+  assert.throws(() => applyExperiments({esp32sim_set_icache_fill: () => 1}, 1, [['esp32sim_set_icache_fill', 404]]), /esp32sim_set_icache_fill/);
 });
