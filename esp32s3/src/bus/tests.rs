@@ -289,7 +289,7 @@ fn idf_shaped_read_uses_ms_dlen_and_a_following_cpu_transfer_completes() {
 }
 
 #[test]
-fn cpu_transfer_replaces_a_parked_dma_transfer_on_the_bus() {
+fn cpu_command_does_not_replace_a_parked_dma_transfer_on_the_bus() {
     let events = Arc::new(Mutex::new(Vec::new()));
     let mut bus = SocBus::new(1024, 1024, [0; 6]);
     bus.board = Box::new(ProbeBoard { events: events.clone() });
@@ -306,9 +306,9 @@ fn cpu_transfer_replaces_a_parked_dma_transfer_on_the_bus() {
     bus.write32(SPI2 + 0x98, 0xa5).expect("CPU data setup failed");
     bus.write32(SPI2, 1 << 24).expect("CPU command failed");
 
-    assert_eq!(bus.periph.spi2.dma_tx_pending, None);
-    assert_eq!(bus.periph.spi2.transfers, 1);
-    assert_eq!(&*events.lock().expect("probe mutex poisoned"), &["spi:2:[a5]:0"]);
+    assert_eq!(bus.periph.spi2.dma_tx_pending, Some(8));
+    assert_eq!(bus.periph.spi2.transfers, 0);
+    assert!(events.lock().expect("probe mutex poisoned").is_empty());
 }
 
 #[test]
@@ -1060,6 +1060,7 @@ fn timed_spi2_dma_completion_yields_to_out_reset() {
     bus.write32(GDMA + 0x60, 1).unwrap(); // OUT_RST while the data phase is on the wire
     bus.tick(128); // past the original deadline
     assert_eq!(bus.periph.spi2.transfers, 0, "reset discards the scheduled completion");
+    assert_ne!(bus.periph.spi2.int_raw & (1 << 12), 0, "aborted commands raise TRANS_DONE");
     assert_eq!(bus.read32(SPI2).unwrap() & (1 << 24), 0, "USR must report idle after reset");
     let channel = &bus.periph.gdma.out[0];
     assert_eq!((channel.desc, channel.buf_pos, channel.running), (0, 0, false));
@@ -1116,3 +1117,26 @@ fn timed_spi2_dma_stop_survives_completion_and_gates_the_next_usr() {
     assert_eq!(bus.periph.spi2.transfers, 2, "RESTART lets the pending USR complete");
 }
 
+
+#[test]
+fn gdma_m2m_productive_copy_resumes_after_work_budget() {
+    let mut bus = SocBus::new(1024, 1024, [0; 6]);
+    const COUNT: u32 = 2050;
+    const OUT: u32 = 0x3fca_0000;
+    const IN: u32 = 0x3fcb_0000;
+    for i in 0..COUNT {
+        let last = i + 1 == COUNT;
+        m2m_desc(&mut bus, OUT + i * 16, (1 << 31) | ((last as u32) << 30) | (1 << 12) | 1,
+            M2M_SRC + i, if last { 0 } else { OUT + (i + 1) * 16 });
+        m2m_desc(&mut bus, IN + i * 16, (1 << 31) | 1,
+            M2M_DST + i, if last { 0 } else { IN + (i + 1) * 16 });
+        bus.write8(M2M_SRC + i, i as u8).unwrap();
+    }
+    m2m_start(&mut bus, IN, OUT, false);
+    m2m_round(&mut bus);
+    assert!(bus.periph.gdma.out[0].running);
+    assert_eq!(bus.periph.gdma.out[0].int_raw & (1 << 2), 0);
+    m2m_round(&mut bus);
+    assert!(!bus.periph.gdma.out[0].running);
+    for i in 0..COUNT { assert_eq!(bus.read8(M2M_DST + i).unwrap(), i as u8); }
+}

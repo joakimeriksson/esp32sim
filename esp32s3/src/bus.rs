@@ -326,7 +326,7 @@ impl SocBus {
         };
         e.vbase = self.ver_base[e.src as usize] + (e.off as usize >> VPAGE_SHIFT) as u32;
         let off = e.off as usize;
-        e.base = unsafe { self.buf_mut(e.src as u8).as_mut_ptr().add(off) };
+        e.base = self.buf_mut(e.src as u8).as_mut_ptr().wrapping_add(off);
         // Do not publish external mappings to generated loads/stores while pricing cache accesses.
         // Returning the mapping still lets the slow accessor perform this one access.
         if !(self.approximate_cache.is_some() && self.approximate_cache_fast_internal && !self.approximate_cache_inline
@@ -405,7 +405,7 @@ impl SocBus {
                 {
                     if self.periph.spi2.log { eprintln!("[spi2] DMA source reset/rebound: aborting scheduled transfer"); }
                     self.spi2_scheduled = None;
-                    self.periph.spi2.abort_transfer();
+                    self.periph.spi2.fail_dma_tx();
                 }
             }
         }
