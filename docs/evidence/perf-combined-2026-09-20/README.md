@@ -75,3 +75,7 @@ All individual confirmations use three alternating pairs. The combined pocket-ta
 ## Inline follow-up launched
 
 The M3 started inline-campaign.sh at 12:53:03 BST. EX154 compares thresholds 2000 and 4000 against combined.wasm, not the original base. Both use production source 93741045 and Rust 1.98.1 with only -Cllvm-args=-inline-threshold=N added. All builds and per-variant correctness gates precede serial timing. Local launcher: /Users/alice/src/a/esp32sim-exp/m3-transfer/inline-campaign.sh. Local refreshed results: /Users/alice/src/a/esp32sim-exp/results/m3/README.md. Browser hand-testing follows selection of the final artifact.
+
+## Higher inline thresholds
+
+Alice requested 8000 and 16000 after 2000 and 4000 showed gains. The high-inline-campaign.sh waits for the previous campaign to finish and takes the same exclusive lock. Its baseline is combined-inl4000.wasm, so percentages measure further improvement over 4000. Both candidates must pass differential and full exactness gates before timing; then two A/A pairs, four balanced pocket-tank pairs per threshold and three TinyDraw pairs for consistently positive candidates. No concurrent browser hand-tests. This continues EX154, not a new experiment.
