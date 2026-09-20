@@ -1,5 +1,5 @@
-[emu] ROM loaded from /Users/sarah/bench/esp32sim/overnight-review/../assets/pocket-tank/rom.elf
-[emu] flash 0x290000: /Users/sarah/bench/esp32sim/overnight-review/../assets/pocket-tank/model.bin (7557640 bytes)
+[emu] ROM loaded from /Users/user/bench/esp32sim/overnight-review/../assets/pocket-tank/rom.elf
+[emu] flash 0x290000: /Users/user/bench/esp32sim/overnight-review/../assets/pocket-tank/model.bin (7557640 bytes)
 [emu] ROM boot from reset vector 0x40000400
 
 [emu] stop: Halted — core0 4446180089 + core1 5627653686 insns in 46.8s wall = 215.2 Minsn/s; emulated 30.000s (7200000055 cycles); 1006391 exceptions, 95179 interrupts

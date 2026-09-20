@@ -20,7 +20,7 @@
     "--disable-renderer-backgrounding",
     "--remote-debugging-address=127.0.0.1",
     "--remote-debugging-port=51638",
-    "--user-data-dir=/Users/sarah/bench/esp32sim/overnight-review/runs/tinydraw/1-candidate/chrome-profile",
+    "--user-data-dir=/Users/user/bench/esp32sim/overnight-review/runs/tinydraw/1-candidate/chrome-profile",
     "about:blank"
   ],
   "loadAfter": [

@@ -1,5 +1,5 @@
 {
-  "tree": "/Users/sarah/bench/esp32sim/overnight-review/baseline",
+  "tree": "/Users/user/bench/esp32sim/overnight-review/baseline",
   "commit": "d5446b4aa9a1b035aff74eba082611822676f285",
   "sourceSha256": {
     "Cargo.lock": "df4225bc1fc95eb67be6dccfe8a0be0eda694ca58fed737b20405d5938c93056",
@@ -187,7 +187,7 @@
   "rustflags": null,
   "buildFeatures": [],
   "buildCommand": [
-    "/Users/sarah/.rustup/toolchains/1.98.1-aarch64-apple-darwin/bin/cargo",
+    "/Users/user/.rustup/toolchains/1.98.1-aarch64-apple-darwin/bin/cargo",
     "build",
     "--release",
     "--target",

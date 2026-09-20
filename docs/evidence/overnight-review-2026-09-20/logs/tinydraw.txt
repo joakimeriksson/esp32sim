@@ -65,7 +65,7 @@ Running pair 2/2 baseline
       "passed": true,
       "jitFailed": 0,
       "jitBytes": 114373641,
-      "run": "/Users/sarah/bench/esp32sim/overnight-review/runs/tinydraw/1-baseline"
+      "run": "/Users/user/bench/esp32sim/overnight-review/runs/tinydraw/1-baseline"
     },
     {
       "pair": 1,
@@ -111,7 +111,7 @@ Running pair 2/2 baseline
       "passed": true,
       "jitFailed": 0,
       "jitBytes": 110408440,
-      "run": "/Users/sarah/bench/esp32sim/overnight-review/runs/tinydraw/1-candidate"
+      "run": "/Users/user/bench/esp32sim/overnight-review/runs/tinydraw/1-candidate"
     },
     {
       "pair": 2,
@@ -157,7 +157,7 @@ Running pair 2/2 baseline
       "passed": true,
       "jitFailed": 0,
       "jitBytes": 110408440,
-      "run": "/Users/sarah/bench/esp32sim/overnight-review/runs/tinydraw/2-candidate"
+      "run": "/Users/user/bench/esp32sim/overnight-review/runs/tinydraw/2-candidate"
     },
     {
       "pair": 2,
@@ -203,7 +203,7 @@ Running pair 2/2 baseline
       "passed": true,
       "jitFailed": 0,
       "jitBytes": 114373641,
-      "run": "/Users/sarah/bench/esp32sim/overnight-review/runs/tinydraw/2-baseline"
+      "run": "/Users/user/bench/esp32sim/overnight-review/runs/tinydraw/2-baseline"
     }
   ]
 }

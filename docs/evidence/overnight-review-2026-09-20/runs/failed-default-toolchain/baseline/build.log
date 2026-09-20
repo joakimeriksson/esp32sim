@@ -1,5 +1,5 @@
-   Compiling emu-core v0.2.0 (/Users/sarah/bench/esp32sim/overnight-review/baseline/emu-core)
-   Compiling esp32sim-wasm v0.2.0 (/Users/sarah/bench/esp32sim/overnight-review/baseline/wasm)
+   Compiling emu-core v0.2.0 (/Users/user/bench/esp32sim/overnight-review/baseline/emu-core)
+   Compiling esp32sim-wasm v0.2.0 (/Users/user/bench/esp32sim/overnight-review/baseline/wasm)
 warning: ignoring -C extra-filename flag due to -o flag
 
 error[E0463]: can't find crate for `std`

@@ -1,7 +1,7 @@
 {
   "args": [
     "--rom",
-    "/Users/sarah/bench/esp32sim/overnight-review/../assets/pocket-tank/rom.elf",
+    "/Users/user/bench/esp32sim/overnight-review/../assets/pocket-tank/rom.elf",
     "--board",
     "waveshare-amoled18-v2",
     "--boot",
@@ -14,13 +14,13 @@
     "--psram-mb",
     "8",
     "--bootloader",
-    "/Users/sarah/bench/esp32sim/overnight-review/../assets/pocket-tank/bootloader.bin",
+    "/Users/user/bench/esp32sim/overnight-review/../assets/pocket-tank/bootloader.bin",
     "--ptable",
-    "/Users/sarah/bench/esp32sim/overnight-review/../assets/pocket-tank/ptable.bin",
+    "/Users/user/bench/esp32sim/overnight-review/../assets/pocket-tank/ptable.bin",
     "--app",
-    "/Users/sarah/bench/esp32sim/overnight-review/../assets/pocket-tank/app.bin",
+    "/Users/user/bench/esp32sim/overnight-review/../assets/pocket-tank/app.bin",
     "--flash-at",
-    "0x290000=/Users/sarah/bench/esp32sim/overnight-review/../assets/pocket-tank/model.bin",
+    "0x290000=/Users/user/bench/esp32sim/overnight-review/../assets/pocket-tank/model.bin",
     "--max-seconds",
     "30"
   ],
@@ -33,11 +33,11 @@
   },
   "identities": {
     "baseline": {
-      "path": "/Users/sarah/bench/esp32sim/overnight-review/baseline/target/release/esp32sim",
+      "path": "/Users/user/bench/esp32sim/overnight-review/baseline/target/release/esp32sim",
       "sha256": "86d7fded1e2fe6c820bbb9bb43ca448091d6e647757ac0ac35dea07fb4637770"
     },
     "candidate": {
-      "path": "/Users/sarah/bench/esp32sim/overnight-review/candidate/target/release/esp32sim",
+      "path": "/Users/user/bench/esp32sim/overnight-review/candidate/target/release/esp32sim",
       "sha256": "c61f1002ead5bb8f4fa4799120e5111e764770ed8fb7e80278944a3b2dc43bfe"
     }
   },
