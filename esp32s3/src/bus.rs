@@ -689,7 +689,10 @@ impl SocBus {
         let p = &self.periph;
         p.i2s0.tx_running() || p.i2s1.tx_running()
             || p.lcd_cam.running || p.lcd_cam.lcd_running()
-            || p.gdma.inp.iter().any(|c| c.running) || p.gdma.out.iter().any(|c| c.running)
+            // EX157: a running GDMA IN channel is passive. Its only producers are the camera
+            // (lcd_cam.running), AES (dma_pending) and mem-to-mem (needs the OUT side running),
+            // all listed here, so an armed-but-idle receive channel does not hold the cadence.
+            || p.gdma.out.iter().any(|c| c.running)
             || p.wifi.ap.is_some() || p.wifi.net.is_some() || !p.wifi.tx_pending.is_empty()
             || p.aes.dma_pending || p.sha.dma_pending
             || p.spi2.has_pending_transfer() || p.spi2.dma_tx_pending.is_some()

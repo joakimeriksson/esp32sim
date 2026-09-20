@@ -649,7 +649,6 @@ fn quiet_backstop_keeps_the_original_cadence_for_active_devices() {
         ("i2s1", |p| p.i2s1.tx_conf |= 1 << 2),
         ("camera", |p| p.lcd_cam.running = true),
         ("lcd", |p| { p.lcd_cam.lcd_user |= 1 << 27; p.lcd_cam.lcd_ctrl |= 1 << 31; }),
-        ("gdma-in", |p| p.gdma.inp[0].running = true),
         ("gdma-out", |p| p.gdma.out[0].running = true),
         ("wifi-tx", |p| p.wifi.tx_pending.push((0, 0))),
         ("wifi-ap", |p| p.wifi.ap = Some(crate::wifi::VirtualAp::new(crate::wifi::ApConfig {
@@ -675,6 +674,11 @@ fn quiet_backstop_keeps_the_original_cadence_for_active_devices() {
         bus.refresh_tick_budget();
         assert_eq!(bus.tick_budget, MAX_TICK_DEFER, "{name}: active cadence");
     }
+    // EX157: an armed GDMA IN channel without a producer is passive and stays quiet.
+    let mut bus = SocBus::new(1024, 1024, [0; 6]);
+    bus.periph.gdma.inp[0].running = true;
+    bus.refresh_tick_budget();
+    assert_eq!(bus.tick_budget, QUIET_TICK_DEFER, "gdma-in alone is passive");
     // Real MMIO writes must switch the cap immediately in both directions.
     let mut bus = SocBus::new(1024, 1024, [0; 6]);
     bus.write32(0x6003_8010, 2).unwrap();
