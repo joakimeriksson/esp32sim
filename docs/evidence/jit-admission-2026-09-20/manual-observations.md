@@ -11,3 +11,5 @@ User report on September 20, 2026, after the browser test copies were updated to
 The cursor-to-drawing offset is a separate correctness/interaction issue. Its cause has not been diagnosed, and this report does not establish whether it predates the admission change. Preserve it for a separate investigation rather than treating it as a throughput result.
 
 The workload-sensitive Pocket Tank figures suggest including `feed 6` and `shadow` in a future interactive stress scenario. They do not establish an additional gain or regression relative to the paired benchmark campaign.
+
+Linux demo boot was reported at approximately 10% realtime after its missing firmware asset was supplied. Device and browser were not specified in that report; no controlled comparison was performed. It remains a lower-priority workload. iPhone Pocket Tank observations and deferred investigation are recorded in [the separate phone evidence](../iphone-browser-2026-09-20/README.md).

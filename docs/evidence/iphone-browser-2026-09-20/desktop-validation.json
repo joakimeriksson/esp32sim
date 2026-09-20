@@ -1,0 +1,269 @@
+{
+  "timerChecks": "passed",
+  "runs": [
+    {
+      "jit": 1,
+      "text": "5s elapsed · visible\nRealtime: 54.3% now / 48.0% average\nExecute 99.2% · output 0.5%\nBetween turns 0.2% · other 0.1%\nCatch-up gaps 0.2% · longest gap 0.4ms\nJIT compiled 4441 · FAILED 0\nCompilation 0.35s total\nLive modules 4411 · peak 4411\nGenerated code 42.58 MiB (Wasm bytes)",
+      "report": {
+        "version": 1,
+        "firmware": "pocket-tank",
+        "jit": true,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+        "visibility": [
+          {
+            "elapsedMs": 0,
+            "state": "visible"
+          }
+        ],
+        "samples": [
+          {
+            "elapsedSec": 1.0132900000214577,
+            "wallMs": 1013.2900000214577,
+            "speed": 0.5100238784774245,
+            "averageSpeed": 0.5100238784774245,
+            "runMs": 1000.8150001168251,
+            "drainMs": 3.67000013589859,
+            "gapMs": 8.13999992609024,
+            "catchupGapMs": 6.619999945163727,
+            "maxGapMs": 1.8550000190734863,
+            "otherMs": 0.6649998426437378,
+            "jit": {
+              "compiled": 2596,
+              "failed": 0,
+              "released": 30,
+              "compileMs": 188.3349975347519,
+              "bytes": 26191907,
+              "liveBytes": 25873355,
+              "peakBytes": 25873355,
+              "peakModules": 2566
+            }
+          },
+          {
+            "elapsedSec": 2.0453199999928473,
+            "wallMs": 1032.0299999713898,
+            "speed": 0.34721212885600916,
+            "averageSpeed": 0.42787213207210956,
+            "runMs": 1012.1549999117851,
+            "drainMs": 3.985000193119049,
+            "gapMs": 15.319999873638153,
+            "catchupGapMs": 15.319999873638153,
+            "maxGapMs": 10.319999992847443,
+            "otherMs": 0.5699999928474426,
+            "jit": {
+              "compiled": 3689,
+              "failed": 0,
+              "released": 30,
+              "compileMs": 282.89499723911285,
+              "bytes": 37364111,
+              "liveBytes": 37045559,
+              "peakBytes": 37045559,
+              "peakModules": 3659
+            }
+          },
+          {
+            "elapsedSec": 3.063715000033379,
+            "wallMs": 1018.3950000405312,
+            "speed": 0.4862422406305596,
+            "averageSpeed": 0.447274663543575,
+            "runMs": 1004.879999935627,
+            "drainMs": 4.8199997544288635,
+            "gapMs": 7.934999942779541,
+            "catchupGapMs": 7.934999942779541,
+            "maxGapMs": 3.5300000309944153,
+            "otherMs": 0.7600004076957703,
+            "jit": {
+              "compiled": 4161,
+              "failed": 0,
+              "released": 30,
+              "compileMs": 321.7349978685379,
+              "bytes": 41759570,
+              "liveBytes": 41441018,
+              "peakBytes": 41441018,
+              "peakModules": 4131
+            }
+          },
+          {
+            "elapsedSec": 4.076155000030995,
+            "wallMs": 1012.4399999976158,
+            "speed": 0.514318675675819,
+            "averageSpeed": 0.46392713128400515,
+            "runMs": 1000.0150001049042,
+            "drainMs": 5.59499979019165,
+            "gapMs": 5.869999945163727,
+            "catchupGapMs": 4.5299999713897705,
+            "maxGapMs": 2.6700000166893005,
+            "otherMs": 0.9600001573562622,
+            "jit": {
+              "compiled": 4245,
+              "failed": 0,
+              "released": 30,
+              "compileMs": 332.6249980330467,
+              "bytes": 42395584,
+              "liveBytes": 42077032,
+              "peakBytes": 42077032,
+              "peakModules": 4215
+            }
+          },
+          {
+            "elapsedSec": 5.087920000016689,
+            "wallMs": 1011.7649999856949,
+            "speed": 0.5434134079301421,
+            "averageSpeed": 0.4797334790035994,
+            "runMs": 1003.4450001120567,
+            "drainMs": 5.220000088214874,
+            "gapMs": 2.2699999809265137,
+            "catchupGapMs": 2.2699999809265137,
+            "maxGapMs": 0.4350000023841858,
+            "otherMs": 0.8299998044967651,
+            "jit": {
+              "compiled": 4441,
+              "failed": 0,
+              "released": 30,
+              "compileMs": 351.7299981713295,
+              "bytes": 44970473,
+              "liveBytes": 44651921,
+              "peakBytes": 44651921,
+              "peakModules": 4411
+            }
+          }
+        ]
+      }
+    },
+    {
+      "jit": 0,
+      "text": "5s elapsed · visible\nRealtime: 15.7% now / 21.9% average\nExecute 99.7% · output 0.2%\nBetween turns 0.1% · other 0.0%\nCatch-up gaps 0.1% · longest gap 0.0ms\nJIT compiled 0 · FAILED 0\nCompilation 0.00s total\nLive modules 0 · peak 0\nGenerated code 0.00 MiB (Wasm bytes)",
+      "report": {
+        "version": 1,
+        "firmware": "pocket-tank",
+        "jit": false,
+        "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+        "visibility": [
+          {
+            "elapsedMs": 0,
+            "state": "visible"
+          }
+        ],
+        "samples": [
+          {
+            "elapsedSec": 1.0180300000309943,
+            "wallMs": 1018.0300000309944,
+            "speed": 0.46350824221188686,
+            "averageSpeed": 0.46350824221188686,
+            "runMs": 708.6899997591972,
+            "drainMs": 2.3649999499320984,
+            "gapMs": 305.51500046253204,
+            "catchupGapMs": 0.49000006914138794,
+            "maxGapMs": 22.569999992847443,
+            "otherMs": 1.4599998593330383,
+            "jit": {
+              "compiled": 0,
+              "failed": 0,
+              "released": 0,
+              "compileMs": 0,
+              "bytes": 0,
+              "liveBytes": 0,
+              "peakBytes": 0,
+              "peakModules": 0
+            }
+          },
+          {
+            "elapsedSec": 2.018100000023842,
+            "wallMs": 1000.0699999928474,
+            "speed": 0.1666550008178014,
+            "averageSpeed": 0.3164025382748409,
+            "runMs": 997.0099999904633,
+            "drainMs": 1.934999942779541,
+            "gapMs": 0.8050000071525574,
+            "catchupGapMs": 0.8050000071525574,
+            "maxGapMs": 0.06999999284744263,
+            "otherMs": 0.3200000524520874,
+            "jit": {
+              "compiled": 0,
+              "failed": 0,
+              "released": 0,
+              "compileMs": 0,
+              "bytes": 0,
+              "liveBytes": 0,
+              "peakBytes": 0,
+              "peakModules": 0
+            }
+          },
+          {
+            "elapsedSec": 3.0466850000023844,
+            "wallMs": 1028.5849999785423,
+            "speed": 0.1539331541259462,
+            "averageSpeed": 0.2615515866696786,
+            "runMs": 1025.1649998426437,
+            "drainMs": 2,
+            "gapMs": 1.1350001692771912,
+            "catchupGapMs": 1.1350001692771912,
+            "maxGapMs": 0.3199999928474426,
+            "otherMs": 0.2849999666213989,
+            "jit": {
+              "compiled": 0,
+              "failed": 0,
+              "released": 0,
+              "compileMs": 0,
+              "bytes": 0,
+              "liveBytes": 0,
+              "peakBytes": 0,
+              "peakModules": 0
+            }
+          },
+          {
+            "elapsedSec": 4.078225000023842,
+            "wallMs": 1031.5400000214577,
+            "speed": 0.15349218966791375,
+            "averageSpeed": 0.23421920790566542,
+            "runMs": 1019.9099997878075,
+            "drainMs": 10.415000081062317,
+            "gapMs": 0.9300002455711365,
+            "catchupGapMs": 0.9300002455711365,
+            "maxGapMs": 0.09500002861022949,
+            "otherMs": 0.28499990701675415,
+            "jit": {
+              "compiled": 0,
+              "failed": 0,
+              "released": 0,
+              "compileMs": 0,
+              "bytes": 0,
+              "liveBytes": 0,
+              "peakBytes": 0,
+              "peakModules": 0
+            }
+          },
+          {
+            "elapsedSec": 5.089125,
+            "wallMs": 1010.8999999761581,
+            "speed": 0.15662610875167435,
+            "averageSpeed": 0.21880617247562203,
+            "runMs": 1007.9499999880791,
+            "drainMs": 1.9149999618530273,
+            "gapMs": 0.7450001835823059,
+            "catchupGapMs": 0.7450001835823059,
+            "maxGapMs": 0.04999995231628418,
+            "otherMs": 0.2899998426437378,
+            "jit": {
+              "compiled": 0,
+              "failed": 0,
+              "released": 0,
+              "compileMs": 0,
+              "bytes": 0,
+              "liveBytes": 0,
+              "peakBytes": 0,
+              "peakModules": 0
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "mobilePanelBounds": {
+    "top": 6,
+    "bottom": 265,
+    "height": 1039,
+    "first": true
+  },
+  "browserErrors": [],
+  "disabledPanelCheck": "passed"
+}

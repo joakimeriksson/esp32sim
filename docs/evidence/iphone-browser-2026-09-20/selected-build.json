@@ -1,0 +1,9 @@
+{
+  "selected": "combined-inl4000-admission-borrow",
+  "source": "7d7231b7",
+  "sha256": "e410d6eedb2c9655aa91c1ab04a431525592abc26bdbeb52da21b3285528a0af",
+  "httpStatus": 200,
+  "url": "http://172.20.10.7:8810/wasm/esp32sim.wasm",
+  "selectedAt": "2026-09-20T15:12:36.543Z",
+  "validation": "M3 campaign; latest firmware manual retest pending"
+}
