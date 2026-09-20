@@ -66,6 +66,97 @@ fn region_program_on(name: &str, program: &[u8], expected: &[(u32, Op, u32)], da
 pub(super) fn regions() -> u32 {
     use Op::*;
     let mut cases = 0;
+    // Forty non-contiguous chunks exercise a large br_table and five version pages.
+    // Enter every chunk with both short credit and hundreds of instructions of credit.
+    let mut large = vec![0; 40 * 32];
+    for k in 0..40 {
+        let mut chunk = Vec::new();
+        for _ in 0..6 { chunk.extend(asm::addi_n(2, 2, 1)); }
+        chunk.extend(asm::s8i(3, 4, 0));
+        chunk.extend(asm::j(BASE + (k * 32 + 15) as u32, BASE + ((k + 1) % 40 * 32) as u32));
+        large[k * 32..k * 32 + chunk.len()].copy_from_slice(&chunk);
+    }
+    {
+        let mut ram = Ram::new(true, false);
+        ram.ram.mem[..large.len()].copy_from_slice(&large);
+        let c = cpu(0);
+        let head: Vec<BlockInsn> = (0..8).scan(BASE, |pc, _| {
+            let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap());
+            *pc += i.len as u32;
+            Some(BlockInsn { insn: i, max_ar: crate::exec::max_ar(&i), straddle: false, off: 0 })
+        }).collect();
+        let formed = emitter::region::form(&c, &mut ram, BASE, &head, true).expect("large region");
+        assert_eq!(formed.chunks.len(), 40);
+        assert_eq!(formed.chunks.iter().map(|c| c.instructions.len()).sum::<usize>(), 320);
+        assert_eq!(formed.pages.len(), 5);
+        let (bytes, sites) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, true);
+        let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
+        assert_ne!(slot, 0, "large region module with {} exit sites", sites.len());
+        type Run = extern "C" fn(*mut Cpu, *mut Ram, *const Helpers, u32, u32, *const TlbEntry, *mut u32) -> u32;
+        let f: Run = unsafe { std::mem::transmute(slot as usize) };
+        for entry in 0..40 {
+            for budget in [8, 15, 63, 300, 511] {
+                for dst in [BASE + 0x2000, BASE + 4 * 256 + 31] {
+                    let (mut a, mut b) = (cpu(0), cpu(0));
+                    let (mut ra, mut rb) = (Ram::new(true, false), Ram::new(true, false));
+                    for r in [&mut ra, &mut rb] { r.ram.mem[..large.len()].copy_from_slice(&large); }
+                    for c in [&mut a, &mut b] {
+                        c.pc = formed.chunks[entry].pc; c.ps = 0;
+                        c.set_ar(3, 0x42); c.set_ar(4, dst);
+                    }
+                    CONTEXT.with(|c| *c.borrow_mut() = format!("large region entry {entry} budget {budget} dst {dst:x}"));
+                    let fm = rb.fast_mem().unwrap();
+                    let result = f(&mut b, &mut rb, &Helpers::new::<Ram>(), budget, entry as u32, fm.tlb, fm.page_ver);
+                    let done = result & 0xffff;
+                    assert!(done > 0 && done <= budget);
+                    if dst == BASE + 0x2000 && budget >= 300 { assert!(done >= 296, "large DONE credit: {done}"); }
+                    for _ in 0..done {
+                        let i = crate::decode::decode(a.pc, ra.fetch(a.pc).unwrap());
+                        exec_insn(&mut a, &mut ra, &i).unwrap();
+                    }
+                    same(&a, &b);
+                    assert_eq!(ra.ram.mem, rb.ram.mem);
+                    assert_eq!(ra.versions, rb.versions);
+                    cases += 1;
+                }
+            }
+        }
+        unsafe { host_jit_release(slot) };
+    }
+    for dst in [BASE + 0x2000, BASE + 4 * 256 + 31] {
+        let max = region_program("large-region-dispatch", &large, &[], &[], 8, 32, |c| {
+            c.set_ar(3, 0x42); c.set_ar(4, dst);
+        }, 1200);
+        assert!(dst != BASE + 0x2000 || max > 8, "large region never passed its head");
+        cases += 1;
+    }
+    // Put LEND inside the second chunk of the same large graph: formation must split
+    // it and preserve the backedge even when many dispatch targets precede the split.
+    let mut loop_large = large.clone();
+    let mut prefix = asm::movi_n(10, 3);
+    prefix.extend(asm::lp(9, BASE + 2, 10, BASE + 38));
+    for _ in 0..6 { prefix.extend(asm::addi_n(2, 2, 1)); }
+    prefix.extend(asm::s8i(3, 4, 0));
+    prefix.extend(asm::j(BASE + 20, BASE + 32));
+    loop_large[..prefix.len()].copy_from_slice(&prefix);
+    {
+        let mut ram = Ram::new(true, false);
+        ram.ram.mem[..loop_large.len()].copy_from_slice(&loop_large);
+        let head: Vec<BlockInsn> = (0..2).scan(BASE, |pc, _| {
+            let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32;
+            Some(BlockInsn { insn: i, max_ar: crate::exec::max_ar(&i), straddle: false, off: 0 })
+        }).collect();
+        let formed = emitter::region::form(&cpu(0), &mut ram, BASE, &head, true).expect("large loop region");
+        assert!(formed.chunks.len() > 40);
+        assert!(formed.chunks.iter().any(|c| c.pc == BASE + 38));
+        assert_eq!(formed.loops, vec![(BASE + 38, BASE + 5)]);
+        assert_eq!(formed.pages.len(), 5);
+    }
+    let max = region_program("large-loop-region", &loop_large, &[], &[], 2, 5, |c| {
+        c.set_ar(3, 0x42); c.set_ar(4, BASE + 0x2000);
+    }, 1200);
+    assert!(max > 8, "large loop region never passed its head");
+    cases += 1;
     // The ROM memmove byte loop: a 6-instruction body ending in J, a one-instruction
     // BNE block branching back, then a boundary the region cannot cross.
     let mut p = Vec::new();
