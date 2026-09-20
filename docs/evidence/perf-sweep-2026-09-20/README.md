@@ -90,5 +90,7 @@ The latest local TinyDraw 2.3.0 release was used for browser boot/manual checks;
 closeout rewrite and is intentionally historical. `closeout-manifest.json` records
 the closeout snapshot; its README hash predates this clarification. Verify either
 README entry against the corresponding committed snapshot rather than the current
-README. The other entries retain their original hashes; files removed under the
-[evidence retention policy](../README.md) remain in the [capture archive](../ARCHIVE.md).
+README: [earlier snapshot](https://github.com/joakimeriksson/esp32sim/blob/0d5dd28c108ef3e028861cdefa8761ba5b5234c1/docs/evidence/perf-sweep-2026-09-20/README.md)
+and [closeout snapshot](https://github.com/joakimeriksson/esp32sim/blob/9e2c666ba8d80ee4443c456722ff4fa47f28f6fb/docs/evidence/perf-sweep-2026-09-20/README.md).
+All other entries verify against the current files (250 earlier-snapshot entries
+and 267 closeout entries).
