@@ -446,8 +446,14 @@ impl SocBus {
             let (mut r, mut o) = (self.periph.gdma.inp[ch], self.periph.gdma.out[ch]);
             if !(r.running && o.running && r.conf0 & MEM_TRANS_EN != 0 && r.desc != 0 && o.desc != 0) { continue; }
             let (in_before, out_before) = (in_state(&r), out_state(&o));
+            let mut copied = false;
             let mut walk = DescriptorWalk::new(GDMA_DESCRIPTOR_STEP_BUDGET);
             loop {
+                // Resume a legal long copy on the next pump instead of faulting at the work budget.
+                if walk.remaining < 2 {
+                    if !copied { o.int_raw |= OUT_DSCR_ERR; o.running = false; }
+                    break;
+                }
                 let Ok((out_dw0, od)) = walk.read(self, o.desc) else { o.int_raw |= OUT_DSCR_ERR; o.running = false; break };
                 if !od.owner_dma { o.int_raw |= OUT_DSCR_ERR; break; }                 // parked until software hands it over
                 let remaining = od.length.saturating_sub(o.buf_pos);
@@ -462,6 +468,7 @@ impl SocBus {
                             Err(M2mFault::Source) => { o.int_raw |= OUT_DSCR_ERR; o.running = false; break; }
                             Err(M2mFault::Destination) => { r.int_raw |= IN_DSCR_ERR; r.running = false; break; }
                         }
+                        copied = true;
                         o.buf_pos += n;
                         r.buf_pos += n;
                     }
@@ -567,10 +574,12 @@ impl SocBus {
     fn gather_dma_out(&mut self, ch: usize, limit: usize) -> Result<Vec<u8>, DmaDescriptorFault> {
         let mut input = Vec::new();
         let mut desc = self.periph.gdma.out[ch].desc;
+        let mut visited = HashSet::new();
         let mut walk = DescriptorWalk::new(GDMA_DESCRIPTOR_STEP_BUDGET);
         while desc != 0 && input.len() < limit {
+            if !visited.insert(desc) { return Err(DmaDescriptorFault::Cycle { descriptor: desc }); }
             let (control, d) = walk.read(self, desc)?;
-            if !d.owner_dma { return Err(DmaDescriptorFault::NotOwned { descriptor: desc }); }
+            if self.periph.gdma.out[ch].conf1 & (1 << 12) != 0 && !d.owner_dma { return Err(DmaDescriptorFault::NotOwned { descriptor: desc }); }
             let take = (d.length as usize).min(limit - input.len());
             self.append_mapped_bytes(d.buf, take, &mut input).map_err(|(address, fault)|
                 DmaDescriptorFault::BufferRead { descriptor: desc, address, fault })?;
@@ -595,7 +604,7 @@ impl SocBus {
             let mut r = self.periph.gdma.inp[ch];
             if r.desc == 0 { return Err(()); }
             let (control, d) = walk.read(self, r.desc).map_err(|_| ())?;
-            if !d.owner_dma || d.size == 0 { return Err(()); }
+            if (r.conf1 & (1 << 12) != 0 && !d.owner_dma) || d.size == 0 { return Err(()); }
             let n = (d.size as usize).min(data.len() - pos);
             let end = d.buf.checked_add(n as u32).ok_or(())?;
             // DMA buffers are memory, never MMIO. The word-copy fast path must preserve the

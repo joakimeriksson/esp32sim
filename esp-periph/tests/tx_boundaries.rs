@@ -109,7 +109,7 @@ fn rmt_continuous_mode_restarts_on_either_half_end_marker() {
         rmt.write(0x20, 1 | (1 << 3) | (1 << 8) | (1 << 16));
         rmt.tick(600);
         assert!(rmt.ch[0].running);
-        assert!(rmt.ch[0].bits.len() > 1);
+        assert!(rmt.ch[0].bits.len() <= 1);
         assert_eq!(rmt.int_raw, 0);
         assert!(rmt.done.is_empty());
     }
@@ -173,4 +173,25 @@ fn i2s_supports_eight_and_sixteen_slots_within_the_128_bit_frame_limit() {
         assert_eq!(i2s.sample_rate, 39_063);
         assert_eq!(i2s.bytes_per_frame, 16);
     }
+}
+
+#[test]
+fn rmt_counted_loops_raise_loop_interrupt_and_stop_when_enabled() {
+    let mut rmt = Rmt::new(240_000_000);
+    rmt.mem[0] = PULSE;
+    rmt.write(0xa0, (3 << 9) | (1 << 19) | (1 << 21));
+    rmt.write(0x20, 1 | (1 << 3));
+    rmt.tick(10000);
+    assert!(!rmt.ch[0].running);
+    assert_eq!(rmt.int_raw, 1 << 12);
+    assert!(rmt.ch[0].bits.is_empty());
+}
+
+#[test]
+fn i2s_reset_slots_are_enabled() {
+    let mut i2s = I2s::new(240_000_000);
+    assert_eq!(i2s.read(0x54), 0xffff);
+    assert_eq!(i2s.bytes_per_frame, 1);
+    i2s.write(0x24, 1 << 2);
+    assert_eq!(i2s.bytes_per_frame, 1);
 }

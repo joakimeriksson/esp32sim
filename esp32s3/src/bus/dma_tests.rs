@@ -204,3 +204,21 @@ fn streaming_dma_buffer_faults_raise_error_instead_of_emitting_zeros() {
         assert_eq!(bus.periph.gdma.out[0].int_raw, 1 << 2);
     }
 }
+
+#[test]
+fn crypto_owner_check_is_controlled_by_conf1() {
+    for check_owner in [false, true] {
+        for input_side in [false, true] {
+            let mut bus = bus_with_out(6, 16, 0);
+            arm_aes_input(&mut bus, 16, 0);
+            let (desc, conf1) = if input_side {
+                (RX_DESC, &mut bus.periph.gdma.inp[0].conf1)
+            } else { (DESC, &mut bus.periph.gdma.out[0].conf1) };
+            *conf1 = if check_owner { 1 << 12 } else { 0 };
+            let control = bus.read32(desc).unwrap();
+            bus.write32(desc, control & !(1 << 31)).unwrap();
+            bus.aes_dma_step();
+            assert_eq!(bus.periph.aes.state == 2, !check_owner);
+        }
+    }
+}
