@@ -26,6 +26,8 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Test (hermetic + golden outputs)
         run: ESP32SIM_ROM_DIR=$PWD/roms cargo test --release --workspace -- --include-ignored --skip external_
+      - name: Virtual-quantum scheduler (native opt-in)
+        run: ESP32SIM_VQ_NATIVE=1 cargo test --release -p esp32s3 --test machine --test virtual_stops
       - name: Build the wasm module
         run: tools/wasm-build.sh
       - name: Test the wasm module (the real build, under Node, through the page's manifests)
@@ -43,3 +45,15 @@ jobs:
           python3 -m unittest discover -s tools/browser-benchmark -p 'test_*.py'
       - name: Differential tests for generated WASM blocks
         run: tools/wasm-jit-test.sh
+      - name: Compile WASM profiling features with production flags
+        run: |
+          . ./tools/wasm-rustflags.sh
+          cargo build --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-profile,cpu-profile
+  native-aarch64:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Native AArch64 core and JIT memory tests
+        run: cargo test --release -p xtensa-lx7
