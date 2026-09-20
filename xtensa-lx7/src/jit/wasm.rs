@@ -95,10 +95,6 @@ pub static CENSUS: [std::sync::atomic::AtomicU64; 8] = [const { std::sync::atomi
 #[inline(always)]
 fn census(i: usize, n: u64) { if cfg!(feature = "wasm-cpu-profile") { CENSUS[i].fetch_add(n, std::sync::atomic::Ordering::Relaxed); } }
 const HOT: u32 = 32;
-/// EX153: chain compiled calls inside the wrapper.
-const CHAIN: bool = true;
-/// EX153: an interpreter helper ran during this wrapper call; the dispatcher must look again.
-static HELPED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 /// EX138: emit control-flow prices into code generated from now on.
 pub static PRICED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 /// Emit the inline data-cache probe into code generated from now on (a `cache-inline` build that
@@ -143,8 +139,8 @@ struct Block {
 /// Entry facts of one region chunk. `sites` points into the owning region's vector, which
 /// lives until that region is dropped, and every drop moves `CodeCache::region_epoch` on.
 #[derive(Clone, Copy)]
-struct Hot { epoch: u64, bloom: u64, slot: u32, k: u32, len: u32, lo: u32, span: u32, pages: [(u32, u32); 8], npages: u32, nsites: u32, sites: *const ExitSite }
-impl Hot { const NONE: Hot = Hot { epoch: 0, bloom: 0, slot: 0, k: 0, len: 0, lo: 0, span: 0, pages: [(0, 0); 8], npages: 0, nsites: 0, sites: std::ptr::null() }; }
+struct Hot { epoch: u64, bloom: u64, slot: u32, k: u32, len: u32, lo: u32, span: u32, pages: [(u32, u32); emitter::region::MAX_PAGES], npages: u32, nsites: u32, sites: *const ExitSite }
+impl Hot { const NONE: Hot = Hot { epoch: 0, bloom: 0, slot: 0, k: 0, len: 0, lo: 0, span: 0, pages: [(0, 0); emitter::region::MAX_PAGES], npages: 0, nsites: 0, sites: std::ptr::null() }; }
 /// Several chunks compiled as one function; see wasm_region.rs.
 struct Region {
     /// The generated code holds pointers to these instructions for its helper calls,
@@ -407,7 +403,7 @@ extern "C" fn h_exec<B: Bus>(
     // A return that does not trap changes only the window and the PC: nothing the dispatcher
     // would re-derive (interrupt inputs, waiting, device state) before the next block.
     if !matches!(instruction.insn.op, crate::Op::Retw | crate::Op::RetwN | crate::Op::Ret | crate::Op::RetN) {
-        HELPED.store(true, std::sync::atomic::Ordering::Relaxed);
+        cpu.jit_helped = true;
     }
     cpu.pc = pc;
     #[cfg(feature = "wasm-jit-profile")]
@@ -494,10 +490,10 @@ pub unsafe fn run<B: Bus>(
     cpu.fetch_n = 0;
     let budget = if cpu.icache_fill != 0 { budget.min(64) } else { budget };
     // SAFETY: preserve the caller's live code, helper and memory guarantees.
-    HELPED.store(false, std::sync::atomic::Ordering::Relaxed);
+    cpu.jit_helped = false;
     cpu.blocks.chain_ei = NONE;
     // A dispatch at a probed PC stays one block long, as the differential suite requires.
-    let chain = CHAIN && cpu.boundary_bloom & emu_core::core::pc_bit(cpu.pc) == 0;
+    let chain = cpu.boundary_bloom & emu_core::core::pc_bit(cpu.pc) == 0;
     let mut result = unsafe { run_inner(cc, code, cpu, bus, h, budget, entry, fm) };
     // EX153: keep going inside this wrapper while nothing the dispatcher would look at can have
     // changed: a plain END/LEFT exit, no interpreter helper ran, credit remains, and the next PC
@@ -508,7 +504,7 @@ pub unsafe fn run<B: Bus>(
             let exit = (result >> 16) & 7;
             let sofar = total + (result & 0xffff);
             if (exit != CODE_END && exit != CODE_LEFT) || sofar >= budget || cpu.blocks.observed
-                || HELPED.load(std::sync::atomic::Ordering::Relaxed) { break; }
+                || cpu.jit_helped { break; }
             let pc = cpu.pc;
             if cpu.boundary_bloom & emu_core::core::pc_bit(pc) != 0 { break; }
             let Some((ei, next)) = cpu.blocks.chain_target(pc, bus.page_versions()) else { break };
@@ -684,8 +680,8 @@ unsafe fn run_inner<B: Bus>(
                     // SAFETY: the region was installed with the block signature; its
                     // entry parameter is the chunk index.
                     let f: Run<B> = unsafe { std::mem::transmute(r.slot as usize) };
-                    if r.pages.len() <= 8 {
-                        let mut pages = [(0, 0); 8];
+                    if r.pages.len() <= emitter::region::MAX_PAGES {
+                        let mut pages = [(0, 0); emitter::region::MAX_PAGES];
                         pages[..r.pages.len()].copy_from_slice(&r.pages);
                         *b.hot.borrow_mut() = Hot { epoch: cc.region_epoch.get(), bloom: r.bloom, slot: r.slot, k, len: r.lens[k as usize], lo: r.lo,
                             span: r.hi.wrapping_sub(r.lo), pages, npages: r.pages.len() as u32, nsites: r.sites.len() as u32, sites: r.sites.as_ptr() };

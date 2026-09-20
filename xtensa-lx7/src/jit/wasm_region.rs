@@ -14,7 +14,7 @@ use std::collections::HashMap;
 
 pub(super) const MAX_CHUNKS: usize = 64;
 pub(super) const MAX_INSNS: usize = 512;
-const MAX_PAGES: usize = 8;
+pub(in crate::jit) const MAX_PAGES: usize = 8;
 
 /// One straight-line piece of a region, decoded independently of the block cache.
 pub(in crate::jit) struct Chunk {
