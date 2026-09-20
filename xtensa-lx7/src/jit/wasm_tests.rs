@@ -153,7 +153,7 @@ fn cpu(seed: u32) -> Cpu {
     }
     c
 }
-thread_local! { static CONTEXT: std::cell::RefCell<String> = std::cell::RefCell::new(String::new()); }
+thread_local! { static CONTEXT: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) }; }
 fn same(a: &Cpu, b: &Cpu) {
     let cx = CONTEXT.with(|c| c.borrow().clone());
     assert_eq!(a.ar, b.ar, "registers at {:x} [{cx}]", a.pc);

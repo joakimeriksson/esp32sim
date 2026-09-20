@@ -405,7 +405,7 @@ pub(super) fn regions() -> u32 {
     p.extend(asm::s32i_n(10, 13, 8));                                        // 46
     p.extend(asm::j(BASE + 48, BASE + 12));                                  // 48: an internal edge after the stores
     let uniform = [(0, Pie, 0), (3, Pie, 0), (12, MovN, 0), (14, Pie, 0), (17, Pie, 0), (20, MoviN, 0), (22, Loopnez, 34), (25, Pie, 0), (28, Pie, 0), (31, Pie, 0), (34, MovN, 0), (36, Pie, 0), (39, L32iN, 0), (41, L32iN, 0), (43, And, 0), (46, S32iN, 0), (48, J, 12)];
-    let mut data = vec![0x42u8, 0x00].repeat(40);
+    let mut data = [0x42u8, 0x00].repeat(40);
     data[50] = 0x43;
     // Variants: the plain kernel; CP3 disabled; the store landing in the last 16 bytes of
     // the mapping; loads running off the end of the mapping (slow, then a fault); a
