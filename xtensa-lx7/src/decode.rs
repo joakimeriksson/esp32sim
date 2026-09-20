@@ -408,11 +408,8 @@ pub fn decode(pc: u32, bytes: [u8; 4]) -> Insn {
             },
             _ => Insn::new(Op::IllN, r, s, t, 0, 0, 2, w16),
         },
-        // op0 = 14/15: 32-bit PIE formats on the S3
-        _ => {
-            let w32 = w24 | (bytes[3] as u32) << 24;
-            Insn::new(Op::Pie, r, s, t, 0, 0, 4, w32)
-        }
+        // PIE encodings were handled before the base op0 match.
+        _ => ill3,
     }
 }
 

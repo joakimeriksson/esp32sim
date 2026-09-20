@@ -254,6 +254,8 @@ fn exec_table<B: Bus>(cpu: &mut Cpu, bus: &mut B, i: &Insn) -> Result<(), Trap> 
             if ldq { let v = ld(cpu, bus, ar!(As), 16)?; setq!(Qu, v); post!(Mode::Incp); }
         }
         Kind::Cmul { store: false } => {
+            // Read before committing Qz so a load fault can restart with aliased inputs.
+            let loaded = ld(cpu, bus, ar!(As), 16)?;
             let sel = o.get(Sel) as u32;
             // TRM 1.8.11 defines Qz updates only for sel8 = 0..5. The final pair is
             // computed by ST.XP, which stores the complete FFT result without changing Qz.
@@ -261,7 +263,7 @@ fn exec_table<B: Bus>(cpu: &mut Cpu, bus: &mut B, i: &Insn) -> Result<(), Trap> 
                 let v = fft_cmul(q!(Qx), q!(Qy), sel, sar);
                 let mut r = q!(Qz); set_lane(&mut r, 32, sel / 2, v as u64); setq!(Qz, r);
             }
-            let v = ld(cpu, bus, ar!(As), 16)?; setq!(Qu, v);
+            setq!(Qu, loaded);
             post!(Mode::Xp);
         }
         Kind::Cmul { store: true } => {
@@ -271,6 +273,8 @@ fn exec_table<B: Bus>(cpu: &mut Cpu, bus: &mut B, i: &Insn) -> Result<(), Trap> 
             if sel < 6 || upd > 2 { return Err(Trap::Unimplemented(cpu.pc, w)); }
             let x = q!(Qx);
             let mut v = q!(Qv);
+            // Signed shift is an emulator assumption: TRM pseudocode does not specify
+            // arithmetic versus logical shifting here. Negative lanes need silicon validation.
             if upd != 0 {
                 for k in 0..4 { set_lane(&mut v, 16, k, (lane(x, 16, k) >> o.get(Sar)) as u64); }
                 if upd == 2 {

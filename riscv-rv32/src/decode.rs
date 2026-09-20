@@ -162,7 +162,7 @@ fn decode_compressed(pc: u32, c: u32) -> Insn {
         // ---- quadrant 0
         (0, 0) => {
             let imm = ((((c >> 11) & 3) << 4) | (((c >> 7) & 0xf) << 6) | (((c >> 6) & 1) << 2) | (((c >> 5) & 1) << 3)) as i32;
-            if imm == 0 { return ILL2; }                       // canonical illegal / reserved
+            if imm == 0 { return Insn { raw: c, ..ILL2 }; }                       // canonical illegal / reserved
             mk(Op::Addi, rdp, 2, 0, imm, Comp::Addi4spn)
         }
         (0, 2) => mk(Op::Lw, rdp, rs1p, 0, lw_off, Comp::Lw),
@@ -175,12 +175,12 @@ fn decode_compressed(pc: u32, c: u32) -> Insn {
         (1, 3) if rd == 2 => {
             let imm = sext((((c >> 12) & 1) << 9) | (((c >> 6) & 1) << 4) | (((c >> 5) & 1) << 6)
                            | (((c >> 3) & 3) << 7) | (((c >> 2) & 1) << 5), 10);
-            if imm == 0 { return ILL2; }
+            if imm == 0 { return Insn { raw: c, ..ILL2 }; }
             mk(Op::Addi, 2, 2, 0, imm, Comp::Addi16sp)
         }
         (1, 3) if rd != 0 => {
             let imm = sext((((c >> 12) & 1) << 17) | (((c >> 2) & 0x1f) << 12), 18);
-            if imm == 0 { return ILL2; }
+            if imm == 0 { return Insn { raw: c, ..ILL2 }; }
             mk(Op::Lui, rd, 0, 0, imm, Comp::Lui)
         }
         (1, 4) => {
@@ -208,7 +208,7 @@ fn decode_compressed(pc: u32, c: u32) -> Insn {
             mk(Op::Lw, rd, 2, 0, imm, Comp::Lwsp)
         }
         (2, 4) => match ((c >> 12) & 1, rd, rs2) {
-            (0, 0, _) => ILL2,
+            (0, 0, _) => Insn { raw: c, ..ILL2 },
             (0, _, 0) => mk(Op::Jalr, 0, rd, 0, 0, Comp::Jr),
             (0, _, _) => mk(Op::Add, rd, 0, rs2, 0, Comp::Mv),
             (1, 0, 0) => mk(Op::Ebreak, 0, 0, 0, 0, Comp::Ebreak),
@@ -226,6 +226,16 @@ fn decode_compressed(pc: u32, c: u32) -> Insn {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_compressed_encoding_preserves_raw_bits() {
+        for raw in 0..=u16::MAX as u32 {
+            if raw & 3 == 3 { continue; }
+            let insn = decode_compressed(0, raw);
+            assert_eq!(insn.raw, raw, "encoding {raw:04x}");
+            assert_eq!(insn.len, 2);
+        }
+    }
 
     #[test]
     fn rv32_compressed_shifts_reject_custom_high_shamt_bit() {

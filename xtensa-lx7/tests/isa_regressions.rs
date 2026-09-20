@@ -128,3 +128,22 @@ fn undocumented_fft_store_operands_fail_before_changing_state() {
         assert_eq!((cpu.qr, cpu.get_ar(2), ram.mem), before);
     }
 }
+
+#[test]
+fn fft_load_fault_preserves_aliased_inputs_for_restart() {
+    let (mut cpu, mut ram) = fft_state();
+    // Alias Qz with Qx so committing the product before a fault would corrupt a retry.
+    let raw = (fft_ld(0) & !(7 << 16)) | (1 << 16);
+    let insn = decode(BASE, raw.to_le_bytes());
+    cpu.set_ar(2, BASE + 0x1000);
+    let before = cpu.qr;
+    assert!(pie::exec(&mut cpu, &mut ram, &insn).is_err());
+    assert_eq!(cpu.qr, before);
+    assert_eq!(cpu.get_ar(2), BASE + 0x1000);
+    cpu.set_ar(2, BASE + 0x43);
+    pie::exec(&mut cpu, &mut ram, &insn).unwrap();
+    let expected = lanes([-25, -50, 30, -40, 50, -60, 70, -80]);
+    assert_eq!(cpu.qr[1], expected);
+    assert_eq!(cpu.qr[4], u128::from_le_bytes([0xa5; 16]));
+    assert_eq!(cpu.get_ar(2), BASE + 0x63);
+}
