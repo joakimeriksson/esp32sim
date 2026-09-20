@@ -42,7 +42,7 @@ fn single_and_network_loads_accept_the_same_input_kinds() {
             assert_eq!(esp32sim_net_load(net, node, kind, data.as_ptr(), data.len()), expected);
         }
         for name in ["0x40370000", "40370000", "missing_symbol"] {
-            let expected = u32::from(name == "missing_symbol");
+            let expected = u32::from(name != "0x40370000");
             assert_eq!(esp32sim_stub(single, name.as_ptr(), name.len(), 0), expected);
             assert_eq!(esp32sim_net_stub(net, node, name.as_ptr(), name.len(), 0), expected);
         }

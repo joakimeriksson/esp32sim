@@ -216,3 +216,19 @@ for (const failure of ['missing', 'reject', 'throw']) {
   } finally { h.close(); }
 }
 console.log('worker native-channel, consumer ACK, replacement and experiment tests passed');
+
+for (const [op, exportName, label] of [['stub', 'esp32sim_stub_spec', 'stub'], ['wifi', 'esp32sim_wifi', 'WiFi']]) {
+  let booted = 0;
+  const h = await harness(0, [], [], { [exportName]: () => 1, esp32sim_boot() { booted++; return 0; } });
+  try {
+    await h.send({ op, spec: 'invalid' });
+    await h.send({ op: 'start' });
+    assert.equal(booted, 0, 'failed setup never boots');
+    assert.equal(h.messages.at(-1).started, false);
+    assert.match(h.messages.at(-1).error, new RegExp(label));
+    await h.send({ op: 'create', board: 'test' });
+    await h.send({ op: 'start' });
+    assert.equal(h.messages.at(-1).started, true, 'new emulator clears setup failures');
+  } finally { h.close(); }
+}
+console.log('worker rejected stub and WiFi boot status tests passed');
