@@ -19,7 +19,7 @@ import { homedir } from 'node:os';
 import { createJitHost } from '../web/wasm/jit.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const fwDir = join(root, 'web', 'wasm', 'fw');
+const fwDir = process.env.FW_DIR || join(root, 'web', 'wasm', 'fw');
 const names = process.argv.slice(2).length ? process.argv.slice(2) : ['hello', 'c3-hello'];
 const EXPECT = { console: 'Hello world!', seconds: 3 };
 
@@ -63,7 +63,7 @@ async function runNetwork(name, m) {
   const logs = [];
   let w;
   const blockJit = createJitHost(() => w);
-  const { instance } = await WebAssembly.instantiate(wasmBytes, { env: { ...blockJit.imports, host_log: (p, n) => logs.push(dec.decode(mem().subarray(p, p + n))) } });
+  const { instance } = await WebAssembly.instantiate(wasmBytes, { env: { ...blockJit.imports, host_profile_now: () => performance.now(), host_log: (p, n) => logs.push(dec.decode(mem().subarray(p, p + n))) } });
   w = instance.exports;
   const mem = () => new Uint8Array(w.memory.buffer);
   const withBytes = (bytes, f) => { const p = w.esp32sim_alloc(bytes.length); mem().set(bytes, p); try { return f(p, bytes.length); } finally { w.esp32sim_free(p, bytes.length); } };
@@ -116,7 +116,7 @@ async function runNetwork(name, m) {
 async function testJitHandoff() {
   let w;
   const blockJit = createJitHost(() => w);
-  const { instance } = await WebAssembly.instantiate(wasmBytes, { env: { ...blockJit.imports, host_log() {} } });
+  const { instance } = await WebAssembly.instantiate(wasmBytes, { env: { ...blockJit.imports, host_profile_now: () => performance.now(), host_log() {} } });
   w = instance.exports;
   const mem = () => new Uint8Array(w.memory.buffer);
   const withBytes = (bytes, f) => { const p = w.esp32sim_alloc(bytes.length); mem().set(bytes, p); try { return f(p, bytes.length); } finally { w.esp32sim_free(p, bytes.length); } };
@@ -189,13 +189,22 @@ async function runManifest(name) {
   if (!board) problems.push('no board message');
   if (!text.includes(m.expect || EXPECT.console)) problems.push(`console never showed ${JSON.stringify(m.expect || EXPECT.console)}; got ${text.length} bytes`);
   const insns = w.esp32sim_insns(emu);
-  if (w.esp32sim_profile_report && process.env.CENSUS_OUT) { const at = logs.length; w.esp32sim_profile_report(emu); (await import('node:fs')).writeFileSync(process.env.CENSUS_OUT, logs.slice(at).join('\n')); }
+  if (w.esp32sim_profile_report && (process.env.CENSUS_OUT || process.env.CENSUS_STDOUT)) {
+    const at = logs.length;
+    w.esp32sim_profile_report(emu);
+    const report = logs.slice(at).join('\n');
+    if (process.env.CENSUS_OUT) (await import('node:fs')).writeFileSync(process.env.CENSUS_OUT, report);
+    if (process.env.CENSUS_STDOUT) {
+      for (const line of report.split('\n')) if (/ex153|wasm-region|^core=|wasm-profile\]/.test(line)) console.log(line);
+      console.log('jit_insns', w.esp32sim_block_jit_insns(emu), 'insns', insns, 'jitstats', JSON.stringify(blockJit.stats));
+    }
+  }
   w.esp32sim_delete(emu);
   const wall = (Date.now() - t0) / 1000;
   if (problems.length) { failures++; console.error(`FAIL ${name}: ${problems.join('; ')}\n  logs: ${logs.slice(0, 5).join('\n        ')}\n  console tail: ${text.slice(-400)}`); }
   else console.log(`ok   ${name}: board ${board}, ${(insns / 1e6).toFixed(1)} M insns in ${wall.toFixed(1)} s wall (${(insns / 1e6 / wall).toFixed(1)} Minsn/s), ${text.split('\n').length} console lines, ${frames} binary frames`);
 }
 
-try { await testJitHandoff(); } catch (e) { failures++; console.error(`FAIL wasm JIT handoff: ${e.message}`); }
+if (!process.env.CENSUS_STDOUT) try { await testJitHandoff(); } catch (e) { failures++; console.error(`FAIL wasm JIT handoff: ${e.message}`); }
 for (const n of names) { try { await runManifest(n); } catch (e) { failures++; console.error(`FAIL ${n}: ${e.message}`); } }
 process.exit(failures ? 1 : 0);
