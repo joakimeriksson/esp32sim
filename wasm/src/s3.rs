@@ -279,3 +279,15 @@ pub unsafe extern "C" fn esp32sim_profile_report(e: *mut Emu) {
     }
 }
 
+
+/// Opt in to interactive host display publication for a supporting S3 board, before execution.
+/// This changes host snapshots only, not guest display timing. Returns 1 if unsupported.
+/// # Safety
+/// The pointer must reference a live exclusively borrowed emulator.
+#[no_mangle]
+pub unsafe extern "C" fn esp32sim_set_smooth_display(e: *mut Emu, on: u32) -> u32 {
+    let e = unsafe { &mut *e };
+    let Some(m) = e.m.s3_mut() else { return 1 };
+    if m.insns() != 0 || on > 1 { return 1; }
+    if m.bus.board.set_smooth_display(on != 0) { 0 } else { 1 }
+}

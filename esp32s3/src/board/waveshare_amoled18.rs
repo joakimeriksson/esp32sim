@@ -141,6 +141,7 @@ pub struct WaveshareAmoled18V2 {
     pub gpio_events: u64,
     pub panel: Co5300,
     pub touch_state: std::sync::Arc<std::sync::Mutex<crate::i2c::TouchState>>,
+    smooth_display: bool,
     cycle: VirtualCycle,
     next_te_cycle: Option<VirtualCycle>,
     te_level: bool,
@@ -161,6 +162,7 @@ impl WaveshareAmoled18V2 {
             gpio_events: 0,
             panel: Co5300::new(),
             touch_state: Default::default(),
+            smooth_display: false,
             cycle: 0,
             next_te_cycle: Some(Self::APPROXIMATE_TE_HALF_PERIOD),
             te_level: true,
@@ -223,8 +225,9 @@ impl BoardModel for WaveshareAmoled18V2 {
     }
     fn display_version(&self) -> u64 { self.panel.pixels_written }
     fn display_frames(&self) -> u64 { self.panel.frames }
-    fn display_quiet_push(&self) -> bool { false }
-    fn display_push_hz(&self) -> u64 { 120 }
+    fn display_quiet_push(&self) -> bool { !self.smooth_display }
+    fn display_push_hz(&self) -> u64 { if self.smooth_display { 120 } else { 50 } }
+    fn set_smooth_display(&mut self, on: bool) -> bool { self.smooth_display = on; true }
     fn input_levels(&self) -> Vec<(u8, bool)> {
         vec![(PIN_AMOLED_TE, self.te_level), (PIN_AMOLED_TOUCH_INT, self.touch_irq_level)]
     }
@@ -268,6 +271,20 @@ impl BoardModel for WaveshareAmoled18V2 {
 #[cfg(test)]
 mod amoled_tests {
     use super::*;
+
+    #[test]
+    fn smooth_publication_is_an_explicit_opt_in() {
+        for mut board in [WaveshareAmoled18V2::new(), WaveshareAmoled18V2::with_measured_te()] {
+            assert_eq!(board.display_push_hz(), 50);
+            assert!(board.display_quiet_push());
+            assert!(board.set_smooth_display(true));
+            assert_eq!(board.display_push_hz(), 120);
+            assert!(!board.display_quiet_push());
+            assert!(board.set_smooth_display(false));
+            assert_eq!(board.display_push_hz(), 50);
+            assert!(board.display_quiet_push());
+        }
+    }
 
     fn cpu_transfer(command: u8, data: &[u8]) -> Vec<u8> {
         let mut spi = esp_periph::gpspi::GpSpi::new();

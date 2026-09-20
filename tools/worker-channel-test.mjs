@@ -232,3 +232,27 @@ for (const [op, exportName, label] of [['stub', 'esp32sim_stub_spec', 'stub'], [
   } finally { h.close(); }
 }
 console.log('worker rejected stub and WiFi boot status tests passed');
+
+for (const smoothDisplay of [undefined, false, true]) {
+  const calls = [];
+  const h = await harness(0, [], [], {
+    esp32sim_set_smooth_display(_emu, on) { calls.push(['display', on]); return 0; },
+    esp32sim_boot() { calls.push(['boot']); return 0; },
+  });
+  try {
+    await h.send({ op: 'create', board: 'test', smoothDisplay });
+    await h.send({ op: 'start' });
+    assert.deepEqual(calls, smoothDisplay ? [['display', 1], ['boot']] : [['boot']], 'only explicit smooth display opt-in configures before boot');
+  } finally { h.close(); }
+}
+for (const setter of [undefined, () => 1, () => { throw Error('unsupported'); }]) {
+  let booted = false;
+  const h = await harness(0, [], [], { esp32sim_set_smooth_display: setter, esp32sim_boot() { booted = true; return 0; } });
+  try {
+    await h.send({ op: 'create', board: 'test', smoothDisplay: true });
+    await h.send({ op: 'start' });
+    assert.equal(booted, false, 'unsupported smooth display must not silently boot with a different policy');
+    assert.equal(h.messages.at(-1).started, false);
+  } finally { h.close(); }
+}
+console.log('worker smooth display configuration tests passed');
