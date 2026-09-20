@@ -1,6 +1,6 @@
 # Turnover s1s2 on combined + inline 4000
 
-Keep the validated combined + inline 4000 artifact. This follow-up shows small positive reductions, but they do not establish an improvement beyond the observed identical-build control variation.
+Rejected for adoption; keep the validated combined + inline 4000 artifact. This follow-up shows small positive reductions, but they do not establish an improvement beyond the observed identical-build control variation.
 
 All measurements below are incremental against combined-inl4000 on the M3 Pro, not against the original sweep baseline. Positive percentages mean less wall time.
 
