@@ -111,7 +111,6 @@ fn r3_trap_extra_step_vs_block() {
 /// R4: fetch pricing is charged for the whole decoded block span, and never on step.
 #[test]
 fn r4_fetch_step_vs_block_and_early_exit() {
-    use xtensa_lx7::state::reset_shared_fetch_cache;
     const FBASE: u32 = 0x4200_0000;
     fn fcpu_at(prog: &[u8]) -> (Cpu, FlatRam) {
         let mut ram = FlatRam::new(FBASE, 64 * 1024);
@@ -129,7 +128,6 @@ fn r4_fetch_step_vs_block_and_early_exit() {
         prog.extend([0x32, 0xa0, (k + 1) as u8]); // movi a3,k+1
     }
     check_decode(FBASE, &prog[0..3], "movi");
-    reset_shared_fetch_cache();
     let (mut a, mut ra) = fcpu_at(&prog);
     a.price_control = true;
     a.icache_fill = 5;
@@ -139,7 +137,6 @@ fn r4_fetch_step_vs_block_and_early_exit() {
     let misses_block = a.icache_misses;
     eprintln!("block: used={used} trap={trap:?} pc={:#x} extra={extra_block} misses={misses_block}", a.pc);
 
-    reset_shared_fetch_cache();
     let (mut b, mut rb) = fcpu_at(&prog);
     b.price_control = true;
     b.icache_fill = 5;

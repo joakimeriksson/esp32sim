@@ -23,6 +23,11 @@ impl Soc for S3 {
     const IDLE_CHUNK: u64 = 64 * 8;
     const ROM_DATA_TABLE: &'static [&'static str] = &["_data_start"];
     fn new_core(i: usize) -> Cpu { Cpu::new(if i == 0 { 0xCDCD } else { 0xABAB }) }
+    fn new_core_with_bus(i: usize, bus: &SocBus) -> Cpu {
+        let mut core = Self::new_core(i);
+        core.fetch_cache = bus.fetch_cache.clone();
+        core
+    }
     fn reset_core(c: &mut Cpu, i: usize) { Cpu::reset(c); if i == 1 { c.prid = 0xABAB; } }
     fn boot_core(c: &mut Cpu, entry: u32) {
         Cpu::reset(c);

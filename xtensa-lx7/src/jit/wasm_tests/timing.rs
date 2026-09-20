@@ -80,7 +80,6 @@ fn executed_fetch_batches() -> u32 {
     const FLASH: u32 = 0x4200_0000;
     assert!(!FETCH_RING.swap(true, Relaxed));
     for budget in [1, 12, 64] {
-        crate::state::reset_shared_fetch_cache();
         let mut block = vec![insn(Op::Movi); 16];
         let mut cache = CodeCache::new(0).unwrap();
         let code = queue(&mut cache, &mut block, FLASH, false);

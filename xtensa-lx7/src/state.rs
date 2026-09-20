@@ -152,6 +152,7 @@ pub struct Cpu {
     /// EX147: instruction-fetch cache for flash-mapped code, 64 sets x 8 ways x 32-byte lines,
     /// one for both cores; `icache_fill` cycles per missing line (0 = off). Tags hold line + 1.
     pub icache_fill: u32, pub icache_misses: u64,
+    pub fetch_cache: SharedFetchCache,
     /// Executed instruction byte ranges in a bounded compiled call (written by
     /// generated code, drained by `jit::run`).
     pub fetch_ring: [[u32; 2]; 64], pub fetch_n: u32,
@@ -161,11 +162,18 @@ impl Default for Cpu {
     fn default() -> Self { Self::new(0) }
 }
 
-static SHARED_FETCH_CACHE: std::sync::Mutex<[[u32; 8]; 64]> = std::sync::Mutex::new([[0; 8]; 64]);
+/// Fetch tags shared only by the cores and bus of one machine.
+#[derive(Clone)]
+pub struct SharedFetchCache(std::sync::Arc<std::sync::Mutex<[[u32; 8]; 64]>>);
 
-/// A new machine starts with an empty fetch cache (the cache is shared by the cores of one
-/// machine; the emulator runs one machine at a time per module instance).
-pub fn reset_shared_fetch_cache() { *SHARED_FETCH_CACHE.lock().unwrap() = [[0; 8]; 64]; }
+impl Default for SharedFetchCache {
+    fn default() -> Self { Self(std::sync::Arc::new(std::sync::Mutex::new([[0; 8]; 64]))) }
+}
+
+impl SharedFetchCache {
+    /// Invalidate this machine's tags after a remap or chip reset.
+    pub fn reset(&self) { *self.0.lock().unwrap() = [[0; 8]; 64]; }
+}
 
 impl Cpu {
     /// EX147: fetch the 32-byte lines covering `lo..=hi` of flash-mapped code; misses are charged.
@@ -173,7 +181,7 @@ impl Cpu {
     pub fn touch_fetch_lines(&mut self, lo: u32, hi: u32) {
         if self.icache_fill == 0 || !(0x4200_0000..0x4400_0000).contains(&lo) { return; }
         // One cache for both cores, as on the chip (the emulator is single-threaded).
-        let mut shared = SHARED_FETCH_CACHE.lock().unwrap();
+        let mut shared = self.fetch_cache.0.lock().unwrap();
         for line in lo >> 5..=hi >> 5 {
             let set = &mut shared[(line & 63) as usize];
             if set[0] == line + 1 { continue; }   // already the most recent line of its set
@@ -196,7 +204,7 @@ impl Cpu {
             qr: [0; 8], accx: [0; 2], qacc_h: [0; 5], qacc_l: [0; 5], sar_byte: 0, fft_bit_width: 0, ua_state: [0; 4], gpio_out: 0,
             waiting: false, ext_irq_lines: 0, insn_count: 0,
             icache: vec![crate::decode::CacheEntry::EMPTY; crate::decode::ICACHE_SIZE],
-            blocks: crate::block::BlockCache::new(), boundary_bloom: 0, jit_trap: None, timing_extra: 0, price_control: false, icache_fill: 0, icache_misses: 0, fetch_ring: [[0; 2]; 64], fetch_n: 0,
+            blocks: crate::block::BlockCache::new(), boundary_bloom: 0, jit_trap: None, timing_extra: 0, price_control: false, icache_fill: 0, icache_misses: 0, fetch_cache: SharedFetchCache::default(), fetch_ring: [[0; 2]; 64], fetch_n: 0,
         };
         c.reset();
         c

@@ -2,8 +2,6 @@ use emu_core::Bus;
 use esp_soc::{Soc, SocBus};
 use esp32s3::bus::{IBUS_LOW, MMU_TABLE, PAGE};
 
-// Run in a separate test process: the experimental fetch cache is module-global,
-// so unrelated library tests remapping their own buses must not clear this fixture.
 #[test]
 fn fetch_cache_cold_after_remap_and_chip_reset_keeps_core_reset() {
     const SPIN: [u8; 3] = [0x06, 0xff, 0xff]; // j .
@@ -18,7 +16,6 @@ fn fetch_cache_cold_after_remap_and_chip_reset_keeps_core_reset() {
         m.cores[0].ps = 0;
         m.cores[0].waiting = false;
     };
-    xtensa_lx7::state::reset_shared_fetch_cache();
     m.cores[0].price_control = true;
     m.cores[0].icache_fill = 404;
     park(&mut m);
@@ -45,4 +42,36 @@ fn fetch_cache_cold_after_remap_and_chip_reset_keeps_core_reset() {
     park(&mut m);
     m.run(8);
     assert_eq!(m.cores[0].icache_misses, warm_misses + 2, "a core reset keeps the shared fetch cache");
+}
+
+#[test]
+fn fetch_cache_is_shared_by_cores_but_isolated_between_machines() {
+    let mut first = esp32s3::machine([1; 6]);
+    for core in &mut first.cores { core.icache_fill = 7; }
+    first.cores[0].touch_fetch_lines(IBUS_LOW, IBUS_LOW + 2);
+    first.cores[1].touch_fetch_lines(IBUS_LOW, IBUS_LOW + 2);
+    assert_eq!(first.cores[0].icache_misses, 1);
+    assert_eq!(first.cores[1].icache_misses, 0, "core 1 shares core 0's warm line");
+
+    // Constructing another machine must neither borrow nor invalidate first's tags.
+    let mut second = esp32s3::machine([2; 6]);
+    second.cores[0].icache_fill = 7;
+    second.cores[0].touch_fetch_lines(IBUS_LOW, IBUS_LOW + 2);
+    assert_eq!(second.cores[0].icache_misses, 1, "a new machine starts cold");
+    first.cores[1].touch_fetch_lines(IBUS_LOW, IBUS_LOW + 2);
+    assert_eq!(first.cores[1].icache_misses, 0);
+
+    second.bus.write32(MMU_TABLE, 0).unwrap();
+    first.cores[0].touch_fetch_lines(IBUS_LOW, IBUS_LOW + 2);
+    assert_eq!(first.cores[0].icache_misses, 1, "another machine's remap leaves this one warm");
+    second.cores[0].touch_fetch_lines(IBUS_LOW, IBUS_LOW + 2);
+    assert_eq!(second.cores[0].icache_misses, 2, "a remap invalidates its own machine");
+
+    SocBus::reboot(&mut second.bus, [2; 6]);
+    first.cores[0].touch_fetch_lines(IBUS_LOW, IBUS_LOW + 2);
+    assert_eq!(first.cores[0].icache_misses, 1, "another machine's reset leaves this one warm");
+    second.cores[0].touch_fetch_lines(IBUS_LOW, IBUS_LOW + 2);
+    assert_eq!(second.cores[0].icache_misses, 3);
+    assert_eq!(first.cores[0].timing_extra, 7);
+    assert_eq!(second.cores[0].timing_extra, 21);
 }

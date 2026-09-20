@@ -57,6 +57,8 @@ pub trait Soc: 'static {
     /// Bytes per table entry: (dst_start, dst_end, rom_src[, 0]) — 16 on the S3 and C3, 12 on the C6.
     const ROM_DATA_TABLE_STRIDE: u32 = 16;
     fn new_core(i: usize) -> Self::Core;
+    /// Connect core-local state to resources owned by this machine's bus.
+    fn new_core_with_bus(i: usize, _bus: &Self::Bus) -> Self::Core { Self::new_core(i) }
     /// Bring core `i` back to its reset state (after a chip reset or a release from reset).
     fn reset_core(core: &mut Self::Core, i: usize);
     /// Set a core up to start the app image at `entry` as the 2nd-stage bootloader would have.

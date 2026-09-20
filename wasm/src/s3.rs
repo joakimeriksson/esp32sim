@@ -169,7 +169,7 @@ pub unsafe extern "C" fn esp32sim_set_icache_fill(e: *mut Emu, cycles: u32) -> u
     let e = unsafe { &mut *e };
     let Some(m) = e.m.s3_mut() else { return 1 };
     if m.insns() != 0 || (cycles != 0 && !m.has_approximate_jit_timing()) { return 1; }
-    xtensa_lx7::state::reset_shared_fetch_cache();
+    m.cores[0].fetch_cache.reset();
     for cpu in &mut m.cores { cpu.icache_fill = cycles; }
     #[cfg(target_arch = "wasm32")]
     xtensa_lx7::jit::FETCH_RING.store(cycles != 0, std::sync::atomic::Ordering::Relaxed);

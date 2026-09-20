@@ -141,7 +141,6 @@ pub unsafe extern "C" fn esp32sim_new(board: *const u8, board_len: usize, flash_
         xtensa_lx7::jit::FETCH_RING.store(false, Relaxed);
         xtensa_lx7::jit::CACHE_SET_MASK.store(63, Relaxed);
     }
-    xtensa_lx7::state::reset_shared_fetch_cache();
     Box::into_raw(Box::new(Emu {
         m,
         out: Vec::new(),

@@ -87,9 +87,7 @@ fn interrupt_entry_matches_step_without_retirement() {
 
 #[test]
 fn fetch_requires_pricing_and_counts_instruction_end() {
-    use xtensa_lx7::state::reset_shared_fetch_cache;
     for enabled in [false, true] { for step in [false, true] {
-        reset_shared_fetch_cache();
         let base = 0x4200_0000;
         let mut ram = FlatRam::new(base, 4096);
         // A 3-byte instruction at offset 30 straddles two 32-byte lines.
