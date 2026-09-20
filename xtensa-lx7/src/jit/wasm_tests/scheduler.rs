@@ -327,8 +327,8 @@ pub(super) fn wrapper_chain() {
             }
         }
         for c in [&mut a, &mut b] { reset(c, BASE, underflow); }
-        let (done, trap) = check(&mut a, &mut b, &mut ra, &mut rb, 4);
-        assert_eq!(done, 4, "RETW successor must be reached in the chain");
+        let (done, trap) = check(&mut a, &mut b, &mut ra, &mut rb, 6);
+        assert_eq!(done, if underflow { 4 } else { 6 }, "only a successful RETW may continue the chain");
         assert_ne!(b.blocks.chain_ei, NONE);
         assert_eq!(trap, if underflow { Some(Trap::Exception(0x301)) } else { None });
     }
