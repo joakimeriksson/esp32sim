@@ -161,3 +161,28 @@ fn waiti_sleeps_until_a_line_arrives() {
     match step(&mut cpu, &mut ram) { Err(Trap::Interrupt(6)) => {} r => panic!("{:?}", r) }
     assert!(!cpu.waiting());
 }
+
+/// RSR PS remains inside the block, but enabling an already pending interrupt ends it.
+#[test]
+fn rsr_ps_does_not_split_block_before_interrupt_enable() {
+    // add.n a3,a3,a3; rsr a4,PS; add.n a3,a3,a3; wsr a2,INTENABLE; nop
+    let program = asm("333a 03e640 333a 13e420 0020f0");
+    for jit in [false, true] {
+        let (mut c, mut bus) = machine(&program, "add.n a3, a3, a3");
+        let (mut oracle, mut reference) = machine(&program, "add.n a3, a3, a3");
+        for cpu in [&mut c, &mut oracle] {
+            cpu.set_ar(3, 1);
+            cpu.set_ar(2, 1 << 6);
+            cpu.interrupt = 1 << 6;
+        }
+        c.blocks.jit_enabled = jit;
+        assert_eq!(run_block(&mut c, &mut bus, 20), (4, None));
+        for _ in 0..4 { step(&mut oracle, &mut reference).unwrap(); }
+        assert_eq!((c.pc, c.ar, c.ps, c.intenable, c.insn_count),
+            (oracle.pc, oracle.ar, oracle.ps, oracle.intenable, oracle.insn_count));
+        assert_eq!(c.get_ar(3), 4);
+        assert_eq!(run_block(&mut c, &mut bus, 20), (1, Some(Trap::Interrupt(6))));
+        assert_eq!(step(&mut oracle, &mut reference), Err(Trap::Interrupt(6)));
+        assert_eq!((c.pc, c.epc), (oracle.pc, oracle.epc));
+    }
+}

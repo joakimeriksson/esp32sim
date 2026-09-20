@@ -6,7 +6,7 @@ use crate::pie::{ArithOp, Kind, LdKind, Mode, OPS};
 /// `supported` for a decoded instruction: PIE eligibility depends on the table entry, and RUR
 /// is emitted for ACCX_0/ACCX_1, which inference kernels read after every dot product.
 pub(in crate::jit) fn supported_insn(i: &crate::Insn, fast: bool) -> bool {
-    supported(i.op, fast) || pie(i, fast) || (i.op == crate::Op::Rur && matches!(i.imm, 0 | 1 | 13))
+    supported_opcode(i.op, fast) || pie(i, fast) || (i.op == crate::Op::Rur && matches!(i.imm, 0 | 1 | 13))
         // EX155: WUR SAR_BYTE precedes every ee.src.q of the 4-bit unpack kernels.
         || (i.op == crate::Op::Wur && i.imm == 13)
         || (i.op == crate::Op::Rsr && rsr_field(i.imm as u32).is_some())
@@ -50,9 +50,11 @@ pub(in crate::jit) fn required_coprocessors(op: crate::Op) -> u32 {
     (requires_coprocessor(op) as u32) | if op == crate::Op::Pie { pie::CP3 } else { 0 }
 }
 
+// This opcode-only predicate deliberately excludes operand-sensitive RSR/RUR/PIE.
+// Call supported_insn for admission of a decoded instruction.
 // Most unsupported operations keep their block interpreted. Calls/returns at the
 // end may use a helper after the compiled prefix; memory misses also use helpers.
-pub(in crate::jit) fn supported(op: crate::Op, fast: bool) -> bool {
+pub(in crate::jit) fn supported_opcode(op: crate::Op, fast: bool) -> bool {
     use crate::Op::*;
     matches!(
         op,

@@ -52,7 +52,7 @@ pub(super) fn floating_point() -> u32 {
         0xff80_0000, 0x7fc1_2345, 0xffc5_4321, 0x7f81_2345];
     let mut tests = 0;
     for op in ops {
-        assert!(super::emitter::supported(op, true));
+        assert!(super::emitter::supported_opcode(op, true));
         for (n, &bits) in values.iter().enumerate() {
             for entry in 0..3 {
                 for budget in [1, 3] {
