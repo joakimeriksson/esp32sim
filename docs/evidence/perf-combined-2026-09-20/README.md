@@ -17,7 +17,7 @@ codex/perf-combined-0920. The runtime changes are now proposed in PRs #110–113
   /Users/alice/src/a/esp32sim-exp/results/overnight.md
 - Standalone M3 campaign script:
   /Users/alice/src/a/esp32sim-exp/m3-transfer/campaign.sh
-- M3 workspace: alice@alice-m3p.local:~/bench/esp32sim
+- M3 workspace
 
 kernel-s1 uses commits a473c33c, ac47f03f and 94f2cef4. coverage-s1
 uses 10b01db5. onecall-s1r uses ea42f20b, 74a3000e and 21dc368b.
