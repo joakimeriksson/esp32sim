@@ -1,0 +1,8 @@
+   Compiling esp32s3 v0.2.0 (/Users/alice/src/a/esp32sim/esp32s3)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.44s
+     Running unittests src/lib.rs (target/debug/deps/esp32s3-b3df60f38ad29e24)
+
+running 1 test
+test bus::memory_origin_regressions::dma_run_copy_matches_the_word_loop ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 118 filtered out; finished in 1.39s

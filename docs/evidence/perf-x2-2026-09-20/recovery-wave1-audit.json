@@ -1,0 +1,277 @@
+[
+  {
+    "job": "control-aa-1",
+    "reduction": -0.1830004948522701,
+    "pairs": [
+      -0.5814435416538366,
+      0.21183373078791368
+    ],
+    "baseline": 32.176142500001006,
+    "candidate": 32.23502500000038,
+    "checks": "4/4 passed; exact instructions; matched console; zero JIT failures; frozen wasm hashes verified"
+  },
+  {
+    "job": "control-aa-2",
+    "reduction": -0.31038849720790296,
+    "pairs": [
+      -0.3849712843493558,
+      -0.23511855768576506
+    ],
+    "baseline": 32.37475,
+    "candidate": 32.475237499999814,
+    "checks": "4/4 passed; exact instructions; matched console; zero JIT failures; frozen wasm hashes verified"
+  },
+  {
+    "job": "control-aa-3",
+    "reduction": 0.365328567530232,
+    "pairs": [
+      0.3820894637592831,
+      0.3486097492450435
+    ],
+    "baseline": 32.43108000000008,
+    "candidate": 32.312600000001495,
+    "checks": "4/4 passed; exact instructions; matched console; zero JIT failures; frozen wasm hashes verified"
+  },
+  {
+    "job": "crumbs-all",
+    "reduction": 8.807635546353387,
+    "pairs": [
+      8.74464861003139,
+      8.870508078144834
+    ],
+    "baseline": 32.49774000000116,
+    "candidate": 29.635457499999553,
+    "checks": "4/4 passed; exact instructions; matched console; zero JIT failures; frozen wasm hashes verified"
+  },
+  {
+    "job": "crumbs-dma",
+    "reduction": 4.783397585823545,
+    "pairs": [
+      4.5758765387344695,
+      4.990868909211732
+    ],
+    "baseline": 32.31975749999937,
+    "candidate": 30.773775000000374,
+    "checks": "4/4 passed; exact instructions; matched console; zero JIT failures; frozen wasm hashes verified"
+  },
+  {
+    "job": "crumbs-fma",
+    "reduction": 1.4785296651421143,
+    "pairs": [
+      1.611629941701831,
+      1.3452286682405945
+    ],
+    "baseline": 32.25823000000045,
+    "candidate": 31.78128250000067,
+    "checks": "4/4 passed; exact instructions; matched console; zero JIT failures; frozen wasm hashes verified"
+  },
+  {
+    "job": "crumbs-pub",
+    "reduction": 0.4059580491039716,
+    "pairs": [
+      0.6524622470791552,
+      0.1599641319678602
+    ],
+    "baseline": 32.35186500000022,
+    "candidate": 32.22052999999747,
+    "checks": "4/4 passed; exact instructions; matched console; zero JIT failures; frozen wasm hashes verified"
+  },
+  {
+    "job": "crumbs-round",
+    "reduction": 1.2199705751434475,
+    "pairs": [
+      1.0684069755896752,
+      1.3705533958215388
+    ],
+    "baseline": 32.56431000000052,
+    "candidate": 32.167035000002016,
+    "checks": "4/4 passed; exact instructions; matched console; zero JIT failures; frozen wasm hashes verified"
+  },
+  {
+    "job": "crumbs-spi",
+    "reduction": 1.7701253342009227,
+    "pairs": [
+      2.233541023614005,
+      1.3025077866241297
+    ],
+    "baseline": 32.353500000000935,
+    "candidate": 31.780802500000224,
+    "checks": "4/4 passed; exact instructions; matched console; zero JIT failures; frozen wasm hashes verified"
+  },
+  {
+    "job": "dispatch-s1",
+    "reduction": 0.2618340046568801,
+    "pairs": [
+      -0.08211682214718241,
+      0.6060024319834212
+    ],
+    "baseline": 32.35828749999963,
+    "candidate": 32.2735625,
+    "checks": "4/4 passed; exact instructions; matched console; zero JIT failures; frozen wasm hashes verified"
+  },
+  {
+    "job": "dispatch-s1s2s3s4s5s6",
+    "reduction": 2.768318743413456,
+    "pairs": [
+      3.808579763117037,
+      1.7050742551510623
+    ],
+    "baseline": 32.73692750000022,
+    "candidate": 31.83066500000004,
+    "checks": "4/4 passed; exact instructions; matched console; zero JIT failures; frozen wasm hashes verified"
+  },
+  {
+    "job": "dispatch-s2",
+    "reduction": 0.4646286002443878,
+    "pairs": [
+      0.23125746225579613,
+      0.6984063217706837
+    ],
+    "baseline": 32.28869249999989,
+    "candidate": 32.13866999999993,
+    "checks": "4/4 passed; exact instructions; matched console; zero JIT failures; frozen wasm hashes verified"
+  },
+  {
+    "job": "dispatch-s3",
+    "reduction": 0.27075805332062997,
+    "pairs": [
+      0.3124719426005451,
+      0.22912771472187732
+    ],
+    "baseline": 32.49949500000104,
+    "candidate": 32.411500000000004,
+    "checks": "4/4 passed; exact instructions; matched console; zero JIT failures; frozen wasm hashes verified"
+  },
+  {
+    "job": "dispatch-s4",
+    "reduction": 0.47620659352750616,
+    "pairs": [
+      0.7087241978635195,
+      0.24214584386559324
+    ],
+    "baseline": 32.35203000000119,
+    "candidate": 32.19796750000119,
+    "checks": "4/4 passed; exact instructions; matched console; zero JIT failures; frozen wasm hashes verified"
+  },
+  {
+    "job": "dispatch-s5",
+    "reduction": -1.4021670839842848,
+    "pairs": [
+      -1.5857429800626432,
+      -1.2188543440476485
+    ],
+    "baseline": 32.30677749999985,
+    "candidate": 32.75977250000089,
+    "checks": "4/4 passed; exact instructions; matched console; zero JIT failures; frozen wasm hashes verified"
+  },
+  {
+    "job": "dispatch-s6",
+    "reduction": 0.37073485186907007,
+    "pairs": [
+      0.24115805470206197,
+      0.5005933700650389
+    ],
+    "baseline": 32.21979249999858,
+    "candidate": 32.10034250000119,
+    "checks": "4/4 passed; exact instructions; matched console; zero JIT failures; frozen wasm hashes verified"
+  },
+  {
+    "job": "hotwat-s1",
+    "reduction": 0.3239465327212754,
+    "pairs": [
+      0.6021581072633952,
+      0.044923476945346597
+    ],
+    "baseline": 32.368767500000075,
+    "candidate": 32.263909999999214,
+    "checks": "4/4 passed; exact instructions; matched console; zero JIT failures; frozen wasm hashes verified"
+  },
+  {
+    "job": "hotwat-s1s2",
+    "reduction": 2.3655238315624993,
+    "pairs": [
+      1.931185520057599,
+      2.79717678881225
+    ],
+    "baseline": 32.433302500000224,
+    "candidate": 31.666084999999963,
+    "checks": "4/4 passed; exact instructions; matched console; zero JIT failures; frozen wasm hashes verified"
+  },
+  {
+    "job": "hotwat-s2",
+    "reduction": 1.9918389347338028,
+    "pairs": [
+      1.5374402882269322,
+      2.444726073175374
+    ],
+    "baseline": 32.337077499999666,
+    "candidate": 31.692974999999628,
+    "checks": "4/4 passed; exact instructions; matched console; zero JIT failures; frozen wasm hashes verified"
+  },
+  {
+    "job": "inchain-s1",
+    "reduction": 0.8889311325227633,
+    "pairs": [
+      0.7322508412474948,
+      1.045626557678303
+    ],
+    "baseline": 32.50983000000008,
+    "candidate": 32.22083999999985,
+    "checks": "4/4 passed; exact instructions; matched console; zero JIT failures; frozen wasm hashes verified"
+  },
+  {
+    "job": "inchain-s2",
+    "reduction": 1.4269113110635057,
+    "pairs": [
+      1.126633082593187,
+      1.7268410952156033
+    ],
+    "baseline": 32.37937749999948,
+    "candidate": 31.917352500000035,
+    "checks": "4/4 passed; exact instructions; matched console; zero JIT failures; frozen wasm hashes verified"
+  },
+  {
+    "job": "inchain-s3",
+    "reduction": 1.69494525466376,
+    "pairs": [
+      1.7704915409591182,
+      1.6193441819311039
+    ],
+    "baseline": 32.48541500000003,
+    "candidate": 31.934804999999702,
+    "checks": "4/4 passed; exact instructions; matched console; zero JIT failures; frozen wasm hashes verified"
+  },
+  {
+    "job": "tailchain-s1",
+    "reduction": -2.513669179547784,
+    "pairs": [
+      -2.8526713616280563,
+      -2.176366919606143
+    ],
+    "baseline": 32.4004450000003,
+    "candidate": 33.214885000001644,
+    "checks": "4/4 passed; exact instructions; matched console; zero JIT failures; frozen wasm hashes verified"
+  },
+  {
+    "job": "tailchain-s2",
+    "reduction": -3.7185613279220764,
+    "pairs": [
+      -4.204205695435026,
+      -3.233151000333212
+    ],
+    "baseline": 32.228122499999586,
+    "candidate": 33.426544999999926,
+    "checks": "4/4 passed; exact instructions; matched console; zero JIT failures; frozen wasm hashes verified"
+  },
+  {
+    "job": "tailchain-s2-1k",
+    "reduction": -3.9190498358214976,
+    "pairs": [
+      -3.540480806038393,
+      -4.300827233021831
+    ],
+    "baseline": 32.25947749999911,
+    "candidate": 33.5237424999997,
+    "checks": "4/4 passed; exact instructions; matched console; zero JIT failures; frozen wasm hashes verified"
+  }
+]

@@ -1,0 +1,4 @@
+   Compiling esp32s3 v0.2.0 (/Users/alice/src/a/esp32sim/esp32s3)
+   Compiling esp32sim-wasm-jit v0.2.0 (/Users/alice/src/a/esp32sim/wasm-jit)
+    Finished `release` profile [optimized + debuginfo] target(s) in 47.75s
+5035594e55f8db329bd0354136ce68cee746b1d650709111873558080a583992  /Users/alice/src/a/esp32sim-x2/wasm/crumbs-integrated-jit-tests.wasm

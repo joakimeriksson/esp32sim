@@ -1,0 +1,33 @@
+== x2/dispatch2 b1d77c28
+    Finished `release` profile [optimized + debuginfo] target(s) in 26.37s
+PASS: 78903 WASM differential cases (ALU, helper continuation, memory, faults, loops, windows, budget/resume, invalidation, timer, script stop, peer-state MMIO); 81884 compiled modules released
+== x2/dispatch2-stack-t1 2bcbb222
+    Finished `release` profile [optimized + debuginfo] target(s) in 22.68s
+PASS: 78903 WASM differential cases (ALU, helper continuation, memory, faults, loops, windows, budget/resume, invalidation, timer, script stop, peer-state MMIO); 81884 compiled modules released
+== x2/dispatch2-stack-t2 5d13993e
+    Finished `release` profile [optimized + debuginfo] target(s) in 24.31s
+PASS: 78903 WASM differential cases (ALU, helper continuation, memory, faults, loops, windows, budget/resume, invalidation, timer, script stop, peer-state MMIO); 81884 compiled modules released
+== x2/dispatch2-stack-t3 9ae0e2e3
+    Finished `release` profile [optimized + debuginfo] target(s) in 26.69s
+PASS: 78903 WASM differential cases (ALU, helper continuation, memory, faults, loops, windows, budget/resume, invalidation, timer, script stop, peer-state MMIO); 81884 compiled modules released
+== x2/dispatch2-stack-t4 b3e14bfc
+    Finished `release` profile [optimized + debuginfo] target(s) in 24.03s
+PASS: 78903 WASM differential cases (ALU, helper continuation, memory, faults, loops, windows, budget/resume, invalidation, timer, script stop, peer-state MMIO); 81884 compiled modules released
+== x2/dispatch2-t1 946a0ad9
+    Finished `release` profile [optimized + debuginfo] target(s) in 22.48s
+PASS: 78903 WASM differential cases (ALU, helper continuation, memory, faults, loops, windows, budget/resume, invalidation, timer, script stop, peer-state MMIO); 81884 compiled modules released
+== x2/dispatch2-t2 a9988df6
+    Finished `release` profile [optimized + debuginfo] target(s) in 22.08s
+PASS: 78903 WASM differential cases (ALU, helper continuation, memory, faults, loops, windows, budget/resume, invalidation, timer, script stop, peer-state MMIO); 81884 compiled modules released
+== x2/dispatch2-t3 7c0dfeb7
+    Finished `release` profile [optimized + debuginfo] target(s) in 22.01s
+PASS: 78903 WASM differential cases (ALU, helper continuation, memory, faults, loops, windows, budget/resume, invalidation, timer, script stop, peer-state MMIO); 81884 compiled modules released
+== x2/dispatch2-t4 e00610ff
+    Finished `release` profile [optimized + debuginfo] target(s) in 24.18s
+PASS: 78903 WASM differential cases (ALU, helper continuation, memory, faults, loops, windows, budget/resume, invalidation, timer, script stop, peer-state MMIO); 81884 compiled modules released
+== x2/dispatch2-stack-t5 a294db4c
+    Finished `release` profile [optimized + debuginfo] target(s) in 23.59s
+PASS: 78903 WASM differential cases (ALU, helper continuation, memory, faults, loops, windows, budget/resume, invalidation, timer, script stop, peer-state MMIO); 81884 compiled modules released
+== x2/dispatch2-t5 739b1c2a
+    Finished `release` profile [optimized + debuginfo] target(s) in 23.77s
+PASS: 78903 WASM differential cases (ALU, helper continuation, memory, faults, loops, windows, budget/resume, invalidation, timer, script stop, peer-state MMIO); 81884 compiled modules released
