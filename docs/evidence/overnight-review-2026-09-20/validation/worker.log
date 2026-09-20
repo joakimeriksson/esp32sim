@@ -1,0 +1,4 @@
+worker native-channel, consumer ACK, replacement and network failure tests passed
+worker native-channel, consumer ACK, replacement and experiment tests passed
+worker rejected stub and WiFi boot status tests passed
+worker smooth display configuration tests passed

@@ -1,0 +1,10 @@
+   Compiling esp-periph v0.2.0 (/Users/user/tmp/esp32-review-integration/esp-periph)
+   Compiling xtensa-lx7 v0.2.0 (/Users/user/tmp/esp32-review-integration/xtensa-lx7)
+   Compiling esp32sim-wasm v0.2.0 (/Users/user/tmp/esp32-review-integration/wasm)
+   Compiling esp-soc v0.2.0 (/Users/user/tmp/esp32-review-integration/esp-soc)
+   Compiling esp32c6 v0.2.0 (/Users/user/tmp/esp32-review-integration/esp32c6)
+   Compiling esp32c3 v0.2.0 (/Users/user/tmp/esp32-review-integration/esp32c3)
+   Compiling esp32s3 v0.2.0 (/Users/user/tmp/esp32-review-integration/esp32s3)
+   Compiling esp32sim-wasm-jit v0.2.0 (/Users/user/tmp/esp32-review-integration/wasm-jit)
+    Finished `release` profile [optimized + debuginfo] target(s) in 52.06s
+PASS: 79628 WASM differential cases (ALU, helper continuation, memory, faults, loops, windows, budget/resume, invalidation, timer, script stop, peer-state MMIO); 82222 compiled modules released

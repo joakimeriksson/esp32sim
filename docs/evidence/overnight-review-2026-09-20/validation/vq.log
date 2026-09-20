@@ -1,0 +1,52 @@
+   Compiling emu-core v0.2.0 (/Users/user/tmp/esp32-review-integration/emu-core)
+   Compiling esp-periph v0.2.0 (/Users/user/tmp/esp32-review-integration/esp-periph)
+   Compiling xtensa-lx7 v0.2.0 (/Users/user/tmp/esp32-review-integration/xtensa-lx7)
+   Compiling esp-soc v0.2.0 (/Users/user/tmp/esp32-review-integration/esp-soc)
+   Compiling esp32s3 v0.2.0 (/Users/user/tmp/esp32-review-integration/esp32s3)
+    Finished `release` profile [optimized + debuginfo] target(s) in 20.96s
+     Running tests/machine.rs (target/release/deps/machine-dd702c6f0d8c0510)
+
+running 30 tests
+test browser_external_blocks_are_single_core_scheduler_transactions ... ok
+test host_touch_is_delivered_on_the_next_fast_path_bus_tick ... ok
+test browser_touch_reaches_the_amoled_controller_and_gpio ... ok
+test console_capture_and_backlog ... ok
+test block_profile_does_not_count_idle_single_steps ... ok
+test core1_runs_when_released ... ok
+test browser_external_finish_honors_halt_and_drains_console ... ok
+test light_grid_reports_the_glass_not_the_chain ... ok
+test breakpoints_stop_at_first_fetch_and_at_a_sleeping_pc ... ok
+test due_script_stop_precedes_execution_and_observes_edits_between_runs ... ok
+test idle_cores_skip_time ... ok
+test block_observers_keep_working_with_instruction_observers ... ok
+test peripheral_block_names_cover_aes_neighbors ... ok
+test knob_input_preserves_pending_scripts_at_the_current_horizon ... ok
+test queued_display_output_does_not_build_an_unused_socket_snapshot ... ok
+test queued_web_input_is_ordered_and_does_not_advance_guest_time ... ok
+test idle_scripts_fire_at_their_deadlines_in_both_entry_paths ... ok
+test idle_stops_at_requested_cycle_and_instruction_limits ... ok
+test quiet_display_publication_remains_live_during_continuous_changes ... ok
+test idle_cut_includes_each_enabled_cores_timer ... ok
+test reboot_keeps_what_silicon_keeps ... ok
+test observers_count_the_same_instructions_either_way ... ok
+test scripts_use_the_board ... ok
+test zero_display_rate_is_safe_and_virtual_rounds_reuse_the_interval ... ok
+test ordinary_trap_observers_keep_block_execution_and_post_trap_state ... ok
+test reset_partial_round_delivers_mmio_and_round_observations ... ok
+test unmatched_breakpoints_preserve_idle_timeline ... ok
+test precise_trap_observer_reports_fault_after_resumed_hardware_loop ... ok
+test software_reset_stops_before_the_siblings_store_and_charges_only_executed_time ... ok
+test mixed_idle_rounds_end_at_the_sleeping_cores_timer ... ok
+
+test result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/virtual_stops.rs (target/release/deps/virtual_stops-1ef1d673432893fe)
+
+running 4 tests
+test frontier_instruction_observers_do_not_arm_mmio_deferral ... ok
+test virtual_runs_stop_before_register_reads_and_script_events ... ok
+test architectural_stop_preserves_unfinished_round ... ok
+test waiti_inside_virtual_round_preserves_timer_ordering ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
