@@ -1,0 +1,35 @@
+{
+  "experiment": "EX172",
+  "baseline": {
+    "name": "crumbs-all",
+    "source": "2c0bd42e65a98e197c66d66a2b0ce92fdc5764b7",
+    "sha256": "2e6f80f4205fd76595dbf97d589083f2273ef56ac0b161d65727255d3e15671d"
+  },
+  "candidate": {
+    "name": "crumbs-all plus cleaned heads-s3",
+    "source": "e458fe64cb3627f9409c2c5c71412debd03333e4",
+    "sha256": "397e8c940dad3f85fe9803e8797059e17f08629d353a564ca1a9314ead3c4688"
+  },
+  "build": "release, inline threshold 4000, no wasm-opt, no profiling features",
+  "workload": "pocket-tank",
+  "guestSeconds": 30,
+  "expectedInstructions": 10073833775,
+  "harnessSource": "414c6e0752a3d57e2911ed40a4a9827cb6a7d1dd",
+  "jobs": [
+    {
+      "name": "control-before",
+      "pairs": 2,
+      "candidate": "baseline.wasm"
+    },
+    {
+      "name": "heads-on-crumbs",
+      "pairs": 4,
+      "candidate": "candidate.wasm"
+    },
+    {
+      "name": "control-after",
+      "pairs": 2,
+      "candidate": "baseline.wasm"
+    }
+  ]
+}

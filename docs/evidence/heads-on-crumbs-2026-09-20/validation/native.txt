@@ -1,0 +1,493 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+     Running unittests src/lib.rs (target/debug/deps/emu_core-7e7ebadd55d737cc)
+
+running 4 tests
+test jit_a64::tests::external_encodings_match_clang ... ignored, needs Apple's clang and llvm-objdump; regenerates the fixture with UPDATE_FIXTURE=1
+test clock::tests::delivered_ticks_never_drift ... ok
+test bus::bounds_tests::access_length_cannot_wrap_into_the_valid_range ... ok
+test jit_a64::tests::encodings_match_fixture ... ok
+
+test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/esp_periph-859c957f886fec43)
+
+running 23 tests
+test gpspi::tests::cpu_transfer_replaces_a_stale_dma_wait ... ok
+test crypto::bn_tests::divmod_and_mul_round_trip ... ok
+test crypto::tests::sha1_known_answers ... ok
+test crypto::tests::hmac_rfc2202 ... ok
+test crypto::tests::aes_and_keywrap_rfc_vectors ... ok
+test crypto::tests::aes_all_key_lengths_roundtrip ... ok
+test gpspi::tests::dma_transfer_is_not_visible_until_the_bus_supplies_its_data ... ok
+test gpspi::tests::splits_phases_and_writes_the_board_response_to_miso_words ... ok
+test crypto::bn_tests::modexp_rsa_round_trip ... ok
+test gpspi::tests::wire_time_uses_divider_and_quad_data_lanes ... ok
+test gpspi::tests::wire_time_uses_read_lanes_and_duplex_phase_order ... ok
+test intmtx::tests::edge_clear_requires_a_new_rising_edge_while_levels_follow_sources ... ok
+test aes::tests::chaining_matches_nist_vectors_across_dma_requests ... ok
+test intmtx::tests::priority_threshold_enable_and_ties_select_one_line ... ok
+test rsa::rsa_tests::multiplication_length_ignores_reserved_bits ... ok
+test sha::sha_tests::dma_block_count_ignores_reserved_bits ... ok
+test uart::tests::c6_layout_reads_its_own_fields ... ok
+test sha::sha_tests::known_answer_vectors ... ok
+test uart::tests::receive_fifo_drives_rxfifo_full_as_a_level ... ok
+test uart::tests::receive_fifo_overflow_is_flagged_and_reset_by_conf0 ... ok
+test rsa::rsa_tests::hardware_ops_match_arithmetic ... ok
+test crypto::tests::pbkdf2_wpa_vector ... ok
+test crypto::bn_big_tests::full_size_vectors ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.45s
+
+     Running tests/devices.rs (target/debug/deps/devices-254eb5aff73be0d4)
+
+running 13 tests
+test gpio_output_queue_orders_each_bank_and_ignores_disabled_and_nonexistent_pins ... ok
+test table_sources_ticks_deadlines_and_debug ... ok
+test gpio_edges_and_interrupt_types ... ok
+test systimer_one_shot_fires_on_its_tick_and_says_when ... ok
+test gpio_enable_toggle_reports_the_edge ... ok
+test systimer_periodic_repeats ... ok
+test table_dispatch_ranges_delta_alias_and_fallback ... ok
+test rng_sequence_from_the_default_seed_plus_the_cycle_count ... ok
+test i2s_frame_rate_from_the_clock_registers ... ok
+test table_tick_reports_both_irq_edges_without_losing_another_source ... ok
+test timer_group_alarm_autoreload_and_deadline ... ok
+test usb_serial_host_input_arrives_as_64_byte_packets_with_an_interrupt_each ... ok
+test usb_sof_cadence_follows_the_cpu_clock ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/timer_rtc_regressions.rs (target/debug/deps/timer_rtc_regressions-e3852d91879cde79)
+
+running 4 tests
+test timer_one_alarm_has_an_independent_interrupt_source ... ok
+test rtc_watchdog_layouts_protect_feed_and_reset_at_their_own_offsets ... ok
+test rtc_watchdog_interrupt_stage_sets_the_documented_raw_bit ... ok
+test s3_watchdog_unlock_address_does_not_unlock_c3 ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/tx_boundaries.rs (target/debug/deps/tx_boundaries-42436eefcc2126f7)
+
+running 11 tests
+test i2s_dma_sample_width_and_active_slots_are_separate_from_wire_slots ... ok
+test i2s_supports_eight_and_sixteen_slots_within_the_128_bit_frame_limit ... ok
+test i2s_clock_selector_distinguishes_the_two_pll_sources ... ok
+test gpio_rejects_every_nonexistent_input_without_mutating_state ... ok
+test rmt_continuous_mode_repeats_full_memory_without_wrap_mode ... ok
+test i2s_short_ws_pulse_has_no_effect_on_frame_duration ... ok
+test rmt_invalid_memory_block_counts_cannot_read_past_the_ram ... ok
+test rmt_continuous_mode_restarts_on_either_half_end_marker ... ok
+test rmt_nonwrapping_memory_exhaustion_stops_and_reports_empty_error ... ok
+test rmt_second_half_end_marker_waits_for_the_first_half_duration ... ok
+test rmt_wrap_repeats_until_an_end_marker_in_either_half ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/esp_soc-c2e0903f1fb55a9d)
+
+running 21 tests
+test devices::spi_bitbang::tests::bytes_assemble_msb_first_on_rising_clock_while_selected ... ok
+test devices::dcs_panel::tests::madctl_mirrors_and_swaps_axes ... ok
+test devices::dcs_panel::tests::reset_keeps_the_ram_and_the_dc_line ... ok
+test json::tests::object_lookup_obeys_structure_and_decodes_escapes ... ok
+test devices::ws2812::tests::grb_on_the_wire_becomes_rgb_in_chain_order ... ok
+test devices::dcs_panel::tests::a_window_fills_x_fastest_and_wraps ... ok
+test devices::ws2812::tests::a_map_places_each_chain_led_physically ... ok
+test json::tests::preserves_protocol_numbers_arrays_and_defaults ... ok
+test json::tests::rejects_excessive_nesting_before_stack_exhaustion ... ok
+test json::tests::rejects_malformed_json_instead_of_extracting_partial_fields ... ok
+test web::tests::json_fields_are_top_level_and_strings_decode_unicode ... ok
+test web::tests::websocket_accept_matches_rfc_6455_example ... ok
+test web::tests::websocket_key_header_matches_any_case ... ok
+test web::tests::websocket_origin_requires_this_loopback_port_when_present ... ok
+test devices::ws2812::tests::a_map_must_be_a_permutation - should panic ... ok
+test web::tests::websocket_rejects_foreign_origin_before_registering_client ... ok
+test web::tests::websocket_preserves_frame_received_with_http_head ... ok
+test web::tests::static_symlinks_cannot_escape_root ... ok
+test web::tests::websocket_snapshot_precedes_live_frames_and_ping_gets_pong ... ok
+test web::tests::static_files_stay_in_root_and_unknown_content_is_not_html ... ok
+test web::tests::slow_snapshot_client_does_not_hold_emulator_mutex ... ok
+
+test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/cost_model.rs (target/debug/deps/cost_model-87cabe670511cb9b)
+
+running 17 tests
+test approximate_frontiers_allow_other_core_to_run_during_memory_stall ... ok
+test interrupt_before_fetch_has_no_invented_access ... ok
+test faulting_access_retains_attempted_shape ... ok
+test equal_timestamp_effects_are_visible_in_core_index_order ... ok
+test deadline_is_visible_at_its_exact_cycle ... ok
+test block_profile_reports_modeled_unavailability ... ok
+test captures_conceptual_fetch_and_ordered_cpu_accesses ... ok
+test fetch_fault_and_control_event_are_forwarded ... ok
+test every_instruction_terminal_stop_wins_over_model_refusal ... ok
+test attach_refusal_and_nonpristine_attach_are_explicit ... ok
+test lifecycle_refusals_stop_before_execution ... ok
+test mmu_table_write_keeps_its_value ... ok
+test modeled_path_delivers_slow_path_observers ... ok
+test refusal_keeps_effects_and_does_not_advance_devices ... ok
+test released_core_starts_at_current_horizon ... ok
+test shared_scheduler_uses_ready_time_and_core_index_ties ... ok
+test zero_cost_is_refused ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/parsers.rs (target/debug/deps/parsers-58a007799cdcaf7c)
+
+running 11 tests
+test bmp_validates_the_pixel_extent_before_allocating ... ok
+test elf_rejects_section_names_outside_the_string_table ... ok
+test elf_rejects_invalid_header_tables ... ok
+test app_image_rejects_truncated_and_overflowing_payloads ... ok
+test elf_validates_load_payloads_but_allows_pure_bss_segments ... ok
+test elf_bounds_symbol_records_and_strings_to_their_sections ... ok
+test elf_allows_unnamed_symbols_with_an_empty_string_table ... ok
+test committed_images_and_their_truncations ... ok
+test image_parse_never_panics ... ok
+test elf_parse_never_panics ... ok
+test picture_parse_never_panics ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/lib.rs (target/debug/deps/esp32s3-b3df60f38ad29e24)
+
+running 119 tests
+test board::waveshare_amoled18::amoled_tests::measured_te_matches_hardware_period_and_high_width ... ok
+test board::waveshare_amoled18::amoled_tests::physical_x_offset_maps_the_full_panel_width_to_the_framebuffer ... ok
+test board::waveshare_amoled18::amoled_tests::board_name_selects_only_the_v2_model ... ok
+test board::waveshare_amoled18::amoled_tests::combined_gpspi_parameter_and_color_phases_update_panel_pixels ... ok
+test approximate_cache::tests::crossing_line_and_reset ... ok
+test board::waveshare_amoled18::amoled_tests::board_exposes_the_v2_device_addresses_on_i2c0 ... ok
+test approximate_cache::tests::dirty_conflict_costs_more ... ok
+test board::waveshare_amoled18::amoled_tests::approximate_te_signal_preserves_edge_timestamps ... ok
+test board::waveshare_amoled18::amoled_tests::split_gpspi_commands_and_parameters_place_partial_updates_in_the_window ... ok
+test board::waveshare_amoled18::amoled_tests::te_deadline_overflow_disables_future_transitions ... ok
+test board::waveshare_amoled18::amoled_tests::touch_signal_preserves_active_low_edge_timestamps ... ok
+test board::waveshare_amoled18::amoled_tests::touch_burst_keeps_the_first_edge_and_coalesces_to_the_final_level ... ok
+test bus::cache_tests::shared_cache_misses_queue_without_charging_hits_or_service_twice ... ok
+test bus::cache_tests::flash_override_does_not_reprice_dirty_victims ... ok
+test board::waveshare_amoled18::amoled_tests::software_reset_clears_the_panel_parser_window_and_framebuffer ... ok
+test bus::cache_tests::approximate_cache_keeps_only_internal_mappings_direct ... ok
+test bus::cache_tests::flash_override_is_optional_and_reset_by_cache_configuration ... ok
+test bus::cache_tests::demand_ready_can_precede_resource_release ... ok
+test bus::cache_tests::flash_override_keeps_psram_prices_and_shared_contention ... ok
+test bus::dma_tests::aes_dma_rejects_mmio_destination_before_writing_any_register ... ok
+test bus::dma_tests::aes_dma_scatters_across_descriptors_and_marks_only_final_eof ... ok
+test approximate_cache::tests::sequential_words_amortize_fill ... ok
+test bus::dma_tests::crypto_descriptor_read_fault_stops_channel ... ok
+test bus::dma_tests::aes_empty_destination_cycle_is_not_reported_as_success ... ok
+test bus::dma_tests::finite_i2s_work_can_read_a_nonempty_ring ... ok
+test bus::dma_tests::crypto_cycles_do_not_hash_or_encrypt_partial_input ... ok
+test bus::dma_tests::sha_dma_hashes_exact_requested_message ... ok
+test bus::dma_tests::i2s_32_bit_stereo_consumes_eight_bytes_and_keeps_the_high_sample_bits ... ok
+test bus::dma_tests::sha_rejects_oversized_and_short_input_without_allocating_a_padded_message ... ok
+test bus::gp_spi_board_tests::cpu_owned_descriptor_is_typed ... ok
+test bus::dma_tests::streaming_dma_buffer_faults_raise_error_instead_of_emitting_zeros ... ok
+test bus::gp_spi_board_tests::descriptor_buffer_read_failure_is_typed ... ok
+test bus::gp_spi_board_tests::descriptor_control_read_failure_is_typed ... ok
+test bus::gp_spi_board_tests::deferred_extension_bases_include_preoffset_boundary_crossings ... ok
+test bus::gp_spi_board_tests::cpu_transfer_replaces_a_parked_dma_transfer_on_the_bus ... ok
+test bus::gp_spi_board_tests::descriptor_cycle_is_typed ... ok
+test bus::gp_spi_board_tests::dma_payload_reports_the_first_unmapped_address ... ok
+test bus::gp_spi_board_tests::dma_payload_crosses_a_tlb_mapping_boundary ... ok
+test bus::gp_spi_board_tests::gdma_m2m_parked_pair_resumes_where_it_stopped_and_stays_quiet_meanwhile ... ok
+test bus::gp_spi_board_tests::empty_tick_flush_does_not_break_a_block ... ok
+test bus::gp_spi_board_tests::gdma_copies_memory_to_memory_when_mem_trans_en_is_set ... ok
+test bus::gp_spi_board_tests::gpio_output_level_irqs_notify_for_both_banks_and_polarities ... ok
+test bus::gp_spi_board_tests::descriptor_step_budget_is_typed ... ok
+test bus::gp_spi_board_tests::host_input_notifies_without_a_periodic_irq_scan ... ok
+test bus::gp_spi_board_tests::host_touch_uses_the_current_bus_horizon_and_keeps_its_edge_timestamp ... ok
+test bus::gp_spi_board_tests::idf_shaped_read_uses_ms_dlen_and_a_following_cpu_transfer_completes ... ok
+test bus::gp_spi_board_tests::mmio_read_flush_notifies_interrupt_changes_before_the_backstop ... ok
+test bus::gp_spi_board_tests::gdma_m2m_back_to_back_copies_with_auto_wrback ... ok
+test bus::gp_spi_board_tests::narrow_mmio_writes_are_rejected_without_device_or_time_side_effects ... ok
+test bus::gp_spi_board_tests::no_edge_touch_keeps_pending_cycles_in_the_deadline_threshold ... ok
+test bus::gp_spi_board_tests::gdma_m2m_ring_of_empty_out_descriptors_stops_at_the_step_budget ... ok
+test bus::gp_spi_board_tests::out_descriptor_length_is_not_limited_by_size ... ok
+test bus::gp_spi_board_tests::periodic_tick_only_requests_irq_refresh_for_events ... ok
+test bus::gp_spi_board_tests::non_mmio_gpio_activation_restores_cadence_without_losing_pending_time ... ok
+test bus::gp_spi_board_tests::periodic_tick_notifies_wifi_tx_and_air_rx ... ok
+test bus::gp_spi_board_tests::read_flush_reports_falling_board_level_interrupt ... ok
+test bus::gp_spi_board_tests::read_flush_reports_pcnt_without_a_gpio_interrupt ... ok
+test bus::gp_spi_board_tests::read_flush_reports_terminal_i2s_and_lcd_dma_descriptors ... ok
+test bus::gp_spi_board_tests::read_only_auto_writeback_descriptor_is_typed ... ok
+test bus::gp_spi_board_tests::short_descriptor_chain_is_typed ... ok
+test bus::gp_spi_board_tests::read_flush_reports_timer_and_rmt_threshold_sources ... ok
+test bus::gp_spi_board_tests::reattaching_board_inputs_notifies_configured_level_irqs ... ok
+test bus::gp_spi_board_tests::reboot_reattaches_amoled_i2c_devices_and_restores_board_input_levels ... ok
+test bus::gp_spi_board_tests::spi2_data_phase_comes_from_gdma_descriptor ... ok
+test bus::gp_spi_board_tests::quiet_backstop_keeps_the_original_cadence_for_active_devices ... ok
+test bus::dma_tests::empty_streaming_descriptor_cycles_raise_error_and_stop ... ok
+test bus::gp_spi_board_tests::short_ms_dlen_retires_an_overlong_eof_descriptor ... ok
+test bus::gp_spi_board_tests::timed_spi2_dma_completion_yields_to_out_rebind ... ok
+test bus::gp_spi_board_tests::timed_spi2_dma_completion_yields_to_out_reset ... ok
+test bus::gp_spi_board_tests::timed_spi2_dma_accounts_for_both_half_duplex_phases ... ok
+test bus::gp_spi_board_tests::timed_spi2_dma_preserves_live_gdma_configuration_and_irq_clear ... ok
+test bus::gp_spi_board_tests::timed_spi2_dma_keeps_owner_and_interrupt_pending_until_wire_deadline ... ok
+test bus::gp_spi_board_tests::unsupported_mmio_reads_do_not_pop_fifos_or_advance_time ... ok
+test bus::gp_spi_board_tests::unsupported_mmu_writes_do_not_change_mapping ... ok
+test bus::gp_spi_board_tests::timed_spi2_dma_stop_survives_completion_and_gates_the_next_usr ... ok
+test bus::gp_spi_board_tests::gdma_m2m_descriptor_errors_and_faults ... ok
+test bus::memory_origin_regressions::chip_reset_clears_timing_state_but_keeps_configuration ... ok
+test bus::memory_origin_regressions::chip_reset_makes_cached_memory_cold ... ok
+test bus::memory_origin_regressions::dma_does_not_evict_or_dirty_cpu_lines ... ok
+test bus::memory_origin_regressions::dma_does_not_allocate_or_charge_cpu ... ok
+test i2c::tests::cst820_reports_board_identity ... ok
+test bus::memory_origin_regressions::unpriced_accesses_preserve_data_versions_faults_and_cpu_debt ... ok
+test i2c::tests::cst820_reports_touch_coordinates ... ok
+test i2c::tests::tca9554_input_port_is_read_only_and_reflects_pin_levels ... ok
+test i2c::tests::tca9554_register_stub_keeps_written_outputs ... ok
+test bus::cache_tests::packed_pie_loads_preserve_external_cache_accounting ... ok
+test nat::tests::full_guest_buffer_does_not_ack_unstored_bytes_or_fin ... ok
+test nat::tests::guest_fin_is_in_order_and_idempotent_including_payload ... ok
+test nat::tests::partial_and_wrapping_ack_preserve_unsent_sequence_space ... ok
+test nat::tests::connector_permits_are_bounded_until_the_worker_drops_them ... ok
+test nat::tests::dropped_syn_ack_is_resent_on_timer_and_duplicate_syn ... ok
+test nat::tests::host_reads_stop_at_the_unacknowledged_window ... ok
+test nat::tests::short_and_invalid_tcp_headers_are_rejected ... ok
+test nat::tests::short_write_and_would_block_preserve_exact_remaining_bytes ... ok
+test nat::tests::syn_data_and_fin_share_retransmission_and_cumulative_ack ... ok
+test nat::tests::fin_waits_for_host_write_drain_and_remains_until_acknowledged ... ok
+test net::tests::icmp_reply_uses_shared_valid_packet_checksums ... ok
+test net::tests::malformed_ip_udp_and_icmp_are_rejected_before_dispatch ... ok
+test net::tests::ntp_fraction_converts_nanoseconds ... ok
+test bus::memory_origin_regressions::core_reset_preserves_the_shared_cache ... ok
+test rough_memory::tests::classification_tracks_mmu_remap_and_aliases ... ok
+test rough_memory::tests::flash_and_psram_contend_but_internal_does_not ... ok
+test nat::tests::udp_ignores_other_senders_and_preserves_dns_reply_address ... ok
+test rough_memory::tests::free_access_at_later_instruction_phase_does_not_reserve_future_time ... ok
+test rough_memory::tests::independent_mode_has_no_wait_and_empty_bursts_do_nothing ... ok
+test nat::tests::zero_window_probe_recovers_a_lost_window_update ... ok
+test wifi::tests::ap_configuration_keeps_defaults_and_recognizes_aliases ... ok
+test wifi::tests::auth_rejects_every_truncated_fixed_body ... ok
+test wifi::tests::ap_configuration_rejects_unknown_options_and_invalid_values ... ok
+test wifi::tests::data_to_eth_rejects_every_truncated_header ... ok
+test wifi::tests::eapol_allows_bytes_after_declared_payload ... ok
+test wifi::tests::eapol_rejects_truncated_declared_payload_and_key_data ... ok
+test wifi::tests::eapol_rejects_declared_lengths_shorter_than_key_header ... ok
+test soc::tests::primary_core_is_not_controlled_by_core_one_reset_registers ... ok
+test bus::memory_origin_regressions::host_peek_does_not_warm_cpu_cache ... ok
+test bus::gp_spi_board_tests::read_bulk_matches_per_byte_reads_or_declines ... ok
+test board::waveshare_amoled18::amoled_tests::bulk_pixel_bytes_match_the_per_byte_walk ... ok
+test wifi::tests::wpa_handshake_installs_keys_only_after_message4 ... ok
+test bus::memory_origin_regressions::dma_run_copy_matches_the_word_loop ... ok
+
+test result: ok. 119 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.38s
+
+     Running tests/approximate_timing.rs (target/debug/deps/approximate_timing-7059e0cdcfb05af4)
+
+running 4 tests
+test zero_quantum_is_rejected - should panic ... ok
+test zero_overhead_loop_does_not_pay_a_taken_branch_penalty ... ok
+test frontier_reset_preserves_prior_control_cycles_without_counting_them_as_instructions ... ok
+test both_approximate_schedulers_drain_control_prices_in_cycles ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/fetch_timing.rs (target/debug/deps/fetch_timing-5d1555901491a065)
+
+running 1 test
+test fetch_cache_cold_after_remap_and_chip_reset_keeps_core_reset ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/host_input.rs (target/debug/deps/host_input-46549f0c01fb6ed5)
+
+running 3 tests
+test camera_input_rejects_invalid_sizes_and_preserves_valid_rgb ... ok
+test ordinary_knob_deltas_preserve_edges_spacing_and_queue_order ... ok
+test knob_extreme_deltas_have_bounded_work_and_keep_their_direction ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/machine.rs (target/debug/deps/machine-5dd37f107a2fbb97)
+
+running 26 tests
+test console_capture_and_backlog ... ok
+test browser_external_blocks_are_single_core_scheduler_transactions ... ok
+test host_touch_is_delivered_on_the_next_fast_path_bus_tick ... ok
+test browser_touch_reaches_the_amoled_controller_and_gpio ... ok
+test breakpoints_stop_at_first_fetch_and_at_a_sleeping_pc ... ok
+test browser_external_finish_honors_halt_and_drains_console ... ok
+test idle_cores_skip_time ... ok
+test knob_input_preserves_pending_scripts_at_the_current_horizon ... ok
+test light_grid_reports_the_glass_not_the_chain ... ok
+test due_script_stop_precedes_execution_and_observes_edits_between_runs ... ok
+test block_observers_keep_working_with_instruction_observers ... ok
+test idle_scripts_fire_at_their_deadlines_in_both_entry_paths ... ok
+test peripheral_block_names_cover_aes_neighbors ... ok
+test idle_stops_at_requested_cycle_and_instruction_limits ... ok
+test idle_cut_includes_each_enabled_cores_timer ... ok
+test core1_runs_when_released ... ok
+test scripts_use_the_board ... ok
+test observers_count_the_same_instructions_either_way ... ok
+test queued_display_output_does_not_build_an_unused_socket_snapshot ... ok
+test reboot_keeps_what_silicon_keeps ... ok
+test queued_web_input_is_ordered_and_does_not_advance_guest_time ... ok
+test quiet_display_publication_remains_live_during_continuous_changes ... ok
+test ordinary_trap_observers_keep_block_execution_and_post_trap_state ... ok
+test precise_trap_observer_reports_fault_after_resumed_hardware_loop ... ok
+test software_reset_stops_before_the_siblings_store_and_charges_only_executed_time ... ok
+test mixed_idle_rounds_end_at_the_sleeping_cores_timer ... ok
+
+test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/sram_cost_model.rs (target/debug/deps/sram_cost_model-7ee440abbab1690b)
+
+running 9 tests
+test refuses_unreceipted_mmio_without_committing_a_ledger_entry ... ok
+test refuses_mmio_reads_without_an_exact_receipt ... ok
+test does_not_apply_the_sram_load_use_cost_after_mmio ... ok
+test ignores_jx_fixed_t_field_for_load_use ... ok
+test prices_the_receipted_load_use_dependency ... ok
+test ignores_special_register_encoding_fields_for_load_use ... ok
+test prices_taken_and_fallthrough_branches ... ok
+test prices_the_receipted_tinydraw_sram_sequence_deterministically ... ok
+test prices_only_the_exact_receipted_mmio_reads ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/timer_interrupts.rs (target/debug/deps/timer_interrupts-548daa646c22f48f)
+
+running 1 test
+test both_timer_one_alarms_reach_the_s3_interrupt_matrix ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/virtual_stops.rs (target/debug/deps/virtual_stops-b0da1bbbf57ce64a)
+
+running 2 tests
+test architectural_stop_preserves_unfinished_round ... ok
+test waiti_inside_virtual_round_preserves_timer_ordering ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s
+
+     Running unittests src/lib.rs (target/debug/deps/xtensa_lx7-916355b958ab8b34)
+
+running 20 tests
+test core::tests::external_lines_preserve_core_interrupts_and_track_levels ... ok
+test core::tests::reset_rearms_external_edge_detection ... ok
+test core::tests::decode_cache_validates_the_whole_fetch_window ... ok
+test core::tests::external_edges_latch_until_cleared_and_require_a_new_rising_edge ... ok
+test core::tests::approximate_block_cost_charges_ccount_and_cuts_at_timer ... ok
+test core::tests::step_facts_distinguish_interrupts_and_trapping_instructions ... ok
+test core::tests::stub_on_a_call0_function_ignores_a_stale_callinc ... ok
+test core::tests::step_facts_report_cache_and_tlb_effective_addresses ... ok
+test block::ownership_tests::compiled_helpers_follow_the_current_bus_type ... ok
+test pie::tests::dot_products_reach_their_extremes_without_overflow ... ok
+test pie::tests::packed_fields_leave_register_effects_unchanged ... ok
+test pie::tests::only_the_handled_kinds_are_packed ... ok
+test core::tests::step_facts_keep_the_full_fetch_window_on_cache_hits ... ok
+test core::tests::timing_only_advance_exposes_the_next_ccompare_wake ... ok
+test core::tests::core_runs_a_block ... ok
+test core::tests::stub_returns_through_the_pending_call_window ... ok
+test core::tests::nmi_bypasses_masks_wakes_waiti_and_acknowledges_its_edge ... ok
+test pie::tests::pie_loop_agrees_across_step_blocks_and_jit ... ok
+test pie::timing_tests::selective_pie_costs_only_charge_successful_selected_instructions ... ok
+test pie::tests::packed_execution_matches_the_table ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 51.30s
+
+     Running tests/isa_regressions.rs (target/debug/deps/isa_regressions-ed7b0ca33ad8bb01)
+
+running 5 tests
+test custom_slots_decode_their_actual_pie_table_entries ... ok
+test custom_pie_slots_load_and_store_float_registers ... ok
+test undocumented_fft_store_operands_fail_before_changing_state ... ok
+test fft_load_updates_only_the_three_pairs_defined_by_the_trm ... ok
+test fft_store_computes_the_final_pair_and_preserves_all_q_registers ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/jit_memory.rs (target/debug/deps/jit_memory-ace229e69dd98bf0)
+
+running 4 tests
+test access_crossing_mapping_limit_faults ... ok
+test empty_tlb_rejects_wrapping_accesses ... ok
+test aliased_tlb_rejects_wrapping_accesses ... ok
+test access_ending_at_mapping_limit_stays_on_fast_path ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/objdump_diff.rs (target/debug/deps/objdump_diff-9e688913a1f643b1)
+
+running 2 tests
+test external_decoder_matches_objdump ... ignored, set XTENSA_DIS_FILES=/path/app.dis:/path/rom.dis (xtensa-esp32s3-elf-objdump -d)
+test decoder_matches_corpus ... ok
+
+test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/operands.rs (target/debug/deps/operands-001ba55198a23c98)
+
+running 4 tests
+test operand_directions_preserve_conditional_destinations_and_mac_selectors ... ok
+test corrected_operands_produce_expected_values ... ok
+test real_high_integer_reads_and_destinations_still_spill_before_retiring ... ok
+test selectors_immediates_and_fp_registers_do_not_spill_integer_windows ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/pricing.rs (target/debug/deps/pricing-59f5694a22592353)
+
+running 4 tests
+test r1_native_jit_drops_control_price ... ok
+test r3_trap_extra_step_vs_block ... ok
+test r4_fetch_step_vs_block_and_early_exit ... ok
+test r2_load_use_missing_opcodes ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/pricing_parity.rs (target/debug/deps/pricing_parity-4d747fdedc950d30)
+
+running 5 tests
+test default_native_execution_keeps_jit_enabled ... ok
+test interrupt_entry_matches_step_without_retirement ... ok
+test idle_and_fetch_fault_match_step ... ok
+test fetch_requires_pricing_and_counts_instruction_end ... ok
+test step_block_and_mixed_prefixes_share_prices ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/semantics.rs (target/debug/deps/semantics-4e32b3525b5967fa)
+
+running 6 tests
+test zero_overhead_loop_runs_its_count ... ok
+test waiti_sleeps_until_a_line_arrives ... ok
+test intlevel_masks_and_rsil_releases ... ok
+test window_overflow_is_raised_at_the_call_that_touches_it ... ok
+test ccompare_interrupt_lands_on_the_same_instruction_in_every_mode ... ok
+test step_blocks_and_jit_agree ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+   Doc-tests emu_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests esp_periph
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests esp_soc
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests esp32s3
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests xtensa_lx7
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
