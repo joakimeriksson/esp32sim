@@ -497,13 +497,13 @@ pub(crate) fn exec_insn<B: Bus>(cpu: &mut Cpu, bus: &mut B, i: &Insn) -> Result<
         Simcall => { cpu.pc = next; return Err(Trap::Simcall); }
         Waiti => { cpu.ps = (cpu.ps & !ps::INTLEVEL_MASK) | (immu & 0xf); cpu.waiting = true; }
         Rsil => { let old = cpu.ps; cpu.ps = (cpu.ps & !ps::INTLEVEL_MASK) | (immu & 0xf); set!(t, old); }
-        Rfe => { cpu.ps &= !ps::EXCM; new_pc = cpu.epc[1]; taken = true; }
-        Rfue => { cpu.ps &= !ps::EXCM; new_pc = cpu.epc[1]; taken = true; }
-        Rfde => { new_pc = if cpu.excm() { cpu.depc } else { cpu.epc[1] }; taken = true; }
-        Rfi => { let l = (immu & 0xf) as usize; if !(2..=7).contains(&l) { return Err(cpu.raise(exc::ILLEGAL)); } cpu.ps = cpu.eps[l]; new_pc = cpu.epc[l]; taken = true; }
+        Rfe => { cpu.ps &= !ps::EXCM; new_pc = cpu.epc[1]; taken = true; cpu.blocks.alias_pc = new_pc; }
+        Rfue => { cpu.ps &= !ps::EXCM; new_pc = cpu.epc[1]; taken = true; cpu.blocks.alias_pc = new_pc; }
+        Rfde => { new_pc = if cpu.excm() { cpu.depc } else { cpu.epc[1] }; taken = true; cpu.blocks.alias_pc = new_pc; }
+        Rfi => { let l = (immu & 0xf) as usize; if !(2..=7).contains(&l) { return Err(cpu.raise(exc::ILLEGAL)); } cpu.ps = cpu.eps[l]; new_pc = cpu.epc[l]; taken = true; cpu.blocks.alias_pc = new_pc; }
         Rfme => return Err(Trap::Unimplemented(pc, i.raw)),
-        Rfwo => { cpu.windowstart &= !bit(cpu.windowbase); cpu.windowbase = (cpu.ps & ps::OWB_MASK) >> ps::OWB_SHIFT; cpu.ps &= !ps::EXCM; new_pc = cpu.epc[1]; taken = true; }
-        Rfwu => { cpu.windowstart |= bit(cpu.windowbase); cpu.windowbase = (cpu.ps & ps::OWB_MASK) >> ps::OWB_SHIFT; cpu.ps &= !ps::EXCM; new_pc = cpu.epc[1]; taken = true; }
+        Rfwo => { cpu.windowstart &= !bit(cpu.windowbase); cpu.windowbase = (cpu.ps & ps::OWB_MASK) >> ps::OWB_SHIFT; cpu.ps &= !ps::EXCM; new_pc = cpu.epc[1]; taken = true; cpu.blocks.alias_pc = new_pc; }
+        Rfwu => { cpu.windowstart |= bit(cpu.windowbase); cpu.windowbase = (cpu.ps & ps::OWB_MASK) >> ps::OWB_SHIFT; cpu.ps &= !ps::EXCM; new_pc = cpu.epc[1]; taken = true; cpu.blocks.alias_pc = new_pc; }
 
         // ------------------------------------------------------------ jumps / calls
         J => { new_pc = immu; taken = true; }

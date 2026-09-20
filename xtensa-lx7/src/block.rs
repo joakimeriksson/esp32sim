@@ -44,6 +44,19 @@ impl Entry { const EMPTY: Entry = Entry { pc: 1, start: 0, n: 0, vidx: [0; 2], v
 #[cfg(target_arch = "wasm32")] const ENTRIES: usize = 1 << 15;
 /// Instructions per block. At most 3 bytes each, so a block spans at most two version pages.
 pub const MAX_LEN: usize = 32;
+/// EX172: interior alias slots (16 bytes each).
+const ALIASES: usize = 1 << 12;
+/// EX172: alias exception-return PCs onto existing blocks (WASM only; the policy never changes results).
+pub const ALIAS: bool = cfg!(target_arch = "wasm32");
+/// Sequential-distance heuristic: an arrival 2 or 3 bytes after the last instruction
+/// may reuse an interior entry. This can include nearby static branch targets.
+pub const ALIAS_SEQ: bool = true;
+/// Record the arrival when a dispatch ended at `last` and execution continues right behind it.
+#[cfg(target_arch = "wasm32")]
+#[inline(always)]
+pub(crate) fn note_sequential(cpu: &mut Cpu, last: u32) {
+    if ALIAS && ALIAS_SEQ && cpu.pc.wrapping_sub(last).wrapping_sub(2) <= 1 { cpu.blocks.alias_pc = cpu.pc; }
+}
 /// Arena size at which decoded entries are rebuilt. The arena never reallocates:
 /// native code holds pointers into it; WASM code owns separate retained instruction storage.
 #[cfg(not(target_arch = "wasm32"))] const ARENA_MAX: usize = 1 << 20;
@@ -61,6 +74,17 @@ pub struct BlockCache {
     /// A block cut short by the caller's budget or a timer deadline resumes here rather than
     /// spawning a new block at the cut point: (entry index, arena index, pc at that index).
     resume: (u32, u32, u32),
+    /// EX172: an exception-return, sequential or deferred arrival PC, or 1. A lookup miss there
+    /// may enter an existing block at that instruction instead of decoding a new head.
+    pub(crate) alias_pc: u32,
+    /// EX172: direct-mapped interior PC -> (head PC, arena start of that build, arena index),
+    /// filled on misses. The arena only grows between flushes, so an entry that still has this
+    /// head and start is the same build and the index still names `pc`. Cleared by flush.
+    aliases: Vec<(u32, u32, u32, u32)>,
+    #[cfg(feature = "wasm-jit-tests")]
+    pub alias_hits: u64,
+    #[cfg(all(target_arch = "wasm32", feature = "wasm-jit-profile"))]
+    profile_entry: usize,
     /// EX153: decoded entry of the block the WASM wrapper chained into last; a CUT resumes in it.
     #[cfg(target_arch = "wasm32")]
     pub(crate) chain_ei: u32,
@@ -91,12 +115,17 @@ impl BlockCache {
                      profile: crate::jit::profile::Profile::default(),
                      #[cfg(target_arch = "wasm32")]
                      chain_ei: u32::MAX,
-                     entries: vec![Entry::EMPTY; ENTRIES], arena: Vec::with_capacity(ARENA_MAX + MAX_LEN), extras: Vec::new(), resume: (0, 0, 1), builds: 0, flushes: 0,
+                     entries: vec![Entry::EMPTY; ENTRIES], arena: Vec::with_capacity(ARENA_MAX + MAX_LEN), extras: Vec::new(), resume: (0, 0, 1), alias_pc: 1, aliases: vec![(1, 0, 0, 0); if ALIAS { ALIASES } else { 0 }], builds: 0, flushes: 0,
+                     #[cfg(feature = "wasm-jit-tests")]
+                     alias_hits: 0,
+                     #[cfg(all(target_arch = "wasm32", feature = "wasm-jit-profile"))]
+                     profile_entry: 0,
                      code, jit_enabled: crate::jit::AVAILABLE, observed: false, compiled: 0, jit_instructions: 0 }
     }
     pub fn flush(&mut self) {
         for e in self.entries.iter_mut() { *e = Entry::EMPTY; }
-        self.arena.clear(); self.extras.clear(); self.resume = (0, 0, 1); self.flushes += 1;
+        self.arena.clear(); self.extras.clear(); self.resume = (0, 0, 1); self.alias_pc = 1;
+        for a in self.aliases.iter_mut() { a.0 = 1; } self.flushes += 1;
         if let Some(c) = &mut self.code { c.reset(); }
     }
     /// Bytes of native code currently in use.
@@ -224,12 +253,12 @@ fn run_block_profiled<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, 
     {
         if cpu.blocks.profile.sample() {
             let pc = cpu.pc;
-            let ei = if cpu.blocks.resume.2 == pc { cpu.blocks.resume.0 as usize } else { BlockCache::index(pc) };
+            cpu.blocks.profile_entry = if cpu.blocks.resume.2 == pc { cpu.blocks.resume.0 as usize } else { BlockCache::index(pc) };
             let before = cpu.blocks.jit_instructions;
             let start = crate::jit::profile::now();
             let result = run_block_inner(cpu, bus, budget);
             let elapsed = crate::jit::profile::now() - start;
-            let e = cpu.blocks.entries[ei];
+            let e = cpu.blocks.entries[cpu.blocks.profile_entry];
             let ops = &cpu.blocks.arena[e.start as usize..(e.start + e.n as u32) as usize];
             let fast = bus.fast_mem().is_some();
             // Attribute resumed execution to its decoder block head, matching JIT names.
@@ -246,7 +275,10 @@ fn run_block_inner<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Opt
     if let Some(t) = cpu.check_interrupts() { return (1, Some(t)); }
     if cpu.waiting { cpu.advance_ccount(cpu.approximate_cpi); return (1, None); }
     let (ei, k, end) = match find_block(cpu, bus) { Ok(b) => b, Err(t) => return (1, Some(t)) };
+    #[cfg(all(target_arch = "wasm32", feature = "wasm-jit-profile"))]
+    { cpu.blocks.profile_entry = ei as usize; }
     cpu.blocks.resume.2 = 1;
+    cpu.blocks.alias_pc = 1;
 
     run_decoded(cpu, bus, budget, ei, k, end)
 }
@@ -269,6 +301,46 @@ fn refresh_priced_continuation<B: Bus>(cpu: &mut Cpu, bus: &mut B, ei: u32) {
     cpu.blocks.entries[ei as usize].ver = indices.map(|i| pv.get(i as usize).copied().unwrap_or(0));
 }
 
+/// EX172: an aliasable arrival missed the entry table. If `pc` is an instruction
+/// boundary strictly inside a valid decoded block that has code, run that block from there: the
+/// same thing a budget cut and its resume do. Block boundaries are not architectural (interrupt,
+/// timer and device state only change at instructions that end every block containing them).
+#[cold]
+#[inline(never)]
+fn alias_lookup(cpu: &mut Cpu, pv: &[u32], pc: u32) -> Option<(u32, u32, u32)> {
+    let b = &mut cpu.blocks;
+    let slot = BlockCache::index(pc) & (ALIASES - 1);
+    let (apc, head, start, k) = b.aliases[slot];
+    if apc == pc {
+        let ei = BlockCache::index(head);
+        let e = &b.entries[ei];
+        if e.pc == head && e.start == start && e.code != crate::jit::NONE && BlockCache::valid(e, pv) {
+            #[cfg(feature = "wasm-jit-tests")]
+            { b.alias_hits += 1; }
+            return Some((ei as u32, k, e.start + e.n as u32));
+        }
+    }
+    for back in 1..=(3 * (MAX_LEN as u32 - 1)) {
+        let head = pc.wrapping_sub(back);
+        let ei = BlockCache::index(head);
+        let e = &b.entries[ei];
+        if e.pc != head || e.code == crate::jit::NONE || !BlockCache::valid(e, pv) { continue; }
+        let mut p = head;
+        for k in e.start..e.start + e.n as u32 {
+            if p == pc {
+                let hit = (ei as u32, k, e.start + e.n as u32);
+                b.aliases[slot] = (pc, head, e.start, k);
+                #[cfg(feature = "wasm-jit-tests")]
+                { b.alias_hits += 1; }
+                return Some(hit);
+            }
+            if p.wrapping_sub(head) > back { break; }
+            p = p.wrapping_add(b.arena[k as usize].insn.len as u32);
+        }
+    }
+    None
+}
+
 fn find_block<B: Bus>(cpu: &mut Cpu, bus: &mut B) -> Result<(u32, u32, u32), Trap> {
     let pc = cpu.pc;
     Ok({
@@ -283,6 +355,8 @@ fn find_block<B: Bus>(cpu: &mut Cpu, bus: &mut B) -> Result<(u32, u32, u32), Tra
             let ei = BlockCache::index(pc);
             let e = &cpu.blocks.entries[ei];
             if e.pc == pc && BlockCache::valid(e, bus.page_versions()) { (ei as u32, e.start, e.start + e.n as u32) }
+            else if let Some(hit) = (ALIAS && cpu.blocks.alias_pc == pc && !cpu.price_control && !cpu.blocks.observed
+                && cpu.boundary_bloom & pc_bit(pc) == 0).then(|| alias_lookup(cpu, bus.page_versions(), pc)).flatten() { hit }
             else { let (ei, s, n) = build(cpu, bus, pc)?; (ei, s, s + n as u32) }
         }
     })
@@ -348,7 +422,11 @@ fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k: 
         let (mut done, exit) = (r & 0xffff, (r >> 16) & 7);
         // EX133: the helper refused a device-register access; its instruction was counted
         // but did not run, and the pc still names it.
-        if exit == crate::jit::CODE_TRAP && bus.deferred() { done -= 1; }
+        if exit == crate::jit::CODE_TRAP && bus.deferred() {
+            done -= 1;
+            // EX172 s3: the refused instruction is dispatched again, usually from mid-block.
+            if ALIAS && ALIAS_SEQ { cpu.blocks.alias_pc = cpu.pc; }
+        }
 
         cpu.blocks.jit_instructions += done as u64;
         cpu.insn_count += done as u64;
@@ -397,6 +475,7 @@ fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k: 
         (core, why)
     };
     let (mut done, mut trap, mut pre, mut broke) = (0u32, None, false, false);
+    let mut seq = false;
     while done < limit {
         let e = cpu.blocks.arena[k as usize];
         #[cfg(feature = "wasm-jit-profile")]
@@ -415,6 +494,7 @@ fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k: 
         }
         let expected = at.wrapping_add(e.insn.len as u32);
         let r = exec_insn(cpu, bus, &e.insn);
+        seq = cpu.pc == expected;
         done += 1; k += 1;
         if cpu.price_control && r.is_ok() {
             let taken = crate::exec::control_taken(cpu, &e.insn);
@@ -426,6 +506,7 @@ fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k: 
     }
     cpu.insn_count += done as u64;
     cpu.advance_ccount(done * cpu.approximate_cpi);
+    if ALIAS && ALIAS_SEQ && trap.is_none() && seq && k < end { cpu.blocks.alias_pc = cpu.pc; }
     // cut short by the budget or a timer deadline while still inside the block: resume there
     if trap.is_none() && !broke && k < end { cpu.blocks.resume = (ei, k, cpu.pc); }
     (done + pre as u32, trap)

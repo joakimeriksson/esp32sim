@@ -15,6 +15,7 @@ struct Ram {
     readonly: bool,
     noted: u32,
     slow: [u8; 256],
+    slow_writes: u32,
     defer_armed: bool,
     deferred: bool,
     #[cfg(feature = "wasm-cache-inline")]
@@ -46,6 +47,7 @@ impl Ram {
             readonly,
             noted: 0,
             slow: [0x5a; 256],
+            slow_writes: 0,
             defer_armed: false,
             deferred: false,
             #[cfg(feature = "wasm-cache-inline")]
@@ -95,6 +97,11 @@ impl Bus for Ram {
         if self.inline_cache.is_some() { self.helper_accesses += 1; }
         if self.readonly {
             return Err(Fault::Prohibited);
+        }
+        if (SLOW..SLOW + 253).contains(&a) {
+            self.slow_writes += 1;
+            self.slow[(a - SLOW) as usize..(a - SLOW) as usize + 4].copy_from_slice(&v.to_le_bytes());
+            return Ok(());
         }
         self.ram.write32(a, v)?;
         self.wrote(a, 4);
@@ -340,6 +347,9 @@ pub fn run_tests() -> u32 {
         + memory::loads_and_stores() + control::helper_continuation();
     scheduler::scheduler();
     tests += 1;
+    scheduler::interior_alias();
+    scheduler::interior_alias_deferred();
+    tests += 2;
     tests += memory::extension_deferral() + memory::flat_ram_bounds() + regions::regions();
     scheduler::retention();
     tests += 1;

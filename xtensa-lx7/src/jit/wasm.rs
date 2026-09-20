@@ -592,6 +592,7 @@ unsafe fn run_inner<B: Bus>(
                     if site.is_some() { census(0, 1); census(1, (result & 0xffff) as u64); }
                     if let Some(site) = site {
                         bus.note_pc(site_pc(site));
+                        crate::block::note_sequential(cpu, site_pc(site));
                         return result & 0x7ffff;
                     }
                     return run_block_body(cc, code, cpu, bus, h, budget, entry, tlb, versions);
@@ -698,6 +699,7 @@ unsafe fn run_inner<B: Bus>(
                     if site.is_some() { census(0, 1); census(1, (result & 0xffff) as u64); }
                     if let Some(site) = site {
                         bus.note_pc(site_pc(site));
+                        crate::block::note_sequential(cpu, site_pc(site));
                         return result & 0x7ffff;
                     }
                 }
@@ -785,6 +787,7 @@ unsafe fn run_block_body<B: Bus>(cc: &CodeCache, code: u32, cpu: &mut Cpu, bus: 
         let pc = *b.pcs.get(last).unwrap_or_else(|| panic!("block {:x} {:?} entry {entry} done {done} budget {budget} looping {looping:?} lcount {initial_lcount}->{} result {result:#x}",
             b.pc, b.instructions.iter().map(|i| i.insn.op).collect::<Vec<_>>(), cpu.lcount));
         bus.note_pc(pc);
+        if result >> 16 != CODE_CUT && offset != 0 && offset < b.instructions.len() { crate::block::note_sequential(cpu, pc); }
     }
     #[cfg(feature = "wasm-jit-profile")]
     {
