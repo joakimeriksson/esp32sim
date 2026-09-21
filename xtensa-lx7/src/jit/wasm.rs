@@ -457,9 +457,17 @@ extern "C" fn h_overflow(cpu: *mut Cpu, max_ar: u32, pc: u32) -> u32 {
 
 /// A loop may repeat only across an ordinary instruction boundary with no observer.
 /// The decoder already cuts at interior observers; the loop head needs its own check.
+#[inline(always)]
 pub fn loop_len(cc: &CodeCache, code: u32, cpu: &Cpu) -> Option<usize> {
+    // EX168 s3: the two tests that refuse nearly every call stay in the caller; the out-of-line
+    // call returned its Option through stack memory.
+    if cpu.lcount == 0 || cpu.lbeg != cc.blocks[code as usize].pc { return None; }
+    loop_len_at_head(cc, code, cpu)
+}
+#[inline(never)]
+fn loop_len_at_head(cc: &CodeCache, code: u32, cpu: &Cpu) -> Option<usize> {
     let b = &cc.blocks[code as usize];
-    if cpu.blocks.observed || cpu.lcount == 0 || cpu.lbeg != b.pc
+    if cpu.blocks.observed
         || cpu.boundary_bloom & emu_core::core::pc_bit(b.pc) != 0 {
         return None;
     }
@@ -554,10 +562,12 @@ unsafe fn run_inner<B: Bus>(
         extern "C" fn(*mut Cpu, *mut B, *const Helpers, u32, u32, *const TlbEntry, *mut u32) -> u32;
     #[cfg(feature = "wasm-cache-inline")]
     let cache_view = if CACHE_PROBES.load(std::sync::atomic::Ordering::Relaxed) { bus.fast_cache() } else { None };
+    // EX168 t4 (EX030 retry be64c0e7): copy the 36-byte table only when a cache view exists;
+    // constructors leave `cache` null, which is what the copy would have stored.
     #[cfg(feature = "wasm-cache-inline")]
-    let hinted = Helpers { cache: cache_view.as_ref().map_or(std::ptr::null(), |v| v), ..*h };
+    let hinted;
     #[cfg(feature = "wasm-cache-inline")]
-    let h = &hinted;
+    let h = if let Some(cache) = cache_view.as_ref() { hinted = Helpers { cache, ..*h }; &hinted } else { h };
     let (tlb, versions) = fm
         .map(|m| (m.tlb, m.page_ver))
         .unwrap_or((std::ptr::null(), std::ptr::null_mut()));
@@ -567,13 +577,18 @@ unsafe fn run_inner<B: Bus>(
         // three of its vectors are cached in this block while no region has been dropped.
         // Read cached admission facts in place instead of copying the entire descriptor.
         // End the borrow before entering generated code or updating the cached descriptor.
+        let mut rejected = false;
         {
             let hot = b.hot.borrow();
-            if hot.epoch == cc.region_epoch.get() && budget >= hot.len && cpu.boundary_bloom & hot.bloom == 0
-                && (cpu.lcount == 0 || cpu.lend.wrapping_sub(hot.lo) > hot.span)
+            // EX168 s1: `fits` false with current pages is a proven rejection: while the epoch holds,
+            // the slow lookup below selects this same live chunk and fails the same budget/bloom test.
+            let fits = budget >= hot.len && cpu.boundary_bloom & hot.bloom == 0;
+            if hot.epoch == cc.region_epoch.get()
+                && (!fits || cpu.lcount == 0 || cpu.lend.wrapping_sub(hot.lo) > hot.span)
             {
                 let pv = bus.page_versions();
                 if hot.pages[..hot.npages as usize].iter().all(|&(i, v)| pv.get(i as usize).copied().unwrap_or(0) == v) {
+                  if !fits { rejected = true; } else {
                     // SAFETY: as for the region call below; the epoch proves slot and sites are live.
                     let (slot, k, sites, nsites) = (hot.slot, hot.k, hot.sites, hot.nsites);
                     drop(hot);
@@ -592,9 +607,11 @@ unsafe fn run_inner<B: Bus>(
                         return result & 0x7ffff;
                     }
                     return run_block_body(cc, code, cpu, bus, h, budget, entry, tlb, versions);
+                  }
                 }
             }
         }
+        if !rejected {
         // The region to run: this block's own, or the one covering this PC.
         let (owner, k) = if b.region.borrow().is_some() {
             (code, 0)
@@ -680,7 +697,9 @@ unsafe fn run_inner<B: Bus>(
                     // SAFETY: the region was installed with the block signature; its
                     // entry parameter is the chunk index.
                     let f: Run<B> = unsafe { std::mem::transmute(r.slot as usize) };
-                    if r.pages.len() <= emitter::region::MAX_PAGES {
+                    // EX168 t3: facts stamped with the current epoch were copied from this same live
+                    // (owner, chunk) and a region's facts never change: nothing to rewrite.
+                    if r.pages.len() <= emitter::region::MAX_PAGES && b.hot.borrow().epoch != cc.region_epoch.get() {
                         let mut pages = [(0, 0); emitter::region::MAX_PAGES];
                         pages[..r.pages.len()].copy_from_slice(&r.pages);
                         *b.hot.borrow_mut() = Hot { epoch: cc.region_epoch.get(), bloom: r.bloom, slot: r.slot, k, len: r.lens[k as usize], lo: r.lo,
@@ -700,6 +719,7 @@ unsafe fn run_inner<B: Bus>(
                     }
                 }
             }
+        }
         }
     }
     run_block_body(cc, code, cpu, bus, h, budget, entry, tlb, versions)
@@ -732,6 +752,16 @@ fn region_stats(cc: &CodeCache, result: u32, budget: u32, site: Option<ExitSite>
             }
         }
     }
+}
+
+/// EX168 s2: a by-reference panic closure forced entry, done, budget, looping, LCOUNT and the
+/// result into stack memory on every call. Pass them by value to a cold function instead.
+#[cold]
+#[inline(never)]
+#[allow(clippy::too_many_arguments)]
+fn bad_offset(b: &Block, entry: u32, done: u32, budget: u32, looping: Option<usize>, initial_lcount: u32, lcount: u32, result: u32) -> ! {
+    panic!("block {:x} {:?} entry {entry} done {done} budget {budget} looping {looping:?} lcount {initial_lcount}->{lcount} result {result:#x}",
+        b.pc, b.instructions.iter().map(|i| i.insn.op).collect::<Vec<_>>())
 }
 
 /// The block's own module: whole, resumed or as a retained hardware loop.
@@ -780,8 +810,7 @@ unsafe fn run_block_body<B: Bus>(cc: &CodeCache, code: u32, cpu: &mut Cpu, bus: 
         // Offset zero means the last retired instruction took a hardware backedge.
         // The destination PC alone cannot prove that: a suffix branch may target LBEG.
         let last = if offset == 0 { looping.unwrap() - 1 } else { offset - 1 };
-        let pc = *b.pcs.get(last).unwrap_or_else(|| panic!("block {:x} {:?} entry {entry} done {done} budget {budget} looping {looping:?} lcount {initial_lcount}->{} result {result:#x}",
-            b.pc, b.instructions.iter().map(|i| i.insn.op).collect::<Vec<_>>(), cpu.lcount));
+        let pc = match b.pcs.get(last) { Some(&pc) => pc, None => bad_offset(b, entry, done, budget, looping, initial_lcount, cpu.lcount, result) };
         bus.note_pc(pc);
         if result >> 16 != CODE_CUT && offset != 0 && offset < b.instructions.len() { crate::block::note_sequential(cpu, pc); }
     }

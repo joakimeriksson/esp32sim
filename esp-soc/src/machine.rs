@@ -849,11 +849,27 @@ impl<S: Soc> Machine<S> {
         let stopped = self.apply_script_events();
         // EX170: the cached interval filters the common not-yet-due round without the board call and
         // division; a due round re-derives it from the board before deciding, as before.
-        if self.web.is_some() && self.bus.cycles().wrapping_sub(self.ws.last_push_cycles) >= self.ws.push_interval {
-            self.ws.push_interval = (S::CPU_HZ / self.bus.board_ref().display_push_hz().max(1)).max(1);
-            if self.bus.cycles().wrapping_sub(self.ws.last_push_cycles) >= self.ws.push_interval { self.ws.last_push_cycles = self.bus.cycles(); self.web_push(); self.web_poll_input(); }
-        }
-        if self.rt.enabled && self.bus.cycles().wrapping_sub(self.rt.last_check) >= 1 << 16 {
+        // EX168 s4: the per-round test is two loads and a compare; the re-derivation, the push and the
+        // pacing clock live out of line.
+        if self.web.is_some() && self.bus.cycles().wrapping_sub(self.ws.last_push_cycles) >= self.ws.push_interval { self.web_push_due(); }
+        if self.rt.enabled && self.bus.cycles().wrapping_sub(self.rt.last_check) >= 1 << 16 { self.rt_pace(); }
+        stopped
+    }
+
+    /// EX168 s4: the due branch of the display push, out of line (EX170 semantics: re-derive the
+    /// interval from the board, then decide).
+    #[cold]
+    #[inline(never)]
+    fn web_push_due(&mut self) {
+        self.ws.push_interval = (S::CPU_HZ / self.bus.board_ref().display_push_hz().max(1)).max(1);
+        if self.bus.cycles().wrapping_sub(self.ws.last_push_cycles) >= self.ws.push_interval { self.ws.last_push_cycles = self.bus.cycles(); self.web_push(); self.web_poll_input(); }
+    }
+
+    /// EX168 s4: the real-time pacing clock, out of line.
+    #[cold]
+    #[inline(never)]
+    fn rt_pace(&mut self) {
+        {
             self.rt.last_check = self.bus.cycles();
             let start = *self.rt.wall_start.get_or_insert_with(std::time::Instant::now);
             let emulated = std::time::Duration::from_secs_f64(self.bus.cycles() as f64 / S::CPU_HZ as f64);
@@ -875,7 +891,6 @@ impl<S: Soc> Machine<S> {
                 if wall > emulated + std::time::Duration::from_millis(500) { self.rt.resyncs += 1; self.rt.wall_start = Some(std::time::Instant::now() - emulated); }
             } else { self.rt.behind = 0.0; }
         }
-        stopped
     }
 
     /// One encoder detent as (pin, level) edges, 2 ms apart. Idle is (1,1); CW: CLK falls while

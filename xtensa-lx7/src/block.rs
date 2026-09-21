@@ -36,9 +36,13 @@ pub struct BlockInsn { pub insn: Insn, pub max_ar: u8, /// EX141: a static trans
  pub straddle: bool, /// Backend entry: native byte offset or WASM instruction index
  pub off: u32 }
 
+// `chain` is read only by the WASM run wrapper.
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 #[derive(Clone, Copy)]
-struct Entry { pc: u32, start: u32, n: u16, vidx: [u32; 2], ver: [u32; 2], code: u32 }
-impl Entry { const EMPTY: Entry = Entry { pc: 1, start: 0, n: 0, vidx: [0; 2], ver: [0; 2], code: crate::jit::NONE }; }
+struct Entry { pc: u32, start: u32, n: u16, /// EX168 s6: the first instruction needs no exact block-boundary state (fits the padding)
+ chain: bool, vidx: [u32; 2], ver: [u32; 2], code: u32 }
+const _: () = assert!(std::mem::size_of::<Entry>() == 32);
+impl Entry { const EMPTY: Entry = Entry { pc: 1, start: 0, n: 0, chain: false, vidx: [0; 2], ver: [0; 2], code: crate::jit::NONE }; }
 
 #[cfg(not(target_arch = "wasm32"))] const ENTRIES: usize = 1 << 17;
 #[cfg(target_arch = "wasm32")] const ENTRIES: usize = 1 << 15;
@@ -144,7 +148,7 @@ impl BlockCache {
     pub(crate) fn chain_target(&self, pc: u32, pv: &[u32]) -> Option<(u32, u32)> {
         let ei = Self::index(pc);
         let e = &self.entries[ei];
-        (e.pc == pc && e.code != crate::jit::NONE && Self::valid(e, pv) && !must_start_block(&self.arena[e.start as usize].insn))
+        (e.pc == pc && e.chain && e.code != crate::jit::NONE && Self::valid(e, pv))
             .then_some((ei as u32, e.code))
     }
     pub fn jit_active(&self) -> bool { self.jit_enabled && self.code.is_some() }
@@ -232,7 +236,8 @@ fn build<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc0: u32) -> Result<(u32, u32, u16)
         let (s, e) = (start as usize, start as usize + n as usize);
         if let Some(c) = crate::jit::compile(b.code.as_mut().unwrap(), &mut b.arena[s..e], pc0, fast) { code = c; b.compiled += 1; }
     }
-    cpu.blocks.entries[ei] = Entry { pc: pc0, start, n, vidx: [vidx0, vidx1], ver, code };
+    let chain = !must_start_block(&cpu.blocks.arena[start as usize].insn);
+    cpu.blocks.entries[ei] = Entry { pc: pc0, start, n, chain, vidx: [vidx0, vidx1], ver, code };
     cpu.blocks.builds += 1;
     Ok((ei as u32, start, n))
 }
