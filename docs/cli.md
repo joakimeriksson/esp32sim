@@ -7,8 +7,9 @@ esp32sim --flash-image flash.bin --boot rom ...
 
 One binary for every chip; `esp32sim-c3` is `esp32sim --chip c3` and `esp32sim-c6` is
 `esp32sim --chip c6`. The RISC-V chips' defaults differ where the chip does (`--boot rom`,
-`--console uart0`, `--flash-mb 4`) and they refuse the S3-only flags (board, WiFi, camera, PSRAM,
-register presets).
+`--console uart0`, `--flash-mb 4`) and they refuse the flags their chip has nothing behind: the C3
+board, WiFi, camera, PSRAM and register presets; the C6, which has a board and WiFi, only camera,
+PSRAM and register presets.
 
 ## Images and boot
 | Flag | Meaning |

@@ -39,8 +39,9 @@ Flashing replaces the board's application. Use the actual port for your board.
 
 ## Spectrum-first build and emulator
 
-The default starts with WiFi scanning. The emulator does not yet implement C6 WiFi, so use a
-separate spectrum-first build for display/energy regression checks:
+The default starts with WiFi scanning, which the emulator runs when given an access point
+(`--wifi ssid=esp32sim,psk=esp32sim-pass`): the scan page logs `dashboard: SCAN count=1`. For
+display/energy regression checks that do not depend on WiFi, use a separate spectrum-first build:
 
 ```sh
 idf.py -B build-spectrum -DSDKCONFIG=sdkconfig.spectrum \
@@ -59,8 +60,9 @@ target/release/esp32sim-c6 --boot rom --flash-mb 4 --board waveshare-c6-lcd147 \
 ```
 
 The existing spectrum path requires the calibration stub above; this is a display/energy
-smoke test, not unmodified WiFi validation. Switching to WiFi remains blocked by the missing
-emulator peripheral implementation.
+smoke test, not unmodified WiFi validation. `examples/c6-wifi-station` is the specimen for that
+(scan, WPA2 join, lease and pings in the emulator). The connection page here has not been run in
+the emulator; it needs a build configured for the emulator's network.
 
 For an offline build using an existing LVGL checkout, disable the component manager and supply
 that component directory explicitly (normal builds download the pinned dependency):
