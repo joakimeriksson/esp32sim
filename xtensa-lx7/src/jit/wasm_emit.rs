@@ -13,7 +13,7 @@ mod policy;
 mod memory;
 #[path = "wasm_instruction.rs"]
 mod instruction;
-pub(super) use policy::{admitted, supported_insn, loop_safe, terminal_helper};
+pub(super) use policy::{admitted, supported_insn, loop_safe, terminal_helper, rsr_field};
 #[cfg(feature = "wasm-jit-tests")]
 pub(super) use policy::supported_opcode;
 use policy::coprocessors;

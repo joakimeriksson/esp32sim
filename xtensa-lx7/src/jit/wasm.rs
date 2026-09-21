@@ -500,6 +500,7 @@ pub unsafe fn run<B: Bus>(
     // SAFETY: preserve the caller's live code, helper and memory guarantees.
     cpu.jit_helped = false;
     cpu.blocks.chain_ei = NONE;
+    cpu.blocks.bridged = 0;
     // A dispatch at a probed PC stays one block long, as the differential suite requires.
     let chain = cpu.boundary_bloom & emu_core::core::pc_bit(cpu.pc) == 0;
     let mut result = unsafe { run_inner(cc, code, cpu, bus, h, budget, entry, fm) };
@@ -515,7 +516,18 @@ pub unsafe fn run<B: Bus>(
                 || cpu.jit_helped { break; }
             let pc = cpu.pc;
             if cpu.boundary_bloom & emu_core::core::pc_bit(pc) != 0 { break; }
-            let Some((ei, next)) = cpu.blocks.chain_target(pc, bus.page_versions()) else { break };
+            let Some((ei, next)) = cpu.blocks.chain_target(pc, bus.page_versions()) else {
+                // EX171: a tiny block the emitter does not admit is interpreted right here when it is
+                // pure register/branch work, instead of ending the chain and costing two dispatches.
+                if crate::block::BRIDGE_CLASS != 0 && !cpu.price_control {
+                    if let Some((start, n)) = cpu.blocks.bridge_target(pc, bus.page_versions(), budget - sofar) {
+                        total = sofar;
+                        result = crate::block::bridge(cpu, bus, start, n);
+                        continue;
+                    }
+                }
+                break
+            };
             let slot = cc.blocks[next as usize].slot.get();
             if slot == NONE || slot == 0 { break; }
             total = sofar;
@@ -831,6 +843,9 @@ unsafe fn run_block_body<B: Bus>(cc: &CodeCache, code: u32, cpu: &mut Cpu, bus: 
     } else { result }
 }
 
+/// EX171: RSR of a register whose `Cpu` field is exact mid-dispatch (EX135), so the interpreter
+/// may run it inside a wrapper chain.
+pub fn exact_rsr(n: u32) -> bool { emitter::rsr_field(n).is_some() }
 #[cfg(feature = "wasm-jit-profile")]
 pub fn census_supported(i: &crate::Insn, fast: bool) -> bool { emitter::supported_insn(i, fast) }
 #[cfg(feature = "wasm-jit-profile")]

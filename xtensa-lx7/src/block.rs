@@ -36,13 +36,13 @@ pub struct BlockInsn { pub insn: Insn, pub max_ar: u8, /// EX141: a static trans
  pub straddle: bool, /// Backend entry: native byte offset or WASM instruction index
  pub off: u32 }
 
-// `chain` is read only by the WASM run wrapper.
+// `chain` and `bridge` are read only by the WASM run wrapper (`chain_target`, `bridge_target`).
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 #[derive(Clone, Copy)]
 struct Entry { pc: u32, start: u32, n: u16, /// EX168 s6: the first instruction needs no exact block-boundary state (fits the padding)
- chain: bool, vidx: [u32; 2], ver: [u32; 2], code: u32 }
+ chain: bool, /** EX171 bridge class of a block without code (0: never) */ bridge: u8, vidx: [u32; 2], ver: [u32; 2], code: u32 }
 const _: () = assert!(std::mem::size_of::<Entry>() == 32);
-impl Entry { const EMPTY: Entry = Entry { pc: 1, start: 0, n: 0, chain: false, vidx: [0; 2], ver: [0; 2], code: crate::jit::NONE }; }
+impl Entry { const EMPTY: Entry = Entry { pc: 1, start: 0, n: 0, chain: false, bridge: 0, vidx: [0; 2], ver: [0; 2], code: crate::jit::NONE }; }
 
 #[cfg(not(target_arch = "wasm32"))] const ENTRIES: usize = 1 << 17;
 #[cfg(target_arch = "wasm32")] const ENTRIES: usize = 1 << 15;
@@ -92,6 +92,9 @@ pub struct BlockCache {
     /// EX153: decoded entry of the block the WASM wrapper chained into last; a CUT resumes in it.
     #[cfg(target_arch = "wasm32")]
     pub(crate) chain_ei: u32,
+    /// EX171: instructions the chain loop interpreted in place during the current wrapper call.
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) bridged: u32,
     pub builds: u64,
     pub flushes: u64,
     /// native code for blocks, when the host supports it and `jit_enabled`
@@ -119,6 +122,8 @@ impl BlockCache {
                      profile: crate::jit::profile::Profile::default(),
                      #[cfg(target_arch = "wasm32")]
                      chain_ei: u32::MAX,
+                     #[cfg(target_arch = "wasm32")]
+                     bridged: 0,
                      entries: vec![Entry::EMPTY; ENTRIES], arena: Vec::with_capacity(ARENA_MAX + MAX_LEN), extras: Vec::new(), resume: (0, 0, 1), alias_pc: 1, aliases: vec![(1, 0, 0, 0); if ALIAS { ALIASES } else { 0 }], builds: 0, flushes: 0,
                      #[cfg(feature = "wasm-jit-tests")]
                      alias_hits: 0,
@@ -151,6 +156,14 @@ impl BlockCache {
         (e.pc == pc && e.chain && e.code != crate::jit::NONE && Self::valid(e, pv))
             .then_some((ei as u32, e.code))
     }
+    /// EX171: a valid decoded block at `pc` that has no code, consists only of instructions of class
+    /// 1..=`BRIDGE_CLASS` and fits in `room`: (arena start, length).
+    #[cfg(target_arch = "wasm32")]
+    #[inline(always)]
+    pub(crate) fn bridge_target(&self, pc: u32, pv: &[u32], room: u32) -> Option<(u32, u32)> {
+        let e = &self.entries[Self::index(pc)];
+        (e.pc == pc && e.bridge.wrapping_sub(1) < BRIDGE_CLASS && e.n as u32 <= room && Self::valid(e, pv)).then_some((e.start, e.n as u32))
+    }
     pub fn jit_active(&self) -> bool { self.jit_enabled && self.code.is_some() }
     #[inline(always)]
     fn index(pc: u32) -> usize { ((pc >> 1) ^ (pc >> 16)) as usize & (ENTRIES - 1) }
@@ -177,6 +190,66 @@ pub(crate) fn ends_block(i: &Insn) -> bool {
         | Loop | Loopnez | Loopgtz | Wsr | Xsr => true,
         _ => i.len == 0,
     }
+}
+
+/// EX171: highest instruction class the chain loop interprets in place (0 disables the bridge).
+#[cfg(target_arch = "wasm32")]
+pub(crate) const BRIDGE_CLASS: u8 = 2;
+/// EX171: an interpreted dispatch of a bridgeable block continues into the next block.
+#[cfg(target_arch = "wasm32")]
+pub(crate) const BRIDGE_INTERP: bool = true;
+
+/// EX171: interpret the whole no-code block at arena `start` inside the EX153 chain loop. Its
+/// instructions are class 1..=BRIDGE_CLASS: no memory access, no device, interrupt, timer or
+/// waiting state, so a completed block leaves everything the dispatcher would look at unchanged,
+/// exactly like a compiled END exit with no helper. Returns the wrapper result (retired count,
+/// exit code); a trap leaves through the wrapper's own trap exits.
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn bridge<B: Bus>(cpu: &mut Cpu, bus: &mut B, start: u32, n: u32) -> u32 {
+    let mut done = 0u32;
+    while done < n {
+        let e = cpu.blocks.arena[(start + done) as usize];
+        if let Some(t) = cpu.check_overflow(e.max_ar) { cpu.jit_trap = Some(t); cpu.blocks.bridged += done; return done | crate::jit::CODE_TRAP_PRE << 16; }
+        let at = cpu.pc;
+        bus.note_pc(at);
+        let r = exec_insn(cpu, bus, &e.insn);
+        done += 1;
+        if let Err(t) = r { cpu.jit_trap = Some(t); cpu.blocks.bridged += done; return done | crate::jit::CODE_TRAP << 16; }
+        // a hardware loop-back inside the block ends it, as it ends an interpreted dispatch
+        if cpu.pc != at.wrapping_add(e.insn.len as u32) { break; }
+    }
+    cpu.blocks.bridged += done;
+    done | crate::jit::CODE_END << 16
+}
+
+/// EX171 bridge class of an instruction the chain loop might interpret in place.
+/// 1: register/branch work with no memory access and no dispatcher-visible state (what the emitter
+/// compiles inline without a helper, plus its unsupported pure siblings); 2: returns, loop setup and
+/// RSR of registers exact mid-dispatch (EX135); 3: memory (census only); 0: never.
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn bridge_class(i: &Insn) -> u8 {
+    use Op::*;
+    match i.op {
+        Nop | NopN | Rsync | Esync | Dsync | Memw | Extw
+        | Movi | MoviN | Mov | MovN | Add | AddN | Addi | AddiN | Addmi | Sub | Addx2 | Addx4 | Addx8 | Subx2 | Subx4 | Subx8
+        | And | Or | Xor | Neg | Abs | Extui | Sext | Clamps | Min | Max | Minu | Maxu
+        | Moveqz | Movnez | Movltz | Movgez | Movf | Movt
+        | Slli | Srai | Srli | Sll | Srl | Sra | Src | Ssr | Ssl | Ssa8l | Ssa8b | Ssai | Nsa | Nsau
+        | Mull | Muluh | Mulsh | Mul16u | Mul16s | Quou | Quos | Remu | Rems | Salt | Saltu
+        | Andb | Andbc | Orb | Orbc | Xorb | Any4 | All4 | Any8 | All8
+        | J | Jx | Call0 | Call4 | Call8 | Call12 | Callx0 | Callx4 | Callx8 | Callx12
+        | Beqz | Bnez | Bltz | Bgez | BeqzN | BnezN | Beqi | Bnei | Blti | Bgei | Bltui | Bgeui
+        | Bnone | Beq | Blt | Bltu | Ball | Bbc | Bbci | Bany | Bne | Bge | Bgeu | Bnall | Bbs | Bbsi | Bf | Bt => 1,
+        Ret | RetN | Retw | RetwN | Loop | Loopnez | Loopgtz | Entry => 2,
+        Rsr if crate::jit::exact_rsr(i.imm as u32) => 2,
+        L8ui | L16ui | L16si | L32i | L32iN | L32r | S8i | S16i | S32i | S32iN | L32e | S32e | S32c1i | Lsi | Ssi => 3,
+        _ => 0,
+    }
+}
+/// Class of a whole block: 0 if any instruction is 0, else the highest class.
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn bridge_block_class(ops: &[BlockInsn]) -> u8 {
+    ops.iter().map(|b| bridge_class(&b.insn)).try_fold(0u8, |m, c| (c != 0).then_some(m.max(c))).unwrap_or(0)
 }
 
 /// The instruction must be the first of its block: it reads or writes state that is only exact
@@ -237,7 +310,12 @@ fn build<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc0: u32) -> Result<(u32, u32, u16)
         if let Some(c) = crate::jit::compile(b.code.as_mut().unwrap(), &mut b.arena[s..e], pc0, fast) { code = c; b.compiled += 1; }
     }
     let chain = !must_start_block(&cpu.blocks.arena[start as usize].insn);
-    cpu.blocks.entries[ei] = Entry { pc: pc0, start, n, chain, vidx: [vidx0, vidx1], ver, code };
+    // EX171: a block the emitter refused may still be interpretable inside a wrapper chain.
+    #[cfg(target_arch = "wasm32")]
+    let bridge = if code == crate::jit::NONE { bridge_block_class(&cpu.blocks.arena[start as usize..start as usize + n as usize]) } else { 0 };
+    #[cfg(not(target_arch = "wasm32"))]
+    let bridge = 0;
+    cpu.blocks.entries[ei] = Entry { pc: pc0, start, n, chain, bridge, vidx: [vidx0, vidx1], ver, code };
     cpu.blocks.builds += 1;
     Ok((ei as u32, start, n))
 }
@@ -376,7 +454,20 @@ pub(crate) fn step_extra<B: Bus>(cpu: &mut Cpu, bus: &mut B, i: &Insn) -> u32 {
     cpu.blocks.extras[k as usize] as u32
 }
 
-fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k: u32, end: u32) -> (u32, Option<Trap>) {
+fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, mut budget: u32, mut ei: u32, mut k: u32, mut end: u32) -> (u32, Option<Trap>) {
+    let mut total = 0;
+    loop {
+        let (done, trap, next) = run_decoded_once(cpu, bus, budget, ei, k, end);
+        total += done;
+        let Some(next) = next else { return (total, trap) };
+        budget -= done;
+        (ei, k, end) = next;
+    }
+}
+
+/// One block (or wrapper chain). The third value is EX171's next block to continue with.
+#[inline(always)]
+fn run_decoded_once<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k: u32, end: u32) -> (u32, Option<Trap>, Option<(u32, u32, u32)>) {
     // never run past a CCOMPARE match: the timer interrupt must land on the same instruction
     #[cfg(not(target_arch = "wasm32"))]
     let mut limit = (end - k).min(budget);
@@ -434,10 +525,14 @@ fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k: 
             if ALIAS && ALIAS_SEQ { cpu.blocks.alias_pc = cpu.pc; }
         }
 
-        cpu.blocks.jit_instructions += done as u64;
+        // EX171: instructions the chain loop interpreted in place are not compiled instructions.
+        #[cfg(target_arch = "wasm32")]
+        { cpu.blocks.jit_instructions += (done - cpu.blocks.bridged.min(done)) as u64; }
+        #[cfg(not(target_arch = "wasm32"))]
+        { cpu.blocks.jit_instructions += done as u64; }
         cpu.insn_count += done as u64;
         cpu.advance_ccount(done * cpu.approximate_cpi);
-        return match exit {
+        let (done, trap) = match exit {
             crate::jit::CODE_TRAP => (done, cpu.jit_trap.take()),
             crate::jit::CODE_TRAP_PRE => (done + 1, cpu.jit_trap.take()),
             crate::jit::CODE_CUT => {
@@ -458,8 +553,11 @@ fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k: 
             }
             _ => (done, None),
         };
+        return (done, trap, None);
     }
 
+    #[cfg(target_arch = "wasm32")]
+    let room = limit;
     let limit = limit.min(end - k);
     #[cfg(feature = "wasm-jit-profile")]
     let (census_core, census_why) = {
@@ -504,7 +602,23 @@ fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k: 
     if ALIAS && ALIAS_SEQ && trap.is_none() && seq && k < end { cpu.blocks.alias_pc = cpu.pc; }
     // cut short by the budget or a timer deadline while still inside the block: resume there
     if trap.is_none() && !broke && k < end { cpu.blocks.resume = (ei, k, cpu.pc); }
-    (done + pre as u32, trap)
+    // EX171 s3: a completed block of pure register/branch work changed nothing the dispatcher would look at
+    // (no interrupt input, device, waiting or timer state; credit and the CCOMPARE deadline remain), so the
+    // next block starts right here, under a freshly derived deadline, as the next dispatch would.
+    #[cfg(target_arch = "wasm32")]
+    if BRIDGE_INTERP && trap.is_none() && k == end && done < room && !cpu.price_control && !cpu.blocks.observed
+        && cpu.blocks.entries[ei as usize].bridge.wrapping_sub(1) < BRIDGE_CLASS
+        && k - done == cpu.blocks.entries[ei as usize].start
+        // like EX153, a dispatch at a probed PC stays one block long
+        && !bus.block_break() && cpu.boundary_bloom & (pc_bit(cpu.pc) | pc_bit(cpu.blocks.entries[ei as usize].pc)) == 0
+    {
+        let nei = BlockCache::index(cpu.pc);
+        let next = &cpu.blocks.entries[nei];
+        if next.pc == cpu.pc && BlockCache::valid(next, bus.page_versions()) && !must_start_block(&cpu.blocks.arena[next.start as usize].insn) {
+            return (done, None, Some((nei as u32, next.start, next.start + next.n as u32)));
+        }
+    }
+    (done + pre as u32, trap, None)
 }
 
 #[cfg(any(test, feature = "wasm-jit-tests"))]
