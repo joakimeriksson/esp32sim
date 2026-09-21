@@ -306,6 +306,13 @@ The firmware that lives on this board — the owner's IEEE 802.15.4 energy scann
 ENERGY_SCAN_DIR=~/work/esp32/energy_scan examples/waveshare-c6-lcd147/run.sh --max-seconds 8 --tft-png lcd.png
 ```
 
+- Colours are the real module's, checked against the board: Waveshare's driver sets RAMCTRL
+  (`0xB0: 0x00, 0xE8`) so pixels arrive low byte first, which is how LVGL without
+  `LV_COLOR_16_SWAP` writes them, and the glass exchanges red and blue unless MADCTL's BGR bit
+  is set. Firmware that looks right here looks right there: BGR set, RGB565 as it is in memory.
+  (Until 2026-09-21 the model read high byte first and had the BGR rule the other way round, so
+  firmware tuned to it showed green as blue on the board, and the scanner's red bars were
+  yellow-green here.)
 - The ST7789 goes through `esp_lcd`'s SPI panel IO: every transfer is a GDMA out-channel
   descriptor chain (the driver enables DMA for the bus), so the C6's GDMA layout and the SPI's
   DMA data phase both had to exist before the first pixel arrived. LVGL flushes ~500 frames a

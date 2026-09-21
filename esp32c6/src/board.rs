@@ -24,17 +24,19 @@ pub const LCD_VISIBLE_COLS: usize = 172;
 pub const LCD_COL_OFFSET: usize = 34;
 
 /// What the glass shows: the module's 172 columns, in the direction the mirrored scan puts
-/// them (firmware for this module sets MADCTL.MX), R/B swapped back when BGR order is on.
-/// INVON is not applied: on this IPS module it compensates the panel's polarity, so RAM
-/// colours are what the eye sees.
+/// them (firmware for this module sets MADCTL.MX), and red and blue exchanged unless MADCTL's
+/// BGR bit is set. That is this module's glass, seen on the board: with BGR clear, a firmware's
+/// green text was blue and its cyan title cyan (its pixels were also in the wrong byte order,
+/// which the controller model takes from RAMCTRL); the scanner build with BGR set shows LVGL's
+/// red as red. INVON is not applied: on this IPS module it compensates the panel's polarity.
 pub fn lcd_visible(p: &DcsPanel) -> Vec<u16> {
     let mut out = Vec::with_capacity(LCD_VISIBLE_COLS * p.rows);
-    let bgr = p.madctl & 0x08 != 0;
+    let exchange = p.madctl & 0x08 == 0;
     for r in 0..p.rows {
         for x in 0..LCD_VISIBLE_COLS {
             let c = LCD_COL_OFFSET + LCD_VISIBLE_COLS - 1 - x;
             let mut px = p.gram[r * p.cols + c];
-            if bgr { px = (px & 0x07e0) | ((px & 0xf800) >> 11) | ((px & 0x001f) << 11); }
+            if exchange { px = (px & 0x07e0) | ((px & 0xf800) >> 11) | ((px & 0x001f) << 11); }
             if !p.on || p.sleeping { px = 0; }
             out.push(px);
         }

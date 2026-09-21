@@ -1,13 +1,18 @@
 /// A display controller of the ST77xx family driven over 4-wire SPI with a D/C line: the
 /// MIPI DCS commands that place pixels are interpreted (column/page window, RAMWR, MADCTL,
-/// COLMOD, inversion, on/off, sleep, software reset); the panel-specific porch, gamma and
-/// voltage commands are accepted and ignored. The RAM is the controller's, not the glass's — a
+/// COLMOD, inversion, on/off, sleep, software reset, and on the ST7789 RAMCTRL's byte order); the
+/// panel-specific porch, gamma and voltage commands are accepted and ignored. The RAM is the controller's, not the glass's — a
 /// module's visible window is the board's business.
 pub struct DcsPanel {
     pub cols: usize, pub rows: usize,
     /// row-major, `row * cols + col`, RGB565 as the firmware sent it
     pub gram: Vec<u16>,
     pub madctl: u8, pub colmod: u8, pub inverted: bool, pub sleeping: bool, pub on: bool,
+    /// RAMCTRL (B0h) second parameter bit 3, ST7789 only: 16-bit pixels arrive low byte first.
+    /// Firmware sets it to write a little-endian frame buffer straight out (LVGL without
+    /// `LV_COLOR_16_SWAP`); Waveshare's driver for the 1.47" module does (`0xB0: 0x00, 0xE8`).
+    pub little_endian: bool,
+    ramctrl: bool,
     /// the D/C line: low = command, high = parameter or pixel data. Idles low, as the GPIO does.
     pub dc: bool,
     cmd: u8, args: [u8; 4], argn: u8,
@@ -24,19 +29,19 @@ impl DcsPanel {
     /// 18-bit colour, the window the whole RAM).
     pub fn new(cols: usize, rows: usize) -> Self {
         DcsPanel { cols, rows, gram: vec![0; cols * rows], madctl: 0, colmod: 0x66, inverted: false, sleeping: true, on: false, dc: false,
-                   cmd: 0, args: [0; 4], argn: 0, x0: 0, x1: cols as u16 - 1, y0: 0, y1: rows as u16 - 1, xc: 0, yc: 0,
+                   little_endian: false, ramctrl: false, cmd: 0, args: [0; 4], argn: 0, x0: 0, x1: cols as u16 - 1, y0: 0, y1: rows as u16 - 1, xc: 0, yc: 0,
                    pixel_hi: None, frames: 0, pixels_written: 0, resets: 0 }
     }
     /// ST7735: 132 × 162 of RAM behind the 0.96" and 1.8" modules.
     pub fn st7735() -> Self { Self::new(132, 162) }
     /// ST7789: 240 × 320 of RAM behind the 1.47", 1.69" and 2.0" modules.
-    pub fn st7789() -> Self { Self::new(240, 320) }
+    pub fn st7789() -> Self { let mut p = Self::new(240, 320); p.ramctrl = true; p }
 
     /// A hardware or software reset: every register back to power-on, the RAM kept (as on silicon).
     pub fn reset(&mut self) {
-        let (gram, resets, dc) = (std::mem::take(&mut self.gram), self.resets + 1, self.dc);
+        let (gram, resets, dc, ramctrl) = (std::mem::take(&mut self.gram), self.resets + 1, self.dc, self.ramctrl);
         *self = Self::new(self.cols, self.rows);
-        self.gram = gram; self.resets = resets; self.dc = dc;
+        self.gram = gram; self.resets = resets; self.dc = dc; self.ramctrl = ramctrl;
     }
 
     /// One byte from the SPI master, a command or data depending on `dc`.
@@ -64,9 +69,10 @@ impl DcsPanel {
             }
             0x36 => self.madctl = b,
             0x3a => self.colmod = b,
+            0xb0 if self.ramctrl => { if self.argn == 1 { self.little_endian = b & 0x08 != 0; } self.argn = self.argn.saturating_add(1); }
             0x2c => match self.pixel_hi.take() {
                 None => self.pixel_hi = Some(b),
-                Some(hi) => self.write_pixel(u16::from_be_bytes([hi, b])),
+                Some(first) => self.write_pixel(if self.little_endian { u16::from_le_bytes([first, b]) } else { u16::from_be_bytes([first, b]) }),
             },
             _ => {}
         }
@@ -132,5 +138,27 @@ mod tests {
         cmd(&mut p, 0x01, &[]);
         assert!(p.sleeping && p.madctl == 0 && p.colmod == 0x66 && p.dc && p.resets == 1);
         assert_eq!((p.gram[0], p.cols, p.rows), (0xabcd, 132, 162));
+    }
+
+    /// RAMCTRL's endian bit, as Waveshare's ST7789 driver sets it (`0xB0: 0x00, 0xE8`): pixels
+    /// then arrive low byte first. Only the ST7789 has the command, and a reset clears it.
+    #[test]
+    fn st7789_ramctrl_selects_the_pixel_byte_order() {
+        let mut p = DcsPanel::st7789();
+        cmd(&mut p, 0x2a, &[0, 0, 0, 1]); cmd(&mut p, 0x2b, &[0, 0, 0, 0]);
+        cmd(&mut p, 0x2c, &[0x07, 0xe0]);
+        assert_eq!(p.gram[0], 0x07e0, "power-on: high byte first");
+        cmd(&mut p, 0xb0, &[0x00, 0xe8]);
+        cmd(&mut p, 0x2a, &[0, 0, 0, 1]); cmd(&mut p, 0x2c, &[0xe0, 0x07, 0x07, 0xe0]);
+        assert_eq!((p.gram[0], p.gram[1]), (0x07e0, 0xe007), "low byte first: the same green, and what high-byte-first data turns into");
+        cmd(&mut p, 0xb0, &[0x00, 0xe0]);
+        cmd(&mut p, 0x2a, &[0, 0, 0, 1]); cmd(&mut p, 0x2c, &[0x07, 0xe0]);
+        assert_eq!(p.gram[0], 0x07e0, "the bit cleared again");
+        cmd(&mut p, 0xb0, &[0x00, 0xe8]); cmd(&mut p, 0x01, &[]);
+        assert!(!p.little_endian, "software reset: back to power-on");
+
+        let mut other = DcsPanel::st7735();
+        cmd(&mut other, 0xb0, &[0x00, 0xe8]);
+        assert!(!other.little_endian, "0xB0 is not RAMCTRL on the ST7735");
     }
 }
