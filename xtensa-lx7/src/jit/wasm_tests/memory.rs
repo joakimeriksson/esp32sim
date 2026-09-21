@@ -117,6 +117,78 @@ pub(super) fn flat_ram_bounds() -> u32 {
     8
 }
 
+/// EX180: an Xtensa instruction can begin up to three bytes before a page boundary (PIE
+/// admits 4-byte encodings, `pie::decode`), so a store into the first three bytes of a
+/// version page also changes instructions whose code page is the previous one. The bus
+/// bumps that page too (`esp32s3/src/bus.rs` `bump`) and the aarch64 JIT leaves its fast
+/// path for those offsets (`jit/mod.rs`, S8i..S32ri). Every store width and page offset a
+/// generated fast store can reach must record exactly the same pages as the interpreter.
+pub(super) fn page_boundary_stores() -> u32 {
+    use Op::*;
+    let mut tests = 0;
+    for (op, width) in [(S8i, 1u32), (S16i, 2), (S32i, 4), (S32iN, 4)] {
+        // Page 0 exercises the bus's `p > 0` guard: nothing precedes the first page.
+        for page in [0u32, 1, 17] {
+            for off in [0u32, 1, 2, 3, 252, 253, 254, 255] {
+                if off % width != 0 { continue; }               // the fast path is aligned only
+                let addr = BASE + page * 256 + off;
+                for fast in [false, true] {
+                    let mut block = [insn(Add), insn(op), insn(Xor)];
+                    compare(&mut block, Case { seed: 21, budget: 3, addr: Some(addr), fast, ..Case::default() }, |_| {});
+                    tests += 1;
+                }
+            }
+        }
+    }
+    tests
+}
+
+/// EX180, the consequence: a 3-byte ADDI at page offset 254 keeps its immediate byte in
+/// the next page. A hot block on a third page rewrites that byte through a generated fast
+/// store, so the decoded block holding the ADDI must be thrown away every time and both
+/// engines must agree on the architectural result and on the recorded pages.
+pub(super) fn straddling_instruction_rewrite() -> u32 {
+    // +0x0fe addi a3,a3,imm8   bytes 0x0fe,0x0ff and the immediate at 0x100 (page 1)
+    // +0x101 j +0x200
+    // +0x200 s8i a5,a4,0       a4 = BASE + 0x100: rewrites that immediate
+    // +0x203 addi.n a5,a5,1    a different immediate every iteration
+    // +0x205 addi.n a2,a2,1
+    // +0x207 j +0x0fe          this block stays in page 2, so it stays hot and compiled
+    let (mut ra, mut rb) = (Ram::new(true, false), Ram::new(true, false));
+    for ram in [&mut ra, &mut rb] {
+        let m = &mut ram.ram.mem;
+        m[0x0fe..0x101].copy_from_slice(&asm::rri8(2, 0xc, 3, 3, 1));
+        m[0x101..0x104].copy_from_slice(&asm::j(BASE + 0x101, BASE + 0x200));
+        m[0x200..0x203].copy_from_slice(&asm::s8i(5, 4, 0));
+        m[0x203..0x205].copy_from_slice(&asm::addi_n(5, 5, 1));
+        m[0x205..0x207].copy_from_slice(&asm::addi_n(2, 2, 1));
+        m[0x207..0x20a].copy_from_slice(&asm::j(BASE + 0x207, BASE + 0x0fe));
+    }
+    assert_eq!(crate::decode::decode(BASE + 0x0fe, ra.fetch(BASE + 0x0fe).unwrap()).op, Op::Addi);
+    let (mut a, mut b) = (cpu(5), cpu(5));
+    for c in [&mut a, &mut b] {
+        c.pc = BASE + 0x200;
+        c.ps = 0;
+        c.set_ar(2, 0);
+        c.set_ar(3, 0);
+        c.set_ar(4, BASE + 0x100);
+        c.set_ar(5, 1);
+    }
+    CONTEXT.with(|c| *c.borrow_mut() = String::from("straddling instruction rewrite"));
+    for turn in 0..300 {
+        let budget = 1 + turn % 9;
+        let (done, trap) = crate::block::run_block(&mut b, &mut rb, budget);
+        assert!(trap.is_none());
+        for _ in 0..done { crate::step(&mut a, &mut ra).unwrap(); }
+        same(&a, &b);
+        assert_eq!(ra.ram.mem, rb.ram.mem, "memory after turn {turn}");
+        assert_eq!(ra.versions, rb.versions, "page versions after turn {turn}");
+    }
+    assert!(b.blocks.jit_instructions > 100, "the rewriting block never ran compiled");
+    assert!(a.get_ar(3) > 100, "the straddling ADDI never accumulated");
+    1
+}
+
 pub(super) fn loads_and_stores() -> u32 {
     use Op::*;
     let mut tests = 0;

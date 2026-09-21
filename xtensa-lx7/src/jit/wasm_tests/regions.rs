@@ -532,5 +532,30 @@ pub(super) fn regions() -> u32 {
         vec![(0, 2), (35, 1), (6, 3), (41, 2), (13, 6), (43, 1)]);
     assert_eq!(formed.pages, vec![(0, 0)]);
     assert!(emitter::region::form(&c, &mut ram, BASE + 38, &head, true).is_none(), "RSR head");
-    cases + 2
+    cases + 2 + prev_page_store()
+}
+
+/// EX180: a region whose code lives entirely in page 0 stores into the first byte of page
+/// 1. The bumped page is outside the region's page range, so `region_store_check` does not
+/// see it, but the bus also bumps page 0 — a code page of this very region. Both engines
+/// must record the same pages and retire the same instructions.
+fn prev_page_store() -> u32 {
+    use Op::*;
+    let mut p = Vec::new();
+    for _ in 0..6 { p.extend(asm::addi_n(2, 2, 1)); }        // 0..12
+    p.extend(asm::s8i(3, 4, 0));                             // 12: into page 1, offset 0
+    p.extend(asm::j(BASE + 15, BASE + 18));                  // 15: edge to the next chunk
+    for _ in 0..4 { p.extend(asm::addi_n(5, 5, 1)); }         // 18..26
+    p.extend(asm::j(BASE + 26, BASE));                       // 26: back to the head
+    let shape = [(0, AddiN, 0), (12, S8i, 0), (15, J, 18), (18, AddiN, 0), (26, J, 0)];
+    let mut cases = 0;
+    for off in [0u32, 1, 2, 3] {
+        let max = region_program("prev-page-store", &p, &shape, &[], 8, 18, |c| {
+            c.set_ar(3, 0x5a);
+            c.set_ar(4, BASE + 0x100 + off);
+        }, 300);
+        assert!(max > 8, "prev-page-store: region never passed its head ({max})");
+        cases += 1;
+    }
+    cases
 }

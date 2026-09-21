@@ -57,9 +57,17 @@ impl Ram {
             helper_accesses: 0,
         }
     }
+    /// The same write-version rule as the real S3 bus (`esp32s3/src/bus.rs` `bump`):
+    /// an instruction can begin up to three bytes before a page boundary, so a write
+    /// into the first three bytes of a page also changes instructions whose code page
+    /// is the previous one.
     fn wrote(&mut self, a: u32, n: u32) {
-        for p in (a - BASE) / 256..=(a - BASE + n - 1) / 256 {
+        let off = a - BASE;
+        for p in off / 256..=(off + n - 1) / 256 {
             self.versions[p as usize] += 1;
+        }
+        if off & 255 < 3 && off >= 256 {
+            self.versions[(off / 256 - 1) as usize] += 1;
         }
     }
 }
@@ -315,7 +323,7 @@ fn compare_hinted(block: &mut [BlockInsn], case: Case, configure: &impl Fn(&mut 
     assert_eq!(trap, b.jit_trap.take());
     same(&a, &b);
     assert_eq!(ra.ram.mem, rb.ram.mem);
-    assert_eq!(ra.versions, rb.versions);
+    assert_eq!(ra.versions, rb.versions, "page versions [{}]", CONTEXT.with(|c| c.borrow().clone()));
     if done > 0 {
         assert_eq!(ra.noted, rb.noted);
     }
@@ -346,6 +354,8 @@ pub fn run_tests() -> u32 {
     let mut tests = 0;
     #[cfg(feature = "wasm-cache-inline")]
     { tests += memory::inline_cache_hits(); }
+    // EX180 first: the cheapest proof that a fast store records the pages the bus records.
+    tests += memory::page_boundary_stores() + memory::straddling_instruction_rewrite();
     tests += arithmetic::basic_ops() + arithmetic::division()
         + memory::loads_and_stores() + control::helper_continuation();
     scheduler::scheduler();

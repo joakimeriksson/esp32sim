@@ -2,11 +2,21 @@
 use super::*;
 use emu_core::bus::{TLB_ENTRIES, TLB_INDEX_SHIFT, TLB_XOR_SHIFT, VPAGE_SHIFT};
 
+const VPAGE_MASK: u32 = (1 << VPAGE_SHIFT) - 1;
+/// An instruction can begin up to three bytes before a page boundary and still keep bytes
+/// in it, because PIE encodings are four bytes long (`pie::decode`). A write into the first
+/// three bytes of a page therefore also changes instructions whose code page is the
+/// previous one, and the bus bumps that page as well (`esp32s3/src/bus.rs` `bump` and
+/// `note_written`, `esp32s3/src/bus/dma.rs` for the DMA run copy).
+const PREV_PAGE_BYTES: u32 = 3;
+
 const _: () = {
     assert!(TLB_ENTRIES.is_power_of_two());
     assert!(TLB_INDEX_SHIFT < 32 && TLB_XOR_SHIFT < 32);
     // Aligned 16-byte PIE accesses must fit one version page.
     assert!(VPAGE_SHIFT >= 4 && VPAGE_SHIFT < 32);
+    // The previous-page rule must not reach past one page.
+    assert!(PREV_PAGE_BYTES < 1 << VPAGE_SHIFT);
 };
 
 pub(super) fn emit(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
@@ -226,4 +236,30 @@ pub(super) fn record_store(g: &mut Gen, writes: u32) {
     g.op(0x6a);
     g.store(0);
     region_store_check(g);
+    // A write into the first bytes of a page also changes any instruction that began in
+    // the previous one, so the bus bumps that page once whatever the access width. Only
+    // the first of the interpreter's word writes can qualify, so this adds one, not
+    // `writes`. The `p > 0` guard is the pointer still being inside the version array.
+    g.get(REL);
+    g.c(VPAGE_MASK);
+    g.op(0x71);
+    g.c(PREV_PAGE_BYTES);
+    g.op(0x49);
+    g.begin_if();
+    g.get(TMP);
+    g.get(6);
+    g.op(0x4b);
+    g.begin_if();
+    g.get(TMP);
+    g.c(4);
+    g.op(0x6b);
+    g.tee(TMP);
+    g.get(TMP);
+    g.load(0);
+    g.c(1);
+    g.op(0x6a);
+    g.store(0);
+    region_store_check(g);
+    g.end();
+    g.end();
 }
