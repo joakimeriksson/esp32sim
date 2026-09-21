@@ -31,7 +31,13 @@ unmodified `esp_wifi` support.
 
 ## Phase 0: obtain a C6 specimen and the hardware contract
 
-Selected display specimen: `examples/c6-radio-dashboard`, for the Waveshare C6-LCD-1.47.
+Bring-up specimen: `examples/c6-wifi-station`. It scans, joins, takes a lease, pings the gateway
+and reports the signal, one fixed-word console line per step, with the same state on the board's
+screen as plain text (no LVGL) and a trace configuration without any display traffic. In the
+emulator it currently stops in the PHY's full calibration (`chgp_cal no done`, spinning in
+`txdc_cal_new`), after `esp_wifi_init` has succeeded: the first thing the C6 model has to answer.
+
+Later demo: `examples/c6-radio-dashboard`, for the Waveshare C6-LCD-1.47.
 It provides WiFi scan, station status with gateway ping/RSSI history, and a separate 802.15.4
 energy page. ESP-IDF 5.5.4 and LVGL 8.4.0 are the initial build baseline. Default credentials
 are empty; use a controlled AP and configure test credentials for HIL. The firmware build and

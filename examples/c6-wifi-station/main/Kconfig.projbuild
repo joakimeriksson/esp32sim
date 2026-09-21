@@ -1,0 +1,25 @@
+menu "C6 WiFi station"
+config STATION_SSID
+    string "SSID to join (empty = scan only)"
+    default "esp32sim"
+    help
+        The default is the emulator's virtual access point. Set your own network here for
+        the real board; it lives in the ignored sdkconfig.
+config STATION_PASSWORD
+    string "WPA2 passphrase (empty = open network)"
+    default "esp32sim-pass"
+config STATION_PING_COUNT
+    int "Gateway pings after the lease"
+    default 5
+    range 0 100
+config STATION_LCD
+    bool "Show the state on the board's ST7789 (Waveshare ESP32-C6-LCD-1.47)"
+    default y
+    help
+        Plain text, no LVGL: one SPI transfer per changed line. Turn it off for register
+        traces, so the only peripheral traffic is WiFi's.
+config STATION_LCD_FLIP
+    bool "Rotate the text 180 degrees"
+    depends on STATION_LCD
+    default n
+endmenu
