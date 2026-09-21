@@ -85,6 +85,11 @@ pub struct Machine<S: Soc> {
     pub console: Console,
     /// live web UI
     pub web: Option<WebServer>,
+    /// The page's Restart (`reset` on the WebSocket) is honoured: the front-end sets this when it
+    /// can bring the machine back up after the reset. Otherwise the message is ignored, so a run
+    /// that stops at a chip reset is not ended from the page.
+    pub web_restart: bool,
+    button_reset: bool,
     ws: WebState,
     pub rt: Realtime,
     debug_rom: bool,
@@ -117,7 +122,7 @@ const VQ_DEFAULT: u64 = match option_env!("ESP32SIM_VQ_BUILD") {
 impl<S: Soc> Machine<S> {
     pub fn new(mac: [u8; 6], bus: S::Bus) -> Self {
         Machine {
-            mac, reboots: 0, stubs: HashMap::new(), stub_bloom: 0, probe_bloom: 0, stub_hits: 0, fn_probes: HashMap::new(),
+            web_restart: false, button_reset: false, mac, reboots: 0, stubs: HashMap::new(), stub_bloom: 0, probe_bloom: 0, stub_hits: 0, fn_probes: HashMap::new(),
             cores: (0..S::CORES).map(|i| S::new_core_with_bus(i, &bus)).collect(), core_held: (0..S::CORES).map(|i| i > 0).collect(), quantum: QUANTUM, run_steps: 0, vq_stats: [0; 4], vq_skip: 0, vq_penalty: 0, vq_max: std::env::var("ESP32SIM_VQ").ok().and_then(|v| v.parse().ok()).unwrap_or(VQ_DEFAULT),
             bus, symbols: BTreeMap::new(),
             dbg: Debug { stop_on_unimplemented: true, stop_after_exceptions: u64::MAX },
@@ -138,6 +143,9 @@ impl<S: Soc> Machine<S> {
     /// Scheduling steps consumed by `run`, including idle skips, retained across reboots.
     /// This is the budget unit accepted by `run`, not the sum of retired core instructions.
     pub fn run_steps(&self) -> u64 { self.run_steps }
+    /// Whether the chip reset that just stopped the run was the board's reset button (the page's
+    /// Restart), not the firmware's doing. Reading it clears it.
+    pub fn take_button_reset(&mut self) -> bool { std::mem::take(&mut self.button_reset) }
 
     // ------------------------------------------------------------------ observers
     pub fn add_observer(&mut self, o: Box<dyn Observer<S>>) {
