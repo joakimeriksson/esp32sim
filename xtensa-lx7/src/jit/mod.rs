@@ -457,8 +457,8 @@ mod native {
                         // and not its first three bytes (an instruction may straddle into it)
                         g.a.and_mask(13, 10, VPAGE_SHIFT, 0); g.a.sub_imm(13, 13, 3); g.a.cmp_imm(13, (1 << VPAGE_SHIFT) - 3 - size); g.a.b_cond(Cond::Hi, slow);
                         match i.op { S8i => g.a.strb_u(2, 12, 10), S16i => g.a.strh_u(2, 12, 10), _ => g.a.str_u(2, 12, 10) }
-                        // Native stores retain the unconditional version bump; the watched-code
-                        // branch is a WASM optimization and adds cost to this native fast path.
+                        // Retain unconditional native version bumps; watched-code gating is
+                        // used by the WASM backend.
                         g.a.ldr(11, 9, TLB_VBASE); g.a.add_lsr(11, 11, 10, VPAGE_SHIFT);
                         g.a.ldr_idx(13, PVER, 11); g.a.add_imm(13, 13, 1); g.a.str_idx(13, PVER, 11);
                         g.a.movz(12, 0, 0);
