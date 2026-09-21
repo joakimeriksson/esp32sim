@@ -296,6 +296,7 @@ impl SocBus for TestBus {
         0
     }
     fn sw_reset(&self) -> bool { false }
+    fn request_reset(&mut self, _cause: u32) {}
     fn reset_cause(&self) -> u32 { 0 }
     fn last_fault(&self) -> Option<(u32, bool)> { None }
     fn console_take(&mut self) -> [Vec<u8>; 4] { std::array::from_fn(|_| Vec::new()) }

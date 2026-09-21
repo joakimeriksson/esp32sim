@@ -274,7 +274,9 @@
 
     const restart = make('button', 'wb-button', '↻ Restart');
     restart.type = 'button';
-    restart.onclick = () => location.reload();
+    // In the browser build the machine lives in this page, so a reload is a restart. A native run
+    // is another process: ask it to reset, as the board's button would.
+    restart.onclick = () => { if (!wasmMode && typeof send === 'function') send({ t: 'reset' }); else location.reload(); };
     header.append(restart);
     const theme = make('button', 'wb-button wb-theme');
     theme.type = 'button';

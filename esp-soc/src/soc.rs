@@ -95,6 +95,9 @@ pub trait SocBus: Bus {
     /// Chip reset: re-create the digital peripherals, keep what survives on silicon. Returns the cause.
     fn reboot(&mut self, mac: [u8; 6]) -> u32;
     fn sw_reset(&self) -> bool;
+    /// The board's reset button: the chip resets with this cause at the next scheduling round,
+    /// through the same path as a reset the firmware asked for.
+    fn request_reset(&mut self, cause: u32);
     fn reset_cause(&self) -> u32;
     fn last_fault(&self) -> Option<(u32, bool)>;
     /// Console bytes since the last call: USB-Serial/JTAG, UART0, UART1, UART2.

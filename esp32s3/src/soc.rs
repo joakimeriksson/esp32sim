@@ -134,6 +134,7 @@ impl esp_soc::SocBus for SocBus {
         cause
     }
     fn sw_reset(&self) -> bool { self.periph.rtc.sw_reset }
+    fn request_reset(&mut self, cause: u32) { self.periph.rtc.sw_reset = true; self.periph.rtc.reset_cause = cause; }
     fn reset_cause(&self) -> u32 { self.periph.rtc.reset_cause }
     fn last_fault(&self) -> Option<(u32, bool)> { self.last_fault }
     fn console_take(&mut self) -> [Vec<u8>; 4] {
