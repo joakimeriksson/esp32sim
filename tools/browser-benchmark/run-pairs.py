@@ -247,7 +247,7 @@ def main():
         if key != 'asset/wasm' and not key.startswith('web/wasm/') and before.get(key) != after.get(key):
             raise ValueError(f'undeclared input difference between arms: {key}')
     medians = {name: statistics.median(r['wallSeconds'] for r in rows if r['arm'] == name) for name in arms}
-    summary = {'pairs': a.pairs, 'screeningOnly': a.pairs < 3, 'medianWallSeconds': medians, 'wallReductionPercent': 100 * (1 - medians['candidate'] / medians['baseline']), 'pairsWallReductionPercent': [100 * (1 - next(r['wallSeconds'] for r in rows if r['pair'] == i and r['arm'] == 'candidate') / next(r['wallSeconds'] for r in rows if r['pair'] == i and r['arm'] == 'baseline')) for i in range(1, a.pairs + 1)], 'runs': rows}
+    summary = {'pairs': a.pairs, 'medianWallSeconds': medians, 'wallReductionPercent': 100 * (1 - medians['candidate'] / medians['baseline']), 'pairsWallReductionPercent': [100 * (1 - next(r['wallSeconds'] for r in rows if r['pair'] == i and r['arm'] == 'candidate') / next(r['wallSeconds'] for r in rows if r['pair'] == i and r['arm'] == 'baseline')) for i in range(1, a.pairs + 1)], 'runs': rows}
     write_json(out / 'summary.json', summary)
     print(json.dumps(summary, indent=2))
 

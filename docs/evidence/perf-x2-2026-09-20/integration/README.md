@@ -16,4 +16,4 @@ The interval cache assumes the existing fixed-rate board behavior: default 50 Hz
 
 ## Performance and scope
 
-The original M3 [two-pair screen](../runs/crumbs-all.json) remains **8.81% lower wall time**, pairs 8.74% and 8.87%. Local correctness-run wall times are not benchmarks. Adoption here means source integration and local browser-artifact selection, not statistical confirmation, an upstream merge or deployment. The publication branch depends on PR #117; existing stack history must be retained. The separate M3 wave-2 queue and frozen baseline were not changed by this integration.
+The original M3 [two-pair run](../runs/crumbs-all.json) remains **8.81% lower wall time**, pairs 8.74% and 8.87%. Local correctness-run wall times are not benchmarks. Adoption here means source integration and local browser-artifact selection, not an upstream merge or deployment. The publication branch depends on PR #117; existing stack history must be retained. The separate M3 wave-2 queue and frozen baseline were not changed by this integration.

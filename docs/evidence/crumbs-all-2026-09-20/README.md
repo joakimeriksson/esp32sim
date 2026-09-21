@@ -14,7 +14,7 @@ M3 Pro, Chrome 153.0.8010.53 / V8 15.3.76.13, 30 guest seconds, release WASM wit
 | Individual paired reductions | 8.74%, 8.87% |
 | Three identical-build control screens | −0.18%, −0.31%, 0.37% |
 
-These are two balanced pairs per screen, not statistical confirmation or broad-firmware validation. Lower wall time is better. The controls describe observed variation, not a universal noise threshold.
+Each run has two balanced pairs on Pocket Tank. Lower wall time is better. The controls describe observed variation, not a universal noise threshold.
 
 ## Validation
 
