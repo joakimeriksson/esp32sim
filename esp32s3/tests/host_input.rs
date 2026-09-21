@@ -1,0 +1,86 @@
+//! Host messages are untrusted even when a browser normally sends small inputs.
+use esp_soc::{board::BoardModel, picture::Picture, web::WebServer, ScriptAction, Stop};
+use std::sync::{Arc, Mutex};
+
+struct InputBoard(Arc<Mutex<Vec<Picture>>>);
+
+impl BoardModel for InputBoard {
+    fn name(&self) -> &'static str { "input-test" }
+    fn encoder(&self) -> Option<(u8, u8)> { Some((1, 2)) }
+    fn set_camera_picture(&mut self, picture: Picture) { self.0.lock().unwrap().push(picture); }
+}
+
+fn fixture() -> (esp32s3::Machine, WebServer, Arc<Mutex<Vec<Picture>>>) {
+    let mut machine = esp32s3::machine([1, 2, 3, 4, 5, 6]);
+    let pictures = Arc::new(Mutex::new(Vec::new()));
+    machine.bus.board = Box::new(InputBoard(pictures.clone()));
+    let web = WebServer::queued();
+    machine.web = Some(web.clone());
+    (machine, web, pictures)
+}
+
+fn camera_message(width: u16, height: u16, rgba: &[u8]) -> Vec<u8> {
+    let mut message = vec![3];
+    message.extend_from_slice(&width.to_le_bytes());
+    message.extend_from_slice(&height.to_le_bytes());
+    message.extend_from_slice(rgba);
+    message
+}
+
+#[test]
+fn camera_input_rejects_invalid_sizes_and_preserves_valid_rgb() {
+    let (mut machine, web, pictures) = fixture();
+    for message in [
+        vec![],
+        vec![3],
+        camera_message(0, 1, &[1, 2, 3, 4]),
+        camera_message(1, 0, &[1, 2, 3, 4]),
+        camera_message(2, 1, &[1, 2, 3, 4]),
+        camera_message(32768, 32768, &[]),
+        camera_message(u16::MAX, u16::MAX, &[]),
+    ] {
+        web.push_incoming_bin(message);
+    }
+    web.push_incoming_bin(camera_message(2, 1, &[10, 20, 30, 0, 40, 50, 60, 255]));
+    assert!(matches!(machine.run(0), Stop::MaxInsns));
+    let pictures = pictures.lock().unwrap();
+    assert_eq!(pictures.len(), 1);
+    assert_eq!((pictures[0].w, pictures[0].h), (2, 1));
+    assert_eq!(pictures[0].rgb, [10, 20, 30, 40, 50, 60]);
+    assert_eq!(machine.bus.cycles, 0);
+    assert!(web.poll_incoming_bin().is_empty());
+}
+
+#[test]
+fn knob_extreme_deltas_have_bounded_work_and_keep_their_direction() {
+    for delta in [i32::MIN, i32::MAX] {
+        let (mut machine, web, _) = fixture();
+        web.push_incoming(format!(r#"{{"t":"knob","d":{delta}}}"#));
+        assert!(matches!(machine.run(0), Stop::MaxInsns));
+        assert_eq!(machine.script.events.len(), 64 * 4);
+        let first_pin = if delta > 0 { 1 } else { 2 };
+        assert!(matches!(machine.script.events[0].1, ScriptAction::Gpio(pin, false) if pin == first_pin));
+        assert_eq!(machine.bus.cycles, 0);
+        assert!(web.poll_incoming().is_empty());
+    }
+}
+
+#[test]
+fn ordinary_knob_deltas_preserve_edges_spacing_and_queue_order() {
+    let (mut machine, web, _) = fixture();
+    for delta in [2, 0, -1] {
+        web.push_incoming(format!(r#"{{"t":"knob","d":{delta}}}"#));
+    }
+    assert!(matches!(machine.run(0), Stop::MaxInsns));
+    let step = 240_000_000 / 500;
+    let expected = [
+        (1, 1, false), (2, 2, false), (3, 1, true), (4, 2, true),
+        (9, 1, false), (10, 2, false), (11, 1, true), (12, 2, true),
+        (17, 2, false), (18, 1, false), (19, 2, true), (20, 1, true),
+    ];
+    assert_eq!(machine.script.events.len(), expected.len());
+    for ((cycle, action), (phase, expected_pin, expected_level)) in machine.script.events.iter().zip(expected) {
+        assert_eq!(*cycle, phase * step);
+        assert!(matches!(action, ScriptAction::Gpio(pin, level) if *pin == expected_pin && *level == expected_level));
+    }
+}

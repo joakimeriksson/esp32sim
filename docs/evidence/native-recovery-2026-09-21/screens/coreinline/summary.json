@@ -1,0 +1,116 @@
+{
+  "args": [
+    "--rom",
+    "/Users/alice/bench/esp32sim/overnight-review/../assets/pocket-tank/rom.elf",
+    "--board",
+    "waveshare-amoled18-v2",
+    "--boot",
+    "rom",
+    "--no-dump",
+    "--console",
+    "uart0",
+    "--flash-mb",
+    "16",
+    "--psram-mb",
+    "8",
+    "--bootloader",
+    "/Users/alice/bench/esp32sim/overnight-review/../assets/pocket-tank/bootloader.bin",
+    "--ptable",
+    "/Users/alice/bench/esp32sim/overnight-review/../assets/pocket-tank/ptable.bin",
+    "--app",
+    "/Users/alice/bench/esp32sim/overnight-review/../assets/pocket-tank/app.bin",
+    "--flash-at",
+    "0x290000=/Users/alice/bench/esp32sim/overnight-review/../assets/pocket-tank/model.bin",
+    "--max-seconds",
+    "30"
+  ],
+  "inputs": {
+    "rom.elf": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+    "bootloader.bin": "9556d59f3a10f6b04fa6d75f3142a66034339afafffbd4bbc3d9a127eaa73859",
+    "ptable.bin": "7af5b28608c91167e00778b7f20622f3b47849efebeb3e64117162d73f3e0508",
+    "app.bin": "443dd24aed14a509e6df597eb3a02635cc07e0fbee6f04db85a62f4d4dadb113",
+    "model.bin": "b200bf87c78dc85c4d727f68941ac0b83cced9827037cc169cd2122d71002c2a"
+  },
+  "identities": {
+    "baseline": {
+      "path": "/Users/alice/bench/esp32sim/overnight-review/combo/target/release/esp32sim",
+      "sha256": "c07ef2ad0cbf549696826dc20133af79ae9ed6f66b00d88171a1668fcc8c5992"
+    },
+    "candidate": {
+      "path": "/Users/alice/bench/esp32sim/overnight-review/coreinline/target/release/esp32sim",
+      "sha256": "cd20af1516c5de5c555c6e08fd3632175873f0af0ac28440a695c7b97c188b4c"
+    }
+  },
+  "rows": [
+    {
+      "pair": 1,
+      "arm": "baseline",
+      "wallSeconds": 48.37342425,
+      "loadBefore": [
+        2.41162109375,
+        2.03857421875,
+        2.00341796875
+      ],
+      "coreInstructions": [
+        "4446180089",
+        "5627653686"
+      ],
+      "jitLine": "[emu] blocks: 25998 built (0 cache flushes) core0, 3200 (0) core1; jit: 29198 compiled, 29616 KB code",
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd"
+    },
+    {
+      "pair": 1,
+      "arm": "candidate",
+      "wallSeconds": 49.292437207999996,
+      "loadBefore": [
+        1.92333984375,
+        1.95458984375,
+        1.97314453125
+      ],
+      "coreInstructions": [
+        "4446180089",
+        "5627653686"
+      ],
+      "jitLine": "[emu] blocks: 25998 built (0 cache flushes) core0, 3200 (0) core1; jit: 29198 compiled, 29616 KB code",
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd"
+    },
+    {
+      "pair": 2,
+      "arm": "candidate",
+      "wallSeconds": 48.93917079099998,
+      "loadBefore": [
+        1.56396484375,
+        1.85205078125,
+        1.93212890625
+      ],
+      "coreInstructions": [
+        "4446180089",
+        "5627653686"
+      ],
+      "jitLine": "[emu] blocks: 25998 built (0 cache flushes) core0, 3200 (0) core1; jit: 29198 compiled, 29616 KB code",
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd"
+    },
+    {
+      "pair": 2,
+      "arm": "baseline",
+      "wallSeconds": 48.24910966700001,
+      "loadBefore": [
+        1.56787109375,
+        1.810546875,
+        1.90966796875
+      ],
+      "coreInstructions": [
+        "4446180089",
+        "5627653686"
+      ],
+      "jitLine": "[emu] blocks: 25998 built (0 cache flushes) core0, 3200 (0) core1; jit: 29198 compiled, 29616 KB code",
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd"
+    }
+  ],
+  "medianWallSeconds": {
+    "baseline": 48.311266958500006,
+    "candidate": 49.11580399949999
+  },
+  "wallReductionPercent": -1.6653196896928568,
+  "throughputRatio": 0.9836195893075848
+}

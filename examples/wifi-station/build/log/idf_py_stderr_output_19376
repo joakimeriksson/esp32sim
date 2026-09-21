@@ -1,1 +1,0 @@
-Command: cmake -G Ninja -DPYTHON_DEPS_CHECKED=1 -DPYTHON=/Users/joakimeriksson/.espressif/python_env/idf5.5_py3.9_env/bin/python -DESP_PLATFORM=1 -DIDF_TARGET=esp32s3 -DCCACHE_ENABLE=0 /Users/joakimeriksson/work/esp32sim/examples/wifi-station

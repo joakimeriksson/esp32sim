@@ -1,0 +1,63 @@
+# Exactness results (bin/exact-all.sh)
+
+drift = instruction total vs the base build over the same guest seconds; "queued" = bytes already in queue/jobs.jsonl
+
+| artifact | sha | EXACT | insns | drift vs base | frames | panics | jit failures | queued |
+|---|---|---|---:|---:|---:|---:|---:|---|
+| blockq-f | 8f3bae42953e | FAIL | 10322044439 | +2.4639% | 3090 | 0 | 0 | no |
+| blockq-g128 | 7dc46baa8ab7 | FAIL | 11487511227 | +14.0332% | 3083 | 0 | 0 | no |
+| blockq-g512 | b66824d8542e | FAIL | 11251447343 | +11.6898% | 3093 | 0 | 0 | no |
+| blockq-g64 | aeb2b0d71df8 | FAIL | 8892968086 | -11.7221% | 3094 | 0 | 0 | no |
+| calls-s1 | 09cc6fa1d503 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| calls-s1s2a | db128518489c | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| calls-s1s2as3 | f4108bf25abe | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| calls-s2 | 3b7c7cd5c088 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| calls-s3 | 39e89862dc8d | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| deadlines-u256k | b391b6b09f1f | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| deadlines-u64k | 05ed799a0eda | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| flags-abort | cdd97cf4ecf5 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| flags-all | e971ebbfd3ab | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| flags-all-nosimd | 08809cfdcb93 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| flags-base-O3 | f38df6bc8d5c | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| flags-base-O3inl | cfc3d6c9fe92 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| flags-base-O4 | 33b86dcc448e | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| flags-bulk | e3b68a44c702 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| flags-inl2000 | 5ce976e6be3c | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| flags-inl250 | a5094223d904 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| flags-inl4000 | 8c091acfbee0 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| flags-inl500 | c020cd863d21 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| flags-inline1000 | 5dc81c515519 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| flags-nodebug | f33104f1dc13 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| flags-opts | a03c18e99749 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| flags-simd | 78be7c258e0e | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| flags-simd-O3 | 5ba547861909 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| flags-simd-extc | 0201ac68ddb4 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| flags-simd-inl1000 | b16862793c03 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| flags-simd-tail | a0d50c147609 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| flags-sinl-O3 | 2f1ed3c97209 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| flags-sinl-O4 | 73ac2afb576b | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| flags-unroll600 | 4a58c696154c | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| frames-s1 | d8f187d945fc | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| frames-s1a | 75a1048ad20d | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| frames-s1b | 155f751784d3 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| frames-s1s3 | a4640d8115f4 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| frames-s3 | 0ac83196b76b | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| hwloop-s2b | b924ac73690f | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| hwloop-s2be | efa41ae81071 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| kernel-s1s2 | b2a0ac89a8ac | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| kernel-s1s2s3 | cbc02ff6b16c | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| kernel-s2 | 02afd0fa7177 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| kernel-s2s3 | a35c73158c55 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| onecall-c1 | 6125df00869d | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| spec-tax | e23efb720617 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| spec-tax1 | f1687a3fdd07 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| spec-tax2 | a31e1614125e | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| spec-tax3 | 30114a9fa151 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| spec-tax4 | 7ea8bc5c5e45 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| spec-tax7 | 70697d7535ee | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| spills-m1 | f0efcd1bd753 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| spills-m2 | 8ef8ff94a79f | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| turnover-s1s2 | 6ddaceff2dd1 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| turnover-s1s2s3 | 16a3e375f4d4 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| turnover-s2 | c58b96ebf930 | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |
+| turnover-s3 | b3fefc2f998e | ok | 10073833775 | +0.0000% | 3094 | 0 | 0 | yes |

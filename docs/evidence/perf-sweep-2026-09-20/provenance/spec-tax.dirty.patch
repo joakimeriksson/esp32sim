@@ -1,0 +1,126 @@
+diff --git a/xtensa-lx7/src/block.rs b/xtensa-lx7/src/block.rs
+index efa509fb..1b7baebe 100644
+--- a/xtensa-lx7/src/block.rs
++++ b/xtensa-lx7/src/block.rs
+@@ -300,6 +300,8 @@ fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k:
+     // fast path, but execute opt-in pricing and deferred quanta in the interpreter.
+     // WASM records exact instruction ranges, up to 64 per compiled call.
+     #[cfg(target_arch = "wasm32")]
++    crate::jit::spec_role((cpu.prid == 0xABAB) as u8);
++    #[cfg(target_arch = "wasm32")]
+     if cpu.price_control && cpu.icache_fill != 0 { limit = limit.min(64); }
+     let observed_timing = cpu.price_control && cfg!(not(target_arch = "wasm32"));
+     let native_deferred = cfg!(not(target_arch = "wasm32")) && bus.defer_armed();
+diff --git a/xtensa-lx7/src/jit/wasm.rs b/xtensa-lx7/src/jit/wasm.rs
+index 763ff126..0af7304c 100644
+--- a/xtensa-lx7/src/jit/wasm.rs
++++ b/xtensa-lx7/src/jit/wasm.rs
+@@ -703,6 +703,8 @@ unsafe fn run_block_body<B: Bus>(cc: &CodeCache, code: u32, cpu: &mut Cpu, bus:
+ 
+ #[path = "wasm_emit.rs"]
+ mod emitter;
++pub fn spec_role(r: u8) { emitter::spec_role(r); }
++pub fn spec_mode(m: u8) { emitter::spec_mode(m); }
+ use emitter::generate;
+ 
+ #[cfg(feature = "wasm-jit-profile")]
+diff --git a/xtensa-lx7/src/jit/wasm_emit.rs b/xtensa-lx7/src/jit/wasm_emit.rs
+index f232a582..c5de665a 100644
+--- a/xtensa-lx7/src/jit/wasm_emit.rs
++++ b/xtensa-lx7/src/jit/wasm_emit.rs
+@@ -13,6 +13,8 @@ mod policy;
+ mod memory;
+ #[path = "wasm_instruction.rs"]
+ mod instruction;
++pub(super) fn spec_role(r: u8) { memory::SPEC_ROLE.store(r, std::sync::atomic::Ordering::Relaxed); }
++pub(super) fn spec_mode(m: u8) { memory::SPEC_MODE.store(m, std::sync::atomic::Ordering::Relaxed); }
+ pub(super) use policy::{admitted, supported_insn, loop_safe, terminal_helper};
+ #[cfg(feature = "wasm-jit-tests")]
+ pub(super) use policy::supported;
+@@ -40,7 +42,9 @@ const CACHE_SET: u8 = 34;
+ const CACHE_LINE: u8 = 35;
+ /// Typed scratch locals declared after the i32 locals: a vector and a 64-bit integer
+ /// (PIE lane sums and the 40-bit ACCX). `module` must declare them in this order.
+-const V128: u8 = if cfg!(feature = "wasm-cache-inline") { 36 } else { 32 };
++const SPEC_A: u8 = if cfg!(feature = "wasm-cache-inline") { 36 } else { 32 };
++const SPEC_B: u8 = SPEC_A + 1;
++const V128: u8 = SPEC_B + 1;
+ const WIDE: u8 = V128 + 1;
+ const PC: usize = offset_of!(Cpu, pc);
+ const AR: usize = offset_of!(Cpu, ar);
+@@ -765,7 +769,7 @@ fn module(body: &[u8]) -> Vec<u8> {
+     name(&mut exports, "run");
+     exports.extend([0, 0]);
+     section(&mut out, 7, &exports);
+-    let mut func = vec![3, if cfg!(feature = "wasm-cache-inline") { 29 } else { 25 }, 0x7f, 1, 0x7b, 1, 0x7e];   // i32 locals, then V128 and WIDE
++    let mut func = vec![3, if cfg!(feature = "wasm-cache-inline") { 31 } else { 27 }, 0x7f, 1, 0x7b, 1, 0x7e];   // i32 locals, then V128 and WIDE
+     func.extend(body);
+     let mut code = vec![1];
+     uleb(&mut code, func.len());
+diff --git a/xtensa-lx7/src/jit/wasm_memory.rs b/xtensa-lx7/src/jit/wasm_memory.rs
+index ea5a4651..a6d457b4 100644
+--- a/xtensa-lx7/src/jit/wasm_memory.rs
++++ b/xtensa-lx7/src/jit/wasm_memory.rs
+@@ -205,6 +205,62 @@ pub(super) fn probe(g: &mut Gen, width: u32, store: bool) {
+     g.load(offset_of!(TlbEntry, lo));
+     g.op(0x6b);
+     g.set(REL);
++    spec_tax(g, width, store);
++}
++
++/// EX150 tracking-tax probe: pure overhead, never changes guest state. Core 0 plays the leader
++/// (stamps a read or write map with the window generation), core 1 the follower (loads the
++/// leader's map(s), compares with a generation that never matches, would-be conflict exit).
++/// Stores on both cores append (host address, old value) to an undo log.
++#[repr(C, align(1048576))]
++pub struct SpecArea { log: [u8; 1 << 20], pad: [u8; 64], gen: [u32; 2], logp: u32, pad2: u32, r: [u32; 1 << 20], w: [u32; 1 << 20] }
++pub static mut SPEC: SpecArea = SpecArea { log: [0; 1 << 20], pad: [0; 64], gen: [0; 2], logp: 0, pad2: 0, r: [0; 1 << 20], w: [0; 1 << 20] };
++pub static SPEC_ROLE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
++pub static SPEC_MODE: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(3); // bit0 marks/checks, bit1 undo log
++
++#[allow(static_mut_refs)]
++fn spec_tax(g: &mut Gen, width: u32, store: bool) {
++    use std::sync::atomic::Ordering::Relaxed;
++    let mode = SPEC_MODE.load(Relaxed);
++    if mode == 0 { return; }
++    let base = &raw mut SPEC as usize as u32;
++    // SAFETY: single-threaded wasm; generated code only ever sees these after this initialization.
++    unsafe { if SPEC.logp == 0 { SPEC.logp = base; SPEC.gen = [1, u32::MAX]; } }
++    let (gen, logp, r, w) = unsafe { (&raw const SPEC.gen as usize, &raw const SPEC.logp as usize, &raw const SPEC.r as usize as u32, &raw const SPEC.w as usize as u32) };
++    let follower = SPEC_ROLE.load(Relaxed) == 1;
++    if mode & 1 != 0 {
++        g.get(ADDR); g.c(6); g.op(0x76); g.c((1 << 20) - 1); g.op(0x71); g.c(2); g.op(0x74); g.set(SPEC_A);
++        if !follower {
++            g.get(SPEC_A); g.c(if store { w } else { r }); g.op(0x6a);
++            g.c(0); g.load(gen);
++            g.store(0);
++        } else {
++            g.get(SPEC_A); g.c(w); g.op(0x6a); g.load(0);
++            g.c(0); g.load(gen + 4);
++            g.op(0x46);
++            if store {
++                g.get(SPEC_A); g.c(r); g.op(0x6a); g.load(0);
++                g.c(0); g.load(gen + 4);
++                g.op(0x46);
++                g.op(0x72);
++            }
++            g.bytes.extend([0x0d, 0]);
++        }
++    }
++    if store && mode & 2 != 0 {
++        g.c(0); g.load(logp); g.set(SPEC_A);
++        g.get(TLB); g.load(offset_of!(TlbEntry, base)); g.get(REL); g.op(0x6a); g.set(SPEC_B);
++        g.get(SPEC_A); g.get(SPEC_B); g.store(0);
++        g.get(SPEC_A); g.get(SPEC_B);
++        if width == 16 {
++            g.bytes.extend([0xfd, 0x00, 0, 0]);
++            g.bytes.extend([0xfd, 0x0b, 0, 8]);
++        } else {
++            g.op(match width { 1 => 0x2d, 2 => 0x2f, _ => 0x28 }); g.bytes.extend([0, 0]);
++            g.store(4);
++        }
++        g.c(0); g.get(SPEC_A); g.c(if width == 16 { 24 } else { 8 }); g.op(0x6a); g.c((1 << 20) - 1); g.op(0x71); g.c(base); g.op(0x72); g.store(logp);
++    }
+ }
+ 
+ /// Match the interpreter's number of word writes, including version increments.

@@ -1,0 +1,12 @@
+{
+  "files": [
+    {
+      "path": "docs/evidence/browser-snapshot-performance-2026-09-05/environment.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "e79eb6ba08ec2a7aabe8b11830c40146fb4c39c0b1778134b0c55a0554625f72",
+      "sanitizedSha256": "5568c63f1bef6dacaadb03a1f3e00d5daa3bfa7d92b215bfea7519a057d5fa91"
+    }
+  ]
+}

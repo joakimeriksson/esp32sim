@@ -1,0 +1,140 @@
+{
+  "passed": true,
+  "screens": {
+    "blockinline": {
+      "medianWallSeconds": {
+        "baseline": 53.23353191700001,
+        "candidate": 50.5156465005
+      },
+      "wallReductionPercent": 5.105589125173305,
+      "pairsWallReductionPercent": [
+        4.800005049991684,
+        5.411786524318229
+      ],
+      "binarySha256": {
+        "baseline": "859daa10bdcce7df1c459d5689ce74b65d48696b9ab41ba4c1cb2bd104a0d809",
+        "candidate": "d600e67f0bcb7e6e4985c2c251eca676ce19942dd50fefedcd34478d18f715cf"
+      }
+    },
+    "cadence": {
+      "medianWallSeconds": {
+        "baseline": 53.278860562499986,
+        "candidate": 53.32172443799999
+      },
+      "wallReductionPercent": -0.08045193731145428,
+      "pairsWallReductionPercent": [
+        -0.27946087773944583,
+        0.11892973415438268
+      ],
+      "binarySha256": {
+        "baseline": "859daa10bdcce7df1c459d5689ce74b65d48696b9ab41ba4c1cb2bd104a0d809",
+        "candidate": "5c6799f43889e90be2029e267ae2b28dfce08b19884eaea3ec78dccf39890d02"
+      }
+    },
+    "combo": {
+      "medianWallSeconds": {
+        "baseline": 53.224589167,
+        "candidate": 48.521528958000005
+      },
+      "wallReductionPercent": 8.836254600751259,
+      "pairsWallReductionPercent": [
+        8.051947388736668,
+        9.619215533260517
+      ],
+      "binarySha256": {
+        "baseline": "859daa10bdcce7df1c459d5689ce74b65d48696b9ab41ba4c1cb2bd104a0d809",
+        "candidate": "c07ef2ad0cbf549696826dc20133af79ae9ed6f66b00d88171a1668fcc8c5992"
+      }
+    },
+    "combotlb": {
+      "medianWallSeconds": {
+        "baseline": 48.347058854000004,
+        "candidate": 48.5095254165
+      },
+      "wallReductionPercent": -0.3360422874752578,
+      "pairsWallReductionPercent": [
+        -0.5868773741729338,
+        -0.08483568917840856
+      ],
+      "binarySha256": {
+        "baseline": "c07ef2ad0cbf549696826dc20133af79ae9ed6f66b00d88171a1668fcc8c5992",
+        "candidate": "c918ab09aec9a593f25032258fb38fce7949f75fcab97ef3a62ea34e2fe8985f"
+      }
+    },
+    "coreinline": {
+      "medianWallSeconds": {
+        "baseline": 48.311266958500006,
+        "candidate": 49.11580399949999
+      },
+      "wallReductionPercent": -1.6653196896928568,
+      "pairsWallReductionPercent": [
+        -1.8998302730243388,
+        -1.4302048861886796
+      ],
+      "binarySha256": {
+        "baseline": "c07ef2ad0cbf549696826dc20133af79ae9ed6f66b00d88171a1668fcc8c5992",
+        "candidate": "cd20af1516c5de5c555c6e08fd3632175873f0af0ac28440a695c7b97c188b4c"
+      }
+    },
+    "nativestate": {
+      "medianWallSeconds": {
+        "baseline": 48.326037520999996,
+        "candidate": 47.735952770500006
+      },
+      "wallReductionPercent": 1.2210493157928992,
+      "pairsWallReductionPercent": [
+        1.0171263054059687,
+        1.424621678454352
+      ],
+      "binarySha256": {
+        "baseline": "c07ef2ad0cbf549696826dc20133af79ae9ed6f66b00d88171a1668fcc8c5992",
+        "candidate": "c64faea159d06da9afedf063d891e9bf5cb7e0f34fc036c511cc269bc953add6"
+      }
+    },
+    "pricedcombo": {
+      "medianWallSeconds": {
+        "baseline": 48.343897958,
+        "candidate": 48.985138875000004
+      },
+      "wallReductionPercent": -1.3264154197021982,
+      "pairsWallReductionPercent": [
+        -1.7004067265150802,
+        -0.9514375138218067
+      ],
+      "binarySha256": {
+        "baseline": "c07ef2ad0cbf549696826dc20133af79ae9ed6f66b00d88171a1668fcc8c5992",
+        "candidate": "aad33dc2f63e9c1537363398b69afa33fcdb73060f722bcf70445558fa7c67ed"
+      }
+    },
+    "pricehelper": {
+      "medianWallSeconds": {
+        "baseline": 48.15751552099999,
+        "candidate": 47.3109845835
+      },
+      "wallReductionPercent": 1.7578376466095835,
+      "pairsWallReductionPercent": [
+        1.589473597230484,
+        1.9263383638918885
+      ],
+      "binarySha256": {
+        "baseline": "c07ef2ad0cbf549696826dc20133af79ae9ed6f66b00d88171a1668fcc8c5992",
+        "candidate": "466daf09d0d83762d287d3d5049d867b7f68ee3aaf2c126233b09068fd97f103"
+      }
+    },
+    "wrappers": {
+      "medianWallSeconds": {
+        "baseline": 53.277782999999985,
+        "candidate": 51.0570502915
+      },
+      "wallReductionPercent": 4.168215311248947,
+      "pairsWallReductionPercent": [
+        3.8096553055045113,
+        4.527115213965782
+      ],
+      "binarySha256": {
+        "baseline": "859daa10bdcce7df1c459d5689ce74b65d48696b9ab41ba4c1cb2bd104a0d809",
+        "candidate": "86c7939eac952e2e42a0ea4060b5c8d3c300ef2892f83879082275f6af63ef3f"
+      }
+    }
+  }
+}

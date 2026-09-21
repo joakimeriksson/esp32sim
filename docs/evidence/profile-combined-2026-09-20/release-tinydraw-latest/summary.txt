@@ -1,0 +1,39 @@
+WARN `--no-project` was provided, but no project was found
+Sampled interval: 12.028 s; exclusive samples, not inclusive call-tree totals.
+   9.471 s  78.7%  other
+   1.456 s  12.1%  generated blocks
+   0.796 s   6.6%  machine block wrapper
+   0.305 s   2.5%  interpreter instruction execution
+   0.001 s   0.0%  PIE and 128-bit helpers
+
+Largest exclusive functions:
+   6.976 s  (idle)
+   0.796 s  _RNvMNtCslrqzjCal6eM_7esp_soc7machineINtB2_7MachineNtNtCs7lxvt5igX0z_7esp32s33soc2S3E11step_blocksCsetaQYfaB9Ca_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.767 s  _RINvNtNtCs5F2i29bsihg_10xtensa_lx73jit6native9run_innerNtNtCs7lxvt5igX0z_7esp32s33bus6SocBusECsetaQYfaB9Ca_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.305 s  _RINvNtCs5F2i29bsihg_10xtensa_lx74exec9exec_insnNtNtCs7lxvt5igX0z_7esp32s33bus6SocBusECsetaQYfaB9Ca_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.289 s  _RINvMNtCslrqzjCal6eM_7esp_soc7machineINtB3_7MachineNtNtCs7lxvt5igX0z_7esp32s33soc2S3E13run_unmodeledKb0_ECsetaQYfaB9Ca_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.151 s  loop  http://127.0.0.1:8796/web/wasm/worker.js
+   0.142 s  _RINvNtCs5F2i29bsihg_10xtensa_lx75block10find_blockNtNtCs7lxvt5igX0z_7esp32s33bus6SocBusECsetaQYfaB9Ca_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.131 s  _RINvNtNtCs5F2i29bsihg_10xtensa_lx73jit6native6h_execNtNtCs7lxvt5igX0z_7esp32s33bus6SocBusECsetaQYfaB9Ca_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.090 s  Module
+   0.073 s  (program)
+   0.057 s  _RNvXNtCs5F2i29bsihg_10xtensa_lx74coreNtNtB4_5state3CpuNtNtCs3QQYunS8OH3_8emu_core4core4Core14advance_cycles  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.052 s  _RNvMs2_NtCs7lxvt5igX0z_7esp32s33busNtB5_6SocBus11flush_ticks  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.052 s  _RNvMNtCslrqzjCal6eM_7esp_soc7machineINtB2_7MachineNtNtCs7lxvt5igX0z_7esp32s33soc2S3E16after_round_restCsetaQYfaB9Ca_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.046 s  _RNvXs1_NtCs7lxvt5igX0z_7esp32s33busNtB5_6SocBusNtNtCs3QQYunS8OH3_8emu_core3bus3Bus7write32  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.045 s  _RNvXNtCs5F2i29bsihg_10xtensa_lx74coreNtNtB4_5state3CpuNtNtCs3QQYunS8OH3_8emu_core4core4Core17cycles_until_wake  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.039 s  _RNvXs0_NtCs58i1S6PDf40_10esp_periph4gpioNtB5_4GpioNtNtB7_6device6Device11irq_sources  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.038 s  _RNvXs1_NtCs7lxvt5igX0z_7esp32s33busNtB5_6SocBusNtNtCs3QQYunS8OH3_8emu_core3bus3Bus6read32  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.032 s  wasm-function[0]  wasm://wasm/000461ee
+   0.029 s  _RNvMNtCs7lxvt5igX0z_7esp32s33busNtB2_6SocBus12periph_write  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.027 s  wasm-function[0]  wasm://wasm/fb5e0586
+   0.027 s  _RNvXNtCs5F2i29bsihg_10xtensa_lx74coreNtNtB4_5state3CpuNtNtCs3QQYunS8OH3_8emu_core4core4Core11irq_pending  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.024 s  js-to-wasm:i:d  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.022 s  wasm-function[0]  wasm://wasm/0ae6ec12
+   0.022 s  _RNvMs_NtNtCs7lxvt5igX0z_7esp32s33bus3dmaNtB6_6SocBus12dma_m2m_step  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.020 s  now
+   0.018 s  _RNvMs2_NtCs7lxvt5igX0z_7esp32s33busNtB5_6SocBus9tick_impl  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.018 s  _RNvNtNtCs5F2i29bsihg_10xtensa_lx73jit6native7compile  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.017 s  _RNvMNtCs5F2i29bsihg_10xtensa_lx74execNtNtB4_5state3Cpu8write_sr  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.017 s  wasm-function[0]  wasm://wasm/bb14e1d2
+   0.016 s  wasm-function[0]  wasm://wasm/fba37e2e

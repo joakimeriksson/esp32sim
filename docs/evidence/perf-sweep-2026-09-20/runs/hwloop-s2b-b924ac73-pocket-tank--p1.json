@@ -1,0 +1,106 @@
+{
+  "pairs": 1,
+  "screeningOnly": true,
+  "medianWallSeconds": {
+    "baseline": 73.76891999995709,
+    "candidate": 72.47257500004768
+  },
+  "wallReductionPercent": 1.7573051088590752,
+  "pairsWallReductionPercent": [
+    1.7573051088590752
+  ],
+  "runs": [
+    {
+      "pair": 1,
+      "arm": "baseline",
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "browser": "Chrome/153.0.8010.53",
+      "v8": "15.3.76.13",
+      "provenance": {
+        "sha256": {
+          "asset/app": "443dd24aed14a509e6df597eb3a02635cc07e0fbee6f04db85a62f4d4dadb113",
+          "asset/bootloader": "9556d59f3a10f6b04fa6d75f3142a66034339afafffbd4bbc3d9a127eaa73859",
+          "asset/model": "b200bf87c78dc85c4d727f68941ac0b83cced9827037cc169cd2122d71002c2a",
+          "asset/ptable": "7af5b28608c91167e00778b7f20622f3b47849efebeb3e64117162d73f3e0508",
+          "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+          "asset/wasm": "40a8ef257b610baa76bbc663b114d4bf080b1346983085790ac9ae8a00271adc",
+          "harness/battery-failure.test.mjs": "5181f9bd895d397fcbfaa09c9330339247e1fe1fd382eb8379f4636dbcab5e3c",
+          "harness/battery-worker.mjs": "4856f3531a83b8f81bd5118e07060a183c2b904b900f4b8b2b51e187230a3b81",
+          "harness/battery-workload.test.mjs": "3673288c3fcdbbc604986d172d3bfc61a780687092df330aec1058c1db98f550",
+          "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+          "harness/battery.mjs": "9b8f26a9fb949c81514fd6bc28bf57ba467090b1d435fc577f530eff4e051b62",
+          "harness/capture-battery.mjs": "3a6eb7f654af08075d808296bf1b4eea7da5607518687594f7115dbe608a286d",
+          "harness/capture-cpu.mjs": "2a224056be6502fb5b7df1f1f63b29e75ba6946e1aa08768030de40f71ffd9cc",
+          "harness/capture-page-response.mjs": "4e4d38ef935ab2fd565d5f3665889b014321f6f2c8cb82b70d12e5db530420c1",
+          "harness/capture-response.mjs": "74a502f612e24170ba7c3fa329eed79bd3b78b01aab679f7fe67920643f3e4d6",
+          "harness/check-page-input.mjs": "1188b390807ad3096e14a9da2fe4139887b4f256b809640cf752b39edba608eb",
+          "harness/experiments.test.mjs": "b4c52406ea73aafddfdf3fe732c19f3d790cf080c9e0684c3babf4748285272a",
+          "harness/response.html": "2ded61ce3ed5449f249f1db204305ca16d0447cfef628dbe1dbe13e33c3d2051",
+          "harness/response.mjs": "f02b8e70617017b2b6a43f8779ff66c1f3f589412e683844f72e116738078659",
+          "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+          "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+          "harness/verdict.test.mjs": "fc77e45e65a7d5072723613833fb35d592b56f7590d80079201d4a2cfba006f4",
+          "harness/workloads.json": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+          "web/wasm/experiments.mjs": "5b993310920807ed72d7ec1e08ca84aa28e6ae3a7c0f502d5a3ff6e0e73c2141",
+          "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+          "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+          "web/wasm/worker.js": "3d77c6d2f12dc557ddde4e26cf4f376d9ed53457e7e416dc14d49c2ae3b26123"
+        }
+      },
+      "wallSeconds": 73.76891999995709,
+      "guestSeconds": 30.000000229166666,
+      "realtimeRatio": 0.40667533466918204,
+      "instructions": 10073833775,
+      "passed": true,
+      "jitFailed": 0,
+      "jitBytes": 74103059,
+      "run": "/Users/alice/src/a/esp32sim-exp/runs/overnight/hwloop-s2b-b924ac73-pocket-tank--p1/1-baseline"
+    },
+    {
+      "pair": 1,
+      "arm": "candidate",
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "browser": "Chrome/153.0.8010.53",
+      "v8": "15.3.76.13",
+      "provenance": {
+        "sha256": {
+          "asset/app": "443dd24aed14a509e6df597eb3a02635cc07e0fbee6f04db85a62f4d4dadb113",
+          "asset/bootloader": "9556d59f3a10f6b04fa6d75f3142a66034339afafffbd4bbc3d9a127eaa73859",
+          "asset/model": "b200bf87c78dc85c4d727f68941ac0b83cced9827037cc169cd2122d71002c2a",
+          "asset/ptable": "7af5b28608c91167e00778b7f20622f3b47849efebeb3e64117162d73f3e0508",
+          "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+          "asset/wasm": "b924ac73690fcc8cd46831c4c185746d9c881b93376112c3726e9d6457d8c66c",
+          "harness/battery-failure.test.mjs": "5181f9bd895d397fcbfaa09c9330339247e1fe1fd382eb8379f4636dbcab5e3c",
+          "harness/battery-worker.mjs": "4856f3531a83b8f81bd5118e07060a183c2b904b900f4b8b2b51e187230a3b81",
+          "harness/battery-workload.test.mjs": "3673288c3fcdbbc604986d172d3bfc61a780687092df330aec1058c1db98f550",
+          "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+          "harness/battery.mjs": "9b8f26a9fb949c81514fd6bc28bf57ba467090b1d435fc577f530eff4e051b62",
+          "harness/capture-battery.mjs": "3a6eb7f654af08075d808296bf1b4eea7da5607518687594f7115dbe608a286d",
+          "harness/capture-cpu.mjs": "2a224056be6502fb5b7df1f1f63b29e75ba6946e1aa08768030de40f71ffd9cc",
+          "harness/capture-page-response.mjs": "4e4d38ef935ab2fd565d5f3665889b014321f6f2c8cb82b70d12e5db530420c1",
+          "harness/capture-response.mjs": "74a502f612e24170ba7c3fa329eed79bd3b78b01aab679f7fe67920643f3e4d6",
+          "harness/check-page-input.mjs": "1188b390807ad3096e14a9da2fe4139887b4f256b809640cf752b39edba608eb",
+          "harness/experiments.test.mjs": "b4c52406ea73aafddfdf3fe732c19f3d790cf080c9e0684c3babf4748285272a",
+          "harness/response.html": "2ded61ce3ed5449f249f1db204305ca16d0447cfef628dbe1dbe13e33c3d2051",
+          "harness/response.mjs": "f02b8e70617017b2b6a43f8779ff66c1f3f589412e683844f72e116738078659",
+          "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+          "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+          "harness/verdict.test.mjs": "fc77e45e65a7d5072723613833fb35d592b56f7590d80079201d4a2cfba006f4",
+          "harness/workloads.json": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+          "web/wasm/experiments.mjs": "5b993310920807ed72d7ec1e08ca84aa28e6ae3a7c0f502d5a3ff6e0e73c2141",
+          "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+          "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+          "web/wasm/worker.js": "3d77c6d2f12dc557ddde4e26cf4f376d9ed53457e7e416dc14d49c2ae3b26123"
+        }
+      },
+      "wallSeconds": 72.47257500004768,
+      "guestSeconds": 30.000000229166666,
+      "realtimeRatio": 0.4139496937861933,
+      "instructions": 10073833775,
+      "passed": true,
+      "jitFailed": 0,
+      "jitBytes": 74247916,
+      "run": "/Users/alice/src/a/esp32sim-exp/runs/overnight/hwloop-s2b-b924ac73-pocket-tank--p1/1-candidate"
+    }
+  ]
+}

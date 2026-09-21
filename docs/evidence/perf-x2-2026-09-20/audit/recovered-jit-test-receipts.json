@@ -1,0 +1,92 @@
+{
+  "session": "/Users/alice/.pi/agent/sessions/--Users-alice-src-a-esp32sim-x2-heads--/2026-09-20T18-44-57-278Z_759a0e1c-d1f7ecdd-2bcf731f-0c94.jsonl",
+  "records": [
+    {
+      "id": "032ff0e4",
+      "timestamp": "2026-09-20T19:06:16.809Z",
+      "role": "assistant",
+      "calls": [
+        {
+          "type": "toolCall",
+          "id": "toolu_011hLyk9bXsV3VFEcCTpKHaq",
+          "name": "bash",
+          "arguments": {
+            "command": "cd /Users/alice/src/a/esp32sim-x2-heads && python3 - <<'EOF'\np='xtensa-lx7/src/jit/wasm_tests/scheduler.rs'\ns=open(p).read()\ns=s.replace(\"                // PCs given their own head below hit the entry table instead.\\n                let own = (round > 0 && i == 3) || (round > 1 && i == 2);\",\"                // PCs given their own head below hit the entry table instead, until the code changes.\\n                let own = (round == 1 && i == 3) || (round == 2 && i == 2);\")\nopen(p,'w').write(s)\nEOF\nCARGO_BUILD_JOBS=4 sh tools/wasm-jit-test.sh 2>&1 | grep -v \"^    at\" | tail -3; tail -1 /Users/alice/src/a/esp32sim-x2/runs/heads/s2-exact30.json; grep -A9 jitStats /Users/alice/src/a/esp32sim-x2/runs/heads/s2-exact30.json",
+            "timeout": 2400
+          }
+        }
+      ]
+    },
+    {
+      "id": "a3e511d1",
+      "timestamp": "2026-09-20T19:06:52.381Z",
+      "role": "toolResult",
+      "toolCallId": "toolu_011hLyk9bXsV3VFEcCTpKHaq",
+      "content": [
+        {
+          "type": "text",
+          "text": "   Compiling esp32sim-wasm v0.2.0 (/Users/alice/src/a/esp32sim-x2-heads/wasm)\n    Finished `release` profile [optimized + debuginfo] target(s) in 21.79s\nPASS: 78904 WASM differential cases (ALU, helper continuation, memory, faults, loops, windows, budget/resume, invalidation, timer, script stop, peer-state MMIO); 81881 compiled modules released\nEXACT ok (pocket-tank, 30 guest s; Node wall time is NOT a benchmark)\n \"jitStats\": {\n  \"compiled\": 5336,\n  \"failed\": 0,\n  \"released\": 1476,\n  \"compileMs\": 518.6018980000898,\n  \"bytes\": 52286375,\n  \"liveBytes\": 37856164,\n  \"peakBytes\": 43864008,\n  \"peakModules\": 4482\n },\n"
+        }
+      ],
+      "isError": false
+    },
+    {
+      "id": "26ba5891",
+      "timestamp": "2026-09-20T19:06:59.440Z",
+      "role": "assistant",
+      "calls": [
+        {
+          "type": "toolCall",
+          "id": "toolu_0123a9krXhjfFQkGXTKq9kV4",
+          "name": "bash",
+          "arguments": {
+            "command": "cd /Users/alice/src/a/esp32sim-x2-heads && git add -A && git commit -qm \"EX172: directed differential test for interior aliases (exception-return arrival, static arrival keeps its head, stale alias after a code change)\" && sed -i '' 's/pub const ALIAS_SEQ: bool = true;/pub const ALIAS_SEQ: bool = false;/' xtensa-lx7/src/block.rs && CARGO_BUILD_JOBS=4 sh tools/wasm-jit-test.sh 2>&1 | tail -1; git checkout xtensa-lx7/src/block.rs; git status --short | head",
+            "timeout": 2400
+          }
+        }
+      ]
+    },
+    {
+      "id": "564ad2c9",
+      "timestamp": "2026-09-20T19:07:36.223Z",
+      "role": "toolResult",
+      "toolCallId": "toolu_0123a9krXhjfFQkGXTKq9kV4",
+      "content": [
+        {
+          "type": "text",
+          "text": "PASS: 78904 WASM differential cases (ALU, helper continuation, memory, faults, loops, windows, budget/resume, invalidation, timer, script stop, peer-state MMIO); 81887 compiled modules released\nUpdated 1 path from the index\n"
+        }
+      ],
+      "isError": false
+    },
+    {
+      "id": "0d0aa734",
+      "timestamp": "2026-09-20T19:12:33.008Z",
+      "role": "assistant",
+      "calls": [
+        {
+          "type": "toolCall",
+          "id": "toolu_01RJbe1mcwgWHzT2d15X3WBB",
+          "name": "bash",
+          "arguments": {
+            "command": "cd /Users/alice/src/a/esp32sim-x2-heads && git add -A && git commit -qm \"EX172 heads-s3: also alias the re-dispatch of a deferred device access\" && git tag heads-s3 && /Users/alice/src/a/esp32sim-x2/bin/build.sh $PWD heads-s3 2>&1 | tail -1 && (cd /Users/alice/src/a/esp32sim-x2/runs/heads && nice -n 15 node /Users/alice/src/a/esp32sim-x2-heads/tools/heads-run.mjs /Users/alice/src/a/esp32sim-x2/wasm/heads-s3.wasm > s3-exact30.json 2>&1 &) ; CARGO_BUILD_JOBS=4 sh tools/wasm-jit-test.sh 2>&1 | tail -1",
+            "timeout": 2400
+          }
+        }
+      ]
+    },
+    {
+      "id": "1e645dd6",
+      "timestamp": "2026-09-20T19:13:34.090Z",
+      "role": "toolResult",
+      "toolCallId": "toolu_01RJbe1mcwgWHzT2d15X3WBB",
+      "content": [
+        {
+          "type": "text",
+          "text": "af124c493c9a58f7c63bc93c7ca3db7fa4d4c68ddf6ab41bea53f1623479624e  /Users/alice/src/a/esp32sim-x2/wasm/heads-s3.wasm\nPASS: 78904 WASM differential cases (ALU, helper continuation, memory, faults, loops, windows, budget/resume, invalidation, timer, script stop, peer-state MMIO); 81881 compiled modules released\n"
+        }
+      ],
+      "isError": false
+    }
+  ]
+}

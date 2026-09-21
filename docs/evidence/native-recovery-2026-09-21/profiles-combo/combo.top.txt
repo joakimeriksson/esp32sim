@@ -1,0 +1,423 @@
+_RINvXNtCskgX8u586xsd_10xtensa_lx74coreNtNtB5_5state3CpuNtNtCsbExK99dUBJK_8emu_core4core4Core3runNtNtCsc82uIUqX6AM_7esp32s33bus6SocBusECs3oWjDnRyk0y_8esp32sim  (in esp32sim)        6284
+        _RINvNtCskgX8u586xsd_10xtensa_lx74exec9exec_insnNtNtCsc82uIUqX6AM_7esp32s33bus6SocBusECs3oWjDnRyk0y_8esp32sim  (in esp32sim)        5378
+        _RINvNtCskgX8u586xsd_10xtensa_lx73pie4execNtNtCsc82uIUqX6AM_7esp32s33bus6SocBusECs3oWjDnRyk0y_8esp32sim  (in esp32sim)        3826
+        _RNvMNtCs2k2w9SG2OMD_7esp_soc7machineINtB2_7MachineNtNtCsc82uIUqX6AM_7esp32s33soc2S3E3runCs3oWjDnRyk0y_8esp32sim  (in esp32sim)        2977
+        _RINvNtNtCskgX8u586xsd_10xtensa_lx73jit6native6h_execNtNtCsc82uIUqX6AM_7esp32s33bus6SocBusECs3oWjDnRyk0y_8esp32sim  (in esp32sim)        1781
+        _RNvXs1_NtCsc82uIUqX6AM_7esp32s33busNtB5_6SocBusNtNtCsbExK99dUBJK_8emu_core3bus3Bus9read_bulk  (in esp32sim)        1388
+        _RNvXs1_NtCsc82uIUqX6AM_7esp32s33busNtB5_6SocBusNtNtCsbExK99dUBJK_8emu_core3bus3Bus6read32  (in esp32sim)        1075
+        _RINvNtCskgX8u586xsd_10xtensa_lx73pie10exec_tableNtNtCsc82uIUqX6AM_7esp32s33bus6SocBusECs3oWjDnRyk0y_8esp32sim  (in esp32sim)        783
+        _RINvNtNtCskgX8u586xsd_10xtensa_lx73jit6native5h_pieNtNtCsc82uIUqX6AM_7esp32s33bus6SocBusECs3oWjDnRyk0y_8esp32sim  (in esp32sim)        772
+        _RNvMNtCskgX8u586xsd_10xtensa_lx74execNtNtB4_5state3Cpu16check_interrupts  (in esp32sim)        687
+        _RNvXs1_NtCsc82uIUqX6AM_7esp32s33busNtB5_6SocBusNtNtCsbExK99dUBJK_8emu_core3bus3Bus7write32  (in esp32sim)        622
+        _RNvMNtCsc82uIUqX6AM_7esp32s33busNtB2_6SocBus17price_cached_data  (in esp32sim)        564
+        _RNvNtCskgX8u586xsd_10xtensa_lx73pie7extract  (in esp32sim)        409
+        _RINvNtCskgX8u586xsd_10xtensa_lx75block27refresh_priced_continuationNtNtCsc82uIUqX6AM_7esp32s33bus6SocBusECs3oWjDnRyk0y_8esp32sim  (in esp32sim)        161
+        _RNvMNtCskgX8u586xsd_10xtensa_lx73pieNtB2_3Ops3get  (in esp32sim)        158
+        _RNvMNtCs2k2w9SG2OMD_7esp_soc7machineINtB2_7MachineNtNtCsc82uIUqX6AM_7esp32s33soc2S3E16after_round_restCs3oWjDnRyk0y_8esp32sim  (in esp32sim)        137
+        _RNvMsl_NtCsc82uIUqX6AM_7esp32s36periphNtB5_11Peripherals13source_status  (in esp32sim)        123
+        _RNvMNtCs2k2w9SG2OMD_7esp_soc7machineINtB2_7MachineNtNtCsc82uIUqX6AM_7esp32s33soc2S3E11after_roundCs3oWjDnRyk0y_8esp32sim  (in esp32sim)        116
+        _RNvXs_NtNtNtCs8Mbv00yxnRz_4core4iter8adapters4takeINtB4_4TakeINtNtB6_9enumerate9EnumerateINtNtNtBa_5slice4iter7IterMutbEEENtNtNtB8_6traits8iterator8Iterator3nthCs3oWjDnRyk0y_8esp32sim  (in esp32sim)        88
+        _RNvMs2_NtCsc82uIUqX6AM_7esp32s33busNtB5_6SocBus19refresh_tick_budget  (in esp32sim)        80
+        _RNvMs2_NtCsc82uIUqX6AM_7esp32s33busNtB5_6SocBus9tick_impl  (in esp32sim)        75
+        ???  (in <unknown binary>)  [0x107f2615c]        55
+        ???  (in <unknown binary>)  [0x1174553e0]        48
+        ???  (in <unknown binary>)  [0x107f26320]        47
+        ???  (in <unknown binary>)  [0x107f264d8]        47
+        ???  (in <unknown binary>)  [0x107f26724]        45
+        ???  (in <unknown binary>)  [0x107f26358]        42
+        ???  (in <unknown binary>)  [0x11743dc54]        40
+        ???  (in <unknown binary>)  [0x107f26284]        39
+        ???  (in <unknown binary>)  [0x11743deb4]        39
+        ???  (in <unknown binary>)  [0x107f26444]        37
+        ???  (in <unknown binary>)  [0x11743dcf8]        37
+        _RNvXNtCskgX8u586xsd_10xtensa_lx74coreNtNtB4_5state3CpuNtNtCsbExK99dUBJK_8emu_core4core4Core17cycles_until_wake  (in esp32sim)        37
+        ???  (in <unknown binary>)  [0x107d93f98]        36
+        ???  (in <unknown binary>)  [0x107f262bc]        35
+        ???  (in <unknown binary>)  [0x107f26390]        35
+        ???  (in <unknown binary>)  [0x107f2640c]        35
+        _RNvMNtCskgX8u586xsd_10xtensa_lx74execNtNtB4_5state3Cpu7read_ur  (in esp32sim)        35
+        _platform_memmove  (in libsystem_platform.dylib)        35
+        ???  (in <unknown binary>)  [0x107f261a8]        34
+        ???  (in <unknown binary>)  [0x107f261e8]        34
+        ???  (in <unknown binary>)  [0x107f26570]        34
+        ???  (in <unknown binary>)  [0x11735dc7c]        34
+        _RNvXNtCskgX8u586xsd_10xtensa_lx74coreNtNtB4_5state3CpuNtNtCsbExK99dUBJK_8emu_core4core4Core14advance_cycles  (in esp32sim)        34
+        ???  (in <unknown binary>)  [0x107f264a0]        33
+        ???  (in <unknown binary>)  [0x11744b458]        33
+        _RNvMNtCsc82uIUqX6AM_7esp32s33busNtB2_6SocBus18periph_write_inner  (in esp32sim)        33
+        ???  (in <unknown binary>)  [0x107f26174]        31
+        ???  (in <unknown binary>)  [0x107f26200]        31
+        ???  (in <unknown binary>)  [0x107f26140]        29
+        ???  (in <unknown binary>)  [0x107f264ec]        29
+        ???  (in <unknown binary>)  [0x107f265b4]        28
+        ???  (in <unknown binary>)  [0x107f265cc]        28
+        _RNvMsl_NtCsc82uIUqX6AM_7esp32s36periphNtB5_11Peripherals6read32  (in esp32sim)        28
+        ???  (in <unknown binary>)  [0x107f265ec]        27
+        ???  (in <unknown binary>)  [0x107f26424]        26
+        ???  (in <unknown binary>)  [0x107f26488]        26
+        ???  (in <unknown binary>)  [0x107f26718]        26
+        ???  (in <unknown binary>)  [0x11744cdf0]        26
+        ???  (in <unknown binary>)  [0x107f263a8]        25
+        ???  (in <unknown binary>)  [0x11743dfb8]        25
+        ???  (in <unknown binary>)  [0x11743e118]        25
+        ???  (in <unknown binary>)  [0x107f26508]        24
+        ???  (in <unknown binary>)  [0x107f2654c]        24
+        ???  (in <unknown binary>)  [0x107f261bc]        23
+        ???  (in <unknown binary>)  [0x107f26714]        23
+        ???  (in <unknown binary>)  [0x117448bd8]        23
+        _RNvMNtCskgX8u586xsd_10xtensa_lx74execNtNtB4_5state3Cpu7read_sr  (in esp32sim)        23
+        ???  (in <unknown binary>)  [0x107f26238]        22
+        ???  (in <unknown binary>)  [0x107f263d4]        22
+        ???  (in <unknown binary>)  [0x107dd50b0]        21
+        ???  (in <unknown binary>)  [0x107f262dc]        21
+        ???  (in <unknown binary>)  [0x107f26604]        21
+        ???  (in <unknown binary>)  [0x11743db6c]        21
+        ???  (in <unknown binary>)  [0x11743dd44]        21
+        ???  (in <unknown binary>)  [0x11743ddd4]        21
+        ???  (in <unknown binary>)  [0x11743dec8]        21
+        ???  (in <unknown binary>)  [0x11744760c]        21
+        ???  (in <unknown binary>)  [0x11743db50]        20
+        ???  (in <unknown binary>)  [0x107ddc314]        19
+        ???  (in <unknown binary>)  [0x107f262f4]        19
+        ???  (in <unknown binary>)  [0x107f2645c]        19
+        ???  (in <unknown binary>)  [0x11743dc44]        19
+        ???  (in <unknown binary>)  [0x11743dc9c]        19
+        ???  (in <unknown binary>)  [0x107f26338]        18
+        ???  (in <unknown binary>)  [0x107f263ec]        18
+        ???  (in <unknown binary>)  [0x107f268a4]        18
+        ???  (in <unknown binary>)  [0x11743dbb8]        18
+        ???  (in <unknown binary>)  [0x11743dd58]        18
+        ???  (in <unknown binary>)  [0x11748b9e0]        18
+        ???  (in <unknown binary>)  [0x107d92298]        17
+        ???  (in <unknown binary>)  [0x107dd4f80]        17
+        ???  (in <unknown binary>)  [0x107f2626c]        17
+        ???  (in <unknown binary>)  [0x107f262a4]        17
+        ???  (in <unknown binary>)  [0x107f26550]        17
+        ???  (in <unknown binary>)  [0x107f265f8]        17
+        ???  (in <unknown binary>)  [0x107f26850]        17
+        ???  (in <unknown binary>)  [0x11743dee4]        17
+        ???  (in <unknown binary>)  [0x11744a014]        17
+        ???  (in <unknown binary>)  [0x107d9423c]        16
+        ???  (in <unknown binary>)  [0x107f26370]        16
+        ???  (in <unknown binary>)  [0x11743db10]        16
+        ???  (in <unknown binary>)  [0x11743dd84]        16
+        ???  (in <unknown binary>)  [0x11743de2c]        16
+        ???  (in <unknown binary>)  [0x11743de64]        16
+        ???  (in <unknown binary>)  [0x11743e084]        16
+        ???  (in <unknown binary>)  [0x11748b744]        16
+        _RNvMNtCsYOMArLsCT1_10esp_periph3rmtNtB2_3Rmt4tick  (in esp32sim)        16
+        ???  (in <unknown binary>)  [0x107d96ee8]        15
+        ???  (in <unknown binary>)  [0x107d970d0]        15
+        ???  (in <unknown binary>)  [0x107f26114]        15
+        ???  (in <unknown binary>)  [0x11743dd9c]        15
+        ???  (in <unknown binary>)  [0x11743e2ec]        15
+        _RNvMs_NtNtCsc82uIUqX6AM_7esp32s33bus3dmaNtB6_6SocBus21deliver_spi2_transfer  (in esp32sim)        15
+        ???  (in <unknown binary>)  [0x107a2affc]        14
+        ???  (in <unknown binary>)  [0x107f26874]        14
+        ???  (in <unknown binary>)  [0x11743dc50]        14
+        ???  (in <unknown binary>)  [0x11743df2c]        14
+        ???  (in <unknown binary>)  [0x11743dfcc]        14
+        ???  (in <unknown binary>)  [0x11743dfe8]        14
+        ???  (in <unknown binary>)  [0x11743e02c]        14
+        ???  (in <unknown binary>)  [0x11743e068]        14
+        ???  (in <unknown binary>)  [0x11744c678]        14
+        ???  (in <unknown binary>)  [0x1174857f8]        14
+        _RNvMNtCskgX8u586xsd_10xtensa_lx74execNtNtB4_5state3Cpu8write_sr  (in esp32sim)        14
+        ???  (in <unknown binary>)  [0x107d96a68]        13
+        ???  (in <unknown binary>)  [0x11743dd10]        13
+        ???  (in <unknown binary>)  [0x11743e030]        13
+        ???  (in <unknown binary>)  [0x11743e114]        13
+        ???  (in <unknown binary>)  [0x11743e1bc]        13
+        ???  (in <unknown binary>)  [0x117447810]        13
+        ???  (in <unknown binary>)  [0x117485b68]        13
+        _RINvNtNtCskgX8u586xsd_10xtensa_lx73jit6native8h_read32NtNtCsc82uIUqX6AM_7esp32s33bus6SocBusECs3oWjDnRyk0y_8esp32sim  (in esp32sim)        13
+        ???  (in <unknown binary>)  [0x107d96af0]        12
+        ???  (in <unknown binary>)  [0x107dd5008]        12
+        ???  (in <unknown binary>)  [0x107f2682c]        12
+        ???  (in <unknown binary>)  [0x107f26914]        12
+        ???  (in <unknown binary>)  [0x11743db84]        12
+        ???  (in <unknown binary>)  [0x11743dcdc]        12
+        ???  (in <unknown binary>)  [0x117452650]        12
+        ???  (in <unknown binary>)  [0x1174857b0]        12
+        ???  (in <unknown binary>)  [0x11748b678]        12
+        _RNvXs2_NtNtCsc82uIUqX6AM_7esp32s35board18waveshare_amoled18NtB5_19WaveshareAmoled18V2NtNtCs2k2w9SG2OMD_7esp_soc5board10BoardModel12spi_transfer  (in esp32sim)        12
+        ???  (in <unknown binary>)  [0x107f26240]        11
+        ???  (in <unknown binary>)  [0x107f267bc]        11
+        ???  (in <unknown binary>)  [0x11735ca94]        11
+        ???  (in <unknown binary>)  [0x11743ddbc]        11
+        ???  (in <unknown binary>)  [0x11743ddf4]        11
+        ???  (in <unknown binary>)  [0x11743de1c]        11
+        ???  (in <unknown binary>)  [0x11743df4c]        11
+        ???  (in <unknown binary>)  [0x11743df64]        11
+        ???  (in <unknown binary>)  [0x1174476c0]        11
+        ???  (in <unknown binary>)  [0x11744785c]        11
+        ???  (in <unknown binary>)  [0x117447a90]        11
+        ???  (in <unknown binary>)  [0x11748586c]        11
+        ???  (in <unknown binary>)  [0x1174858d0]        11
+        ???  (in <unknown binary>)  [0x11748b8b4]        11
+        ???  (in <unknown binary>)  [0x1174f1154]        11
+        ???  (in <unknown binary>)  [0x117569c0c]        11
+        _RINvMs0_NtCsc82uIUqX6AM_7esp32s33busNtB6_6SocBus13read32_accessKb0_EB8_  (in esp32sim)        11
+        _RNvXs0_NtCsYOMArLsCT1_10esp_periph5gpspiNtB5_5GpSpiNtNtB7_6device6Device4read  (in esp32sim)        11
+        ???  (in <unknown binary>)  [0x107f26588]        10
+        ???  (in <unknown binary>)  [0x107f26838]        10
+        ???  (in <unknown binary>)  [0x107f2685c]        10
+        ???  (in <unknown binary>)  [0x107f2688c]        10
+        ???  (in <unknown binary>)  [0x107f26898]        10
+        ???  (in <unknown binary>)  [0x107f268fc]        10
+        ???  (in <unknown binary>)  [0x107f26908]        10
+        ???  (in <unknown binary>)  [0x11735da64]        10
+        ???  (in <unknown binary>)  [0x11743e018]        10
+        ???  (in <unknown binary>)  [0x11744a224]        10
+        ???  (in <unknown binary>)  [0x11748b6e4]        10
+        ???  (in <unknown binary>)  [0x11748b81c]        10
+        ???  (in <unknown binary>)  [0x11748b950]        10
+        ???  (in <unknown binary>)  [0x11748b9d4]        10
+        _RNvMs_NtNtCsc82uIUqX6AM_7esp32s33bus3dmaNtB6_6SocBus17complete_spi2_dma  (in esp32sim)        10
+        ???  (in <unknown binary>)  [0x107d96708]        9
+        ???  (in <unknown binary>)  [0x107d96d54]        9
+        ???  (in <unknown binary>)  [0x107ddbd44]        9
+        ???  (in <unknown binary>)  [0x107f26844]        9
+        ???  (in <unknown binary>)  [0x11743dcb0]        9
+        ???  (in <unknown binary>)  [0x11743dd98]        9
+        ???  (in <unknown binary>)  [0x11743df14]        9
+        ???  (in <unknown binary>)  [0x11743df28]        9
+        ???  (in <unknown binary>)  [0x11743df78]        9
+        ???  (in <unknown binary>)  [0x11743dfe0]        9
+        ???  (in <unknown binary>)  [0x11743e250]        9
+        ???  (in <unknown binary>)  [0x11744fe0c]        9
+        ???  (in <unknown binary>)  [0x1174552a4]        9
+        ???  (in <unknown binary>)  [0x117485710]        9
+        ???  (in <unknown binary>)  [0x117485924]        9
+        ???  (in <unknown binary>)  [0x117485b58]        9
+        ???  (in <unknown binary>)  [0x11748b89c]        9
+        ???  (in <unknown binary>)  [0x11748b8f0]        9
+        ???  (in <unknown binary>)  [0x11748b928]        9
+        _RINvNtNtCskgX8u586xsd_10xtensa_lx73jit6native9h_write32NtNtCsc82uIUqX6AM_7esp32s33bus6SocBusECs3oWjDnRyk0y_8esp32sim  (in esp32sim)        9
+        _RNvXs_NtCsYOMArLsCT1_10esp_periph8systimerNtB4_8SystimerNtNtB6_6device6Device4tick  (in esp32sim)        9
+        ???  (in <unknown binary>)  [0x107dd521c]        8
+        ???  (in <unknown binary>)  [0x107dd534c]        8
+        ???  (in <unknown binary>)  [0x107f26310]        8
+        ???  (in <unknown binary>)  [0x107f26538]        8
+        ???  (in <unknown binary>)  [0x107f26868]        8
+        ???  (in <unknown binary>)  [0x11743db78]        8
+        ???  (in <unknown binary>)  [0x11743de0c]        8
+        ???  (in <unknown binary>)  [0x11743de44]        8
+        ???  (in <unknown binary>)  [0x11743de9c]        8
+        ???  (in <unknown binary>)  [0x11743dfc4]        8
+        ???  (in <unknown binary>)  [0x11743e090]        8
+        ???  (in <unknown binary>)  [0x117447668]        8
+        ???  (in <unknown binary>)  [0x117447bac]        8
+        ???  (in <unknown binary>)  [0x117447f74]        8
+        ???  (in <unknown binary>)  [0x117449638]        8
+        ???  (in <unknown binary>)  [0x11744981c]        8
+        ???  (in <unknown binary>)  [0x11744acb0]        8
+        ???  (in <unknown binary>)  [0x11744af84]        8
+        ???  (in <unknown binary>)  [0x117485770]        8
+        ???  (in <unknown binary>)  [0x117485830]        8
+        ???  (in <unknown binary>)  [0x1174858a8]        8
+        _RNvMs0_NtCsYOMArLsCT1_10esp_periph4gdmaNtB5_4Gdma4read  (in esp32sim)        8
+        _RNvNtNtCskgX8u586xsd_10xtensa_lx73jit6native10h_overflow  (in esp32sim)        8
+        _malloc_zone_realloc  (in libsystem_malloc.dylib)        8
+        ???  (in <unknown binary>)  [0x107d9427c]        7
+        ???  (in <unknown binary>)  [0x107d954b0]        7
+        ???  (in <unknown binary>)  [0x107dd4e6c]        7
+        ???  (in <unknown binary>)  [0x107dd5118]        7
+        ???  (in <unknown binary>)  [0x107dd5260]        7
+        ???  (in <unknown binary>)  [0x107f261b4]        7
+        ???  (in <unknown binary>)  [0x107f26704]        7
+        ???  (in <unknown binary>)  [0x107f26880]        7
+        ???  (in <unknown binary>)  [0x11735cb10]        7
+        ???  (in <unknown binary>)  [0x11735cc5c]        7
+        ???  (in <unknown binary>)  [0x11735de04]        7
+        ???  (in <unknown binary>)  [0x11743dc84]        7
+        ???  (in <unknown binary>)  [0x11743dec0]        7
+        ???  (in <unknown binary>)  [0x11743e1c8]        7
+        ???  (in <unknown binary>)  [0x11743ee44]        7
+        ???  (in <unknown binary>)  [0x117447954]        7
+        ???  (in <unknown binary>)  [0x117447a7c]        7
+        ???  (in <unknown binary>)  [0x117447e90]        7
+        ???  (in <unknown binary>)  [0x1174485d4]        7
+        ???  (in <unknown binary>)  [0x117448f48]        7
+        ???  (in <unknown binary>)  [0x117448fe0]        7
+        ???  (in <unknown binary>)  [0x1174492f0]        7
+        ???  (in <unknown binary>)  [0x1174497d0]        7
+        ???  (in <unknown binary>)  [0x11744ac04]        7
+        ???  (in <unknown binary>)  [0x11744c014]        7
+        ???  (in <unknown binary>)  [0x11744c1ac]        7
+        ???  (in <unknown binary>)  [0x11744ce78]        7
+        ???  (in <unknown binary>)  [0x1174858e8]        7
+        ???  (in <unknown binary>)  [0x11748b7b8]        7
+        ???  (in <unknown binary>)  [0x11748b7f4]        7
+        ???  (in <unknown binary>)  [0x1174ef7d8]        7
+        ???  (in <unknown binary>)  [0x107579090]        6
+        ???  (in <unknown binary>)  [0x10757ddf8]        6
+        ???  (in <unknown binary>)  [0x107d96d08]        6
+        ???  (in <unknown binary>)  [0x107d9712c]        6
+        ???  (in <unknown binary>)  [0x107dd4ec0]        6
+        ???  (in <unknown binary>)  [0x107dd50d0]        6
+        ???  (in <unknown binary>)  [0x107dd5220]        6
+        ???  (in <unknown binary>)  [0x107dd60d4]        6
+        ???  (in <unknown binary>)  [0x107f26280]        6
+        ???  (in <unknown binary>)  [0x107f263d8]        6
+        ???  (in <unknown binary>)  [0x107f264e4]        6
+        ???  (in <unknown binary>)  [0x107f26950]        6
+        ???  (in <unknown binary>)  [0x11735c568]        6
+        ???  (in <unknown binary>)  [0x11735d97c]        6
+        ???  (in <unknown binary>)  [0x11743de7c]        6
+        ???  (in <unknown binary>)  [0x11743e050]        6
+        ???  (in <unknown binary>)  [0x11743e2f8]        6
+        ???  (in <unknown binary>)  [0x117440c3c]        6
+        ???  (in <unknown binary>)  [0x117440ce4]        6
+        ???  (in <unknown binary>)  [0x117447b2c]        6
+        ???  (in <unknown binary>)  [0x117447f10]        6
+        ???  (in <unknown binary>)  [0x117447f8c]        6
+        ???  (in <unknown binary>)  [0x11744829c]        6
+        ???  (in <unknown binary>)  [0x117448424]        6
+        ???  (in <unknown binary>)  [0x1174484c4]        6
+        ???  (in <unknown binary>)  [0x117448d38]        6
+        ???  (in <unknown binary>)  [0x117448ee0]        6
+        ???  (in <unknown binary>)  [0x1174491c4]        6
+        ???  (in <unknown binary>)  [0x1174494d4]        6
+        ???  (in <unknown binary>)  [0x117449918]        6
+        ???  (in <unknown binary>)  [0x117449960]        6
+        ???  (in <unknown binary>)  [0x117449980]        6
+        ???  (in <unknown binary>)  [0x117449b00]        6
+        ???  (in <unknown binary>)  [0x11744a028]        6
+        ???  (in <unknown binary>)  [0x11744a070]        6
+        ???  (in <unknown binary>)  [0x11744a37c]        6
+        ???  (in <unknown binary>)  [0x11744a520]        6
+        ???  (in <unknown binary>)  [0x11744a8e0]        6
+        ???  (in <unknown binary>)  [0x11744ac30]        6
+        ???  (in <unknown binary>)  [0x11744ace8]        6
+        ???  (in <unknown binary>)  [0x11744bd8c]        6
+        ???  (in <unknown binary>)  [0x11744c194]        6
+        ???  (in <unknown binary>)  [0x11744c868]        6
+        ???  (in <unknown binary>)  [0x11744c8cc]        6
+        ???  (in <unknown binary>)  [0x11744d160]        6
+        ???  (in <unknown binary>)  [0x11745120c]        6
+        ???  (in <unknown binary>)  [0x117455318]        6
+        ???  (in <unknown binary>)  [0x11748572c]        6
+        ???  (in <unknown binary>)  [0x117485744]        6
+        ???  (in <unknown binary>)  [0x1174857f0]        6
+        ???  (in <unknown binary>)  [0x11748b654]        6
+        ???  (in <unknown binary>)  [0x11748b680]        6
+        ???  (in <unknown binary>)  [0x11748b6fc]        6
+        ???  (in <unknown binary>)  [0x11748b73c]        6
+        ???  (in <unknown binary>)  [0x1174edcd4]        6
+        ???  (in <unknown binary>)  [0x1174ee728]        6
+        ???  (in <unknown binary>)  [0x117569d34]        6
+        ???  (in <unknown binary>)  [0x11756a500]        6
+        _RNvXs0_NtCsYOMArLsCT1_10esp_periph4timgNtB5_10TimerGroupNtNtB7_6device6Device4tick  (in esp32sim)        6
+        _RNvXs0_NtCsYOMArLsCT1_10esp_periph5gpspiNtB5_5GpSpiNtNtB7_6device6Device5write  (in esp32sim)        6
+        _xzm_xzone_malloc_tiny  (in libsystem_malloc.dylib)        6
+        mach_absolute_time  (in libsystem_kernel.dylib)        6
+        ???  (in <unknown binary>)  [0x107a2b058]        5
+        ???  (in <unknown binary>)  [0x107a2b600]        5
+        ???  (in <unknown binary>)  [0x107a2b958]        5
+        ???  (in <unknown binary>)  [0x107a2ba20]        5
+        ???  (in <unknown binary>)  [0x107d942dc]        5
+        ???  (in <unknown binary>)  [0x107d95d30]        5
+        ???  (in <unknown binary>)  [0x107d95d4c]        5
+        ???  (in <unknown binary>)  [0x107d95da4]        5
+        ???  (in <unknown binary>)  [0x107d96654]        5
+        ???  (in <unknown binary>)  [0x107d96a5c]        5
+        ???  (in <unknown binary>)  [0x107d971e0]        5
+        ???  (in <unknown binary>)  [0x107d97664]        5
+        ???  (in <unknown binary>)  [0x107d98ef4]        5
+        ???  (in <unknown binary>)  [0x107d98f18]        5
+        ???  (in <unknown binary>)  [0x107da6f8c]        5
+        ???  (in <unknown binary>)  [0x107dd4eb4]        5
+        ???  (in <unknown binary>)  [0x107dd5158]        5
+        ???  (in <unknown binary>)  [0x107dd52c8]        5
+        ???  (in <unknown binary>)  [0x107dd532c]        5
+        ???  (in <unknown binary>)  [0x107dd5340]        5
+        ???  (in <unknown binary>)  [0x107f266f8]        5
+        ???  (in <unknown binary>)  [0x107f26728]        5
+        ???  (in <unknown binary>)  [0x11735c50c]        5
+        ???  (in <unknown binary>)  [0x11735c83c]        5
+        ???  (in <unknown binary>)  [0x11735cbcc]        5
+        ???  (in <unknown binary>)  [0x11735cd9c]        5
+        ???  (in <unknown binary>)  [0x11735dadc]        5
+        ???  (in <unknown binary>)  [0x11735db2c]        5
+        ???  (in <unknown binary>)  [0x11735df60]        5
+        ???  (in <unknown binary>)  [0x1173fec54]        5
+        ???  (in <unknown binary>)  [0x1174242b0]        5
+        ???  (in <unknown binary>)  [0x117429264]        5
+        ???  (in <unknown binary>)  [0x117431afc]        5
+        ???  (in <unknown binary>)  [0x11743401c]        5
+        ???  (in <unknown binary>)  [0x11743db24]        5
+        ???  (in <unknown binary>)  [0x11743dedc]        5
+        ???  (in <unknown binary>)  [0x11743e1b0]        5
+        ???  (in <unknown binary>)  [0x11743e1e0]        5
+        ???  (in <unknown binary>)  [0x11743e2e0]        5
+        ???  (in <unknown binary>)  [0x11743eab0]        5
+        ???  (in <unknown binary>)  [0x11743ebb0]        5
+        ???  (in <unknown binary>)  [0x117440e20]        5
+        ???  (in <unknown binary>)  [0x11744764c]        5
+        ???  (in <unknown binary>)  [0x11744786c]        5
+        ???  (in <unknown binary>)  [0x117447894]        5
+        ???  (in <unknown binary>)  [0x1174478a0]        5
+        ???  (in <unknown binary>)  [0x1174478b0]        5
+        ???  (in <unknown binary>)  [0x117447b8c]        5
+        ???  (in <unknown binary>)  [0x117447d28]        5
+        ???  (in <unknown binary>)  [0x117447d90]        5
+        ???  (in <unknown binary>)  [0x117447da8]        5
+        ???  (in <unknown binary>)  [0x117447e10]        5
+        ???  (in <unknown binary>)  [0x117447f28]        5
+        ???  (in <unknown binary>)  [0x117447fd8]        5
+        ???  (in <unknown binary>)  [0x117448074]        5
+        ???  (in <unknown binary>)  [0x11744807c]        5
+        ???  (in <unknown binary>)  [0x11744821c]        5
+        ???  (in <unknown binary>)  [0x117448300]        5
+        ???  (in <unknown binary>)  [0x117448544]        5
+        ???  (in <unknown binary>)  [0x1174485d0]        5
+        ???  (in <unknown binary>)  [0x117448c18]        5
+        ???  (in <unknown binary>)  [0x117448f28]        5
+        ???  (in <unknown binary>)  [0x1174493f0]        5
+        ???  (in <unknown binary>)  [0x1174496d0]        5
+        ???  (in <unknown binary>)  [0x117449a98]        5
+        ???  (in <unknown binary>)  [0x117449b8c]        5
+        ???  (in <unknown binary>)  [0x11744a158]        5
+        ???  (in <unknown binary>)  [0x11744a184]        5
+        ???  (in <unknown binary>)  [0x11744a2a4]        5
+        ???  (in <unknown binary>)  [0x11744a324]        5
+        ???  (in <unknown binary>)  [0x11744a488]        5
+        ???  (in <unknown binary>)  [0x11744a904]        5
+        ???  (in <unknown binary>)  [0x11744aba0]        5
+        ???  (in <unknown binary>)  [0x11744ac68]        5
+        ???  (in <unknown binary>)  [0x11744ade8]        5
+        ???  (in <unknown binary>)  [0x11744b4b4]        5
+        ???  (in <unknown binary>)  [0x11744b51c]        5
+        ???  (in <unknown binary>)  [0x11744b61c]        5
+        ???  (in <unknown binary>)  [0x11744b808]        5
+        ???  (in <unknown binary>)  [0x11744b8f4]        5
+        ???  (in <unknown binary>)  [0x11744bba4]        5
+        ???  (in <unknown binary>)  [0x11744bfe0]        5
+        ???  (in <unknown binary>)  [0x11744c0a8]        5
+        ???  (in <unknown binary>)  [0x11744c16c]        5
+        ???  (in <unknown binary>)  [0x11744c284]        5
+        ???  (in <unknown binary>)  [0x11744c288]        5
+        ???  (in <unknown binary>)  [0x11744cbbc]        5
+        ???  (in <unknown binary>)  [0x11744cbec]        5
+        ???  (in <unknown binary>)  [0x11744cda0]        5
+        ???  (in <unknown binary>)  [0x11744dd70]        5
+        ???  (in <unknown binary>)  [0x11744decc]        5
+        ???  (in <unknown binary>)  [0x11744e0d0]        5
+        ???  (in <unknown binary>)  [0x11744fa00]        5
+        ???  (in <unknown binary>)  [0x117455134]        5
+        ???  (in <unknown binary>)  [0x117455234]        5
+        ???  (in <unknown binary>)  [0x11745526c]        5
+        ???  (in <unknown binary>)  [0x1174552b8]        5
+        ???  (in <unknown binary>)  [0x117485798]        5
+        ???  (in <unknown binary>)  [0x117485884]        5
+        ???  (in <unknown binary>)  [0x11748b6c4]        5
+        ???  (in <unknown binary>)  [0x11748b764]        5
+        ???  (in <unknown binary>)  [0x11748b77c]        5
+        ???  (in <unknown binary>)  [0x11748b834]        5
+        ???  (in <unknown binary>)  [0x11748b874]        5
+        ???  (in <unknown binary>)  [0x1174efa9c]        5
+        ???  (in <unknown binary>)  [0x117569594]        5
+        ???  (in <unknown binary>)  [0x117569c68]        5
+        ???  (in <unknown binary>)  [0x11756a3f4]        5
+        ???  (in <unknown binary>)  [0x11756a4e0]        5

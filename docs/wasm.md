@@ -217,3 +217,11 @@ bootloader and partition table and differ only in `app`.
 the cycle, so their application timers never drift apart: every broadcast is sent while the other
 mote is transmitting, and nothing is ever heard. Real motes are staggered by their power-on; here
 it has to be said out loud.
+
+The browser build script defaults to LLVM inline threshold 4000, selected by
+[EX154](experiments.md#ex154) on Rust 1.98.1. Set `RUSTFLAGS` explicitly to override
+it; `RUSTFLAGS='' tools/wasm-build.sh` uses the compiler's default threshold.
+The script leaves the Rust-produced WASM unchanged unless `WASM_OPT=1` is set,
+which requests Binaryen `wasm-opt -O3` and requires that tool to be installed.
+The measured configuration used no Binaryen postprocessing. `CARGO_ENCODED_RUSTFLAGS`,
+when set, takes precedence over `RUSTFLAGS` under Cargo's usual rules.

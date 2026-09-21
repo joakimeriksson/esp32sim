@@ -1,0 +1,56 @@
+{
+  "baseline": {
+    "samples": 35423,
+    "top": [
+      "_RNvMs0_NtCs2k2w9SG2OMD_7esp_soc7machineINtB5_7MachineNtNtCsc82uIUqX6AM_7esp32s33soc2S3E3runCs3oWjDnRyk0y_8esp32sim  (in esp32sim)        7552",
+      "        _RINvNtCskgX8u586xsd_10xtensa_lx74exec9exec_insnNtNtCsc82uIUqX6AM_7esp32s33bus6SocBusECs3oWjDnRyk0y_8esp32sim  (in esp32sim)        4915",
+      "        _RINvNtCskgX8u586xsd_10xtensa_lx73pie4execNtNtCsc82uIUqX6AM_7esp32s33bus6SocBusECs3oWjDnRyk0y_8esp32sim  (in esp32sim)        3595",
+      "        _RINvNtNtCskgX8u586xsd_10xtensa_lx73jit6native6h_execNtNtCsc82uIUqX6AM_7esp32s33bus6SocBusECs3oWjDnRyk0y_8esp32sim  (in esp32sim)        1326",
+      "        _RNvXs_NtCsc82uIUqX6AM_7esp32s33busNtB4_6SocBusNtNtCsbExK99dUBJK_8emu_core3bus3Bus6read32  (in esp32sim)        1184",
+      "        _RNvXs_NtCsc82uIUqX6AM_7esp32s33busNtB4_6SocBusNtNtCsbExK99dUBJK_8emu_core3bus3Bus9read_bulk  (in esp32sim)        1161",
+      "        _RNvXs_NtCsc82uIUqX6AM_7esp32s33busNtB4_6SocBusNtNtCsbExK99dUBJK_8emu_core3bus3Bus7write32  (in esp32sim)        865",
+      "        _RNvMs0_NtCsc82uIUqX6AM_7esp32s33busNtB5_6SocBus11flush_ticks  (in esp32sim)        703",
+      "        _RINvNtCskgX8u586xsd_10xtensa_lx73pie10exec_tableNtNtCsc82uIUqX6AM_7esp32s33bus6SocBusECs3oWjDnRyk0y_8esp32sim  (in esp32sim)        700",
+      "        _RINvNtNtCskgX8u586xsd_10xtensa_lx73jit6native5h_pieNtNtCsc82uIUqX6AM_7esp32s33bus6SocBusECs3oWjDnRyk0y_8esp32sim  (in esp32sim)        622",
+      "        _RNvMNtCskgX8u586xsd_10xtensa_lx74execNtNtB4_5state3Cpu16check_interrupts  (in esp32sim)        496",
+      "        _RNvXs_NtCsc82uIUqX6AM_7esp32s33busNtB4_6SocBusNtNtCsbExK99dUBJK_8emu_core3bus3Bus6write8  (in esp32sim)        459",
+      "        _RNvNtCskgX8u586xsd_10xtensa_lx73pie7extract  (in esp32sim)        403",
+      "        _RNvXs_NtCsc82uIUqX6AM_7esp32s33busNtB4_6SocBusNtNtCsbExK99dUBJK_8emu_core3bus3Bus5read8  (in esp32sim)        267",
+      "        _RNvXs2_NtNtCsc82uIUqX6AM_7esp32s35board18waveshare_amoled18NtB5_19WaveshareAmoled18V2NtNtCs2k2w9SG2OMD_7esp_soc5board10BoardModel12spi_transfer  (in esp32sim)        251",
+      "        _RNvMs0_NtCs2k2w9SG2OMD_7esp_soc7machineINtB5_7MachineNtNtCsc82uIUqX6AM_7esp32s33soc2S3E11after_roundCs3oWjDnRyk0y_8esp32sim  (in esp32sim)        184",
+      "        _RNvMNtCskgX8u586xsd_10xtensa_lx73pieNtB2_3Ops3get  (in esp32sim)        145",
+      "        _RNvMsl_NtCsc82uIUqX6AM_7esp32s36periphNtB5_11Peripherals13source_status  (in esp32sim)        120",
+      "        _RNvMNtCsYOMArLsCT1_10esp_periph3rmtNtB2_3Rmt4tick  (in esp32sim)        108",
+      "        _RNvMs0_NtCs2k2w9SG2OMD_7esp_soc7machineINtB5_7MachineNtNtCsc82uIUqX6AM_7esp32s33soc2S3E16after_round_restCs3oWjDnRyk0y_8esp32sim  (in esp32sim)        97",
+      "        _RNvXs_NtNtNtCs8Mbv00yxnRz_4core4iter8adapters4takeINtB4_4TakeINtNtB6_9enumerate9EnumerateINtNtNtBa_5slice4iter7IterMutbEEENtNtNtB8_6traits8iterator8Iterator3nthCs3oWjDnRyk0y_8esp32sim  (in esp32sim)        75",
+      "        ???  (in <unknown binary>)  [0x10a82b424]        66"
+    ]
+  },
+  "final": {
+    "samples": 40813,
+    "top": [
+      "_RNvMNtCs2k2w9SG2OMD_7esp_soc7machineINtB2_7MachineNtNtCsc82uIUqX6AM_7esp32s33soc2S3E11step_blocksCs3oWjDnRyk0y_8esp32sim  (in esp32sim)        6261",
+      "        _RINvNtCskgX8u586xsd_10xtensa_lx74exec9exec_insnNtNtCsc82uIUqX6AM_7esp32s33bus6SocBusECs3oWjDnRyk0y_8esp32sim  (in esp32sim)        5073",
+      "        _RINvNtCskgX8u586xsd_10xtensa_lx73pie4execNtNtCsc82uIUqX6AM_7esp32s33bus6SocBusECs3oWjDnRyk0y_8esp32sim  (in esp32sim)        3649",
+      "        _RINvNtCskgX8u586xsd_10xtensa_lx75block10find_blockNtNtCsc82uIUqX6AM_7esp32s33bus6SocBusECs3oWjDnRyk0y_8esp32sim  (in esp32sim)        3131",
+      "        _RNvMNtCs2k2w9SG2OMD_7esp_soc7machineINtB2_7MachineNtNtCsc82uIUqX6AM_7esp32s33soc2S3E3runCs3oWjDnRyk0y_8esp32sim  (in esp32sim)        1733",
+      "        _RNvMNtCs2k2w9SG2OMD_7esp_soc7machineINtB2_7MachineNtNtCsc82uIUqX6AM_7esp32s33soc2S3E17observe_executionCs3oWjDnRyk0y_8esp32sim  (in esp32sim)        1703",
+      "        _RINvNtNtCskgX8u586xsd_10xtensa_lx73jit6native6h_execNtNtCsc82uIUqX6AM_7esp32s33bus6SocBusECs3oWjDnRyk0y_8esp32sim  (in esp32sim)        1627",
+      "        _RNvXs1_NtCsc82uIUqX6AM_7esp32s33busNtB5_6SocBusNtNtCsbExK99dUBJK_8emu_core3bus3Bus9read_bulk  (in esp32sim)        1241",
+      "        _RNvXs1_NtCsc82uIUqX6AM_7esp32s33busNtB5_6SocBusNtNtCsbExK99dUBJK_8emu_core3bus3Bus6read32  (in esp32sim)        1005",
+      "        _RINvNtCskgX8u586xsd_10xtensa_lx73pie10exec_tableNtNtCsc82uIUqX6AM_7esp32s33bus6SocBusECs3oWjDnRyk0y_8esp32sim  (in esp32sim)        778",
+      "        _RINvNtNtCskgX8u586xsd_10xtensa_lx73jit6native5h_pieNtNtCsc82uIUqX6AM_7esp32s33bus6SocBusECs3oWjDnRyk0y_8esp32sim  (in esp32sim)        710",
+      "        _RNvXs1_NtCsc82uIUqX6AM_7esp32s33busNtB5_6SocBusNtNtCsbExK99dUBJK_8emu_core3bus3Bus7write32  (in esp32sim)        587",
+      "        _RNvMNtCsc82uIUqX6AM_7esp32s33busNtB2_6SocBus17price_cached_data  (in esp32sim)        484",
+      "        _RNvMNtCskgX8u586xsd_10xtensa_lx74execNtNtB4_5state3Cpu16check_interrupts  (in esp32sim)        436",
+      "        _RNvNtCskgX8u586xsd_10xtensa_lx73pie7extract  (in esp32sim)        436",
+      "        _RNvMNtCskgX8u586xsd_10xtensa_lx73pieNtB2_3Ops3get  (in esp32sim)        187",
+      "        ???  (in <unknown binary>)  [0x10a04e724]        139",
+      "        _RNvMNtCs2k2w9SG2OMD_7esp_soc7machineINtB2_7MachineNtNtCsc82uIUqX6AM_7esp32s33soc2S3E16after_round_restCs3oWjDnRyk0y_8esp32sim  (in esp32sim)        122",
+      "        _RNvMsl_NtCsc82uIUqX6AM_7esp32s36periphNtB5_11Peripherals13source_status  (in esp32sim)        119",
+      "        _RNvXs_NtNtNtCs8Mbv00yxnRz_4core4iter8adapters4takeINtB4_4TakeINtNtB6_9enumerate9EnumerateINtNtNtBa_5slice4iter7IterMutbEEENtNtNtB8_6traits8iterator8Iterator3nthCs3oWjDnRyk0y_8esp32sim  (in esp32sim)        93",
+      "        _RNvMs2_NtCsc82uIUqX6AM_7esp32s33busNtB5_6SocBus19refresh_tick_budget  (in esp32sim)        91",
+      "        _RNvMNtCs2k2w9SG2OMD_7esp_soc7machineINtB2_7MachineNtNtCsc82uIUqX6AM_7esp32s33soc2S3E11after_roundCs3oWjDnRyk0y_8esp32sim  (in esp32sim)        89"
+    ]
+  }
+}

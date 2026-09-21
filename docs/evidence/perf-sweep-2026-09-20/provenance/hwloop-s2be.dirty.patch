@@ -1,0 +1,216 @@
+diff --git a/wasm/src/s3.rs b/wasm/src/s3.rs
+index 71455924..8de08921 100644
+--- a/wasm/src/s3.rs
++++ b/wasm/src/s3.rs
+@@ -267,6 +267,7 @@ pub unsafe extern "C" fn esp32sim_block_jit_insns(e: *mut Emu) -> f64 {
+ pub unsafe extern "C" fn esp32sim_profile_report(e: *mut Emu) {
+     // SAFETY: the ABI caller guarantees a live exclusive handle.
+     if let Some(m) = unsafe { &mut *e }.m.s3_mut() {
++        log(&xtensa_lx7::jit::hwloop_report());
+         log(&format!("[census-rounds] cycles[both_busy,core0_idle,core1_idle,all_idle,vq_core0,vq_core1,ordinary_rounds]={:?} vq_stats[runs,quanta,device_stop,waiti]={:?}", m.round_census, m.vq_stats));
+         for (i, core) in m.cores.iter().enumerate() {
+             log(&format!("core={i}\n{}", core.blocks.profile.report()));
+diff --git a/xtensa-lx7/src/jit/wasm.rs b/xtensa-lx7/src/jit/wasm.rs
+index be2b5a55..eee83410 100644
+--- a/xtensa-lx7/src/jit/wasm.rs
++++ b/xtensa-lx7/src/jit/wasm.rs
+@@ -111,6 +111,9 @@ struct Block {
+     pcs: Vec<u32>,
+     fast: bool,
+     loop_prefix: usize,
++    /// EX160: loop length the installed module was specialized for (0 = none), and attempts.
++    loop_n: Cell<u32>,
++    loop_tries: Cell<u8>,
+     generation: u64,
+     hits: Cell<u32>,
+     slot: Cell<u32>,
+@@ -301,6 +304,8 @@ fn queue(cc: &mut CodeCache, instructions: &mut [BlockInsn], pc: u32, fast: bool
+                 && matches!(i.insn.imm as u32, crate::state::sr::LBEG | crate::state::sr::LEND | crate::state::sr::LCOUNT))) { 0 }
+             else { instructions.iter().take_while(|i| emitter::loop_safe(i.insn.op, fast)).count() },
+         instructions: instructions.to_vec(),
++        loop_n: Cell::new(0),
++        loop_tries: Cell::new(0),
+         pc,
+         fast,
+         generation: cc.generation,
+@@ -329,7 +334,7 @@ fn prepare(b: &Block) -> bool {
+     let hits = b.hits.get() + 1;
+     b.hits.set(hits);
+     if hits < HOT { return false; }
+-    let bytes = generate(b);
++    let bytes = generate(b, 0);
+     // SAFETY: The host synchronously copies these bytes, installs a module using the
+     // shared memory/table, and returns a correctly typed function slot or zero.
+     let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
+@@ -338,6 +343,23 @@ fn prepare(b: &Block) -> bool {
+     slot != 0
+ }
+ 
++/// EX160: reinstall the block's module with a fast loop for the hardware loop end seen now.
++#[cold]
++#[inline(never)]
++fn specialize(b: &Block, n: usize) {
++    b.loop_tries.set(b.loop_tries.get() + 1);
++    let bytes = generate(b, n);
++    // SAFETY: as in `prepare`; the old module is not executing (we are between compiled calls).
++    let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
++    if slot == 0 { return; }
++    unsafe { host_jit_release(b.slot.get()); }
++    b.slot.set(slot);
++    b.bytes.set(bytes.len());
++    b.loop_n.set(n as u32);
++    #[cfg(feature = "wasm-jit-profile")]
++    unsafe { emitter::hwloop::STATS[3] += 1; }
++}
++
+ #[repr(C)]
+ #[derive(Clone, Copy)]
+ pub struct Helpers {
+@@ -680,10 +702,15 @@ fn region_stats(cc: &CodeCache, result: u32, budget: u32, site: Option<ExitSite>
+ unsafe fn run_block_body<B: Bus>(cc: &CodeCache, code: u32, cpu: &mut Cpu, bus: &mut B, h: &Helpers, budget: u32, entry: u32, tlb: *const TlbEntry, versions: *mut u32) -> u32 {
+     type Run<B> =
+         extern "C" fn(*mut Cpu, *mut B, *const Helpers, u32, u32, *const TlbEntry, *mut u32) -> u32;
+-    // SAFETY: host_jit_compile installs exactly this signature in the shared WASM table.
+-    let f: Run<B> = unsafe { std::mem::transmute(cc.blocks[code as usize].slot.get() as usize) };
+     let b = &cc.blocks[code as usize];
+     let looping = loop_len(cc, code, cpu);
++    if emitter::hwloop::MODE != 0 {
++        if let Some(n) = looping {
++            if b.loop_n.get() != n as u32 && b.loop_tries.get() < 3 { specialize(b, n); }
++        }
++    }
++    // SAFETY: host_jit_compile installs exactly this signature in the shared WASM table.
++    let f: Run<B> = unsafe { std::mem::transmute(b.slot.get() as usize) };
+     let initial_lcount = cpu.lcount;
+     let result = if looping.is_some() {
+         let mut guarded = *h;
+@@ -735,3 +762,12 @@ pub mod profile;
+ #[cfg(feature = "wasm-jit-tests")]
+ #[path = "wasm_tests.rs"]
+ pub mod tests;
++
++/// EX160 counters of the opt-in profile build.
++#[cfg(feature = "wasm-jit-profile")]
++pub fn hwloop_report() -> String {
++    // SAFETY: single-threaded WASM; generated code and this reader never overlap.
++    let s = unsafe { std::ptr::addr_of!(emitter::hwloop::STATS).read() };
++    format!("[hwloop] mode={} hoisted_iterations={} probed_fast_iterations={} hoist_refused={} specialized_modules={} simd_blocks={}",
++        emitter::hwloop::MODE, s[0], s[1], s[2], s[3], s[4])
++}
+diff --git a/xtensa-lx7/src/jit/wasm_emit.rs b/xtensa-lx7/src/jit/wasm_emit.rs
+index f232a582..66c64453 100644
+--- a/xtensa-lx7/src/jit/wasm_emit.rs
++++ b/xtensa-lx7/src/jit/wasm_emit.rs
+@@ -13,6 +13,8 @@ mod policy;
+ mod memory;
+ #[path = "wasm_instruction.rs"]
+ mod instruction;
++#[path = "wasm_hwloop.rs"]
++pub(super) mod hwloop;
+ pub(super) use policy::{admitted, supported_insn, loop_safe, terminal_helper};
+ #[cfg(feature = "wasm-jit-tests")]
+ pub(super) use policy::supported;
+@@ -80,6 +82,8 @@ struct Gen {
+     max_ar: u8,
+     /// Region emission state, when compiling several chunks into one function.
+     region: Option<RegionGen>,
++    /// EX160: per block instruction, the proved memory stream its access belongs to.
++    hoist: Vec<Option<hwloop::Stream>>,
+     /// PC of the most recently emitted guest instruction, for exit-site attribution.
+     last_pc: u32,
+     #[cfg(feature = "wasm-jit-profile")]
+@@ -474,7 +478,7 @@ impl Gen {
+ 
+ }
+ 
+-pub(super) fn generate(block: &Block) -> Vec<u8> {
++pub(super) fn generate(block: &Block, fast_n: usize) -> Vec<u8> {
+     // A conservative operand mask avoids loading all sixteen registers for tiny blocks.
+     // Interpreter-only opcodes may use implicit registers, so their test/future helper
+     // path retains the full register file.
+@@ -533,7 +537,7 @@ pub(super) fn generate(block: &Block) -> Vec<u8> {
+         g.op(0x71);
+     }
+     g.begin_if();
+-    emit_body(&mut g, block.pc, &block.instructions, block.fast, looping, true, cp);
++    emit_body(&mut g, block.pc, &block.instructions, 0..block.instructions.len(), block.fast, looping, true, cp);
+     g.end();
+     // Cuts, resumes and repeats count at run time; the whole body above never wrote DONE.
+     g.dynamic = true;
+@@ -546,10 +550,11 @@ pub(super) fn generate(block: &Block) -> Vec<u8> {
+         g.written &= registers;
+         g.begin_loop(); // repeat loop
+         g.begin_block(); // shared-backedge block
++        if fast_n != 0 && fast_n <= block.loop_prefix { hwloop::emit(&mut g, block, fast_n); }
+     } else {
+         g.written = 0;
+     }
+-    emit_body(&mut g, block.pc, &block.instructions, block.fast, looping, false, 0);
++    emit_body(&mut g, block.pc, &block.instructions, 0..block.instructions.len(), block.fast, looping, false, 0);
+     if looping {
+         g.pending = 0; // the checked body ended with a return
+         g.end();
+@@ -585,6 +590,7 @@ fn emit_body(
+     g: &mut Gen,
+     pc0: u32,
+     instructions: &[BlockInsn],
++    span: std::ops::Range<usize>,
+     fast: bool,
+     looping: bool,
+     whole: bool,
+@@ -593,8 +599,10 @@ fn emit_body(
+     let mut pc = pc0;
+     let mut window_changed = false;
+     let extras = if super::PRICED.load(std::sync::atomic::Ordering::Relaxed) { crate::exec::static_extras(instructions.iter().map(|b| &b.insn)) } else { vec![0; instructions.len()] };
+-    for (index, bi) in instructions.iter().enumerate() {
++    let count = span.end;
++    for (index, bi) in instructions.iter().enumerate().take(count) {
+         let next = pc.wrapping_add(bi.insn.len as u32);
++        if index < span.start { pc = next; continue; }
+         g.last_pc = pc;
+         #[cfg(feature = "wasm-jit-profile")]
+         { g.last_kind = ExitKind::for_op(bi.insn.op); }
+@@ -685,6 +693,7 @@ fn emit_body(
+         }
+         pc = next;
+     }
++    if count != instructions.len() { return; }
+     if g.region.is_some() {
+         // A J, call, return or JX already left; a trailing edge would be unreachable.
+         let last = instructions.last().unwrap();
+@@ -765,7 +774,7 @@ fn module(body: &[u8]) -> Vec<u8> {
+     name(&mut exports, "run");
+     exports.extend([0, 0]);
+     section(&mut out, 7, &exports);
+-    let mut func = vec![3, if cfg!(feature = "wasm-cache-inline") { 29 } else { 25 }, 0x7f, 1, 0x7b, 1, 0x7e];   // i32 locals, then V128 and WIDE
++    let mut func = vec![4, if cfg!(feature = "wasm-cache-inline") { 29 } else { 25 }, 0x7f, 1, 0x7b, 1, 0x7e, hwloop::EXTRA_LOCALS, 0x7f];   // i32 locals, then V128 and WIDE, then EX160 locals
+     func.extend(body);
+     let mut code = vec![1];
+     uleb(&mut code, func.len());
+diff --git a/xtensa-lx7/src/jit/wasm_memory.rs b/xtensa-lx7/src/jit/wasm_memory.rs
+index ea5a4651..7468cbe8 100644
+--- a/xtensa-lx7/src/jit/wasm_memory.rs
++++ b/xtensa-lx7/src/jit/wasm_memory.rs
+@@ -12,6 +12,9 @@ const _: () = {
+ pub(super) fn emit(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
+     use crate::Op::*;
+     let i = &bi.insn;
++    if let Some(Some(stream)) = g.hoist.get(bi.off as usize).copied() {
++        return hwloop::access(g, bi, stream);
++    }
+     let store = matches!(i.op, S8i | S16i | S32i | S32iN | Ssi);
+     let width = match i.op {
+         L8ui | S8i => 1,
+diff --git a/xtensa-lx7/src/jit/wasm_region.rs b/xtensa-lx7/src/jit/wasm_region.rs
+index 00e0fe39..9f876bd6 100644
+--- a/xtensa-lx7/src/jit/wasm_region.rs
++++ b/xtensa-lx7/src/jit/wasm_region.rs
+@@ -342,7 +342,7 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
+             r.loop_depth = loop_depth;
+             r.chunk_depth = g.ctl.len();
+         }
+-        emit_body(&mut g, chunk.pc, &chunk.instructions, fast, false, true, cp);
++        emit_body(&mut g, chunk.pc, &chunk.instructions, 0..chunk.instructions.len(), fast, false, true, cp);
+     }
+     g.op(0x00); // every chunk leaves or branches; no fallthrough out of the last one
+     g.end(); // dispatch loop

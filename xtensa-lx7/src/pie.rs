@@ -1,7 +1,8 @@
 //! ESP32-S3 Processor Instruction Extensions (PIE): the `ee.*` SIMD instructions on eight 128-bit Q
 //! registers, the 40-bit ACCX and the 2x160-bit QACC accumulators. Encodings come from the TRM's
 //! per-instruction "Instruction Word" layouts (`pie_table.rs`, generated), semantics from the
-//! "Operation" pseudo-code of the same chapter. 24-bit forms live in op0 = 4, 32-bit forms in op0 = 0xe/0xf.
+//! "Operation" pseudo-code of the same chapter. 24-bit forms use op0 = 4 or the two QRST
+//! custom slots (op0 = 0, op1 = 6/7); 32-bit forms use op0 = 0xe/0xf.
 //! PIE is coprocessor 3: executing any of these with CPENABLE[3] clear raises the CP3-disabled exception,
 //! which is how FreeRTOS lazily saves/restores the state per task.
 use crate::bus::Bus;
@@ -31,9 +32,12 @@ pub enum Kind {
 
 /// Decode a PIE instruction word (bytes 0..3 of the fetch, little-endian). Returns the table index.
 pub fn decode(w: u32) -> Option<usize> {
-    let op0 = w & 0xf;
-    if op0 != 4 && op0 != 0xe && op0 != 0xf { return None; }
-    let len = if op0 == 4 { 3 } else { 4 };
+    let len = match w & 0xf {
+        0 if matches!((w >> 16) & 0xf, 6 | 7) => 3,
+        4 => 3,
+        0xe | 0xf => 4,
+        _ => return None,
+    };
     let w = if len == 3 { w & 0xff_ffff } else { w };
     OPS.iter().position(|p| p.len == len && (w & p.mask) == p.value)
 }
@@ -95,6 +99,16 @@ pub fn format(w: u32, idx: usize) -> String {
 #[inline] fn usat(v: i64, bits: u32) -> i64 { v.clamp(0, (1i64 << bits) - 1) }
 #[inline] fn sext(v: i64, bits: u32) -> i64 { (v << (64 - bits)) >> (64 - bits) }
 
+/// One signed complex product, truncated to two 16-bit lanes after the SAR shift.
+fn fft_cmul(x: u128, y: u128, sel: u32, sar: u32) -> u32 {
+    let pair = sel / 2;
+    let (xr, xi) = (lane(x, 16, 2 * pair), lane(x, 16, 2 * pair + 1));
+    let (yr, yi) = (lane(y, 16, 2 * pair), lane(y, 16, 2 * pair + 1));
+    let (re, im) = if sel & 1 == 0 { (xr * yr + xi * yi, xi * yr - xr * yi) }
+                   else { (xr * yr - xi * yi, xi * yr + xr * yi) };
+    u32::from((re >> sar) as u16) | (u32::from((im >> sar) as u16) << 16)
+}
+
 struct Qacc { lo: u128, hi: u32 }
 impl Qacc {
     fn from(a: &[u32; 5]) -> Qacc { Qacc { lo: a[0] as u128 | (a[1] as u128) << 32 | (a[2] as u128) << 64 | (a[3] as u128) << 96, hi: a[4] } }
@@ -140,7 +154,8 @@ fn st<B: Bus>(cpu: &mut Cpu, bus: &mut B, a: u32, bytes: u32, v: u128) -> Result
 
 pub fn exec<B: Bus>(cpu: &mut Cpu, bus: &mut B, i: &Insn) -> Result<(), Trap> {
     if cpu.cpenable & (1 << 3) == 0 { return Err(cpu.raise(exc::COPROCESSOR0_DISABLED + 3)); }
-    if i.r & PACKED != 0 { return exec_packed(cpu, bus, i); }
+    // The optional PIE cost hypotheses are charged in the table executor only.
+    if i.r & PACKED != 0 && cpu.approximate_pie_mode == 0 { return exec_packed(cpu, bus, i); }
     exec_table(cpu, bus, i)
 }
 
@@ -238,20 +253,55 @@ fn exec_table<B: Bus>(cpu: &mut Cpu, bus: &mut B, i: &Insn) -> Result<(), Trap> 
             for k in 0..n { let acc = qacc_get(cpu, wd, k, true) + lane(x, wd, k) * t; qacc_set(cpu, wd, k, sat(acc, aw)); }
             if ldq { let v = ld(cpu, bus, ar!(As), 16)?; setq!(Qu, v); post!(Mode::Incp); }
         }
-        Kind::Cmul { store } => {
-            let (x, y) = (q!(Qx), q!(Qy)); let sel = o.get(Sel) as u32; let pair = sel / 2; let sub = sel & 1 == 1;
-            if pair < 3 {
-                let (xr, xi, yr, yi) = (lane(x, 16, 2 * pair), lane(x, 16, 2 * pair + 1), lane(y, 16, 2 * pair), lane(y, 16, 2 * pair + 1));
-                let (re, im) = if !sub { ((xr * yr + xi * yi) >> sar, (xi * yr - xr * yi) >> sar) } else { ((xr * yr - xi * yi) >> sar, (xi * yr + xr * yi) >> sar) };
-                let dst = if o.has(Qz) { Qz } else { Qa }; let mut r = q!(dst); set_lane(&mut r, 16, 2 * pair, re as u64); set_lane(&mut r, 16, 2 * pair + 1, im as u64); setq!(dst, r);
+        Kind::Cmul { store: false } => {
+            // Read before committing Qz so a load fault can restart with aliased inputs.
+            let loaded = ld(cpu, bus, ar!(As), 16)?;
+            let sel = o.get(Sel) as u32;
+            // TRM 1.8.11 defines Qz updates only for sel8 = 0..5. The final pair is
+            // computed by ST.XP, which stores the complete FFT result without changing Qz.
+            if sel < 6 {
+                let v = fft_cmul(q!(Qx), q!(Qy), sel, sar);
+                let mut r = q!(Qz); set_lane(&mut r, 32, sel / 2, v as u64); setq!(Qz, r);
             }
-            if store { st(cpu, bus, ar!(As), 16, q!(Qv))?; } else { let v = ld(cpu, bus, ar!(As), 16)?; setq!(Qu, v); }
+            setq!(Qu, loaded);
+            post!(Mode::Xp);
+        }
+        Kind::Cmul { store: true } => {
+            let (sel, upd) = (o.get(Sel) as u32, o.get(Upd));
+            // TRM 1.8.12 specifies sel8 = 6/7 and upd4 = 0/1/2 only. Do not invent
+            // values for its undefined temporary or undocumented store layout.
+            if sel < 6 || upd > 2 { return Err(Trap::Unimplemented(cpu.pc, w)); }
+            let x = q!(Qx);
+            let mut v = q!(Qv);
+            // Signed shift is an emulator assumption: TRM pseudocode does not specify
+            // arithmetic versus logical shifting here. Negative lanes need silicon validation.
+            if upd != 0 {
+                for k in 0..4 { set_lane(&mut v, 16, k, (lane(x, 16, k) >> o.get(Sar)) as u64); }
+                if upd == 2 {
+                    // The final FFT stage exchanges the middle 32-bit groups.
+                    let (lo, hi) = (lane_u(v, 32, 1), lane_u(v, 32, 2));
+                    set_lane(&mut v, 32, 1, hi); set_lane(&mut v, 32, 2, lo);
+                }
+            }
+            set_lane(&mut v, 32, 3, fft_cmul(x, q!(Qy), sel, sar) as u64);
+            st(cpu, bus, ar!(As), 16, v)?;
             post!(Mode::Xp);
         }
         Kind::LdQr => { let v = ld(cpu, bus, ar!(As).wrapping_add(o.get(Imm) as u32), 16)?; setq!(Qu, v); }
         Kind::StQr => { st(cpu, bus, ar!(As).wrapping_add(o.get(Imm) as u32), 16, q!(Qs))?; }
         Kind::MvQr => { let s = if o.has(Qs) { q!(Qs) } else { q!(Qx) }; let dst = if o.has(Qu) { Qu } else { Qa }; setq!(dst, s); }
         Kind::Unimpl => return Err(Trap::Unimplemented(cpu.pc, w)),
+    }
+    let extra = match cpu.approximate_pie_mode {
+        1 if matches!(p.kind, Kind::Vld128(_) | Kind::Vst128(_) | Kind::LdUsar(_)
+            | Kind::SrcQ { ld: Mode::Ip | Mode::Xp, .. } | Kind::LdQr | Kind::StQr) => 1,
+        2 if matches!(p.kind, Kind::SrcQ { ld: Mode::Ip | Mode::Xp, .. }) => 2,
+        _ => 0,
+    };
+    if extra != 0 {
+        bus.add_timing_penalty(extra);
+        cpu.approximate_pie_events += 1;
+        cpu.approximate_pie_cycles += u64::from(extra);
     }
     Ok(())
 }
@@ -541,5 +591,42 @@ mod tests {
         assert_eq!(dot_s8(&[0x80; 16], &[0x7f; 16]), -16 * 128 * 127);
         let min16: [u8; 16] = [0x00, 0x80].repeat(8).try_into().unwrap();
         assert_eq!(dot_s16(&min16, &min16), 8 * (1i64 << 30));
+    }
+}
+
+#[cfg(test)]
+mod timing_tests {
+    use super::*;
+    struct Ram { inner: emu_core::FlatRam, penalty: u32 }
+    impl Bus for Ram {
+        fn read8(&mut self, a: u32) -> Result<u8, crate::Fault> { self.inner.read8(a) }
+        fn read16(&mut self, a: u32) -> Result<u16, crate::Fault> { self.inner.read16(a) }
+        fn read32(&mut self, a: u32) -> Result<u32, crate::Fault> { self.inner.read32(a) }
+        fn write8(&mut self, a: u32, v: u8) -> Result<(), crate::Fault> { self.inner.write8(a, v) }
+        fn write16(&mut self, a: u32, v: u16) -> Result<(), crate::Fault> { self.inner.write16(a, v) }
+        fn write32(&mut self, a: u32, v: u32) -> Result<(), crate::Fault> { self.inner.write32(a, v) }
+        fn fetch(&mut self, a: u32) -> Result<[u8; 4], crate::Fault> { self.inner.fetch(a) }
+        fn add_timing_penalty(&mut self, cycles: u32) { self.penalty += cycles; }
+    }
+    #[test]
+    fn selective_pie_costs_only_charge_successful_selected_instructions() {
+        for (name, costs) in [("ee.vld.128.ip", [0, 1, 0]), ("ee.vst.128.ip", [0, 1, 0]),
+            ("ee.ld.128.usar.ip", [0, 1, 0]), ("ee.src.q.ld.ip", [0, 1, 2]), ("ee.src.q", [0, 0, 0])] {
+            let p = OPS.iter().find(|p| p.name == name).unwrap();
+            let i = crate::decode::decode(0, p.value.to_le_bytes());
+            for (mode, expected) in costs.into_iter().enumerate() {
+                let mut cpu = Cpu::new(0);
+                cpu.cpenable = 8;
+                cpu.approximate_pie_mode = mode as u32;
+                let mut ram = Ram { inner: emu_core::FlatRam::new(0, 64), penalty: 0 };
+                exec(&mut cpu, &mut ram, &i).unwrap();
+                assert_eq!(ram.penalty, expected, "{name} mode {mode}");
+                assert_eq!(cpu.approximate_pie_cycles, u64::from(expected));
+                assert_eq!(cpu.approximate_pie_events, u64::from(expected != 0));
+                cpu.cpenable = 0;
+                assert!(exec(&mut cpu, &mut ram, &i).is_err());
+                assert_eq!(ram.penalty, expected);
+            }
+        }
     }
 }

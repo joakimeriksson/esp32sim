@@ -1,0 +1,22 @@
+PASS: historical ESP-IDF WiFi station WPA2 join and DHCP on integrated native CLI.
+  wifi-qualification.log:455 msg2 transmitted (157-byte 802.11 frame)
+  wifi-qualification.log:456 station MIC VERIFIED
+  wifi-qualification.log:509 msg4 transmitted (135-byte 802.11 frame)
+  wifi-qualification.log:510 four-way handshake complete
+  wifi-qualification.log:518 guest Key negotiation completed
+  wifi-qualification.log:579 sta ip 10.0.2.15
+  wifi-qualification.log:734 zero TCP and UDP flows (station specimen only joins)
+  Exact EAPOL/key-data length equality is enforced in integrated esp32s3/src/wifi.rs:269-270 before successful message processing. Success establishes these specimen messages passed that guard; outgoing declared lengths are not dumped directly by this logging mode. This does not establish compatibility with every ESP-IDF blob.
+
+PASS: pinned Linux-on-S3 release 0.7 image retrieves local HTTP content through NAT TCP.
+  linux-local-only.log:232-234 connect 127.0.0.1:18799 and host response
+  linux-local-only.log:236-237 exact marker esp32sim-nat-loopback-pass, 27-byte download, 100%
+  linux-local-only.log:330 1 TCP connection, 0 failed, 0 UDP flows, 91 bytes out, 148 bytes in
+  local-only-http.log:2 GET /qualification from 127.0.0.1
+  linux-local-only-actions.txt restricts guest egress before association and routes host loopback via virtual gateway.
+  local-http.cjs binds only 127.0.0.1 and returns the fixed marker. Listener stopped after the run.
+
+Build provenance: cb2ec043394e58df0d6469d6b16627c31a963ac2, confirmed by integration coordinator. Binary SHA256 f54db6154a03030cad0bf110a0dac0e47d66331d4dd5f3236ebd18383ecca80e.
+Input provenance and commands are in commands.txt and inputs.sha256. No emulator or firmware rebuild or source changes were made during qualification.
+
+Limits: this is a Linux TCP smoke test, not a loss/retransmission stress test or a separate lwIP application traffic test. UDP capacity and peer filtering have unit coverage from the earlier patch. The initial exploratory linux-nat.log allowed the stock image's background DNS/NTP; the final linux-local-only.log has zero UDP NAT flows. Existing last-bus-fault diagnostics occur at exit, but login, network association and the checked HTTP response completed.

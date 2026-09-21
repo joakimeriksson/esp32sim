@@ -94,6 +94,13 @@ impl CacheEntry {
 #[inline(always)]
 pub fn icache_index(pc: u32) -> usize { ((pc >> 1) ^ (pc >> 17)) as usize & (ICACHE_SIZE - 1) }
 
+fn decode_pie(w: u32) -> Option<Insn> {
+    let idx = crate::pie::decode(w)?;
+    let max_ar = crate::pie::max_ar(w, idx);
+    let (r, s, t) = crate::pie::pack(w, idx);
+    Some(Insn::new(Op::Pie, r, s, t, idx as i32, max_ar as i32, crate::pie::OPS[idx].len, w))
+}
+
 pub fn decode(pc: u32, bytes: [u8; 4]) -> Insn {
     let b0 = bytes[0];
     let b1 = bytes[1];
@@ -237,7 +244,7 @@ pub fn decode(pc: u32, bytes: [u8; 4]) -> Insn {
                 _ => ill3,
             },
             4 | 5 => i3ii!(Op::Extui, ((op1 & 1) << 4) | s, op2 + 1),
-            6 | 7 => Insn::new(Op::Pie, r, s, t, 0, 0, 3, w24),   // CUST0/CUST1: ee.* ops
+            6 | 7 => decode_pie(w24).unwrap_or(ill3), // S3's EE.LDF.64.XP / EE.STF.64.XP.
             8 => match op2 {
                 0 => i3!(Op::Lsx), 1 => i3!(Op::Lsxp), 4 => i3!(Op::Ssx), 5 => i3!(Op::Ssxp),
                 _ => ill3,
@@ -314,14 +321,13 @@ pub fn decode(pc: u32, bytes: [u8; 4]) -> Insn {
         },
         // ---------------------------------------------------------------- MAC16 / PIE (op0 = 4)
         4 => {
-            // the ESP32-S3 has no MAC16; op0 = 4 is the 24-bit PIE space (kept: MAC16 fallback for data the old objdump decodes)
-            if let Some(idx) = crate::pie::decode(w24) { let m = crate::pie::max_ar(w24, idx); let (pr, ps, pt) = crate::pie::pack(w24, idx); return Insn::new(Op::Pie, pr, ps, pt, idx as i32, m as i32, 3, w24); }
-            Insn::new(Op::Mac16, r, s, t, 0, 0, 3, w24)
+            // PIE shares op0 = 4 with MAC16; recognize configured PIE encodings first.
+            // ESP-IDF's esp32s3 core-isa.h sets XCHAL_HAVE_MAC16 = 1.
+            decode_pie(w24).unwrap_or_else(|| Insn::new(Op::Mac16, r, s, t, 0, 0, 3, w24))
         }
         0xe | 0xf => {
             let w32 = u32::from_le_bytes(bytes);
-            if let Some(idx) = crate::pie::decode(w32) { let m = crate::pie::max_ar(w32, idx); let (pr, ps, pt) = crate::pie::pack(w32, idx); return Insn::new(Op::Pie, pr, ps, pt, idx as i32, m as i32, 4, w32); }
-            ill3
+            decode_pie(w32).unwrap_or(ill3)
         }
         // ---------------------------------------------------------------- CALLN
         5 => {
@@ -402,11 +408,8 @@ pub fn decode(pc: u32, bytes: [u8; 4]) -> Insn {
             },
             _ => Insn::new(Op::IllN, r, s, t, 0, 0, 2, w16),
         },
-        // op0 = 14/15: 32-bit PIE formats on the S3
-        _ => {
-            let w32 = w24 | (bytes[3] as u32) << 24;
-            Insn::new(Op::Pie, r, s, t, 0, 0, 4, w32)
-        }
+        // PIE encodings were handled before the base op0 match.
+        _ => ill3,
     }
 }
 

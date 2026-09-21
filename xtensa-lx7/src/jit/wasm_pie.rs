@@ -18,40 +18,6 @@ fn table(i: &crate::Insn) -> (&'static PieInsn, Ops) {
     (p, extract(i.raw, p))
 }
 
-pub(super) fn supported(i: &crate::Insn, fast: bool) -> bool {
-    if i.op != crate::Op::Pie {
-        return false;
-    }
-    match OPS[i.imm as usize].kind {
-        Kind::Andq | Kind::Orq | Kind::Xorq | Kind::Notq | Kind::MoviQ | Kind::ZeroQ => true,
-        Kind::Vcmp { w, .. } => matches!(w, 8 | 16 | 32),
-        Kind::Vld128(Mode::Ip) | Kind::Vst128(Mode::Ip) => fast,
-        Kind::ZeroAccx => true,
-        Kind::Vmulas { signed: true, w: 8 | 16, accx: true, ld: LdKind::None, qup: false } => true,
-        Kind::Vmulas { signed: true, w: 8 | 16, accx: true, ld: LdKind::Ip, qup: false } => fast,
-        _ => false,
-    }
-}
-
-/// The CP3-disabled check can be proved once for a body whose PIE instructions are all
-/// emitted; a helper in between could disable the coprocessor.
-pub(super) fn can_hoist(instructions: &[BlockInsn], fast: bool) -> bool {
-    instructions.iter().any(|bi| bi.insn.op == crate::Op::Pie)
-        && instructions.iter().enumerate().all(|(n, bi)| {
-            supported_insn(&bi.insn, fast) || (n + 1 == instructions.len() && terminal_helper(bi.insn.op))
-        })
-}
-
-pub(super) fn guard(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
-    g.cpu(offset_of!(Cpu, cpenable));
-    g.c(CP3);
-    g.op(0x71);
-    g.op(0x45);
-    g.begin_if();
-    g.fallback(bi, pc, next, last, false);
-    g.end();
-}
-
 fn v128_load(g: &mut Gen, offset: usize) {
     g.bytes.extend([0xfd, 0x00]);
     uleb(&mut g.bytes, 0);
@@ -75,7 +41,7 @@ fn set_q(g: &mut Gen, n: i32) {
 pub(super) fn emit(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool, cp_enabled: bool) {
     let (p, o) = table(&bi.insn);
     if !cp_enabled {
-        guard(g, bi, pc, next, last);
+        g.guard_coprocessor(CP3, bi, pc, next, last);
     }
     match p.kind {
         Kind::Andq | Kind::Orq | Kind::Xorq => {
@@ -112,6 +78,71 @@ pub(super) fn emit(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool, 
             let base = match w { 8 => 0x23, 16 => 0x2d, _ => 0x37 };
             g.bytes.extend([0xfd, base + match cmp { Cmp::Eq => 0, Cmp::Lt => 2, Cmp::Gt => 4 }]);
             set_q(g, o.get(Role::Qa));
+        }
+        Kind::SrcQ { qup, ld: Mode::None } => {
+            // Bytes k of the result are bytes k+n of Qs0:Qs1, n = SAR_BYTE & 15. A swizzle yields
+            // zero for an index above 15, so each half selects only its own bytes.
+            g.cpu(offset_of!(Cpu, sar_byte));
+            g.c(15);
+            g.op(0x71);
+            g.bytes.extend([0xfd, 0x0f]); // i8x16.splat
+            g.bytes.extend([0xfd, 0x0c]);
+            g.bytes.extend(0u8..16);
+            g.bytes.extend([0xfd, 0x6e]); // i8x16.add
+            g.set(V128);
+            q(g, o.get(Role::Qs0));
+            g.get(V128);
+            g.bytes.extend([0xfd, 0x0e]); // i8x16.swizzle
+            q(g, o.get(Role::Qs1));
+            g.get(V128);
+            g.bytes.extend([0xfd, 0x0c]);
+            g.bytes.extend([16u8; 16]);
+            g.bytes.extend([0xfd, 0x71]); // i8x16.sub
+            g.bytes.extend([0xfd, 0x0e]);
+            g.bytes.extend([0xfd, 0x50]); // v128.or
+            g.set(V128);
+            if qup {
+                // Qs0 takes the old Qs1 after Qa is written, in the interpreter's order.
+                g.get(0);
+                q(g, o.get(Role::Qs1));
+            }
+            g.get(0);
+            g.get(V128);
+            set_q(g, o.get(Role::Qa));
+            if qup {
+                set_q(g, o.get(Role::Qs0));
+            }
+        }
+        Kind::Vsr32 | Kind::Vsl32 => {
+            // Lane shift by SAR & 63; 32 and above clears. WASM takes the count modulo 32.
+            g.get(0);
+            q(g, o.get(Role::Qs));
+            g.cpu(SAR);
+            g.bytes.extend([0xfd, if p.kind == Kind::Vsr32 { 0xad } else { 0xab }, 0x01]); // i32x4.shr_u / shl
+            g.c(0);
+            g.cpu(SAR);
+            g.c(0x20);
+            g.op(0x71);
+            g.op(0x45);
+            g.op(0x6b);
+            g.bytes.extend([0xfd, 0x11]); // i32x4.splat
+            g.bytes.extend([0xfd, 0x4e]);
+            set_q(g, o.get(Role::Qa));
+        }
+        Kind::Arith { op, w, .. } => {
+            g.get(0);
+            q(g, o.get(Role::Qx));
+            q(g, o.get(Role::Qy));
+            use crate::pie::ArithOp::*;
+            let code: u32 = match (op, w) {
+                (Adds, 8) => 0x6f, (Subs, 8) => 0x72, (Min, 8) => 0x76, (Max, 8) => 0x78,
+                (Adds, 16) => 0x8f, (Subs, 16) => 0x92, (Min, 16) => 0x96, (Max, 16) => 0x98,
+                (Min, 32) => 0xb6, (Max, 32) => 0xb8,
+                _ => unreachable!("PIE arithmetic was checked before emission"),
+            };
+            g.bytes.push(0xfd);
+            uleb(&mut g.bytes, code as usize);
+            set_q(g, if o.has(Role::Qz) { o.get(Role::Qz) } else { o.get(Role::Qa) });
         }
         Kind::Vld128(Mode::Ip) => vmem(g, bi, pc, next, last, &o, false, None),
         Kind::Vst128(Mode::Ip) => vmem(g, bi, pc, next, last, &o, true, None),
@@ -241,51 +272,18 @@ fn vmem(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool, o: &Ops, st
     g.set(ADDR);
     g.begin_block();
     g.begin_block();
+    // Mode 1 prices these memory operations in the existing interpreter helper.
+    // Keep the experiment simple; the default and SRC.Q.LD-only mode stay fast.
+    g.cpu(offset_of!(Cpu, approximate_pie_mode));
+    g.c(1);
+    g.op(0x46);
+    g.bytes.extend([0x0d, 0]);
     g.get(5);
     g.op(0x45);
     g.bytes.extend([0x0d, 0]);
-    g.get(5);
-    g.get(ADDR);
-    g.c(16);
-    g.op(0x76);
-    g.get(ADDR);
-    g.c(24);
-    g.op(0x76);
-    g.op(0x73);
-    g.c(511);
-    g.op(0x71);
-    g.c(size_of::<TlbEntry>() as u32);
-    g.op(0x6c);
-    g.op(0x6a);
-    g.set(TLB);
-    g.get(ADDR);
-    g.get(TLB);
-    g.load(offset_of!(TlbEntry, lo));
-    g.op(0x49);
-    g.bytes.extend([0x0d, 0]);
-    g.get(TLB);
-    g.load(offset_of!(TlbEntry, hi));
-    g.get(ADDR);
-    g.op(0x6b);
-    g.c(16);
-    g.op(0x49);
-    g.bytes.extend([0x0d, 0]);
-    g.get(ADDR);
-    g.get(TLB);
-    g.load(offset_of!(TlbEntry, hi));
-    g.op(0x4f);
-    g.bytes.extend([0x0d, 0]);
-    if store {
-        g.get(TLB);
-        g.load(offset_of!(TlbEntry, writable));
-        g.op(0x45);
-        g.bytes.extend([0x0d, 0]);
-    }
-    g.get(ADDR);
-    g.get(TLB);
-    g.load(offset_of!(TlbEntry, lo));
-    g.op(0x6b);
-    g.set(REL);
+    memory::probe(g, 16, store);
+    #[cfg(feature = "wasm-cache-inline")]
+    memory::emit_cache_hit(g, store, 4); // The reference PIE helper performs four words.
     if store {
         g.get(TLB);
         g.load(offset_of!(TlbEntry, base));
@@ -296,23 +294,7 @@ fn vmem(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool, o: &Ops, st
         // One version page: a 16-byte aligned access never crosses a 256-byte page. The
         // interpreter stores four words, bumping the version four times; match it exactly
         // so version arrays stay identical, not merely both changed.
-        g.get(6);
-        g.get(TLB);
-        g.load(offset_of!(TlbEntry, vbase));
-        g.get(REL);
-        g.c(8);
-        g.op(0x76);
-        g.op(0x6a);
-        g.c(2);
-        g.op(0x74);
-        g.op(0x6a);
-        g.tee(TMP);
-        g.get(TMP);
-        g.load(0);
-        g.c(4);
-        g.op(0x6a);
-        g.store(0);
-        region_store_check(g);
+        memory::record_store(g, 4);
     } else {
         if let Some((w, x, y)) = accumulate_first {
             accumulate(g, w, x, y);

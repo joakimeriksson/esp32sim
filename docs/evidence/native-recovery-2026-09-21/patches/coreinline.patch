@@ -1,0 +1,12 @@
+diff --git a/xtensa-lx7/src/core.rs b/xtensa-lx7/src/core.rs
+index 23f94a97..867e3230 100644
+--- a/xtensa-lx7/src/core.rs
++++ b/xtensa-lx7/src/core.rs
+@@ -39,6 +39,7 @@ impl emu_core::Core for Cpu {
+         }).min()
+     }
+     fn step<B: Bus>(&mut self, bus: &mut B) -> StepOutcome { crate::exec::step_outcome(self, bus) }
++    #[cfg_attr(not(target_arch = "wasm32"), inline(always))]
+     fn run<B: Bus>(&mut self, bus: &mut B, budget: u32) -> (u32, Option<Trap>) { crate::block::run_block(self, bus, budget) }
+     fn set_boundaries(&mut self, bloom: u64) { if self.boundary_bloom != bloom { self.blocks.flush(); self.boundary_bloom = bloom; } }
+     fn set_block_observation(&mut self, enabled: bool) { self.blocks.observed = enabled; }

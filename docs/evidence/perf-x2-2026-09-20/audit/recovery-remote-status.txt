@@ -1,0 +1,47 @@
+control-aa-1                   -0.18%  pairs: -0.58, 0.21
+control-aa-2                   -0.31%  pairs: -0.38, -0.24
+control-aa-3                    0.37%  pairs: 0.38, 0.35
+crumbs-all                      8.81%  pairs: 8.74, 8.87
+crumbs-dma                      4.78%  pairs: 4.58, 4.99
+crumbs-fma                      1.48%  pairs: 1.61, 1.35
+crumbs-pub                      0.41%  pairs: 0.65, 0.16
+crumbs-round                    1.22%  pairs: 1.07, 1.37
+crumbs-spi                      1.77%  pairs: 2.23, 1.30
+dispatch-s1                     0.26%  pairs: -0.08, 0.61
+dispatch-s1s2s3s4s5s6           2.77%  pairs: 3.81, 1.71
+dispatch-s2                     0.46%  pairs: 0.23, 0.70
+dispatch-s3                     0.27%  pairs: 0.31, 0.23
+dispatch-s4                     0.48%  pairs: 0.71, 0.24
+dispatch-s5                    -1.40%  pairs: -1.59, -1.22
+dispatch-s6                     0.37%  pairs: 0.24, 0.50
+hotwat-s1                       0.32%  pairs: 0.60, 0.04
+hotwat-s1s2                     2.37%  pairs: 1.93, 2.80
+hotwat-s2                       1.99%  pairs: 1.54, 2.44
+inchain-s1                      0.89%  pairs: 0.73, 1.05
+inchain-s2                      1.43%  pairs: 1.13, 1.73
+inchain-s3                      1.69%  pairs: 1.77, 1.62
+tailchain-s1                   -2.51%  pairs: -2.85, -2.18
+tailchain-s2-1k                -3.92%  pairs: -3.54, -4.30
+tailchain-s2                   -3.72%  pairs: -4.20, -3.23
+--- waiting:
+  dispatch2-stack-t1t2t3t4
+  dispatch2-stack-t1
+  dispatch2-stack-t2
+  dispatch2-stack-t3
+  dispatch2-stack-t4
+  dispatch2-t1
+  dispatch2-t2
+  dispatch2-t3
+  dispatch2-t4
+  heads-s1
+  heads-s2
+  heads-s3
+  spec2-ex150-k4
+  spec2-ex150-k16
+  spec2-ex150-k64
+  spec2-ex150-tax1
+--- log:
+2026-09-20T19:54:16Z START tailchain-s2-1k (2 pairs, pocket-tank) load={ 1.94 2.64 2.77 }
+2026-09-20T19:56:38.492Z DONE tailchain-s2-1k {"reduction":-3.9190498358214976,"pairs":[-3.540480806038393,-4.300827233021831]}
+2026-09-20T20:48:39Z START dispatch2-stack-t1t2t3t4 (2 pairs, pocket-tank) load={ 1.41 1.57 1.59 }
+runner: RUNNING

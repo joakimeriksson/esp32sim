@@ -1,0 +1,52 @@
+{
+  "files": [
+    {
+      "path": "docs/evidence/region-rejection-2026-09-19/pocket-confirm-1-host-after.txt",
+      "redactions": [
+        3
+      ],
+      "originalSha256": "d34564d65d3aba80ca773f4303625e267a281dd8a118fdd572d379f9c0950a08",
+      "sanitizedSha256": "72e26daab9990002726696f42b89dc46c0e686b48b17587f283e3114226ab635"
+    },
+    {
+      "path": "docs/evidence/region-rejection-2026-09-19/pocket-confirm-1-host-before.txt",
+      "redactions": [
+        3
+      ],
+      "originalSha256": "0bdcd9c4eac0d08cb8c823669f40d3272f199ee262cc3ab0622d3975916727f5",
+      "sanitizedSha256": "9b649035f5f3b7c70889f35a5c0fd2a30da8070080db2a3bc57c6499ea28af14"
+    },
+    {
+      "path": "docs/evidence/region-rejection-2026-09-19/pocket-confirm-2-host-after.txt",
+      "redactions": [
+        3
+      ],
+      "originalSha256": "1f44e23de666a15de2f25713dd3411c9c9722b8dd603adcf326901fece588b0f",
+      "sanitizedSha256": "e6c8ce865887de563b70cbcabf18cf6c471f3e33a3073d5e8ff88a0b71f4e8bb"
+    },
+    {
+      "path": "docs/evidence/region-rejection-2026-09-19/pocket-confirm-2-host-before.txt",
+      "redactions": [
+        3
+      ],
+      "originalSha256": "db1957ac881cb263d5a9586d41e71c293b25c1f1605d02a277df694e8305d071",
+      "sanitizedSha256": "a70d7f868ecb40b3de9f1a97c70be26cc4c16608f0140aa66a6f4f3095cf22ad"
+    },
+    {
+      "path": "docs/evidence/region-rejection-2026-09-19/pocket-host-after.txt",
+      "redactions": [
+        3
+      ],
+      "originalSha256": "b54d8d97a44edf9b4a27828fcb64088c4f4417ccf8340036de53d266c3afd36a",
+      "sanitizedSha256": "c2a38bc12326cc4b97bfbda3cd6ffc9929885520207cf48af17ff3bfc34ac3fc"
+    },
+    {
+      "path": "docs/evidence/region-rejection-2026-09-19/pocket-host-before.txt",
+      "redactions": [
+        3
+      ],
+      "originalSha256": "7cd72b95242e7ff2eaedcb844770c3cde41c3f9c959604fb5202a43aa1251ca8",
+      "sanitizedSha256": "2c4db0e9e024d213cddd5e4a9ef392cf19993397229f9a365ecb9600ac4abad4"
+    }
+  ]
+}

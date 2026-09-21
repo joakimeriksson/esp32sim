@@ -1,0 +1,112 @@
+{
+  "source": "da3b5752",
+  "identicalTree": "85715360",
+  "logs": [
+    {
+      "name": "release-workspace-elevated",
+      "sha256": "a8d40b90671b0400cf4ee2f1fb949ea7d6ff414e01e180ff780e73f5b8a4f8e5",
+      "bytes": 43017,
+      "summary": [
+        "test pie::timing_tests::selective_pie_costs_only_charge_successful_selected_instructions ... ok",
+        "test pie::tests::packed_execution_matches_the_table ... ok",
+        "test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 7.73s",
+        "test custom_slots_decode_their_actual_pie_table_entries ... ok",
+        "test custom_pie_slots_load_and_store_float_registers ... ok",
+        "test undocumented_fft_store_operands_fail_before_changing_state ... ok",
+        "test fft_load_updates_only_the_three_pairs_defined_by_the_trm ... ok",
+        "test fft_store_computes_the_final_pair_and_preserves_all_q_registers ... ok",
+        "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test aliased_tlb_rejects_wrapping_accesses ... ok",
+        "test access_ending_at_mapping_limit_stays_on_fast_path ... ok",
+        "test access_crossing_mapping_limit_faults ... ok",
+        "test empty_tlb_rejects_wrapping_accesses ... ok",
+        "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test decoder_matches_corpus ... ok",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.02s",
+        "test operand_directions_preserve_conditional_destinations_and_mac_selectors ... ok",
+        "test real_high_integer_reads_and_destinations_still_spill_before_retiring ... ok",
+        "test corrected_operands_produce_expected_values ... ok",
+        "test selectors_immediates_and_fp_registers_do_not_spill_integer_windows ... ok",
+        "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s",
+        "test r2_load_use_missing_opcodes ... ok",
+        "test r3_trap_extra_step_vs_block ... ok",
+        "test r1_native_jit_drops_control_price ... ok",
+        "test r4_fetch_step_vs_block_and_early_exit ... ok",
+        "test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test default_native_execution_keeps_jit_enabled ... ok",
+        "test interrupt_entry_matches_step_without_retirement ... ok",
+        "test idle_and_fetch_fault_match_step ... ok",
+        "test fetch_requires_pricing_and_counts_instruction_end ... ok",
+        "test step_block_and_mixed_prefixes_share_prices ... ok",
+        "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s",
+        "test zero_overhead_loop_runs_its_count ... ok",
+        "test window_overflow_is_raised_at_the_call_that_touches_it ... ok",
+        "test intlevel_masks_and_rsil_releases ... ok",
+        "test waiti_sleeps_until_a_line_arrives ... ok",
+        "test ccompare_interrupt_lands_on_the_same_instruction_in_every_mode ... ok",
+        "test step_blocks_and_jit_agree ... ok",
+        "test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ]
+    },
+    {
+      "name": "clippy",
+      "sha256": "0423562fa481572b9a7324a8f846b2ca330109439bb9964c33be8dd7cff9fbe2",
+      "bytes": 1148,
+      "summary": [
+        "    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.07s"
+      ]
+    },
+    {
+      "name": "wasm-build",
+      "sha256": "4cabf2969d1445d66e0f0474d5e24d10edd6eae848ac0deeec542eda25385926",
+      "bytes": 1131,
+      "summary": [
+        "    Finished `release` profile [optimized + debuginfo] target(s) in 11.34s"
+      ]
+    },
+    {
+      "name": "wasm-timing-api",
+      "sha256": "c98f382beb4c03812e9764812df40c1bef5aef01b28fb558a01c21f5fb269af3",
+      "bytes": 78,
+      "summary": [
+        "WASM timing ABI: prerequisite, range, inline mode and lifecycle checks passed"
+      ]
+    },
+    {
+      "name": "wasm-firmware",
+      "sha256": "70e9ba1986580d1e1e0cbec9b4ecdf95d6d4c4742928c3fa08229c439a508548",
+      "bytes": 968,
+      "summary": [
+        "ok   wasm JIT handoff: shared-memory block committed at a scheduler boundary",
+        "ok   hello: board none, 4.3 M insns in 0.3 s wall (13.5 Minsn/s), 129 console lines, 0 binary frames",
+        "ok   c3-hello: board none, 480.0 M insns in 1.2 s wall (390.9 Minsn/s), 125 console lines, 0 binary frames",
+        "ok   c6-hello: board none, 480.0 M insns in 1.6 s wall (308.3 Minsn/s), 121 console lines, 0 binary frames",
+        "ok   c6-energy-scan: board waveshare-c6-lcd147, 480.0 M insns in 7.1 s wall (67.6 Minsn/s), 149 console lines, 141 binary frames",
+        "ok   c6-contiki: board waveshare-c6-lcd147, 1920.0 M insns in 7.5 s wall (254.3 Minsn/s), 181 console lines, 17 binary frames",
+        "ok   c6-contiki-net: 2 nodes, n0 tx 5/rx 5, n1 tx 5/rx 5, 30 s simulated in 9.8 s wall (3x real time)",
+        "ok   c6-rpl-net: 2 nodes, n0 tx 27/rx 27, n1 tx 27/rx 27, 90 s simulated in 27.9 s wall (3x real time)",
+        "ok   panel: board waveshare-lcd4b, 142.4 M insns in 3.7 s wall (38.2 Minsn/s), 193 console lines, 252 binary frames"
+      ]
+    },
+    {
+      "name": "wasm-differential",
+      "sha256": "510faa9bd2fee5f609ea098a84b36831133801336abb90e0760a6de4ac68ea47",
+      "bytes": 669,
+      "summary": [
+        "    Finished `release` profile [optimized + debuginfo] target(s) in 22.56s",
+        "PASS: 78900 WASM differential cases (ALU, helper continuation, memory, faults, loops, windows, budget/resume, invalidation, timer, script stop, peer-state MMIO); 76388 compiled modules released"
+      ]
+    }
+  ]
+}

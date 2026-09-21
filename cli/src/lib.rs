@@ -15,17 +15,62 @@ fn usage(chip: &str) -> ! {
     std::process::exit(2)
 }
 
+fn usage_error(message: &str) -> ! { eprintln!("{message}"); std::process::exit(2) }
+
+fn timing_cycles(value: &str, name: &str) -> Result<u32, String> {
+    value.parse().map_err(|_| format!("{name}: expected a nonnegative u32 cycle count, got {value:?}"))
+}
+
+fn validate_timing(o: &Opts) -> Result<(), String> {
+    if o.approximate_timing && !matches!(o.chip.as_str(), "s3" | "esp32s3") {
+        return Err("--approximate-timing, --approximate-memory and --approximate-cache require --chip s3".into());
+    }
+    if o.memory_contention && o.approximate_memory.is_none() {
+        return Err("--memory-contention requires --approximate-memory".into());
+    }
+    if o.approximate_memory.is_some() && o.boot.as_deref() != Some("rom") {
+        return Err("--approximate-memory requires --boot rom for its MMU shadow".into());
+    }
+    Ok(())
+}
+
+fn cache_config() -> Result<esp32s3::approximate_cache::CacheConfig, String> {
+    let mut cache = esp32s3::approximate_cache::CacheConfig::default();
+    for (name, cycles) in [("ESP32SIM_CACHE_FILL", &mut cache.fill_cycles), ("ESP32SIM_CACHE_WRITEBACK", &mut cache.writeback_cycles)] {
+        match std::env::var(name) {
+            Ok(value) => *cycles = timing_cycles(&value, name)?,
+            Err(std::env::VarError::NotPresent) => {},
+            Err(_) => return Err(format!("{name}: expected a UTF-8 cycle count")),
+        }
+    }
+    Ok(cache)
+}
+
 fn hex(s: &str, what: &str) -> u32 { u32::from_str_radix(s.trim_start_matches("0x"), 16).unwrap_or_else(|_| { eprintln!("--{}: bad hex {}", what, s); std::process::exit(2) }) }
 fn pair(s: &str, dflt: usize) -> (u32, usize) { match s.split_once(',') { Some((a, n)) => (hex(a, "addr"), n.parse().unwrap_or(dflt)), None => (hex(s, "addr"), dflt) } }
+
+use esp_soc::load::stub_spec;
+
+fn console_mask(name: &str) -> u32 {
+    esp_soc::Console::parse_mask(name).unwrap_or_else(|| {
+        eprintln!("--console: unknown source {name:?}; expected usb, uart0, both, all or none");
+        std::process::exit(2)
+    })
+}
 
 /// Everything the command line can say, chip-agnostic; `None` means "the chip's default".
 #[derive(Default)]
 pub struct Opts {
+    pub approximate_timing: bool,
+    pub approximate_memory: Option<u32>,
+    pub memory_contention: bool,
+    pub approximate_cache: bool,
     pub chip: String,
     pub rom: Option<PathBuf>, pub bootloader: Option<String>, pub ptable: Option<String>, pub app: Option<String>, pub elfs: Vec<String>,
     pub flash_image: Option<String>, pub flash_at: Vec<String>, pub boot: Option<String>, pub flash_mb: Option<usize>, pub psram_mb: Option<usize>,
     pub mac: Option<[u8; 6]>, pub strap: Option<u32>, pub reset_cause: Option<u32>, pub efuse_regs: Option<String>, pub regs_init: Option<String>,
     pub board: String, pub wifi: Option<String>, pub net: String, pub cam_image: Option<String>, pub cam_fps: f64,
+    pub spi2_timing: bool, pub measured_te: bool,
     pub max_insns: u64, pub max_seconds: Option<f64>, pub script: Option<String>, pub serial: Option<String>,
     pub console: Option<String>, pub console_prefix: bool, pub realtime: bool, pub web_port: Option<u16>, pub web_dir: Option<String>, pub no_reboot: bool,
     pub wav: Option<String>, pub tft_png: Option<String>, pub gram_png: Option<String>, pub dump: bool,
@@ -44,6 +89,10 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
         let a = args[i].as_str();
         let mut next = || { i += 1; args.get(i).cloned().unwrap_or_else(|| usage(default_chip)) };
         match a {
+            "--approximate-timing" => o.approximate_timing = true,
+            "--approximate-memory" => { o.approximate_timing = true; o.approximate_memory = Some(timing_cycles(&next(), "--approximate-memory").unwrap_or_else(|e| usage_error(&e))); }
+            "--memory-contention" => o.memory_contention = true,
+            "--approximate-cache" => { o.approximate_timing = true; o.approximate_cache = true; },
             "--chip" => o.chip = next().to_ascii_lowercase(),
             "--rom" => o.rom = Some(PathBuf::from(next())),
             "--bootloader" => o.bootloader = Some(next()),
@@ -61,6 +110,8 @@ pub fn parse(args: &[String], default_chip: &str) -> Opts {
             "--efuse-regs" => o.efuse_regs = Some(next()),
             "--regs-init" => o.regs_init = Some(next()),
             "--board" => o.board = next(),
+            "--spi2-timing" => o.spi2_timing = true,
+            "--measured-te" => o.measured_te = true,
             "--wifi" => o.wifi = Some(next()),
             "--net" => o.net = next(),
             "--cam-image" => o.cam_image = Some(next()),
@@ -124,6 +175,8 @@ fn find_rom(name: &str) -> Option<PathBuf> {
 pub fn run_cli(default_chip: &str) {
     let args: Vec<String> = std::env::args().collect();
     let mut o = parse(&args, default_chip);
+    validate_timing(&o).unwrap_or_else(|e| usage_error(&e));
+    if o.approximate_cache { cache_config().unwrap_or_else(|e| usage_error(&e)); }
     if o.cooja { return run_cooja(&mut o); }
     match o.chip.as_str() {
         "s3" | "esp32s3" => { let m = setup_s3(&o); run(m, &o) }
@@ -139,6 +192,7 @@ pub fn run_cli(default_chip: &str) {
 /// reaches stdout: it goes to csim as `log` events. The usual report goes to stderr at the end.
 fn run_cooja(o: &mut Opts) {
     if !matches!(o.chip.as_str(), "c6" | "esp32c6") { eprintln!("--cooja: only the ESP32-C6 speaks the Cooja-NG lock-step protocol"); std::process::exit(2); }
+    if o.max_insns != u64::MAX { eprintln!("--cooja: --max-insns is unsupported; use --max-seconds"); std::process::exit(2); }
     let stdin = std::io::stdin();
     let mut input = stdin.lock();
     let hello = match cooja::read_hello(&mut input) { Ok(h) => h, Err(e) => { eprintln!("[cooja] {}", e); std::process::exit(2) } };
@@ -147,10 +201,11 @@ fn run_cooja(o: &mut Opts) {
     let mut m = setup_c6(o);
     let boot = prepare(&mut m, o);
     let cfg = cooja::Config {
-        slice_ns: o.cooja_slice_us.max(1) * 1000,
-        console_mask: match o.console.as_deref().unwrap_or("uart0") { "usb" => 1, "uart0" | "uart" => 2, "both" => 3, "all" => 7, "none" => 0, _ => 2 },
+        slice_ns: o.cooja_slice_us.max(1).saturating_mul(1000),
+        console_mask: console_mask(o.console.as_deref().unwrap_or("uart0")),
         rx_on_air: !o.cooja_rx_at_end,
         verbose: o.cooja_verbose,
+        reboot: !o.no_reboot && boot == "rom",
     };
     eprintln!("[cooja] node {} ({}), mac {}, slice {} µs", hello.id, boot, o.mac.map(|m| m.iter().map(|b| format!("{:02x}", b)).collect::<Vec<_>>().join(":")).unwrap_or_default(), cfg.slice_ns / 1000);
     let t0 = std::time::Instant::now();
@@ -166,19 +221,15 @@ fn run_cooja(o: &mut Opts) {
 fn setup_s3(o: &Opts) -> esp32s3::Machine {
     let mut m = esp32s3::machine(o.mac.unwrap_or([0x44, 0x1b, 0xf6, 0x75, 0xdc, 0xe0]));
     m.bus.board = esp32s3::board::make_board(&o.board).unwrap_or_else(|| { eprintln!("unknown board '{}' (atech14, waveshare-cam, waveshare-lcd4b, waveshare-amoled18-v2, none)", o.board); std::process::exit(2) });
+    if o.measured_te {
+        assert_eq!(m.bus.board.name(), "waveshare-amoled18-v2", "--measured-te requires the AMOLED V2 board");
+        m.bus.board = Box::new(esp32s3::board::WaveshareAmoled18V2::with_measured_te());
+    }
+    m.bus.spi2_timing = o.spi2_timing;
     m.bus.attach_board_devices();
     if !o.debug.is_empty() { let mut f = esp_soc::DebugFlags::from_env(); for d in &o.debug { f.parse(d); } m.set_debug(&f); }
     if let Some(spec) = &o.wifi {
-        let mut cfg = esp32s3::wifi::ApConfig { ssid: "esp32sim".into(), bssid: [0x02, 0x53, 0x49, 0x4d, 0x00, 0x01], channel: 6, psk: None };
-        for kv in spec.split(',') {
-            match kv.split_once('=') {
-                Some(("ssid", v)) => cfg.ssid = v.to_string(),
-                Some(("chan", v)) | Some(("channel", v)) => cfg.channel = v.parse().unwrap_or(6),
-                Some(("psk", v)) | Some(("password", v)) => cfg.psk = Some(v.to_string()),
-                Some(("bssid", v)) => { let b: Vec<u8> = v.split(':').filter_map(|x| u8::from_str_radix(x, 16).ok()).collect(); if b.len() == 6 { cfg.bssid.copy_from_slice(&b); } }
-                _ => {}
-            }
-        }
+        let cfg = esp32s3::wifi::ApConfig::parse(spec).unwrap_or_else(|e| { eprintln!("--wifi: {e}"); std::process::exit(2) });
         eprintln!("[emu] virtual AP '{}' bssid {} channel {} ({})", cfg.ssid, esp32s3::wifi::mac_str(&cfg.bssid), cfg.channel, if cfg.psk.is_some() { "WPA2-PSK" } else { "open" });
         m.bus.periph.wifi.ap = Some(esp32s3::wifi::VirtualAp::new(cfg, m.bus.debug.has("wifi-frames")));
         let mut net = esp32s3::net::VirtualNet::new(m.bus.debug.has("net"));
@@ -189,6 +240,7 @@ fn setup_s3(o: &Opts) -> esp32s3::Machine {
         }
         eprintln!("[emu] virtual network: station {}.{}.{}.{}, gateway {}.{}.{}.{} (DHCP, ARP, ICMP, DNS, NTP)", net.sta_ip[0], net.sta_ip[1], net.sta_ip[2], net.sta_ip[3], net.gw_ip[0], net.gw_ip[1], net.gw_ip[2], net.gw_ip[3]);
         m.bus.periph.wifi.net = Some(net);
+        m.bus.refresh_tick_budget();
     }
     if let Some(p) = &o.cam_image { match esp_soc::picture::load(p) { Ok(pic) => { eprintln!("[emu] camera picture {} ({}x{})", p, pic.w, pic.h); m.bus.board.set_camera_picture(pic); } Err(e) => { eprintln!("[emu] {}", e); std::process::exit(2); } } }
     m.bus.periph.lcd_cam.frame_cycles = (esp32s3::periph::CPU_HZ as f64 / o.cam_fps) as u64;
@@ -243,21 +295,52 @@ fn setup_c6(o: &Opts) -> esp32c6::Machine {
 
 /// Everything after the chip is set up: images, boot, observers, the run, the reports.
 fn run<S: Soc>(mut m: Machine<S>, o: &Opts) {
+    let approximate = o.approximate_timing.then(|| {
+        let mut config = esp32s3::ApproximateTimingConfig::default();
+        if o.approximate_cache && o.approximate_memory.is_none() {
+            config.data_cache = Some(cache_config().unwrap_or_else(|e| usage_error(&e)));
+        }
+        esp32s3::ApproximateCostModel::new(config)
+    });
+    let memory_model = o.approximate_memory.map(|extra| {
+        use esp32s3::rough_memory::{MemoryConfig, MemoryPrice};
+        let external = MemoryPrice { latency: extra, ..MemoryPrice::FREE };
+        let model = esp32s3::memory_cost_model::MemoryCostModel::new(approximate.as_ref().unwrap().clone(),
+            MemoryConfig { flash: external, psram: external, contention: o.memory_contention, ..Default::default() });
+        if o.approximate_cache { model.with_cache(cache_config().unwrap_or_else(|e| usage_error(&e))) } else { model }
+    });
+    if let Some(model) = &approximate {
+        let cost: Box<dyn emu_core::CostModel> = match &memory_model {
+            Some(memory) => Box::new(memory.clone()), None => Box::new(model.clone()),
+        };
+        m.set_cost_model(cost).unwrap_or_else(|e| usage_error(&format!("--approximate-timing: {e}")));
+        eprintln!("[emu] APPROXIMATE timing: {:?}; use --boot rom; accuracy unvalidated", model.config);
+    }
     let boot = prepare(&mut m, o);
     let t0 = std::time::Instant::now();
-    let stop = loop {
-        let stop = m.run(o.max_insns);
+    let stop = run_with_reboots(&mut m, o.max_insns, !o.no_reboot && boot == "rom");
+    let dt = t0.elapsed().as_secs_f64();
+    report(&mut m, o, stop, dt);
+    if let Some(model) = approximate { eprintln!("[emu] approximate timing totals: {:?}", model.stats()); }
+    if let Some(model) = memory_model {
+        eprintln!("[emu] approximate memory totals [internal, ROM, flash, PSRAM, MMIO]: {:?}", model.memory.borrow().stats);
+        if let Some(cache) = &model.cache { eprintln!("[emu] approximate physical data cache: {:?}", cache.borrow().stats()); }
+    }
+}
+
+fn run_with_reboots<S: Soc>(m: &mut Machine<S>, mut remaining: u64, reboot: bool) -> Stop {
+    loop {
+        let before = m.run_steps();
+        let stop = m.run(remaining);
+        remaining = remaining.saturating_sub(m.run_steps().saturating_sub(before));
         if let Stop::SwReset = stop {
             let cause = m.bus.reset_cause();
             eprintln!("[emu] chip reset at t={:.3}s: cause {:#x} ({})", m.seconds(), cause, esp_periph::reset_cause_name(cause));
-            if o.no_reboot || boot != "rom" { break stop; }
+            if !reboot { return stop; }
+            if remaining == 0 { return Stop::MaxInsns; }
             m.reboot();
-            continue;
-        }
-        break stop;
-    };
-    let dt = t0.elapsed().as_secs_f64();
-    report(&mut m, o, stop, dt);
+        } else { return stop; }
+    }
 }
 
 /// Images, boot, observers, scripts: everything before the first instruction. Returns the boot mode.
@@ -288,13 +371,12 @@ fn prepare<S: Soc>(m: &mut Machine<S>, o: &Opts) -> String {
     for p in &o.elfs { m.add_symbols(&std::fs::read(p).expect("elf")).expect("elf symbols"); }
     if let Some(s) = &o.serial { m.bus.serial_input(s.as_bytes()); }
     for pre in &o.trace_fns {
-        let mut n = 0;
-        for (&a, name) in m.symbols.clone().iter() { if name.starts_with(pre.as_str()) || (pre.ends_with('$') && name == &pre[..pre.len() - 1]) { m.fn_probes.insert(a, name.clone()); n += 1; } }
+        let n = m.trace_fns(pre);
         eprintln!("[emu] --trace-fn {}: {} functions", pre, n);
     }
     for st in &o.stubs {
-        let (name, val) = match st.split_once('=') { Some((n, v)) => (n, u32::from_str_radix(v.trim_start_matches("0x"), if v.starts_with("0x") { 16 } else { 10 }).unwrap_or(0)), None => (st.as_str(), 0) };
-        let addr = if let Some(a) = m.sym_addr(name) { a } else if let Ok(a) = u32::from_str_radix(name.trim_start_matches("0x"), 16) { a } else { eprintln!("--stub: unknown symbol {}", name); std::process::exit(2) };
+        let (name, val) = stub_spec(st).unwrap_or_else(|e| { eprintln!("--stub: {e}"); std::process::exit(2) });
+        let addr = m.resolve_stub(name).unwrap_or_else(|| { eprintln!("--stub: unknown symbol {}", name); std::process::exit(2) });
         eprintln!("[emu] stub {} @ {:#010x} -> returns {:#x}", name, addr, val);
         m.stubs.insert(addr, val);
     }
@@ -309,7 +391,7 @@ fn prepare<S: Soc>(m: &mut Machine<S>, o: &Opts) -> String {
     if let Some(v) = o.strap { m.bus.set_strap(v); }
     for &(a, n) in &o.peeks { eprintln!("[peek before run]\n{}", m.peek(a, n)); }
     m.dbg.stop_after_exceptions = o.stop_exc;
-    m.console.mask = match console.as_str() { "usb" => 1, "uart0" => 2, "uart" => 2, "both" => 3, "all" => 7, "none" => 0, _ => 3 };
+    m.console.mask = console_mask(&console);
     m.console.prefix = o.console_prefix;
     if let Some(p) = &o.regtrace { m.add_observer(Box::new(RegTrace::new(std::fs::File::create(p).expect("regtrace file"), o.regtrace_max, o.regtrace_from_pc))); }
     if let Some(port) = o.web_port {
@@ -320,7 +402,7 @@ fn prepare<S: Soc>(m: &mut Machine<S>, o: &Opts) -> String {
     }
     if o.realtime { m.rt.enabled = true; }
     if o.profile { m.add_observer(Box::new(PcHist::new(12))); }
-    if let Some(wa) = o.watch { let v = m.bus.read32(wa).unwrap_or(0); m.add_observer(Box::new(Watch { addr: wa, value: v })); }
+    if let Some(wa) = o.watch { let v = m.bus.read32_unpriced(wa).unwrap_or(0); m.add_observer(Box::new(Watch { addr: wa, value: v })); }
     if o.profile_blocks { m.add_observer(Box::new(BlockProfile::new(20))); }
     if let Some(path) = &o.coverage { m.add_observer(Box::new(Coverage::new(path.clone()))); }
     if o.irq_latency { m.add_observer(Box::new(IrqLatency::new(S::CORES))); }
@@ -347,9 +429,13 @@ fn report<S: Soc>(m: &mut Machine<S>, o: &Opts, stop: Stop, dt: f64) {
     if let Some(w) = &o.wav { match m.write_wav(w) { Ok(n) => eprintln!("[emu] wrote {} samples ({:.2} s) to {}", n, n as f64 / m.bus.audio().1 as f64, w), Err(e) => eprintln!("[emu] wav: {}", e) } }
     { let r = m.bus.report(); if !r.is_empty() { eprintln!("{}", r); } }
     { let st: Vec<(u64, u64, u64, usize)> = m.cores.iter().filter_map(|c| c.code_cache_stats()).collect();
+      if m.vq_stats[0] > 0 { eprintln!("[emu] virtual quanta: runs, quanta, stopped at a device register, at waiti = {:?}", m.vq_stats); }
       if st.iter().any(|s| s.0 > 0) { let b0 = st[0]; let b1 = st.get(1).copied().unwrap_or((0, 0, 0, 0)); eprintln!("[emu] blocks: {} built ({} cache flushes) core0, {} ({}) core1; jit: {} compiled, {} KB code", b0.0, b0.1, b1.0, b1.1, b0.2 + b1.2, (b0.3 + b1.3) / 1024); } }
     if m.stub_hits > 0 { eprintln!("[emu] stubs hit {} times", m.stub_hits); }
     if let Some(p) = &o.tft_png { match m.write_tft_png(p, 3) { Ok(()) => eprintln!("[emu] wrote {}", p), Err(e) => eprintln!("[emu] png: {}", e) } }
     if let Some(p) = &o.gram_png { match m.write_gram_png(p) { Ok(()) => eprintln!("[emu] wrote {}", p), Err(e) => eprintln!("[emu] png: {}", e) } }
     if o.dump { eprintln!("{}", m.dump_regs()); }
 }
+
+#[cfg(test)]
+mod tests;

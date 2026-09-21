@@ -1,5 +1,6 @@
 import {validateVerdict, completedVerdict, optionalCounter} from './verdict.mjs';
 import {createJitHost} from '/web/wasm/jit.mjs';
+import {applyExperiments} from '/web/wasm/experiments.mjs';
 // `workload` comes from workloads.json through the server: TinyDraw runs to its automated verdict,
 // pocket-tank for a fixed guest duration with console checks instead of a firmware verdict.
 export async function runBattery(load, emit, jit = true, chain = false, workload = {name: 'tinydraw'}) {
@@ -22,6 +23,7 @@ export async function runBattery(load, emit, jit = true, chain = false, workload
     const rc=withBytes(await load(name),(p,n)=>w.esp32sim_load(emu,kind,p,n));
     if(rc)throw Error(`load ${name}: ${rc}`);
   }
+  const appliedExports = applyExperiments(w, emu, workload.exports ?? []);
   for (const [name, offset] of Object.entries(workload.flashAt || {})) {
     const rc=withBytes(await load(name),(p,n)=>w.esp32sim_load_at(emu,offset>>>0,p,n));
     if(rc)throw Error(`load ${name} at ${offset}: ${rc}`);
@@ -53,7 +55,7 @@ export async function runBattery(load, emit, jit = true, chain = false, workload
     const checks=fixedDuration?(workload.checks||[]).map(c=>({name:c.name,min:c.min,count:(serial.match(new RegExp(c.pattern,'g'))||[]).length})):null;
     const verdict=fixedDuration?null:completedVerdict(serial, schema);
     const verdictValidation=fixedDuration?{schema:workload.schema,valid:true,passed:checks.length>0&&checks.every(c=>c.count>=c.min),error:null}:validateVerdict(verdict, schema);
-    const result={workload:workload.name,checks,status,stopCode,verdict,verdictValidation,instrumented:typeof w.esp32sim_profile_report==='function'||typeof w.esp32sim_test_block_jit==='function',passed:status==='completed'&&verdictValidation.passed,guestSeconds:w.esp32sim_cycles(emu)/hz,wallSeconds:(performance.now()-executionStart)/1000,setupSeconds:(executionStart-started)/1000,instructions:w.esp32sim_insns(emu),frames,chainedBackedges:optionalCounter(w, 'esp32sim_chained_backedges', emu),jit:{...blockJit.stats,instructions:w.esp32sim_block_jit_insns(emu)},logs};
+    const result={workload:workload.key ?? workload.name,workloadAlias:workload.name,appliedExports,checks,status,stopCode,verdict,verdictValidation,instrumented:typeof w.esp32sim_profile_report==='function'||typeof w.esp32sim_test_block_jit==='function',passed:status==='completed'&&verdictValidation.passed,guestSeconds:w.esp32sim_cycles(emu)/hz,wallSeconds:(performance.now()-executionStart)/1000,setupSeconds:(executionStart-started)/1000,instructions:w.esp32sim_insns(emu),frames,chainedBackedges:optionalCounter(w, 'esp32sim_chained_backedges', emu),jit:{...blockJit.stats,instructions:w.esp32sim_block_jit_insns(emu)},logs};
     w.esp32sim_profile_report?.(emu);emit({type:'result',...result});return result;
   }finally{w.esp32sim_delete(emu);}
 }

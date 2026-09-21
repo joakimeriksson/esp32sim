@@ -1,0 +1,118 @@
+{
+  "workOutputChecksPassed": true,
+  "nativeMedianAtLeastMain": true,
+  "control": {
+    "medianWallSeconds": {
+      "baseline": 46.821494125000015,
+      "candidate": 46.839880354
+    },
+    "wallReductionPercent": -0.039268778887957545,
+    "throughputRatio": 0.9996074663542898,
+    "pairsWallReductionPercent": [
+      0.07401646375985171,
+      -0.1525004425872778
+    ],
+    "binarySha256": {
+      "baseline": "86d7fded1e2fe6c820bbb9bb43ca448091d6e647757ac0ac35dea07fb4637770",
+      "candidate": "86d7fded1e2fe6c820bbb9bb43ca448091d6e647757ac0ac35dea07fb4637770"
+    }
+  },
+  "native": {
+    "medianWallSeconds": {
+      "baseline": 46.844188875,
+      "candidate": 46.6685205415
+    },
+    "wallReductionPercent": 0.3750056041502914,
+    "throughputRatio": 1.003764171897067,
+    "pairsWallReductionPercent": [
+      -0.42333420931028876,
+      0.5862299714082586,
+      0.09996527925754117,
+      1.8395641189126954
+    ],
+    "binarySha256": {
+      "baseline": "86d7fded1e2fe6c820bbb9bb43ca448091d6e647757ac0ac35dea07fb4637770",
+      "candidate": "e97661db5c02d0b1f58b8ebc4527369acbadf07c7664c2ebe1b06e80c9b6664e"
+    }
+  },
+  "panel": {
+    "medianWallSeconds": {
+      "baseline": 2.746031417,
+      "candidate": 2.649674979
+    },
+    "wallReductionPercent": 3.5089342898075193,
+    "throughputRatio": 1.0363653801932966,
+    "pairsWallReductionPercent": [
+      3.614823749195173,
+      3.4022168977903333
+    ],
+    "binarySha256": {
+      "baseline": "86d7fded1e2fe6c820bbb9bb43ca448091d6e647757ac0ac35dea07fb4637770",
+      "candidate": "e97661db5c02d0b1f58b8ebc4527369acbadf07c7664c2ebe1b06e80c9b6664e"
+    }
+  },
+  "browserPreservation": {
+    "pocketTank": {
+      "medianWallSeconds": {
+        "baseline": 28.60175500000082,
+        "candidate": 28.406459999999033
+      },
+      "wallReductionPercent": 0.6828077507893604,
+      "throughputRatio": 1.0068750206819785,
+      "pairsWallReductionPercent": [
+        0.5013236030933399,
+        0.8653267621459348
+      ],
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "browser": "Chrome/153.0.8010.53",
+      "v8": "15.3.76.13"
+    },
+    "tinyDraw": {
+      "medianWallSeconds": {
+        "baseline": 28.966174999998884,
+        "candidate": 28.88666000000015
+      },
+      "wallReductionPercent": 0.27450983776331483,
+      "throughputRatio": 1.0027526546855448,
+      "pairsWallReductionPercent": [
+        0.43133699141369997,
+        0.11689452013800006
+      ],
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "browser": "Chrome/153.0.8010.53",
+      "v8": "15.3.76.13"
+    }
+  },
+  "directMainBrowser": {
+    "pocketTank": {
+      "medianWallSeconds": {
+        "baseline": 59.06415499999933,
+        "candidate": 28.455012499999256
+      },
+      "wallReductionPercent": 51.82355101838064,
+      "throughputRatio": 2.075703006631991,
+      "pairsWallReductionPercent": [
+        51.65660970977761,
+        51.98962019519854
+      ],
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "browser": "Chrome/153.0.8010.53",
+      "v8": "15.3.76.13"
+    },
+    "tinyDraw": {
+      "medianWallSeconds": {
+        "baseline": 61.9393125,
+        "candidate": 28.899770000001418
+      },
+      "wallReductionPercent": 53.34179726324631,
+      "throughputRatio": 2.1432458632022664,
+      "pairsWallReductionPercent": [
+        53.2344832950305,
+        53.44854821615359
+      ],
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "browser": "Chrome/153.0.8010.53",
+      "v8": "15.3.76.13"
+    }
+  }
+}

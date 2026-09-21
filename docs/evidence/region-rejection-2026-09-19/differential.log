@@ -1,0 +1,6 @@
+   Compiling xtensa-lx7 v0.2.0 (/Users/alice/src/a/esp32sim/work/region-rejection-0919/xtensa-lx7)
+   Compiling esp32sim-wasm v0.2.0 (/Users/alice/src/a/esp32sim/work/region-rejection-0919/wasm)
+   Compiling esp32s3 v0.2.0 (/Users/alice/src/a/esp32sim/work/region-rejection-0919/esp32s3)
+   Compiling esp32sim-wasm-jit v0.2.0 (/Users/alice/src/a/esp32sim/work/region-rejection-0919/wasm-jit)
+    Finished `release` profile [optimized + debuginfo] target(s) in 19.58s
+PASS: 78861 WASM differential cases (ALU, helper continuation, memory, faults, loops, windows, budget/resume, invalidation, timer, script stop, peer-state MMIO); 76349 compiled modules released

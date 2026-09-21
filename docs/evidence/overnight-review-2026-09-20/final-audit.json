@@ -1,0 +1,25 @@
+{
+  "passed": true,
+  "baselineCommit": "661623eaa3a4e9c001565b8500dce8d4ada31fb3",
+  "candidateCommit": "946497a3c14ad545296e2acb9b607e117d526019",
+  "browser": {
+    "medianWallSeconds": {
+      "baseline": 28.6211325000003,
+      "candidate": 28.419637499999254
+    },
+    "wallReductionPercent": 0.7040077816663715,
+    "pairsWallReductionPercent": [
+      0.11073817901967598,
+      1.2911500641331175
+    ],
+    "throughputRatio": 1.0070899919114398
+  },
+  "native": {
+    "medianWallSeconds": {
+      "baseline": 53.501322791999996,
+      "candidate": 53.2942702505
+    },
+    "wallReductionPercent": 0.3870045275421785,
+    "throughputRatio": 1.0038850807136825
+  }
+}

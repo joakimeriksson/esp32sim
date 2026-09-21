@@ -161,6 +161,8 @@ impl Core for TestCore {
 struct TestBus {
     memory: Vec<u8>,
     cycles: u64,
+    approximate_penalties: [u32; 2],
+    approximate_pending: u32,
     irq: bool,
     dirty: bool,
     secondary: CoreState,
@@ -180,6 +182,8 @@ impl TestBus {
         Self {
             memory: vec![0; 0x200],
             cycles: 0,
+            approximate_penalties: [0; 2],
+            approximate_pending: 0,
             irq: false,
             dirty: true,
             secondary: CoreState::Held,
@@ -222,6 +226,7 @@ impl Bus for TestBus {
     }
     fn write8(&mut self, address: u32, value: u8) -> Result<(), Fault> {
         if (0x1f0..=0x1f1).contains(&address) {
+            self.approximate_pending += self.approximate_penalties[(address - 0x1f0) as usize];
             self.starts.lock().unwrap().push(((address - 0x1f0) as usize, self.cycles, self.irq));
             if let Some(log) = &mut self.misc.mmio_log {
                 log.push((self.misc.cur_pc, address, value as u32, true));
@@ -234,6 +239,7 @@ impl Bus for TestBus {
         self.memory[start] = value;
         Ok(())
     }
+    fn take_timing_penalty(&mut self) -> u32 { std::mem::take(&mut self.approximate_pending) }
     fn write16(&mut self, address: u32, value: u16) -> Result<(), Fault> {
         let start = self.range(address, 2)?;
         self.memory[start..start + 2].copy_from_slice(&value.to_le_bytes());
@@ -341,6 +347,21 @@ fn new_machine(op0: u8, op1: u8) -> Machine<TestSoc> {
     bus.memory[0x20] = op1;
     bus.memory[0x100..0x104].copy_from_slice(&0x1234_5678u32.to_le_bytes());
     Machine::new([0; 6], bus)
+}
+
+#[test]
+fn approximate_frontiers_allow_other_core_to_run_during_memory_stall() {
+    let mut machine = new_machine(2, 2);
+    machine.bus.secondary = CoreState::Running;
+    machine.bus.approximate_penalties = [4, 0];
+    machine.set_approximate_jit_timing(1, 1).unwrap();
+    machine.set_approximate_jit_frontiers(true).unwrap();
+    machine.max_cycles = 6;
+    assert!(matches!(machine.run(100), Stop::Halted));
+    assert_eq!(*machine.bus.starts.lock().unwrap(), vec![
+        (0, 0, false), (1, 0, false), (1, 1, false), (1, 2, false),
+        (1, 3, false), (1, 4, false), (0, 5, false), (1, 5, false),
+    ]);
 }
 
 #[test]
@@ -612,4 +633,17 @@ fn block_profile_reports_modeled_unavailability() {
     machine.set_cost_model(model).unwrap();
     assert!(matches!(machine.run(1), Stop::MaxInsns));
     assert_eq!(machine.reports(), "[profile-blocks] unavailable during modeled single-step execution\n");
+}
+
+#[test]
+fn stub_symbols_take_precedence_and_addresses_require_prefix() {
+    let mut machine = new_machine(0, 0);
+    machine.symbols.insert(0x1234, "deadbeef".into());
+    machine.symbols.insert(0x5678, "0xcafe".into());
+    assert_eq!(machine.resolve_stub("deadbeef"), Some(0x1234));
+    assert_eq!(machine.resolve_stub("0xcafe"), Some(0x5678));
+    for missing in ["add", "cafe", "dead", "f", "0x0xcafe"] {
+        assert_eq!(machine.resolve_stub(missing), None);
+    }
+    assert_eq!(machine.resolve_stub("0x123abc"), Some(0x123abc));
 }

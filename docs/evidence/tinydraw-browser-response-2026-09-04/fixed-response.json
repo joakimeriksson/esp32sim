@@ -233,14 +233,14 @@
     }
   ],
   "assets": {
-    "wasm": "/Users/sarah/src/a/esp32sim/web/wasm/esp32sim.wasm",
-    "rom": "/Users/sarah/.espressif/tools/esp-rom-elfs/20241011/esp32s3_rev0_rom.elf",
-    "bootloader": "/Users/sarah/src/a/esp32sim/target/tinydraw-battery-2026-09-04/firmware/bootloader/bootloader.bin",
-    "ptable": "/Users/sarah/src/a/esp32sim/target/tinydraw-battery-2026-09-04/firmware/partition_table/partition-table.bin",
-    "app": "/Users/sarah/src/a/esp32sim/target/tinydraw-battery-2026-09-04/firmware/tinydraw_esp32.bin",
-    "elf": "/Users/sarah/src/a/esp32sim/target/tinydraw-battery-2026-09-04/firmware/tinydraw_esp32.elf",
-    "before": "/Users/sarah/src/a/esp32sim/target/tinydraw-battery-jit-profile/before.wasm",
-    "after": "/Users/sarah/src/a/esp32sim/target/tinydraw-battery-jit-profile/after.wasm"
+    "wasm": "/Users/alice/src/a/esp32sim/web/wasm/esp32sim.wasm",
+    "rom": "/Users/alice/.espressif/tools/esp-rom-elfs/20241011/esp32s3_rev0_rom.elf",
+    "bootloader": "/Users/alice/src/a/esp32sim/target/tinydraw-battery-2026-09-04/firmware/bootloader/bootloader.bin",
+    "ptable": "/Users/alice/src/a/esp32sim/target/tinydraw-battery-2026-09-04/firmware/partition_table/partition-table.bin",
+    "app": "/Users/alice/src/a/esp32sim/target/tinydraw-battery-2026-09-04/firmware/tinydraw_esp32.bin",
+    "elf": "/Users/alice/src/a/esp32sim/target/tinydraw-battery-2026-09-04/firmware/tinydraw_esp32.elf",
+    "before": "/Users/alice/src/a/esp32sim/target/tinydraw-battery-jit-profile/before.wasm",
+    "after": "/Users/alice/src/a/esp32sim/target/tinydraw-battery-jit-profile/after.wasm"
   },
   "summary": {
     "strokes": 3,
@@ -254,7 +254,7 @@
     "endpoint": "First changed RGB565 pixels within 14 px of pen-down, submitted to canvas. Not optical presentation."
   },
   "_rawArtifact": {
-    "url": "https://github.com/aliceisjustplaying/esp32sim/blob/6791daa7c68315e742b904366616e8f4ed9dda10/docs/evidence/tinydraw-browser-response-2026-09-04/fixed-response.json",
+    "url": "https://github.com/aliceisjustplaying/esp32sim/blob/sanitized-6791daa7c68315e742b904366616e8f4ed9dda10/docs/evidence/tinydraw-browser-response-2026-09-04/fixed-response.json",
     "sha256": "e51a350b069d2182069f39285bf4a4b99c3f3cce240e8bf8e28e5788588b1c8f",
     "bytes": 124749,
     "omittedFields": [

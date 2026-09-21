@@ -1,0 +1,11 @@
+24 uart0 root
+27 uart0 changeme123
+31 uart0 wifi-setup esp32sim esp32sim-pass
+50 uart0 ifconfig espsta0
+52 uart0 sysctl -w net.ipv4.conf.all.route_localnet=1
+54 uart0 ip rule del pref 0
+55 uart0 ip rule add pref 0 to 127.0.0.1 lookup main
+56 uart0 ip rule add pref 1 lookup local
+57 uart0 ip route add 127.0.0.1/32 via 10.0.2.2 dev espsta0
+59 uart0 wget -T 5 -O - http://127.0.0.1:18799/qualification
+67 uart0 ifconfig espsta0

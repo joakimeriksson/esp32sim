@@ -1,0 +1,37 @@
+{
+  "experiment": "EX154",
+  "runtimeSource": "661623ea",
+  "buildPolicyCommit": "c243b6ba",
+  "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+  "target": "wasm32-unknown-unknown",
+  "package": "esp32sim-wasm",
+  "features": "default",
+  "wasmOpt": false,
+  "gzipCommand": "gzip -9 -n -c ARTIFACT.wasm",
+  "artifacts": [
+    {
+      "threshold": "default",
+      "rustflags": "",
+      "rawBytes": 9206986,
+      "gzip9Bytes": 2171846,
+      "sha256": "269ef6f77ccfb38ba4ef9e010b643a20734e3882be02b2bbf848d3bbe5860d37",
+      "gzip9Sha256": "96b003879e22413b3183be90de62a68e284eab41bb7e1db5cc183203a30b2072"
+    },
+    {
+      "threshold": "2000",
+      "rustflags": "-Cllvm-args=-inline-threshold=2000",
+      "rawBytes": 11829749,
+      "gzip9Bytes": 2750566,
+      "sha256": "b6dd700e8cbd60b60c521d5e2b99446f6c40be3e3c52bd55a7a35d576ddb7877",
+      "gzip9Sha256": "34a0cd337f03b6c074665d5afe480cfc234123c123dafed70f2d81ef1d7d16bf"
+    },
+    {
+      "threshold": "4000",
+      "rustflags": "-Cllvm-args=-inline-threshold=4000",
+      "rawBytes": 12726683,
+      "gzip9Bytes": 2973365,
+      "sha256": "f420cb708ba92c45833fe3f5e8c8ea7055a268ff106cb61ca8836765dc3abb08",
+      "gzip9Sha256": "8d2126f73a88e6f891b59dd2e5d0743265afde8fcd2667f642d0dc7ce91ec0d8"
+    }
+  ]
+}

@@ -1,0 +1,362 @@
+{
+  "summaryPathsRelativeTo": "docs/evidence/perf-x2-2026-09-20",
+  "jobs": 16,
+  "arms": 64,
+  "instructions": 10073833775,
+  "screeningOnly": true,
+  "checks": "Full frozen queue WASM SHA-256 checked against each arm; two pairs in AB/BA order; summary medians and reductions recomputed; passed=true; zero JIT failures; console equality within each campaign",
+  "runs": [
+    {
+      "job": "dispatch2-stack-t1t2t3t4",
+      "summary": "runs/dispatch2-stack-t1t2t3t4.json",
+      "summarySha256": "d22c06cdd1ef77166f2d8720b65db1f8d3236f532a0286d123dab8b824999297",
+      "queueBaseline": "cfbf86c55386.wasm",
+      "queueCandidate": "d11540983438.wasm",
+      "wasmSha256": {
+        "baseline": "cfbf86c5538646a47d9614469463ffbc666e391e1c69ee24f3ecb9e737567117",
+        "candidate": "d1154098343830354fda638636294315ccbf494817d0bbf196a0929c14228773"
+      },
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "armsPassed": 4,
+      "medianWallSeconds": {
+        "baseline": 31.958694999998436,
+        "candidate": 31.569664999999105
+      },
+      "wallReductionPercent": 1.2172900051123814,
+      "pairsWallReductionPercent": [
+        0.12373579461335549,
+        2.2843803100637383
+      ]
+    },
+    {
+      "job": "dispatch2-stack-t1",
+      "summary": "runs/dispatch2-stack-t1.json",
+      "summarySha256": "fb6a2162a45e31d157b387be2267438e9005ee6fda7a5f8711849f77ce0a6412",
+      "queueBaseline": "cfbf86c55386.wasm",
+      "queueCandidate": "eec028438859.wasm",
+      "wasmSha256": {
+        "baseline": "cfbf86c5538646a47d9614469463ffbc666e391e1c69ee24f3ecb9e737567117",
+        "candidate": "eec0284388590574b3aa4fcd056e4377a85ed17f493dfaa17393479d3e45dbf6"
+      },
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "armsPassed": 4,
+      "medianWallSeconds": {
+        "baseline": 32.40103499999829,
+        "candidate": 31.8348049999997
+      },
+      "wallReductionPercent": 1.7475676317087352,
+      "pairsWallReductionPercent": [
+        1.564638989015188,
+        1.930327318247338
+      ]
+    },
+    {
+      "job": "dispatch2-stack-t2",
+      "summary": "runs/dispatch2-stack-t2.json",
+      "summarySha256": "6acc46ad177dae91b07ab1a3f4977ede734201f2d1b6c7b74d5a94de08626d04",
+      "queueBaseline": "cfbf86c55386.wasm",
+      "queueCandidate": "c4ab8143551c.wasm",
+      "wasmSha256": {
+        "baseline": "cfbf86c5538646a47d9614469463ffbc666e391e1c69ee24f3ecb9e737567117",
+        "candidate": "c4ab8143551c661d92596e17c6e3f2574f30abb6c8c5cfc6ec499c46974da758"
+      },
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "armsPassed": 4,
+      "medianWallSeconds": {
+        "baseline": 32.45324499999918,
+        "candidate": 31.903924999998882
+      },
+      "wallReductionPercent": 1.6926504576054269,
+      "pairsWallReductionPercent": [
+        1.7466371067597741,
+        1.6388938811459641
+      ]
+    },
+    {
+      "job": "dispatch2-stack-t3",
+      "summary": "runs/dispatch2-stack-t3.json",
+      "summarySha256": "639d3291d3dbefcd8cb410da8ec53eb2b99d4191c7b5420065d37709ab5d5a44",
+      "queueBaseline": "cfbf86c55386.wasm",
+      "queueCandidate": "1912470f05c9.wasm",
+      "wasmSha256": {
+        "baseline": "cfbf86c5538646a47d9614469463ffbc666e391e1c69ee24f3ecb9e737567117",
+        "candidate": "1912470f05c96d97329ec31646c751976ce21698ad801cd4e339476db65babb3"
+      },
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "armsPassed": 4,
+      "medianWallSeconds": {
+        "baseline": 32.380494999999186,
+        "candidate": 31.900442499998956
+      },
+      "wallReductionPercent": 1.4825360143513655,
+      "pairsWallReductionPercent": [
+        1.1248606784661441,
+        1.8399061687168095
+      ]
+    },
+    {
+      "job": "dispatch2-stack-t4",
+      "summary": "runs/dispatch2-stack-t4.json",
+      "summarySha256": "20652b5049e5631d170a7f6f4502e2a63382380be441bba0353258a9be9ac2fd",
+      "queueBaseline": "cfbf86c55386.wasm",
+      "queueCandidate": "56b55dbb85b2.wasm",
+      "wasmSha256": {
+        "baseline": "cfbf86c5538646a47d9614469463ffbc666e391e1c69ee24f3ecb9e737567117",
+        "candidate": "56b55dbb85b2b305dbe2419eee7a852f7dc9adcbf91369b3a69fdaa0b78a8b72"
+      },
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "armsPassed": 4,
+      "medianWallSeconds": {
+        "baseline": 32.58015000000037,
+        "candidate": 31.809425000000743
+      },
+      "wallReductionPercent": 2.3656275370114055,
+      "pairsWallReductionPercent": [
+        2.102448616355468,
+        2.627912061069193
+      ]
+    },
+    {
+      "job": "dispatch2-t1",
+      "summary": "runs/dispatch2-t1.json",
+      "summarySha256": "d8bd54368de417682650b77f3eeeaa2722230dada14d74da5df01e8548be0af9",
+      "queueBaseline": "cfbf86c55386.wasm",
+      "queueCandidate": "bfaad70f6b40.wasm",
+      "wasmSha256": {
+        "baseline": "cfbf86c5538646a47d9614469463ffbc666e391e1c69ee24f3ecb9e737567117",
+        "candidate": "bfaad70f6b40b5cdc24f9f7ddd09b9076fc0efba344d9fbbe66524084424e46f"
+      },
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "armsPassed": 4,
+      "medianWallSeconds": {
+        "baseline": 32.482407500000676,
+        "candidate": 32.493602499999106
+      },
+      "wallReductionPercent": -0.03446480990803025,
+      "pairsWallReductionPercent": [
+        0.19041623250478645,
+        -0.2611214608071455
+      ]
+    },
+    {
+      "job": "dispatch2-t2",
+      "summary": "runs/dispatch2-t2.json",
+      "summarySha256": "09247b2261fba723f1a3780594ca627e4e001562f42bb4ac94455122590512ee",
+      "queueBaseline": "cfbf86c55386.wasm",
+      "queueCandidate": "a0fc1d49825a.wasm",
+      "wasmSha256": {
+        "baseline": "cfbf86c5538646a47d9614469463ffbc666e391e1c69ee24f3ecb9e737567117",
+        "candidate": "a0fc1d49825a9acb66d8b7b0da84a35ebd404b54d9094e66bbb37d14f01987b5"
+      },
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "armsPassed": 4,
+      "medianWallSeconds": {
+        "baseline": 32.41498000000045,
+        "candidate": 32.34652249999903
+      },
+      "wallReductionPercent": 0.2111909370340892,
+      "pairsWallReductionPercent": [
+        0.006175911259576061,
+        0.41581300666669874
+      ]
+    },
+    {
+      "job": "dispatch2-t3",
+      "summary": "runs/dispatch2-t3.json",
+      "summarySha256": "0bceda04b27fef0f457ff154c1c25ef0147db0ef5bf01c75e09e529bd39ffa30",
+      "queueBaseline": "cfbf86c55386.wasm",
+      "queueCandidate": "69c2c22256af.wasm",
+      "wasmSha256": {
+        "baseline": "cfbf86c5538646a47d9614469463ffbc666e391e1c69ee24f3ecb9e737567117",
+        "candidate": "69c2c22256af492bee3f2a0f7e5bcf607de3308767657ce330074d42b0fa2c50"
+      },
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "armsPassed": 4,
+      "medianWallSeconds": {
+        "baseline": 32.438535000000144,
+        "candidate": 32.16046999999881
+      },
+      "wallReductionPercent": 0.8572057893530993,
+      "pairsWallReductionPercent": [
+        1.2887006005812163,
+        0.4233523708781606
+      ]
+    },
+    {
+      "job": "dispatch2-t4",
+      "summary": "runs/dispatch2-t4.json",
+      "summarySha256": "fd1fa09bcbedf9002246f15f06c441a6d65bd907067f360b5a6751c9f1beca98",
+      "queueBaseline": "cfbf86c55386.wasm",
+      "queueCandidate": "7cf2fc5c2b1b.wasm",
+      "wasmSha256": {
+        "baseline": "cfbf86c5538646a47d9614469463ffbc666e391e1c69ee24f3ecb9e737567117",
+        "candidate": "7cf2fc5c2b1bb4fb65295afa3d5f22a2f233e8284d2a6c8aaf5cc52069e68185"
+      },
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "armsPassed": 4,
+      "medianWallSeconds": {
+        "baseline": 32.30881499999948,
+        "candidate": 32.32987250000052
+      },
+      "wallReductionPercent": -0.06517571133772826,
+      "pairsWallReductionPercent": [
+        -0.04189332505248888,
+        -0.08856071620571004
+      ]
+    },
+    {
+      "job": "heads-s1",
+      "summary": "runs/heads-s1.json",
+      "summarySha256": "42639049fad4e7c662af2e0513df4e22f87403c4dc66b8f28b6b747c81b1d81e",
+      "queueBaseline": "cfbf86c55386.wasm",
+      "queueCandidate": "7a7e1c98ed21.wasm",
+      "wasmSha256": {
+        "baseline": "cfbf86c5538646a47d9614469463ffbc666e391e1c69ee24f3ecb9e737567117",
+        "candidate": "7a7e1c98ed21ec10a34eca887596ea440a679ff011bd9daf47751345f8d91526"
+      },
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "armsPassed": 4,
+      "medianWallSeconds": {
+        "baseline": 32.41676499999873,
+        "candidate": 31.566335000000894
+      },
+      "wallReductionPercent": 2.6234264893423953,
+      "pairsWallReductionPercent": [
+        3.051758909310831,
+        2.1899688042726684
+      ]
+    },
+    {
+      "job": "heads-s2",
+      "summary": "runs/heads-s2.json",
+      "summarySha256": "b599dc10268314603a4b87c33956a33d1818ef4cdd4b98b7f47c7f6c3618ea00",
+      "queueBaseline": "cfbf86c55386.wasm",
+      "queueCandidate": "37b9d5aa44f0.wasm",
+      "wasmSha256": {
+        "baseline": "cfbf86c5538646a47d9614469463ffbc666e391e1c69ee24f3ecb9e737567117",
+        "candidate": "37b9d5aa44f0be92363e163cf519ac11cd04af824967da4b002dd50391fa9007"
+      },
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "armsPassed": 4,
+      "medianWallSeconds": {
+        "baseline": 32.35532249999977,
+        "candidate": 31.502677499998363
+      },
+      "wallReductionPercent": 2.6352542151338976,
+      "pairsWallReductionPercent": [
+        2.9387642187263308,
+        2.3331528452504746
+      ]
+    },
+    {
+      "job": "heads-s3",
+      "summary": "runs/heads-s3.json",
+      "summarySha256": "a9a59cabf491a5d6b0b1d6ff3b1937709514cb293d68dcdb0bf65186a38fba6f",
+      "queueBaseline": "cfbf86c55386.wasm",
+      "queueCandidate": "af124c493c9a.wasm",
+      "wasmSha256": {
+        "baseline": "cfbf86c5538646a47d9614469463ffbc666e391e1c69ee24f3ecb9e737567117",
+        "candidate": "af124c493c9a58f7c63bc93c7ca3db7fa4d4c68ddf6ab41bea53f1623479624e"
+      },
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "armsPassed": 4,
+      "medianWallSeconds": {
+        "baseline": 32.4103599999994,
+        "candidate": 31.186762500001116
+      },
+      "wallReductionPercent": 3.7753283209390642,
+      "pairsWallReductionPercent": [
+        4.154000441627614,
+        3.3920473876144386
+      ]
+    },
+    {
+      "job": "spec2-ex150-k4",
+      "summary": "runs/spec2-ex150-k4.json",
+      "summarySha256": "0e8135321806bd20745ca096b0bb16873bb0fdc900a297a068ee649345746e8a",
+      "queueBaseline": "cfbf86c55386.wasm",
+      "queueCandidate": "5e7ba389ea2f.wasm",
+      "wasmSha256": {
+        "baseline": "cfbf86c5538646a47d9614469463ffbc666e391e1c69ee24f3ecb9e737567117",
+        "candidate": "5e7ba389ea2f6661b6a6b549fbe2daaf62fd4dd6286b4fa9d4b6d553a9ceebbe"
+      },
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "armsPassed": 4,
+      "medianWallSeconds": {
+        "baseline": 32.48776999999956,
+        "candidate": 50.577802500000224
+      },
+      "wallReductionPercent": -55.682592249332345,
+      "pairsWallReductionPercent": [
+        -55.16020645633311,
+        -56.203654772970694
+      ]
+    },
+    {
+      "job": "spec2-ex150-k16",
+      "summary": "runs/spec2-ex150-k16.json",
+      "summarySha256": "9bafa6b9cc70de3dfc5974870894221dfd774dc03961ed15668f91e47338c448",
+      "queueBaseline": "cfbf86c55386.wasm",
+      "queueCandidate": "21ec74c7339f.wasm",
+      "wasmSha256": {
+        "baseline": "cfbf86c5538646a47d9614469463ffbc666e391e1c69ee24f3ecb9e737567117",
+        "candidate": "21ec74c7339f916274a3c2eb64d0d05fc526753eadc3e047217e64c8178876d0"
+      },
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "armsPassed": 4,
+      "medianWallSeconds": {
+        "baseline": 32.46842250000127,
+        "candidate": 46.76848249999993
+      },
+      "wallReductionPercent": -44.042977449853325,
+      "pairsWallReductionPercent": [
+        -42.63000176165055,
+        -45.47594296776249
+      ]
+    },
+    {
+      "job": "spec2-ex150-k64",
+      "summary": "runs/spec2-ex150-k64.json",
+      "summarySha256": "0390d27a24e04d3fd376751192affa36c510ab9db868cff9adbcba84c59593d9",
+      "queueBaseline": "cfbf86c55386.wasm",
+      "queueCandidate": "b9835afcac59.wasm",
+      "wasmSha256": {
+        "baseline": "cfbf86c5538646a47d9614469463ffbc666e391e1c69ee24f3ecb9e737567117",
+        "candidate": "b9835afcac59204c54f7716976127f002ad728cc0b32a0fc0976d25912909114"
+      },
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "armsPassed": 4,
+      "medianWallSeconds": {
+        "baseline": 32.39025499999896,
+        "candidate": 43.33419999999926
+      },
+      "wallReductionPercent": -33.78777042663186,
+      "pairsWallReductionPercent": [
+        -34.06388959752269,
+        -33.51184342220064
+      ]
+    },
+    {
+      "job": "spec2-ex150-tax1",
+      "summary": "runs/spec2-ex150-tax1.json",
+      "summarySha256": "9128fc55d93db9a8bbb33089ae8384233ddf91055adddd74ed6bcff646cfcbad",
+      "queueBaseline": "cfbf86c55386.wasm",
+      "queueCandidate": "2c1fae3c544f.wasm",
+      "wasmSha256": {
+        "baseline": "cfbf86c5538646a47d9614469463ffbc666e391e1c69ee24f3ecb9e737567117",
+        "candidate": "2c1fae3c544f03aef75510fe100e03f2085dd172b39a6440db0dd412cdb01ba9"
+      },
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "armsPassed": 4,
+      "medianWallSeconds": {
+        "baseline": 32.45383499999903,
+        "candidate": 32.969
+      },
+      "wallReductionPercent": -1.5873778861604126,
+      "pairsWallReductionPercent": [
+        -1.960729499499747,
+        -1.215877968361312
+      ]
+    }
+  ]
+}

@@ -12,3 +12,4 @@ emu-core = { path = "../emu-core" }
 wasm-jit-tests = []
 wasm-jit-profile = []
 wasm-cpu-profile = []
+wasm-cache-inline = []

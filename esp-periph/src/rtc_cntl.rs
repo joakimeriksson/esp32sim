@@ -11,26 +11,27 @@ pub fn reset_cause_name(c: u32) -> &'static str {
             12 => "RTC_SW_CPU_RESET", 13 => "RTCWDT_CPU_RESET", 15 => "RTCWDT_BROWN_OUT_RESET", 16 => "RTCWDT_RTC_RESET", 17 => "TG1WDT_CPU_RESET", 18 => "SUPER_WDT_RESET", _ => "?" }
 }
 
-/// RTC_CNTL: reset control, slow-clock time, and the RTC watchdog (WDTCONFIG0..WDTWPROTECT at 0x98..0xb0).
+/// RTC_CNTL: reset control, slow-clock time and the RTC watchdog.
+/// WDTCONFIG0..WDTWPROTECT live at 0x98..0xb0 on S3 and 0x90..0xa8 on C3.
 /// `esp_restart()` on ESP-IDF 5.x arms this watchdog and spins until it resets the chip.
 pub struct RtcCntl { pub ram: RegRam, pub slow_ticks: u64, pub time_latch: u64, pub sw_reset: bool, pub reset_cause: u32,
-                     wdt_count: u64, wdt_stage: usize, wdt_unlocked: bool }
+                     wdt_base: u32, wdt_count: u64, wdt_stage: usize, wdt_unlocked: bool }
 impl RtcCntl {
     pub fn preset_after_bootloader(&mut self) { self.ram.write(0xc0, 0xFFD7_0028); self.ram.write(0xc4, 0xFF0F_00F0); }
     fn request_reset(&mut self, cause: u32) { if !self.sw_reset { self.sw_reset = true; self.reset_cause = cause; } }
     /// Advance the watchdog by RTC slow-clock ticks.
     pub fn wdt_tick(&mut self, ticks: u64) {
-        let conf0 = self.ram.read(0x98);
+        let conf0 = self.ram.read(self.wdt_base);
         if conf0 & (1 << 31) == 0 { return; }
         self.wdt_count += ticks;
         while self.wdt_stage < 4 {
-            let timeout = self.ram.read(0x9c + 4 * self.wdt_stage as u32) as u64;
+            let timeout = self.ram.read(self.wdt_base + 4 + 4 * self.wdt_stage as u32) as u64;
             let action = (conf0 >> (28 - 3 * self.wdt_stage as u32)) & 7;
             if action == 0 { self.wdt_stage += 1; continue; }              // stage disabled: skip
             if self.wdt_count < timeout { break; }
             self.wdt_count = 0; self.wdt_stage += 1;
             match action {
-                1 => { self.ram.write(0x100, self.ram.read(0x100) | (1 << 10)); }   // INT_RAW.WDT
+                1 => { self.ram.write(0x44, self.ram.read(0x44) | (1 << 3)); }   // INT_RAW.WDT
                 2 => self.request_reset(RST_RTCWDT_CPU),
                 3 => self.request_reset(RST_RTCWDT_SYS),
                 4 => self.request_reset(RST_RTCWDT_RTC),
@@ -40,8 +41,10 @@ impl RtcCntl {
         }
         if self.wdt_stage >= 4 { self.wdt_stage = 0; }
     }
-    pub fn new() -> Self {
-        let mut r = RtcCntl { ram: RegRam::new(), slow_ticks: 0, time_latch: 0, sw_reset: false, reset_cause: RST_POWERON, wdt_count: 0, wdt_stage: 0, wdt_unlocked: false };
+    pub fn new() -> Self { Self::with_wdt_base(0x98) }
+    pub fn new_c3() -> Self { Self::with_wdt_base(0x90) }
+    fn with_wdt_base(wdt_base: u32) -> Self {
+        let mut r = RtcCntl { ram: RegRam::new(), slow_ticks: 0, time_latch: 0, sw_reset: false, reset_cause: RST_POWERON, wdt_base, wdt_count: 0, wdt_stage: 0, wdt_unlocked: false };
         r.ram.write(0x38, 1 | (1 << 6));           // RESET_STATE: reset cause POWERON for both CPUs
         r.ram.write(0x74, 0);                        // CLK_CONF
         r
@@ -56,12 +59,13 @@ impl RtcCntl {
         }
     }
     pub fn write(&mut self, off: u32, v: u32) {
+        let wdt = self.wdt_base;
         match off {
             0x0 => { if v & (1 << 31) != 0 { self.request_reset(RST_SW_SYS); } else if v & (1 << 5) != 0 { self.request_reset(RST_SW_CPU); } self.ram.write(off, v & !((1 << 31) | (1 << 5))); }   // OPTIONS0.SW_SYS_RST / SW_PROCPU_RST
             0xc => { if v & (1 << 31) != 0 { self.time_latch = self.slow_ticks; } self.ram.write(off, v); }
-            0xb0 => { self.wdt_unlocked = v == 0x50D8_3AA1; self.ram.write(off, v); }
-            0x98..=0xa8 => { if self.wdt_unlocked { if off == 0x98 && (v ^ self.ram.read(0x98)) & (1 << 31) != 0 { self.wdt_count = 0; self.wdt_stage = 0; } self.ram.write(off, v); } }
-            0xac => { if self.wdt_unlocked && v & (1 << 31) != 0 { self.wdt_count = 0; self.wdt_stage = 0; } }   // WDTFEED
+            _ if off == wdt + 0x18 => { self.wdt_unlocked = v == 0x50D8_3AA1; self.ram.write(off, v); }
+            _ if (wdt..=wdt + 0x10).contains(&off) => { if self.wdt_unlocked { if off == wdt && (v ^ self.ram.read(wdt)) & (1 << 31) != 0 { self.wdt_count = 0; self.wdt_stage = 0; } self.ram.write(off, v); } }
+            _ if off == wdt + 0x14 => { if self.wdt_unlocked && v & (1 << 31) != 0 { self.wdt_count = 0; self.wdt_stage = 0; } }   // WDTFEED
             _ => self.ram.write(off, v),
         }
     }

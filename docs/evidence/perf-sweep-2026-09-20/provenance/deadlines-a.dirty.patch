@@ -1,0 +1,120 @@
+diff --git a/cli/src/lib.rs b/cli/src/lib.rs
+index f19d25b6..c4cb41d5 100644
+--- a/cli/src/lib.rs
++++ b/cli/src/lib.rs
+@@ -396,7 +396,6 @@ fn prepare<S: Soc>(m: &mut Machine<S>, o: &Opts) -> String {
+ 
+ /// The end-of-run report on stderr: counts, faults, peeks, observer reports, captures, registers.
+ fn report<S: Soc>(m: &mut Machine<S>, o: &Opts, stop: Stop, dt: f64) {
+-    esp32s3::bus::census::dump();
+     let total = m.insns();
+     let per: String = if S::CORES == 1 { format!("{}", total) } else { m.cores.iter().enumerate().map(|(i, c)| format!("core{} {}", i, c.insn_count())).collect::<Vec<_>>().join(" + ") };
+     eprintln!("\n[emu] stop: {:?} — {} insns in {:.1}s wall = {:.1} Minsn/s; emulated {:.3}s ({} cycles); {} exceptions, {} interrupts",
+diff --git a/esp32s3/src/bus.rs b/esp32s3/src/bus.rs
+index 0e21fa89..8153556a 100644
+--- a/esp32s3/src/bus.rs
++++ b/esp32s3/src/bus.rs
+@@ -676,7 +676,6 @@ impl Bus for SocBus {
+     /// Returns 1 when interrupt inputs may have changed. Device time can advance
+     /// without requesting a full interrupt-source scan.
+     fn tick(&mut self, cycles: u32) -> u32 {
+-        census::get().ticks += 1;
+         self.cycles += cycles as u64;
+         self.tick_pending += cycles;
+         if self.tick_pending < self.tick_budget { return 0; }
+@@ -685,27 +684,15 @@ impl Bus for SocBus {
+     }
+ }
+ 
+-fn ex157() -> bool { static V: std::sync::OnceLock<bool> = std::sync::OnceLock::new(); *V.get_or_init(|| std::env::var_os("ESP32SIM_EX157").is_some()) }
+ impl SocBus {
+-    pub fn census_mask(&self) -> u32 {
+-        let p = &self.periph;
+-        let b = [p.i2s0.tx_running() || p.i2s1.tx_running(),
+-            p.lcd_cam.running || p.lcd_cam.lcd_running(),
+-            p.gdma.inp.iter().any(|c| c.running), p.gdma.out.iter().any(|c| c.running),
+-            p.wifi.ap.is_some() || p.wifi.net.is_some() || !p.wifi.tx_pending.is_empty(),
+-            p.aes.dma_pending || p.sha.dma_pending,
+-            p.spi2.has_pending_transfer(), p.spi2.dma_tx_pending.is_some(),
+-            p.rmt.ch.iter().any(|c| c.running) || !p.rmt.done.is_empty(),
+-            !p.gpio.changes.is_empty() || !p.gpio.input_changes.is_empty(),
+-            p.rtc.ram.read(0x98) & (1 << 31) != 0,
+-            p.usb.int_ena & (1 << 1) != 0];
+-        b.iter().enumerate().fold(0, |m, (i, &x)| m | (u32::from(x) << i))
+-    }
+     fn cadence_active(&self) -> bool {
+         let p = &self.periph;
+         p.i2s0.tx_running() || p.i2s1.tx_running()
+             || p.lcd_cam.running || p.lcd_cam.lcd_running()
+-            || (!ex157() && p.gdma.inp.iter().any(|c| c.running)) || p.gdma.out.iter().any(|c| c.running)
++            // EX157: a running GDMA IN channel is passive. Its only producers are the camera
++            // (lcd_cam.running), AES (dma_pending) and mem-to-mem (needs the OUT side running),
++            // all listed here, so an armed-but-idle receive channel does not hold the cadence.
++            || p.gdma.out.iter().any(|c| c.running)
+             || p.wifi.ap.is_some() || p.wifi.net.is_some() || !p.wifi.tx_pending.is_empty()
+             || p.aes.dma_pending || p.sha.dma_pending
+             || p.spi2.has_pending_transfer() || p.spi2.dma_tx_pending.is_some()
+@@ -737,21 +724,7 @@ impl SocBus {
+     pub fn flush_ticks(&mut self) {
+         let c = std::mem::take(&mut self.tick_pending);
+         if c == 0 { return; }
+-        let cen = census::get();
+-        let due = c >= self.tick_budget;
+-        let mask = self.census_mask();
+-        let timer = self.periph.cycles_until_timer();
+-        cen.flushes += 1; cen.cycles += u64::from(c);
+-        if due { cen.due += 1; } else { cen.mmio += 1; }
+-        if due { *cen.masks.entry(mask).or_default() += 1;
+-            if mask == 0 { cen.quiet += 1; }
+-            if u64::from(self.tick_budget) < 256 { cen.short_budget += 1; }
+-        }
+-        let before = self.irq_dirty;
+-        let lines_before = self.periph.lines_dirty();
+         self.tick_impl(c);
+-        if !before && self.irq_dirty { cen.irq_set += 1; if due { cen.irq_set_due += 1; if u64::from(timer) <= u64::from(c) { cen.irq_timer += 1; } else { *cen.irq_masks.entry(mask).or_default() += 1; } } }
+-        let _ = lines_before;
+         self.refresh_tick_budget();
+     }
+ 
+@@ -810,17 +783,6 @@ impl SocBus {
+         0
+     }
+ }
+-pub mod census {
+-    use std::collections::BTreeMap;
+-    #[derive(Default)]
+-    pub struct Census { pub flushes: u64, pub cycles: u64, pub due: u64, pub mmio: u64, pub quiet: u64, pub short_budget: u64, pub irq_set: u64, pub irq_set_due: u64, pub irq_timer: u64, pub masks: BTreeMap<u32, u64>, pub irq_masks: BTreeMap<u32, u64>, pub ticks: u64 }
+-    static mut C: Option<Census> = None;
+-    #[allow(static_mut_refs)]
+-    pub fn get() -> &'static mut Census { unsafe { C.get_or_insert_with(Census::default) } }
+-    pub fn dump() { let c = get(); eprintln!("[census] bus.tick calls {} flushes {} (due {} mmio {}) cycles {} avg {:.1} quiet-due {} short-budget-due {} irq_set {} (due {} of which timer {})", c.ticks, c.flushes, c.due, c.mmio, c.cycles, c.cycles as f64 / c.flushes.max(1) as f64, c.quiet, c.short_budget, c.irq_set, c.irq_set_due, c.irq_timer);
+-        for (m, n) in &c.masks { eprintln!("[census]   due mask {m:#014b}: {n}"); }
+-        for (m, n) in &c.irq_masks { eprintln!("[census]   non-timer irq under mask {m:#014b}: {n}"); } }
+-}
+ #[cfg(test)]
+ #[path = "bus/cache_tests.rs"]
+ mod cache_tests;
+diff --git a/esp32s3/src/bus/tests.rs b/esp32s3/src/bus/tests.rs
+index 413d1b0c..3b7dd765 100644
+--- a/esp32s3/src/bus/tests.rs
++++ b/esp32s3/src/bus/tests.rs
+@@ -649,7 +649,6 @@ fn quiet_backstop_keeps_the_original_cadence_for_active_devices() {
+         ("i2s1", |p| p.i2s1.tx_conf |= 1 << 2),
+         ("camera", |p| p.lcd_cam.running = true),
+         ("lcd", |p| { p.lcd_cam.lcd_user |= 1 << 27; p.lcd_cam.lcd_ctrl |= 1 << 31; }),
+-        ("gdma-in", |p| p.gdma.inp[0].running = true),
+         ("gdma-out", |p| p.gdma.out[0].running = true),
+         ("wifi-tx", |p| p.wifi.tx_pending.push((0, 0))),
+         ("wifi-ap", |p| p.wifi.ap = Some(crate::wifi::VirtualAp::new(crate::wifi::ApConfig {
+@@ -675,6 +674,11 @@ fn quiet_backstop_keeps_the_original_cadence_for_active_devices() {
+         bus.refresh_tick_budget();
+         assert_eq!(bus.tick_budget, MAX_TICK_DEFER, "{name}: active cadence");
+     }
++    // EX157: an armed GDMA IN channel without a producer is passive and stays quiet.
++    let mut bus = SocBus::new(1024, 1024, [0; 6]);
++    bus.periph.gdma.inp[0].running = true;
++    bus.refresh_tick_budget();
++    assert_eq!(bus.tick_budget, QUIET_TICK_DEFER, "gdma-in alone is passive");
+     // Real MMIO writes must switch the cap immediately in both directions.
+     let mut bus = SocBus::new(1024, 1024, [0; 6]);
+     bus.write32(0x6003_8010, 2).unwrap();

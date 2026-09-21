@@ -1,0 +1,113 @@
+{
+  "args": [
+    "--rom",
+    "/Users/alice/bench/esp32sim/overnight-review/../assets/pocket-tank/rom.elf",
+    "--board",
+    "waveshare-lcd4b",
+    "--boot",
+    "rom",
+    "--no-dump",
+    "--console",
+    "usb",
+    "--flash-mb",
+    "16",
+    "--psram-mb",
+    "8",
+    "--bootloader",
+    "/Users/alice/bench/esp32sim/overnight-review/candidate/web/wasm/fw/public/panel-bootloader.bin",
+    "--ptable",
+    "/Users/alice/bench/esp32sim/overnight-review/candidate/web/wasm/fw/public/panel-ptable.bin",
+    "--app",
+    "/Users/alice/bench/esp32sim/overnight-review/candidate/web/wasm/fw/public/panel-demo.bin",
+    "--flash-at",
+    "0x610000=/Users/alice/bench/esp32sim/overnight-review/candidate/web/wasm/fw/public/energydata.json",
+    "--script",
+    "/Users/alice/bench/esp32sim/overnight-review/candidate/web/wasm/fw/public/panel-sid.txt",
+    "--max-seconds",
+    "7"
+  ],
+  "inputs": {
+    "/Users/alice/bench/esp32sim/overnight-review/../assets/pocket-tank/rom.elf": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+    "/Users/alice/bench/esp32sim/overnight-review/candidate/web/wasm/fw/public/panel-bootloader.bin": "f804e8ef245d68ee0932650062e8f4d6b14df22d61fb39ba50f5e33977127801",
+    "/Users/alice/bench/esp32sim/overnight-review/candidate/web/wasm/fw/public/panel-ptable.bin": "fb462bc675bf6928afe8de87977f72c7dfce38491d32aa89a9204b6d4d5b1066",
+    "/Users/alice/bench/esp32sim/overnight-review/candidate/web/wasm/fw/public/panel-demo.bin": "8094e4be95f8d92c7ce41fe1acbbecbcdb3b31725fc292a1eef63cfcc22cf5a0",
+    "/Users/alice/bench/esp32sim/overnight-review/candidate/web/wasm/fw/public/energydata.json": "aa8d5326406a83aa254d953d16f18f644c0112d523ef2e2e66b3ab1add4ff0cb",
+    "/Users/alice/bench/esp32sim/overnight-review/candidate/web/wasm/fw/public/panel-sid.txt": "bb6e0b1f1d5945265f0310f2a40b59b03602b257b412f52f649fc2c66823f420"
+  },
+  "identities": {
+    "baseline": {
+      "path": "/Users/alice/bench/esp32sim/overnight-review/baseline/target/release/esp32sim",
+      "sha256": "86d7fded1e2fe6c820bbb9bb43ca448091d6e647757ac0ac35dea07fb4637770"
+    },
+    "candidate": {
+      "path": "/Users/alice/bench/esp32sim/overnight-review/recovery/target/release/esp32sim",
+      "sha256": "e97661db5c02d0b1f58b8ebc4527369acbadf07c7664c2ebe1b06e80c9b6664e"
+    }
+  },
+  "rows": [
+    {
+      "pair": 1,
+      "arm": "baseline",
+      "wallSeconds": 2.7567250000000003,
+      "loadBefore": [
+        2.85546875,
+        2.8583984375,
+        2.4228515625
+      ],
+      "coreInstructions": [
+        "260026792",
+        "136442769"
+      ],
+      "jitLine": "[emu] blocks: 21318 built (0 cache flushes) core0, 10209 (0) core1; jit: 31527 compiled, 25292 KB code",
+      "consoleSha256": "a77aaabb68350611617f518acdf4687b919906b7439ef327d816239c62b683d9"
+    },
+    {
+      "pair": 1,
+      "arm": "candidate",
+      "wallSeconds": 2.6570742499999995,
+      "loadBefore": [
+        2.85546875,
+        2.8583984375,
+        2.4228515625
+      ],
+      "coreInstructions": [
+        "260026792",
+        "136442769"
+      ],
+      "jitLine": "[emu] blocks: 21269 built (0 cache flushes) core0, 10172 (0) core1; jit: 31441 compiled, 25602 KB code",
+      "consoleSha256": "a77aaabb68350611617f518acdf4687b919906b7439ef327d816239c62b683d9"
+    },
+    {
+      "pair": 2,
+      "arm": "candidate",
+      "wallSeconds": 2.642275708,
+      "loadBefore": [
+        2.86669921875,
+        2.8603515625,
+        2.42578125
+      ],
+      "coreInstructions": [
+        "260026792",
+        "136442769"
+      ],
+      "jitLine": "[emu] blocks: 21269 built (0 cache flushes) core0, 10172 (0) core1; jit: 31441 compiled, 25602 KB code",
+      "consoleSha256": "a77aaabb68350611617f518acdf4687b919906b7439ef327d816239c62b683d9"
+    },
+    {
+      "pair": 2,
+      "arm": "baseline",
+      "wallSeconds": 2.735337834,
+      "loadBefore": [
+        2.86669921875,
+        2.8603515625,
+        2.42578125
+      ],
+      "coreInstructions": [
+        "260026792",
+        "136442769"
+      ],
+      "jitLine": "[emu] blocks: 21318 built (0 cache flushes) core0, 10209 (0) core1; jit: 31527 compiled, 25292 KB code",
+      "consoleSha256": "a77aaabb68350611617f518acdf4687b919906b7439ef327d816239c62b683d9"
+    }
+  ]
+}

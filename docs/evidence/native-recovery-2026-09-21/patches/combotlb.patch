@@ -1,0 +1,37 @@
+diff --git a/emu-core/src/jit_a64.rs b/emu-core/src/jit_a64.rs
+index ae398bd7..2a0d8871 100644
+--- a/emu-core/src/jit_a64.rs
++++ b/emu-core/src/jit_a64.rs
+@@ -97,6 +97,7 @@ impl Asm {
+     pub fn sub_lsl(&mut self, rd: Reg, rn: Reg, rm: Reg, sh: u32) { self.e(0x4b00_0000 | rm << 16 | sh << 10 | rn << 5 | rd); }
+     pub fn subs(&mut self, rd: Reg, rn: Reg, rm: Reg) { self.e(0x6b00_0000 | rm << 16 | rn << 5 | rd); }
+     pub fn cmp(&mut self, rn: Reg, rm: Reg) { self.subs(ZR, rn, rm); }
++    pub fn cmp_x(&mut self, rn: Reg, rm: Reg) { self.e(0xeb00_001f | rm << 16 | rn << 5); }
+     pub fn neg(&mut self, rd: Reg, rm: Reg) { self.sub(rd, ZR, rm); }
+     pub fn and(&mut self, rd: Reg, rn: Reg, rm: Reg) { self.e(0x0a00_0000 | rm << 16 | rn << 5 | rd); }
+     pub fn orr(&mut self, rd: Reg, rn: Reg, rm: Reg) { self.e(0x2a00_0000 | rm << 16 | rn << 5 | rd); }
+@@ -202,6 +203,7 @@ mod tests {
+         t!("subs w9, w10, #7", a.subs_imm(9, 10, 7));
+         t!("add x21, x19, #864", a.add_imm_x(21, 19, 864));
+         t!("cmp w9, #32", a.cmp_imm(9, 32));
++        t!("cmp x9, x10", a.cmp_x(9, 10));
+         t!("add w9, w10, w11", a.add(9, 10, 11));
+         t!("add x9, x10, x11", a.add_x(9, 10, 11));
+         t!("add w9, w10, w11, lsl #3", a.add_lsl(9, 10, 11, 3));
+diff --git a/xtensa-lx7/src/jit/mod.rs b/xtensa-lx7/src/jit/mod.rs
+index 493e287e..6f193337 100644
+--- a/xtensa-lx7/src/jit/mod.rs
++++ b/xtensa-lx7/src/jit/mod.rs
+@@ -279,9 +279,9 @@ mod native {
+             self.a.add_x_lsl(9, TLB, 9, TLB_ENTRY_SHIFT);
+             self.a.ldr(10, 9, TLB_LO); self.a.ldr(11, 9, TLB_HI);
+             self.a.cmp(addr, 10); self.a.b_cond(Cond::Lo, slow);
+-            self.a.cmp(addr, 11); self.a.b_cond(Cond::Hs, slow);
+-            // Subtract only after ordering the endpoints: addr + size could wrap at 4 GiB.
+-            self.a.sub(13, 11, addr); self.a.cmp_imm(13, size); self.a.b_cond(Cond::Lo, slow);
++            // W-register address arithmetic and the LDR W11 above zero-extend both
++            // endpoints. The X-register sum cannot wrap at 4 GiB, including EMPTY entries.
++            self.a.add_imm_x(13, addr, size); self.a.cmp_x(13, 11); self.a.b_cond(Cond::Hi, slow);
+             self.a.sub(10, addr, 10);                                             // offset
+             self.a.ldr_x(12, 9, TLB_BASE);
+         }

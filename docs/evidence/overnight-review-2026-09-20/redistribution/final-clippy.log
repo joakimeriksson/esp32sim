@@ -1,0 +1,12 @@
+    Checking emu-core v0.2.0 (/workspace/redistribution/validate-native/emu-core)
+   Compiling esp32sim-wasm v0.2.0 (/workspace/redistribution/validate-native/wasm)
+    Checking esp-periph v0.2.0 (/workspace/redistribution/validate-native/esp-periph)
+    Checking xtensa-lx7 v0.2.0 (/workspace/redistribution/validate-native/xtensa-lx7)
+    Checking riscv-rv32 v0.2.0 (/workspace/redistribution/validate-native/riscv-rv32)
+    Checking esp-soc v0.2.0 (/workspace/redistribution/validate-native/esp-soc)
+    Checking esp32s3 v0.2.0 (/workspace/redistribution/validate-native/esp32s3)
+    Checking esp32c6 v0.2.0 (/workspace/redistribution/validate-native/esp32c6)
+    Checking esp32c3 v0.2.0 (/workspace/redistribution/validate-native/esp32c3)
+    Checking esp32sim v0.2.0 (/workspace/redistribution/validate-native/cli)
+    Checking esp32sim-wasm-jit v0.2.0 (/workspace/redistribution/validate-native/wasm-jit)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.14s

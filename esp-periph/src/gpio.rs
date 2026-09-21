@@ -28,12 +28,13 @@ impl Gpio {
         }
     }
     pub fn set_input(&mut self, pin: u8, level: bool) -> bool {
+        let Some(&cfg) = self.pin.get(pin as usize) else { return false; };
         let old = self.input;
         if level { self.input |= 1u64 << pin; } else { self.input &= !(1u64 << pin); }
         if old == self.input { return false; }
         self.input_changes.push((pin, level));
         // edge detection per GPIO_PINn INT_TYPE (bits 7..9): 1 rising, 2 falling, 3 any, 4 low level, 5 high level
-        let typ = (self.pin[pin as usize] >> 7) & 7;
+        let typ = (cfg >> 7) & 7;
         let rising = level && (typ == 1 || typ == 3);
         let falling = !level && (typ == 2 || typ == 3);
         if rising || falling { self.status |= 1u64 << pin; return true; }
@@ -44,6 +45,7 @@ impl Gpio {
         self.func_out_sel.iter().position(|&s| s & 0x1ff == sig).map(|p| p as u8)
     }
     pub fn level(&self, pin: u8) -> bool {
+        if pin as usize >= self.pin.len() { return false; }
         if self.enable & (1u64 << pin) != 0 { self.out & (1u64 << pin) != 0 } else { self.input & (1u64 << pin) != 0 }
     }
     pub fn irq(&self) -> bool {

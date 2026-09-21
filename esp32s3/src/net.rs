@@ -8,6 +8,9 @@
 //! Outbound traffic to the real world needs a NAT backend (docs/networking-plan.md); until then this
 //! answers everything on the local subnet.
 
+pub(crate) mod packet;
+use packet::{checksum, ethernet, ip_packet, transport_checksum, udp_packet, GATEWAY_MAC};
+
 pub struct VirtualNet {
     pub gw_mac: [u8; 6],
     pub gw_ip: [u8; 4],
@@ -28,22 +31,13 @@ pub struct VirtualNet {
 }
 
 fn be16(b: &[u8]) -> u16 { u16::from_be_bytes([b[0], b[1]]) }
-fn checksum(data: &[u8], init: u32) -> u16 {
-    let mut sum = init;
-    let mut i = 0;
-    while i + 1 < data.len() { sum += be16(&data[i..]) as u32; i += 2; }
-    if i < data.len() { sum += (data[i] as u32) << 8; }
-    while sum >> 16 != 0 { sum = (sum & 0xffff) + (sum >> 16); }
-    !(sum as u16)
-}
-
 fn ntp_fraction(nanos: u32) -> u32 {
     (((nanos as u64) << 32) / 1_000_000_000) as u32
 }
 
 impl VirtualNet {
     pub fn new(log: bool) -> Self {
-        VirtualNet { gw_mac: [0x02, 0x53, 0x49, 0x4d, 0x00, 0x02], gw_ip: [10, 0, 2, 2], dns_ip: [10, 0, 2, 3],
+        VirtualNet { gw_mac: GATEWAY_MAC, gw_ip: [10, 0, 2, 2], dns_ip: [10, 0, 2, 3],
                      sta_ip: [10, 0, 2, 15], mask: [255, 255, 255, 0],
                      log, nat: None, dhcp_acks: 0, dns_answers: 0, ntp_answers: 0, tcp_rejects: 0, arp_replies: 0, pings: 0, unhandled: 0, now_us: 0 }
     }
@@ -61,9 +55,7 @@ impl VirtualNet {
     }
 
     fn frame(&self, dst: &[u8; 6], ethertype: u16, payload: &[u8]) -> Vec<u8> {
-        let mut f = Vec::with_capacity(14 + payload.len());
-        f.extend_from_slice(dst); f.extend_from_slice(&self.gw_mac); f.extend_from_slice(&ethertype.to_be_bytes());
-        f.extend_from_slice(payload); f
+        ethernet(dst, &self.gw_mac, ethertype, payload)
     }
 
     fn arp(&mut self, p: &[u8], src: &[u8; 6]) -> Vec<Vec<u8>> {
@@ -79,20 +71,33 @@ impl VirtualNet {
         vec![self.frame(src, 0x0806, &r)]
     }
 
+    fn invalid_ipv4(&mut self) -> Vec<Vec<u8>> {
+        self.unhandled += 1;
+        if self.log { eprintln!("[net] ignoring malformed or fragmented IPv4 packet"); }
+        Vec::new()
+    }
+
     fn ipv4(&mut self, p: &[u8], src: &[u8; 6]) -> Vec<Vec<u8>> {
-        if p.len() < 20 { return Vec::new(); }
+        if p.len() < 20 { return self.invalid_ipv4(); }
         let ihl = ((p[0] & 0xf) as usize) * 4;
-        if p.len() < ihl.max(20) { return Vec::new(); }
+        if p[0] >> 4 != 4 || ihl < 20 || p.len() < ihl { return self.invalid_ipv4(); }
         // Trust the header's total length: the frame may carry padding or a trailing FCS.
-        let total = (u16::from_be_bytes([p[2], p[3]]) as usize).clamp(ihl, p.len());
-        let (proto, body) = (p[9], &p[ihl..total]);
+        let total = u16::from_be_bytes([p[2], p[3]]) as usize;
+        if total < ihl || total > p.len() || be16(&p[6..8]) & 0x3fff != 0 { return self.invalid_ipv4(); }
+        let (proto, mut body) = (p[9], &p[ihl..total]);
+        if proto == 17 {
+            if body.len() < 8 { return self.invalid_ipv4(); }
+            let len = be16(&body[4..6]) as usize;
+            if len < 8 || len > body.len() { return self.invalid_ipv4(); }
+            body = &body[..len];
+        }
         let mut sip = [0u8; 4]; sip.copy_from_slice(&p[12..16]);
         let mut dip = [0u8; 4]; dip.copy_from_slice(&p[16..20]);
         match proto {
             17 if body.len() >= 8 && be16(&body[2..4]) == 67 => self.dhcp(&body[8..], src),
             // with NAT the flow goes out through a host socket; DNS is redirected to the host's own
             // resolver but still looks like it came from the emulated one
-            17 if self.nat.is_some() => {
+            17 if body.len() >= 8 && self.nat.is_some() => {
                 let (sport, dport) = (be16(&body[0..2]), be16(&body[2..4]));
                 let (host_dst, reply_src) = if dport == 53 { (self.nat.as_ref().unwrap().resolver, dip) } else { (dip, dip) };
                 let now = self.now_us;
@@ -106,7 +111,7 @@ impl VirtualNet {
             17 if body.len() >= 8 && be16(&body[2..4]) == 53 => self.dns(&body[8..], src, &sip, &dip, be16(&body[0..2])),
             17 if body.len() >= 8 && be16(&body[2..4]) == 123 => self.ntp(&body[8..], src, &sip, &dip, be16(&body[0..2])),
             6 if body.len() >= 20 && body[13] & 0x02 != 0 && body[13] & 0x10 == 0 => self.tcp_reject(body, src, &sip, &dip),
-            1 if !body.is_empty() && body[0] == 8 => {                              // ICMP echo request
+            1 if body.len() >= 8 && body[0] == 8 => {                              // ICMP echo request
                 let mut icmp = body.to_vec(); icmp[0] = 0; icmp[2] = 0; icmp[3] = 0;
                 let c = checksum(&icmp, 0).to_be_bytes(); icmp[2] = c[0]; icmp[3] = c[1];
                 self.pings += 1;
@@ -176,23 +181,6 @@ impl VirtualNet {
         match &mut self.nat { Some(n) => n.poll(now_us), None => Vec::new() }
     }
 
-    /// UDP datagram with a correct checksum (IPv4 pseudo-header).
-    fn udp(&self, src_ip: &[u8; 4], dst_ip: &[u8; 4], sport: u16, dport: u16, payload: &[u8]) -> Vec<u8> {
-        let len = 8 + payload.len();
-        let mut u = Vec::with_capacity(len);
-        u.extend_from_slice(&sport.to_be_bytes()); u.extend_from_slice(&dport.to_be_bytes());
-        u.extend_from_slice(&(len as u16).to_be_bytes()); u.extend_from_slice(&[0, 0]);
-        u.extend_from_slice(payload);
-        let mut pseudo = Vec::with_capacity(12 + len);
-        pseudo.extend_from_slice(src_ip); pseudo.extend_from_slice(dst_ip);
-        pseudo.extend_from_slice(&[0, 17]); pseudo.extend_from_slice(&(len as u16).to_be_bytes());
-        pseudo.extend_from_slice(&u);
-        let c = checksum(&pseudo, 0);
-        let c = if c == 0 { 0xffff } else { c };
-        u[6..8].copy_from_slice(&c.to_be_bytes());
-        u
-    }
-
     /// Answer A queries with the local resolver address, so name lookups resolve to something that
     /// exists in the emulated network (NTP in particular). AAAA is answered empty so IPv6 is skipped.
     fn dns(&mut self, q: &[u8], src: &[u8; 6], sip: &[u8; 4], dip: &[u8; 4], sport: u16) -> Vec<Vec<u8>> {
@@ -222,7 +210,7 @@ impl VirtualNet {
         self.dns_answers += 1;
         if self.log { eprintln!("[net] DNS {} {} -> {}", name, if qtype == 1 { "A" } else { "AAAA" },
                                 if qtype == 1 { format!("{}.{}.{}.{}", self.dns_ip[0], self.dns_ip[1], self.dns_ip[2], self.dns_ip[3]) } else { "(none)".into() }); }
-        let udp = self.udp(dip, sip, 53, sport, &r);
+        let udp = udp_packet(dip, sip, 53, sport, &r);
         vec![self.frame(src, 0x0800, &ip_packet(17, dip, sip, &udp))]
     }
 
@@ -245,7 +233,7 @@ impl VirtualNet {
         r[24..32].copy_from_slice(&q[40..48]);                           // originate = client transmit
         self.ntp_answers += 1;
         if self.log { eprintln!("[net] NTP request -> host time ({} s since 1900)", secs); }
-        let udp = self.udp(dip, sip, 123, sport, &r);
+        let udp = udp_packet(dip, sip, 123, sport, &r);
         vec![self.frame(src, 0x0800, &ip_packet(17, dip, sip, &udp))]
     }
 
@@ -259,34 +247,89 @@ impl VirtualNet {
         r.extend_from_slice(&[0, 0, 0, 0]);                              // seq 0
         r.extend_from_slice(&seq.wrapping_add(1).to_be_bytes());          // ack the SYN
         r.extend_from_slice(&[0x50, 0x14, 0, 0, 0, 0, 0, 0]);            // RST|ACK
-        let mut pseudo = Vec::with_capacity(32);
-        pseudo.extend_from_slice(dip); pseudo.extend_from_slice(sip);
-        pseudo.extend_from_slice(&[0, 6, 0, 20]); pseudo.extend_from_slice(&r);
-        let c = checksum(&pseudo, 0).to_be_bytes(); r[16] = c[0]; r[17] = c[1];
+        let c = transport_checksum(dip, sip, 6, &r).to_be_bytes(); r[16] = c[0]; r[17] = c[1];
         self.tcp_rejects += 1;
         if self.log { eprintln!("[net] TCP {}.{}.{}.{}:{} -> refused (no NAT backend yet)", dip[0], dip[1], dip[2], dip[3], dport); }
         vec![self.frame(src, 0x0800, &ip_packet(6, dip, sip, &r))]
     }
 }
 
-/// Build an IPv4 packet (no options) with a correct header checksum.
-fn ip_packet(proto: u8, src: &[u8; 4], dst: &[u8; 4], payload: &[u8]) -> Vec<u8> {
-    let total = 20 + payload.len();
-    let mut h = Vec::with_capacity(total);
-    h.extend_from_slice(&[0x45, 0x00]); h.extend_from_slice(&(total as u16).to_be_bytes());
-    h.extend_from_slice(&[0, 0, 0x40, 0x00, 64, proto, 0, 0]);
-    h.extend_from_slice(src); h.extend_from_slice(dst);
-    let c = checksum(&h, 0).to_be_bytes(); h[10] = c[0]; h[11] = c[1];
-    h.extend_from_slice(payload); h
-}
-
 #[cfg(test)]
 mod tests {
-    use super::ntp_fraction;
+    use super::*;
 
     #[test]
     fn ntp_fraction_converts_nanoseconds() {
         assert_eq!(ntp_fraction(500_000_000), 0x8000_0000);
         assert_eq!(ntp_fraction(250_000_000), 0x4000_0000);
+    }
+
+    #[test]
+    fn malformed_ip_udp_and_icmp_are_rejected_before_dispatch() {
+        let mut net = VirtualNet::new(false);
+        net.nat = Some(crate::nat::Nat::new(false));
+        for proto in [1, 17] {
+            for len in 0..8 {
+                let mut body = vec![0; len];
+                if proto == 1 && len > 0 { body[0] = 8; }
+                let packet = ip_packet(proto, &net.sta_ip, &net.gw_ip, &body);
+                assert!(net.ipv4(&packet, &[2; 6]).is_empty());
+            }
+        }
+        let mut packet = ip_packet(1, &net.sta_ip, &net.gw_ip, &[8; 8]);
+        for ihl in 0..5 {
+            packet[0] = 0x40 | ihl;
+            assert!(net.ipv4(&packet, &[2; 6]).is_empty());
+        }
+        packet[0] = 0x45;
+        packet[6] = 0x20; // fragments are not reassembled by this relay
+        assert!(net.ipv4(&packet, &[2; 6]).is_empty());
+        assert_eq!(net.pings, 0);
+        assert_eq!(net.unhandled, 22);
+    }
+
+    #[test]
+    fn ipv4_options_df_and_frame_padding_preserve_icmp_payload() {
+        let mut net = VirtualNet::new(false);
+        let request = [8, 0, 0, 0, 0x12, 0x34, 0, 1, 0x42];
+        let mut packet = ip_packet(1, &net.sta_ip, &net.gw_ip, &request);
+        packet.splice(20..20, [1, 1, 0, 0]); // Four bytes of IPv4 options.
+        packet[0] = 0x46;
+        packet[6] = 0x40; // DF does not require fragment reassembly.
+        let total = packet.len() as u16;
+        packet[2..4].copy_from_slice(&total.to_be_bytes());
+        packet.extend_from_slice(&[0; 12]); // Link-layer trailer is outside total_len.
+        let reply = net.ipv4(&packet, &[2; 6]);
+        assert_eq!(reply.len(), 1);
+        assert_eq!(&reply[0][38..], &request[4..]);
+        assert_eq!(net.unhandled, 0);
+    }
+
+    #[test]
+    fn udp_length_excludes_extra_ip_body_bytes() {
+        let mut net = VirtualNet::new(false);
+        let mut request = [0; 48]; request[0] = 0x23;
+        let mut udp = udp_packet(&net.sta_ip, &net.gw_ip, 1234, 123, &request);
+        udp.extend_from_slice(b"padding");
+        let packet = ip_packet(17, &net.sta_ip, &net.gw_ip, &udp);
+        let reply = net.ipv4(&packet, &[2; 6]);
+        assert_eq!(reply.len(), 1);
+        assert_eq!(reply[0].len(), 14 + 20 + 8 + 48);
+        assert_eq!(net.ntp_answers, 1);
+        assert_eq!(net.unhandled, 0);
+    }
+
+    #[test]
+    fn icmp_reply_uses_shared_valid_packet_checksums() {
+        let mut net = VirtualNet::new(false);
+        let mut request = vec![8, 0, 0, 0, 0x12, 0x34, 0, 1, 0x42];
+        let check = checksum(&request, 0);
+        request[2..4].copy_from_slice(&check.to_be_bytes());
+        let packet = ip_packet(1, &net.sta_ip, &net.gw_ip, &request);
+        let reply = net.ipv4(&packet, &[2; 6]);
+        assert_eq!(reply.len(), 1);
+        assert_eq!(reply[0][34], 0);
+        assert_eq!(checksum(&reply[0][14..34], 0), 0);
+        assert_eq!(checksum(&reply[0][34..], 0), 0);
     }
 }

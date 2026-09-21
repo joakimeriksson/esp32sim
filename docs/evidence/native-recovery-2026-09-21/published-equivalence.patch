@@ -1,0 +1,67 @@
+diff --git a/esp-soc/tests/cost_model.rs b/esp-soc/tests/cost_model.rs
+index b5e6a6ae..fb74634a 100644
+--- a/esp-soc/tests/cost_model.rs
++++ b/esp-soc/tests/cost_model.rs
+@@ -634,3 +634,16 @@ fn block_profile_reports_modeled_unavailability() {
+     assert!(matches!(machine.run(1), Stop::MaxInsns));
+     assert_eq!(machine.reports(), "[profile-blocks] unavailable during modeled single-step execution\n");
+ }
++
++#[test]
++fn stub_symbols_take_precedence_and_addresses_require_prefix() {
++    let mut machine = new_machine(0, 0);
++    machine.symbols.insert(0x1234, "deadbeef".into());
++    machine.symbols.insert(0x5678, "0xcafe".into());
++    assert_eq!(machine.resolve_stub("deadbeef"), Some(0x1234));
++    assert_eq!(machine.resolve_stub("0xcafe"), Some(0x5678));
++    for missing in ["add", "cafe", "dead", "f", "0x0xcafe"] {
++        assert_eq!(machine.resolve_stub(missing), None);
++    }
++    assert_eq!(machine.resolve_stub("0x123abc"), Some(0x123abc));
++}
+diff --git a/esp32s3/tests/machine.rs b/esp32s3/tests/machine.rs
+index e573f867..620081d5 100644
+--- a/esp32s3/tests/machine.rs
++++ b/esp32s3/tests/machine.rs
+@@ -631,6 +631,25 @@ fn light_grid_reports_the_glass_not_the_chain() {
+     }
+ }
+ 
++#[test]
++fn zero_display_rate_is_safe_and_virtual_rounds_reuse_the_interval() {
++    use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
++    struct DisplayRate(Arc<AtomicUsize>);
++    impl esp_soc::board::BoardModel for DisplayRate {
++        fn name(&self) -> &'static str { "zero-rate" }
++        fn display_push_hz(&self) -> u64 { self.0.fetch_add(1, Ordering::Relaxed); 0 }
++    }
++    let calls = Arc::new(AtomicUsize::new(0));
++    let mut m = machine();
++    m.bus.board = Box::new(DisplayRate(calls.clone()));
++    m.web = Some(esp_soc::web::WebServer::queued());
++    m.vq_max = 1024;
++    for core in &mut m.cores { core.set_jit(false); }
++    park(&mut m, 0, IRAM, &SPIN);
++    assert!(matches!(m.run(8192), Stop::MaxInsns));
++    assert_eq!(calls.load(Ordering::Relaxed), 1, "one configuration read, no per-round division");
++}
++
+ #[test]
+ fn unmatched_breakpoints_preserve_idle_timeline() {
+     use esp_soc::observers::Breakpoints;
+@@ -691,7 +710,7 @@ fn reset_partial_round_delivers_mmio_and_round_observations() {
+ }
+ 
+ #[test]
+-fn zero_display_rate_is_safe_and_virtual_rounds_reuse_the_interval() {
++fn zero_display_rate_is_safe() {
+     use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+     struct DisplayRate(Arc<AtomicUsize>);
+     impl esp_soc::board::BoardModel for DisplayRate {
+@@ -706,5 +725,5 @@ fn zero_display_rate_is_safe_and_virtual_rounds_reuse_the_interval() {
+     for core in &mut m.cores { core.set_jit(false); }
+     park(&mut m, 0, IRAM, &SPIN);
+     assert!(matches!(m.run(8192), Stop::MaxInsns));
+-    assert_eq!(calls.load(Ordering::Relaxed), 1, "one configuration read, no per-round division");
++    assert!(calls.load(Ordering::Relaxed) > 0);
+ }

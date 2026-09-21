@@ -32,7 +32,8 @@ use crate::state::{sr, Cpu};
 pub use emu_core::core::pc_bit;
 
 #[derive(Clone, Copy)]
-pub struct BlockInsn { pub insn: Insn, pub max_ar: u8, /// Backend entry: native byte offset or WASM instruction index
+pub struct BlockInsn { pub insn: Insn, pub max_ar: u8, /// EX141: a static transfer target whose first instruction straddles a fetch word
+ pub straddle: bool, /// Backend entry: native byte offset or WASM instruction index
  pub off: u32 }
 
 #[derive(Clone, Copy)]
@@ -43,6 +44,19 @@ impl Entry { const EMPTY: Entry = Entry { pc: 1, start: 0, n: 0, vidx: [0; 2], v
 #[cfg(target_arch = "wasm32")] const ENTRIES: usize = 1 << 15;
 /// Instructions per block. At most 3 bytes each, so a block spans at most two version pages.
 pub const MAX_LEN: usize = 32;
+/// EX172: interior alias slots (16 bytes each).
+const ALIASES: usize = 1 << 12;
+/// EX172: alias exception-return PCs onto existing blocks (WASM only; the policy never changes results).
+pub const ALIAS: bool = cfg!(target_arch = "wasm32");
+/// Sequential-distance heuristic: an arrival 2 or 3 bytes after the last instruction
+/// may reuse an interior entry. This can include nearby static branch targets.
+pub const ALIAS_SEQ: bool = true;
+/// Record the arrival when a dispatch ended at `last` and execution continues right behind it.
+#[cfg(target_arch = "wasm32")]
+#[inline(always)]
+pub(crate) fn note_sequential(cpu: &mut Cpu, last: u32) {
+    if ALIAS && ALIAS_SEQ && cpu.pc.wrapping_sub(last).wrapping_sub(2) <= 1 { cpu.blocks.alias_pc = cpu.pc; }
+}
 /// Arena size at which decoded entries are rebuilt. The arena never reallocates:
 /// native code holds pointers into it; WASM code owns separate retained instruction storage.
 #[cfg(not(target_arch = "wasm32"))] const ARENA_MAX: usize = 1 << 20;
@@ -55,13 +69,32 @@ pub struct BlockCache {
     pub profile: crate::jit::profile::Profile,
     entries: Vec<Entry>,
     arena: Vec<BlockInsn>,
+    /// EX140: `exec::static_extras` of every arena instruction, filled when its block is built.
+    extras: Vec<u8>,
     /// A block cut short by the caller's budget or a timer deadline resumes here rather than
     /// spawning a new block at the cut point: (entry index, arena index, pc at that index).
     resume: (u32, u32, u32),
+    /// EX172: an exception-return, sequential or deferred arrival PC, or 1. A lookup miss there
+    /// may enter an existing block at that instruction instead of decoding a new head.
+    pub(crate) alias_pc: u32,
+    /// EX172: direct-mapped interior PC -> (head PC, arena start of that build, arena index),
+    /// filled on misses. The arena only grows between flushes, so an entry that still has this
+    /// head and start is the same build and the index still names `pc`. Cleared by flush.
+    aliases: Vec<(u32, u32, u32, u32)>,
+    #[cfg(feature = "wasm-jit-tests")]
+    pub alias_hits: u64,
+    #[cfg(all(target_arch = "wasm32", feature = "wasm-jit-profile"))]
+    profile_entry: usize,
+    /// EX153: decoded entry of the block the WASM wrapper chained into last; a CUT resumes in it.
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) chain_ei: u32,
     pub builds: u64,
     pub flushes: u64,
     /// native code for blocks, when the host supports it and `jit_enabled`
+    #[cfg(not(target_arch = "wasm32"))]
     code: Option<crate::jit::CodeCache>,
+    #[cfg(target_arch = "wasm32")]
+    code: Option<Box<crate::jit::CodeCache>>,
     pub jit_enabled: bool,
     /// A machine observer requires one callback for each individual block execution.
     pub observed: bool,
@@ -72,15 +105,27 @@ pub struct BlockCache {
 
 impl BlockCache {
     pub fn new() -> Self {
+        let code = crate::jit::CodeCache::new(CODE_SIZE);
+        // WASM moves the owner out during every compiled call to keep CPU borrows
+        // disjoint. Move a pointer instead of all cache collection metadata.
+        #[cfg(target_arch = "wasm32")]
+        let code = code.map(Box::new);
         BlockCache {
                      #[cfg(all(target_arch = "wasm32", feature = "wasm-jit-profile"))]
                      profile: crate::jit::profile::Profile::default(),
-                     entries: vec![Entry::EMPTY; ENTRIES], arena: Vec::with_capacity(ARENA_MAX + MAX_LEN), resume: (0, 0, 1), builds: 0, flushes: 0,
-                     code: crate::jit::CodeCache::new(CODE_SIZE), jit_enabled: crate::jit::AVAILABLE, observed: false, compiled: 0, jit_instructions: 0 }
+                     #[cfg(target_arch = "wasm32")]
+                     chain_ei: u32::MAX,
+                     entries: vec![Entry::EMPTY; ENTRIES], arena: Vec::with_capacity(ARENA_MAX + MAX_LEN), extras: Vec::new(), resume: (0, 0, 1), alias_pc: 1, aliases: vec![(1, 0, 0, 0); if ALIAS { ALIASES } else { 0 }], builds: 0, flushes: 0,
+                     #[cfg(feature = "wasm-jit-tests")]
+                     alias_hits: 0,
+                     #[cfg(all(target_arch = "wasm32", feature = "wasm-jit-profile"))]
+                     profile_entry: 0,
+                     code, jit_enabled: crate::jit::AVAILABLE, observed: false, compiled: 0, jit_instructions: 0 }
     }
     pub fn flush(&mut self) {
         for e in self.entries.iter_mut() { *e = Entry::EMPTY; }
-        self.arena.clear(); self.resume = (0, 0, 1); self.flushes += 1;
+        self.arena.clear(); self.extras.clear(); self.resume = (0, 0, 1); self.alias_pc = 1;
+        for a in self.aliases.iter_mut() { a.0 = 1; } self.flushes += 1;
         if let Some(c) = &mut self.code { c.reset(); }
     }
     /// Bytes of native code currently in use.
@@ -91,6 +136,16 @@ impl BlockCache {
         { return self.code.as_ref().map(|c| c.region_stats.report()); }
         #[allow(unreachable_code)]
         None
+    }
+    /// EX153: a valid decoded entry with compiled code at `pc` whose first instruction needs no
+    /// exact block-boundary state.
+    #[cfg(target_arch = "wasm32")]
+    #[inline(always)]
+    pub(crate) fn chain_target(&self, pc: u32, pv: &[u32]) -> Option<(u32, u32)> {
+        let ei = Self::index(pc);
+        let e = &self.entries[ei];
+        (e.pc == pc && e.code != crate::jit::NONE && Self::valid(e, pv) && !must_start_block(&self.arena[e.start as usize].insn))
+            .then_some((ei as u32, e.code))
     }
     pub fn jit_active(&self) -> bool { self.jit_enabled && self.code.is_some() }
     #[inline(always)]
@@ -110,7 +165,7 @@ impl Clone for BlockCache { fn clone(&self) -> Self { let mut b = Self::new(); b
 pub(crate) fn ends_block(i: &Insn) -> bool {
     use Op::*;
     match i.op {
-        Ill | IllN | Break | BreakN | Syscall | Simcall | Waiti | Rsil | Isync | Rsync | Esync | Dsync | Excw
+        Ill | IllN | Break | BreakN | Syscall | Simcall | Waiti | Rsil | Isync | Excw
         | J | Jx | Call0 | Call4 | Call8 | Call12 | Callx0 | Callx4 | Callx8 | Callx12
         | Ret | RetN | Retw | RetwN | Rotw | Rfe | Rfue | Rfde | Rfwo | Rfwu | Rfi | Rfme
         | Beqz | Bnez | Bltz | Bgez | BeqzN | BnezN | Beqi | Bnei | Blti | Bgei | Bltui | Bgeui
@@ -121,10 +176,12 @@ pub(crate) fn ends_block(i: &Insn) -> bool {
 }
 
 /// The instruction must be the first of its block: it reads or writes state that is only exact
-/// at a block boundary (`CCOUNT`, `CCOMPARE*`, `INTERRUPT`, `INTENABLE`, `PS`).
+/// at a block boundary (`CCOUNT`, `CCOMPARE*`, `INTERRUPT`, `ICOUNT`).
 pub(crate) fn must_start_block(i: &Insn) -> bool {
+    // EX135: PS and INTENABLE change only through instructions that end a block (or a trap), so a
+    // read of them is exact anywhere; a write ends its block and needs no boundary in front.
     matches!(i.op, Op::Rsr | Op::Wsr | Op::Xsr)
-        && matches!(i.imm as u32, sr::CCOUNT | sr::INTERRUPT | sr::INTCLEAR | sr::INTENABLE | sr::PS | sr::ICOUNT | 240..=242)
+        && matches!(i.imm as u32, sr::CCOUNT | sr::INTERRUPT | sr::INTCLEAR | sr::ICOUNT | 240..=242)
 }
 
 /// Decode a block starting at `pc0` and register it. Only the first fetch can fault: a later
@@ -150,10 +207,17 @@ fn build<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc0: u32) -> Result<(u32, u32, u16)
         };
         let i = decode(pc, bytes);
         if n > 0 && (must_start_block(&i) || cpu.boundary_bloom & pc_bit(pc) != 0) { break; }
-        cpu.blocks.arena.push(BlockInsn { insn: i, max_ar: max_ar(&i), off: 0 });
+        cpu.blocks.arena.push(BlockInsn { insn: i, max_ar: max_ar(&i), straddle: cpu.price_control && crate::exec::static_target(&i).is_some_and(|t| crate::exec::straddles(bus, t)), off: 0 });
         n += 1; last = pc;
         pc = pc.wrapping_add(i.len as u32);
         if ends_block(&i) || n as usize == MAX_LEN { break; }
+    }
+    cpu.blocks.extras.truncate(start as usize);
+    if cpu.price_control {
+        let extras = crate::exec::static_extras(cpu.blocks.arena[start as usize..].iter().map(|b| &b.insn));
+        cpu.blocks.extras.extend(extras);
+    } else {
+        cpu.blocks.extras.resize(cpu.blocks.arena.len(), 0);
     }
     let last_byte = last.wrapping_add(cpu.blocks.arena[(start + n as u32 - 1) as usize].insn.len.max(1) as u32 - 1);
     let vidx0 = bus.code_page(pc0);
@@ -178,16 +242,23 @@ fn build<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc0: u32) -> Result<(u32, u32, u16)
 /// Returns `(iterations, trap)` where iterations is what a loop over `step()` would have
 /// consumed: executed instructions, plus one for a trap taken before an instruction ran.
 pub fn run_block<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Option<Trap>) {
+    let result = run_block_profiled(cpu, bus, budget);
+    // Trap entry is independent of instruction retirement and profiling.
+    if cpu.price_control && matches!(result.1, Some(Trap::Exception(_) | Trap::Interrupt(_))) { cpu.timing_extra += 6; }
+    result
+}
+
+fn run_block_profiled<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Option<Trap>) {
     #[cfg(all(target_arch = "wasm32", feature = "wasm-jit-profile"))]
     {
         if cpu.blocks.profile.sample() {
             let pc = cpu.pc;
-            let ei = if cpu.blocks.resume.2 == pc { cpu.blocks.resume.0 as usize } else { BlockCache::index(pc) };
+            cpu.blocks.profile_entry = if cpu.blocks.resume.2 == pc { cpu.blocks.resume.0 as usize } else { BlockCache::index(pc) };
             let before = cpu.blocks.jit_instructions;
             let start = crate::jit::profile::now();
             let result = run_block_inner(cpu, bus, budget);
             let elapsed = crate::jit::profile::now() - start;
-            let e = cpu.blocks.entries[ei];
+            let e = cpu.blocks.entries[cpu.blocks.profile_entry];
             let ops = &cpu.blocks.arena[e.start as usize..(e.start + e.n as u32) as usize];
             let fast = bus.fast_mem().is_some();
             // Attribute resumed execution to its decoder block head, matching JIT names.
@@ -202,24 +273,105 @@ pub fn run_block<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Optio
 #[cfg_attr(all(target_arch = "wasm32", feature = "wasm-cpu-profile"), inline(never))]
 fn run_block_inner<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Option<Trap>) {
     if let Some(t) = cpu.check_interrupts() { return (1, Some(t)); }
-    if cpu.waiting { cpu.advance_ccount(1); return (1, None); }
-    let pc = cpu.pc;
-
-    // find the block: a pending continuation, a cached block, or a fresh decode
-    let (ei, mut k, end) = {
-        let (rei, rk, rpc) = cpu.blocks.resume;
-        let e = cpu.blocks.entries[rei as usize];
-        if rpc == pc && e.pc != 1 && BlockCache::valid(&e, bus.page_versions()) && rk >= e.start && rk < e.start + e.n as u32 {
-            (rei, rk, e.start + e.n as u32)
-        } else {
-            let ei = BlockCache::index(pc);
-            let e = cpu.blocks.entries[ei];
-            if e.pc == pc && BlockCache::valid(&e, bus.page_versions()) { (ei as u32, e.start, e.start + e.n as u32) }
-            else { match build(cpu, bus, pc) { Ok((ei, s, n)) => (ei, s, s + n as u32), Err(t) => return (1, Some(t)) } }
-        }
-    };
+    if cpu.waiting { cpu.advance_ccount(cpu.approximate_cpi); return (1, None); }
+    let (ei, k, end) = match find_block(cpu, bus) { Ok(b) => b, Err(t) => return (1, Some(t)) };
+    #[cfg(all(target_arch = "wasm32", feature = "wasm-jit-profile"))]
+    { cpu.blocks.profile_entry = ei as usize; }
     cpu.blocks.resume.2 = 1;
+    cpu.blocks.alias_pc = 1;
 
+    run_decoded(cpu, bus, budget, ei, k, end)
+}
+
+/// A store may bump a code-page version without changing this block's instructions.
+/// Preserve its dependency history across a budget/step cut when the bytes still match.
+/// Changed instructions still force decoding and compilation through the normal path.
+fn refresh_priced_continuation<B: Bus>(cpu: &mut Cpu, bus: &mut B, ei: u32) {
+    let e = &cpu.blocks.entries[ei as usize];
+    if !cpu.price_control || e.pc == 1 || BlockCache::valid(e, bus.page_versions()) { return; }
+    let mut pc = e.pc;
+    for cached in &cpu.blocks.arena[e.start as usize..(e.start + e.n as u32) as usize] {
+        let Ok(bytes) = bus.fetch(pc) else { return; };
+        if decode(pc, bytes) != cached.insn { return; }
+        pc = pc.wrapping_add(cached.insn.len as u32);
+    }
+    let indices = [bus.code_page(e.pc), bus.code_page(pc.wrapping_sub(1))];
+    if indices != e.vidx { return; }
+    let pv = bus.page_versions();
+    cpu.blocks.entries[ei as usize].ver = indices.map(|i| pv.get(i as usize).copied().unwrap_or(0));
+}
+
+/// EX172: an aliasable arrival missed the entry table. If `pc` is an instruction
+/// boundary strictly inside a valid decoded block that has code, run that block from there: the
+/// same thing a budget cut and its resume do. Block boundaries are not architectural (interrupt,
+/// timer and device state only change at instructions that end every block containing them).
+#[cold]
+#[inline(never)]
+fn alias_lookup(cpu: &mut Cpu, pv: &[u32], pc: u32) -> Option<(u32, u32, u32)> {
+    let b = &mut cpu.blocks;
+    let slot = BlockCache::index(pc) & (ALIASES - 1);
+    let (apc, head, start, k) = b.aliases[slot];
+    if apc == pc {
+        let ei = BlockCache::index(head);
+        let e = &b.entries[ei];
+        if e.pc == head && e.start == start && e.code != crate::jit::NONE && BlockCache::valid(e, pv) {
+            #[cfg(feature = "wasm-jit-tests")]
+            { b.alias_hits += 1; }
+            return Some((ei as u32, k, e.start + e.n as u32));
+        }
+    }
+    for back in 1..=(3 * (MAX_LEN as u32 - 1)) {
+        let head = pc.wrapping_sub(back);
+        let ei = BlockCache::index(head);
+        let e = &b.entries[ei];
+        if e.pc != head || e.code == crate::jit::NONE || !BlockCache::valid(e, pv) { continue; }
+        let mut p = head;
+        for k in e.start..e.start + e.n as u32 {
+            if p == pc {
+                let hit = (ei as u32, k, e.start + e.n as u32);
+                b.aliases[slot] = (pc, head, e.start, k);
+                #[cfg(feature = "wasm-jit-tests")]
+                { b.alias_hits += 1; }
+                return Some(hit);
+            }
+            if p.wrapping_sub(head) > back { break; }
+            p = p.wrapping_add(b.arena[k as usize].insn.len as u32);
+        }
+    }
+    None
+}
+
+#[cfg_attr(not(target_arch = "wasm32"), inline(always))]
+fn find_block<B: Bus>(cpu: &mut Cpu, bus: &mut B) -> Result<(u32, u32, u32), Trap> {
+    let pc = cpu.pc;
+    Ok({
+        let (rei, rk, rpc) = cpu.blocks.resume;
+        let resumed = if rpc == pc {
+            refresh_priced_continuation(cpu, bus, rei);
+            let e = &cpu.blocks.entries[rei as usize];
+            (e.pc != 1 && BlockCache::valid(e, bus.page_versions()) && rk >= e.start && rk < e.start + e.n as u32)
+                .then_some((rei, rk, e.start + e.n as u32))
+        } else { None };
+        if let Some(hit) = resumed { hit } else {
+            let ei = BlockCache::index(pc);
+            let e = &cpu.blocks.entries[ei];
+            if e.pc == pc && BlockCache::valid(e, bus.page_versions()) { (ei as u32, e.start, e.start + e.n as u32) }
+            else if let Some(hit) = (ALIAS && cpu.blocks.alias_pc == pc && !cpu.price_control && !cpu.blocks.observed
+                && cpu.boundary_bloom & pc_bit(pc) == 0).then(|| alias_lookup(cpu, bus.page_versions(), pc)).flatten() { hit }
+            else { let (ei, s, n) = build(cpu, bus, pc)?; (ei, s, s + n as u32) }
+        }
+    })
+}
+
+/// Share decoded dependency prices and continuation state with single stepping.
+/// The model intentionally resets scoreboards at decoded block boundaries, not budget cuts.
+pub(crate) fn step_extra<B: Bus>(cpu: &mut Cpu, bus: &mut B, i: &Insn) -> u32 {
+    let Ok((ei, k, end)) = find_block(cpu, bus) else { return 0; };
+    cpu.blocks.resume = if k + 1 < end { (ei, k + 1, cpu.pc.wrapping_add(i.len as u32)) } else { (0, 0, 1) };
+    cpu.blocks.extras[k as usize] as u32
+}
+
+fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k: u32, end: u32) -> (u32, Option<Trap>) {
     // never run past a CCOMPARE match: the timer interrupt must land on the same instruction
     #[cfg(not(target_arch = "wasm32"))]
     let mut limit = (end - k).min(budget);
@@ -227,10 +379,21 @@ fn run_block_inner<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Opt
     // loop or a region may continue past the block, under the same CCOMPARE deadline.
     #[cfg(target_arch = "wasm32")]
     let mut limit = budget.min(0xffff);
-    for i in 0..3 { let d = cpu.ccompare[i].wrapping_sub(cpu.ccount); if d != 0 && d < limit { limit = d; } }
+    for i in 0..3 {
+        let d = cpu.ccompare[i].wrapping_sub(cpu.ccount);
+        let d = if cpu.approximate_cpi == 1 { d } else { d.div_ceil(cpu.approximate_cpi) };
+        if d != 0 && d < limit { limit = d; }
+    }
 
     let code = cpu.blocks.entries[ei as usize].code;
-    if code != crate::jit::NONE && cpu.blocks.jit_enabled && crate::jit::ready(cpu.blocks.code.as_ref().unwrap(), code) {
+    // Native code has no price collector or deferred-access guard. Keep its default
+    // fast path, but execute opt-in pricing and deferred quanta in the interpreter.
+    // WASM records exact instruction ranges, up to 64 per compiled call.
+    #[cfg(target_arch = "wasm32")]
+    if cpu.price_control && cpu.icache_fill != 0 { limit = limit.min(64); }
+    let observed_timing = cpu.price_control && cfg!(not(target_arch = "wasm32"));
+    let native_deferred = cfg!(not(target_arch = "wasm32")) && bus.defer_armed();
+    if !observed_timing && !native_deferred && code != crate::jit::NONE && cpu.blocks.jit_enabled && crate::jit::ready(cpu.blocks.code.as_ref().unwrap(), code, cpu.lend) {
         let entry = cpu.blocks.arena[k as usize].off;
         let fm = bus.fast_mem();
         #[cfg(not(target_arch = "wasm32"))]
@@ -250,30 +413,39 @@ fn run_block_inner<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Opt
             // WASM needs retained block metadata during execution, so move its owning cache
             // outside Cpu before holding that shared reference alongside the exclusive CPU.
             let cache = cpu.blocks.code.take().unwrap();
-            let helpers = crate::jit::Helpers::new::<B>();
+            let helpers = crate::jit::Helpers::shared::<B>();
             // SAFETY: `code` and `entry` identify live code in this locally owned cache;
             // helpers match B and `fm` describes this exclusive bus borrow.
-            let r = unsafe { crate::jit::run(&cache, code, cpu, bus, &helpers, limit, entry, fm) };
+            let r = unsafe { crate::jit::run(&cache, code, cpu, bus, helpers, limit, entry, fm) };
             cpu.blocks.code = Some(cache);
             r
         };
-        let (done, exit) = (r & 0xffff, r >> 16);
+        let (mut done, exit) = (r & 0xffff, (r >> 16) & 7);
+        // EX133: the helper refused a device-register access; its instruction was counted
+        // but did not run, and the pc still names it.
+        if exit == crate::jit::CODE_TRAP && bus.deferred() {
+            done -= 1;
+            // EX172 s3: the refused instruction is dispatched again, usually from mid-block.
+            if ALIAS && ALIAS_SEQ { cpu.blocks.alias_pc = cpu.pc; }
+        }
+
         cpu.blocks.jit_instructions += done as u64;
         cpu.insn_count += done as u64;
-        cpu.advance_ccount(done);
+        cpu.advance_ccount(done * cpu.approximate_cpi);
         return match exit {
             crate::jit::CODE_TRAP => (done, cpu.jit_trap.take()),
             crate::jit::CODE_TRAP_PRE => (done + 1, cpu.jit_trap.take()),
             crate::jit::CODE_CUT => {
                 #[cfg(target_arch = "wasm32")]
                 {
-                    // A repeated hardware prefix makes retired count differ from arena offset.
-                    let e = cpu.blocks.entries[ei as usize];
-                    let mut at = e.pc;
-                    for index in e.start..end {
-                        if at == cpu.pc { cpu.blocks.resume = (ei, index, cpu.pc); break; }
-                        at = at.wrapping_add(cpu.blocks.arena[index as usize].insn.len as u32);
-                    }
+                    // The WASM wrapper accounts for repeated prefixes when returning
+                    // the next decoded index; no PC scan is needed here.
+                    let (ei, end) = if cpu.blocks.chain_ei != u32::MAX {
+                        let e = &cpu.blocks.entries[cpu.blocks.chain_ei as usize];
+                        (cpu.blocks.chain_ei, e.start + e.n as u32)
+                    } else { (ei, end) };
+                    let index = cpu.blocks.entries[ei as usize].start + (r >> 19);
+                    if index < end { cpu.blocks.resume = (ei, index, cpu.pc); }
                 }
                 #[cfg(not(target_arch = "wasm32"))]
                 if k + done < end { cpu.blocks.resume = (ei, k + done, cpu.pc); }
@@ -284,20 +456,47 @@ fn run_block_inner<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Opt
     }
 
     let limit = limit.min(end - k);
+    #[cfg(feature = "wasm-jit-profile")]
+    let (census_core, census_why) = {
+        let core = crate::census::core(cpu);
+        let en = &cpu.blocks.entries[ei as usize];
+        let ops = &cpu.blocks.arena[en.start as usize..(en.start + en.n as u32) as usize];
+        let why = crate::census::fallback(core, en.pc, ops, bus.fast_mem().is_some(), code, cpu.blocks.jit_enabled);
+        (core, why)
+    };
     let (mut done, mut trap, mut pre, mut broke) = (0u32, None, false, false);
+    let mut seq = false;
     while done < limit {
         let e = cpu.blocks.arena[k as usize];
+        #[cfg(feature = "wasm-jit-profile")]
+        {
+            let mut c = crate::census::get();
+            if let Some(total) = c.interp_total.get_mut(census_core as usize) { *total += 1; }
+            *c.interp.entry((census_core, crate::census::name(&e.insn), census_why.0.clone())).or_default() += 1;
+            *c.blockers.entry((census_core, census_why.1.clone())).or_default() += 1;
+        }
         if let Some(t) = cpu.check_overflow(e.max_ar) { trap = Some(t); pre = true; break; }
         let at = cpu.pc;
+        if crate::exec::defer_instruction(cpu, bus, &e.insn) { break; }
         bus.note_pc(at);
+        if cpu.price_control && cpu.icache_fill != 0 {
+            cpu.touch_fetch_lines(at, at.wrapping_add(e.insn.len.max(1) as u32 - 1));
+        }
         let expected = at.wrapping_add(e.insn.len as u32);
         let r = exec_insn(cpu, bus, &e.insn);
+        seq = cpu.pc == expected;
         done += 1; k += 1;
+        if cpu.price_control && r.is_ok() {
+            let taken = crate::exec::control_taken(cpu, &e.insn);
+            cpu.timing_extra += crate::exec::control_price(e.insn.op, taken) + cpu.blocks.extras[k as usize - 1] as u32
+                + u32::from(taken && crate::exec::transfers(e.insn.op) && crate::exec::straddles(bus, cpu.pc));
+        }
         if let Err(t) = r { trap = Some(t); break; }
         if cpu.pc != expected || bus.block_break() { broke = true; break; }
     }
     cpu.insn_count += done as u64;
-    cpu.advance_ccount(done);
+    cpu.advance_ccount(done * cpu.approximate_cpi);
+    if ALIAS && ALIAS_SEQ && trap.is_none() && seq && k < end { cpu.blocks.alias_pc = cpu.pc; }
     // cut short by the budget or a timer deadline while still inside the block: resume there
     if trap.is_none() && !broke && k < end { cpu.blocks.resume = (ei, k, cpu.pc); }
     (done + pre as u32, trap)

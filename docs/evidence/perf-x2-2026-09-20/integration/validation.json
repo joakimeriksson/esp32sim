@@ -1,0 +1,11 @@
+{
+  "productionSha256": "2e6f80f4205fd76595dbf97d589083f2273ef56ac0b161d65727255d3e15671d",
+  "measuredSha256": "0d0a0603b0fa5e739df429421625250c0625975ec898e450e4fac538d3e62fdf",
+  "nonCustomSectionsIdentical": true,
+  "nonCustomSha256": {
+    "measured": "6e7a22b7c7a7a9d90d0b0f950bca1be4b46409eb084177811904c81ac64ce853",
+    "integrated": "6e7a22b7c7a7a9d90d0b0f950bca1be4b46409eb084177811904c81ac64ce853"
+  },
+  "nativePassed": 314,
+  "nativeIgnored": 1
+}

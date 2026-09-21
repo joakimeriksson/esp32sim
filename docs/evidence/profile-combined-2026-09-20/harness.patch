@@ -1,0 +1,39 @@
+diff --git a/tools/browser-benchmark/capture-cpu.mjs b/tools/browser-benchmark/capture-cpu.mjs
+index 5bdd7045..e3f3e980 100644
+--- a/tools/browser-benchmark/capture-cpu.mjs
++++ b/tools/browser-benchmark/capture-cpu.mjs
+@@ -79,7 +79,7 @@ try {
+   if (mode === 'drawing') {
+     const shot = await send('Page.captureScreenshot', {format: 'png'}, sessionId);
+     await fs.writeFile(path.join(output, 'drawing.png'), Buffer.from(shot.data, 'base64'));
+-    if (result.committed !== 3) process.exitCode = 1;
++    if (result.committed !== 12) process.exitCode = 1;
+   } else if (!result.passed) process.exitCode = 1;
+ } finally {
+   if (targetId && ws.readyState === WebSocket.OPEN) await send('Target.closeTarget', {targetId});
+diff --git a/tools/browser-benchmark/response.mjs b/tools/browser-benchmark/response.mjs
+index c6b84bf4..a62f7d73 100644
+--- a/tools/browser-benchmark/response.mjs
++++ b/tools/browser-benchmark/response.mjs
+@@ -109,17 +109,17 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+ async function replay() {
+   if (!ready || replayed) return;
+   replayed = true; document.querySelector('#replay').disabled = true;
+-  for (let n = 0; n < 3; n++) {
++  for (let n = 0; n < 12; n++) {
+     const started = performance.now();
+-    while (performance.now() - lastChange < 1000 && performance.now() - started < 10000) await sleep(50);
+-    const x = 80, y = 140 + n * 45;
++    while (performance.now() - lastChange < 100 && performance.now() - started < 500) await sleep(50);
++    const x = 80, y = 100 + (n % 4) * 45;
+     active = {index: n, x, y, quietBeforeMs: performance.now() - lastChange, serialStart: serial.length, pending: [], inputStart: receipt.inputs.length};
+     receipt.strokes.push(active);
+     active.downAt = touch(x, y, true, 'down').at;
+     await sleep(250);
+     for (let j = 1; j <= 8; j++) { const event = touch(x + j * 15, y, true, 'move'); if (j === 1) active.firstMoveAt = event.at; await sleep(100); }
+     active.upAt = touch(x + 120, y, false, 'up').at;
+-    await sleep(2000);
++    await sleep(500);
+     active.serial = serial.slice(active.serialStart);
+     active.committed = /TINYDRAW_LIVE_STROKE_DONE committed=1 refresh=1 commit_failed=0/.test(active.serial);
+     active.upToCommitReportMs = active.commitReportedAt ? active.commitReportedAt - active.upAt : null;

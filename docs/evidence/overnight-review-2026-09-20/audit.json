@@ -1,0 +1,58 @@
+{
+  "passed": true,
+  "runs": {
+    "pocket-tank": {
+      "medianWallSeconds": {
+        "baseline": 58.69744250000082,
+        "candidate": 28.544712500000372
+      },
+      "wallReductionPercent": 51.36975090524605,
+      "throughputRatio": 2.0563332876447804,
+      "pairsWallReductionPercent": [
+        51.36901419996826,
+        51.3704840367492
+      ],
+      "instructions": 10073833775,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "browser": "Chrome/153.0.8010.53",
+      "v8": "15.3.76.13",
+      "baselineCommit": "d5446b4aa9a1b035aff74eba082611822676f285",
+      "candidateCommit": "661623eaa3a4e9c001565b8500dce8d4ada31fb3",
+      "baselineWasm": "ef4b16d950951a768bea92aa2d537cdf80b9078052fcb1eb3abdae7f00bb122d",
+      "candidateWasm": "6a257c1c5937017f5a5c0e62a284bb9253b76812a824ba1359ddfdaca06c2a5d"
+    },
+    "tinydraw": {
+      "medianWallSeconds": {
+        "baseline": 62.00873750000075,
+        "candidate": 28.985647500002756
+      },
+      "wallReductionPercent": 53.25554322082044,
+      "throughputRatio": 2.13929109225505,
+      "pairsWallReductionPercent": [
+        53.17781953722389,
+        53.33320651876912
+      ],
+      "instructions": 9819885134,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "browser": "Chrome/153.0.8010.53",
+      "v8": "15.3.76.13",
+      "baselineCommit": "d5446b4aa9a1b035aff74eba082611822676f285",
+      "candidateCommit": "661623eaa3a4e9c001565b8500dce8d4ada31fb3",
+      "baselineWasm": "ef4b16d950951a768bea92aa2d537cdf80b9078052fcb1eb3abdae7f00bb122d",
+      "candidateWasm": "6a257c1c5937017f5a5c0e62a284bb9253b76812a824ba1359ddfdaca06c2a5d"
+    },
+    "nativePocketTank": {
+      "medianWallSeconds": {
+        "baseline": 47.1188484585,
+        "candidate": 53.8205884585
+      },
+      "wallReductionPercent": -14.223055569582876,
+      "throughputRatio": 0.8754799939586766,
+      "coreInstructions": [
+        "4446180089",
+        "5627653686"
+      ],
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd"
+    }
+  }
+}

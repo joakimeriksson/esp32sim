@@ -373,7 +373,7 @@ window.recordTouchTrace = (entry) => {
   if (touchTrace.length >= 2048) touchTrace.shift();
   touchTrace.push(entry);
 };
-installTouchInput($('#lcd'), linkSend, { trace: touchTrace ? window.recordTouchTrace : null, rotation: () => lcdRotation });
+installTouchInput($('#lcd'), linkSend, { intervalMs: +(new URLSearchParams(location.search).get('touchms') ?? 8), trace: touchTrace ? window.recordTouchTrace : null, rotation: () => lcdRotation });
 $('#lcdrot').onchange = (e) => setLcdRotation(e.target.value);
 // ---- camera source (waveshare-cam): send RGBA frames as binary type 3
 const camCanvas = $('#camcanvas'), camCtx = camCanvas.getContext('2d'); let camStream = null, camTimer = null;

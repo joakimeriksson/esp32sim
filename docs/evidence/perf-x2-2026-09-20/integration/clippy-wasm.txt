@@ -1,0 +1,11 @@
+    Checking emu-core v0.2.0 (/Users/alice/src/a/esp32sim/emu-core)
+   Compiling esp32sim-wasm v0.2.0 (/Users/alice/src/a/esp32sim/wasm)
+    Checking esp-periph v0.2.0 (/Users/alice/src/a/esp32sim/esp-periph)
+    Checking riscv-rv32 v0.2.0 (/Users/alice/src/a/esp32sim/riscv-rv32)
+    Checking xtensa-lx7 v0.2.0 (/Users/alice/src/a/esp32sim/xtensa-lx7)
+    Checking esp-soc v0.2.0 (/Users/alice/src/a/esp32sim/esp-soc)
+    Checking esp32s3 v0.2.0 (/Users/alice/src/a/esp32sim/esp32s3)
+    Checking esp32c6 v0.2.0 (/Users/alice/src/a/esp32sim/esp32c6)
+    Checking esp32c3 v0.2.0 (/Users/alice/src/a/esp32sim/esp32c3)
+    Checking esp32sim-wasm-jit v0.2.0 (/Users/alice/src/a/esp32sim/wasm-jit)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.49s

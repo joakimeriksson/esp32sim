@@ -1,0 +1,36 @@
+diff --git a/esp-soc/src/machine.rs b/esp-soc/src/machine.rs
+index 133dec17..859a8ed8 100644
+--- a/esp-soc/src/machine.rs
++++ b/esp-soc/src/machine.rs
+@@ -339,7 +339,8 @@ impl<S: Soc> Machine<S> {
+     /// Execute up to `budget` instructions on `core` the fast way (blocks, JIT). Returns the
+     /// iterations consumed (as `step_core` would have counted them) and a stop, if any.
+     #[cfg_attr(all(target_arch = "wasm32", feature = "wasm-cpu-profile"), inline(never))]
+-    #[cfg_attr(not(all(target_arch = "wasm32", feature = "wasm-cpu-profile")), inline)]
++    #[cfg_attr(all(target_arch = "wasm32", not(feature = "wasm-cpu-profile")), inline)]
++    #[cfg_attr(not(target_arch = "wasm32"), inline(always))]
+     fn step_blocks(&mut self, core: usize, budget: u32) -> (u32, Option<Stop>) {
+         // Core::run returns a trap without its faulting PC. One-instruction fragments make
+         // the entry PC exact while retaining callbacks for combined BLOCK/TRAP observers.
+@@ -365,7 +366,8 @@ impl<S: Soc> Machine<S> {
+     /// callbacks here makes BLOCK observers compose with observers that force single-stepping.
+     /// `pc` is the dispatch-start address, including for trap and Simcall reporting;
+     /// the WASM wrapper may have chained through later blocks before it returns.
+-    #[inline]
++    #[cfg_attr(target_arch = "wasm32", inline)]
++    #[cfg_attr(not(target_arch = "wasm32"), inline(always))]
+     fn observe_execution(&mut self, core: usize, pc: u32, used: u32, trap: Option<Trap>) -> Option<Stop> {
+         if self.probes.contains(Wants::BLOCK | Wants::TRAP | Wants::TRAP_PC) {
+             let cx = Ctx { symbols: &self.symbols, cycles: self.bus.cycles(), cpu_hz: S::CPU_HZ };
+diff --git a/xtensa-lx7/src/block.rs b/xtensa-lx7/src/block.rs
+index fdbc9e21..f6e0e7c6 100644
+--- a/xtensa-lx7/src/block.rs
++++ b/xtensa-lx7/src/block.rs
+@@ -341,6 +341,7 @@ fn alias_lookup(cpu: &mut Cpu, pv: &[u32], pc: u32) -> Option<(u32, u32, u32)> {
+     None
+ }
+ 
++#[cfg_attr(not(target_arch = "wasm32"), inline(always))]
+ fn find_block<B: Bus>(cpu: &mut Cpu, bus: &mut B) -> Result<(u32, u32, u32), Trap> {
+     let pc = cpu.pc;
+     Ok({

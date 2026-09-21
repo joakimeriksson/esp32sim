@@ -1,0 +1,604 @@
+{
+  "files": [
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/README.md",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "58edae52373ca2627cc14285665c50ad1c3ed7c08e605f2d851f23cfc7c74729",
+      "sanitizedSha256": "9eb33d06c43a5b872c3b2f5e6e62f5683bfecd25e2b0fde7d97168854391e046"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/final.md",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "43b3bdd92bc341e74e686e9d2ee7fde9147e8bab088d13d6bd0376843a1e5c9c",
+      "sanitizedSha256": "dc0505f6b11b83bbffcbcc15fffad50539894e290f32d674e7870492b2ff36ba"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/firmware-qualification/commands.txt",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "274cd665155dcaee23355443a4cef7eba78ca8f3dd8a76ce61090083249e7f87",
+      "sanitizedSha256": "91fa0e83ed14d09b190fd6e27bac22d8663a6a592bfb315a974ba4931a2b2842"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/firmware-qualification/inputs.sha256",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "dcf935e650b9c8b3fabb9115699f77b447903329baa43d6bf5af0294cbe3540f",
+      "sanitizedSha256": "0133f770a42402b6f6e3c253da858b5e2fddc1dd4b2e1bc267d854db7d6ffc3d"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/firmware-qualification/linux-inspect.log",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "b1a6bb0b90cb94cba1462f48e6e6e77d1a1758012f3400a07a6760aed899ec04",
+      "sanitizedSha256": "b8f696a1483659d1c64f25e21787b65b97b81e6af32559ae9b2e6aa1bbc733d6"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/firmware-qualification/linux-local-only.log",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "16b9389b6cc75fef8716c52c0634e11d94c64520a4ca9276e2fba33c6b2c4816",
+      "sanitizedSha256": "e9e1de2c15b32437a1220634b5d16ec5085c3e42652b944efa6e35c736c6d4e9"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/firmware-qualification/linux-nat.log",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "abaca4038d364e08e17d97a4e360d235449ad4b9db2f6a61a8a10a91f77b7cdb",
+      "sanitizedSha256": "af4bb7f75bc0500f1a3eb50a56636a4275b710cd822358bf356f0191fbe5742c"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/firmware-qualification/linux-network-config.log",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "737be70e50b280b3be0e68324824599a52b878d41a42dfc42cabd6db08d46380",
+      "sanitizedSha256": "ad115eedfaab977a1aaa7edc77a9773e880c36d6051265c7a4b360366f2c00b8"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/firmware-qualification/wifi-qualification.log",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "09f7f3010b1b0e8be95c69bb3ae6f32e8e071b09b73b096adee9e7f7b6a76428",
+      "sanitizedSha256": "f5c85b7498b408023054c6985e45e46d0b99cd93167f880a9ce54043db38dd2b"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/logs/final-common-glue.txt",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "fe961e386ebc2b8a1572eb24a7474956984b0bf31091ecf22338014ed0ac8d78",
+      "sanitizedSha256": "c7d2b146d139a96942e3270c7a20323fe8495f3475a390ec06a79ccda90bd06f"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/logs/final-native-build.txt",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "6a5e6f76dae6d39360c6ab23e8f5c450ce038705778189bd84485f464a632574",
+      "sanitizedSha256": "6dd1ba7a88acce93ea7d3dd67e34a9ecb84b16b5648064d9150b8d7ef12de023"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/logs/final-pocket-tank.txt",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "80317c6a8567c1082aeca317850b5f26a8ad54721460d704c1c3054af997282f",
+      "sanitizedSha256": "2b6dec5400f9f2b829a67033931e264580d0a7400057bb6ada33d9c2c530bdc4"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/logs/native-baseline-build.txt",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "9eea3f51ead27da98896ba3388d1c5447b90592cb1f0315f8a43e9a8f15e5f0d",
+      "sanitizedSha256": "14c5e8fb1f6f4b0d9da79a2a15d54da99d6536121374345b3268b4dd0eb001d5"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/logs/native-candidate-build.txt",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "dfc3e4f106ac655da10b6644b5d4c204dc4e15d96407572dd5134c2196836cd0",
+      "sanitizedSha256": "c290ae7fca97b6f0609ac0e73702fa05c159e413b9d427de58685ee7e6a9ad6b"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/logs/pocket-tank.txt",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "db0ad89f07d9675393d81d2bb3b08e042a8224977759c3e9ee18eed1afa14af1",
+      "sanitizedSha256": "9eb6ca6186c39b243ca24cb47f7dc5774b89414760292f8be30142814420f119"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/logs/tinydraw.txt",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "e9f2bcd49f661adbcd8ef3466e04eb52906df9ea7891b8d536c89bfe08780b92",
+      "sanitizedSha256": "b5025c5d9b0b377a12d90a3ddd772b4051fbaf328e68e731720f48e6f0e1f9a6"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/failed-default-toolchain/baseline/build.log",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "5cd78d82e6c58c8622218c79dcef937d0d5d17707de59ad8b44db9d8ada49c6e",
+      "sanitizedSha256": "7186a73d971fdd8cd849cb4a998035ca753b6e803a8b50c4c98637c01c5847ca"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/failed-old-glue/1-baseline/capture.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "19d8fc5f496649389e3dd9cc5880cbb7adf5f43c999dfb069771b99163de3af5",
+      "sanitizedSha256": "9fe7f2c9e742daacec02079e8c578275a86837933e4dd5a06e5450790fe5d696"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/failed-old-glue/baseline/build.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "b0019643be0947321aa182fd61354544a86a3b587fc37559fd6298df4db2b1a3",
+      "sanitizedSha256": "704a72ce16250f804ed43a1e15ecbac084ad37381dc6ed9a29b17dcec4d4a2fa"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/failed-old-glue/baseline/build.log",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "620feb5941e1266bb391efae8d758bef62cf8ba8d10115caddddb237e4450a6a",
+      "sanitizedSha256": "de3c57d77907826d81704d09635741fdadcdd5b8d253db178f93b69bc126aa55"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/failed-old-glue/candidate/build.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "e62476c2360a33efcff0fef0643fe5e0df849d1b046b24aee2645e8b585b8fdf",
+      "sanitizedSha256": "86ce21111ae8297e21f672e87f6bdbdb8c428d4a46e4984f49c98eae685456d3"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/failed-old-glue/candidate/build.log",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "3c683ecf3114bf8f28d56dd87e4c45144dcf5467c3e7adc18dbd84da0e9b24cd",
+      "sanitizedSha256": "2720fadfe7a3a5cef7544ad5977fed813fbb7b7dfb0c08c32cc2f08090bcc14c"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/final-native-pocket-tank/1-baseline.stderr",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "16fee0f7b5fc5ceaf81cb97cf9b2b9c150b0b802e6c4103027860fed8462fe45",
+      "sanitizedSha256": "136d90da2a74967d88c0fb4ccb1129969f36a9f43b2169a8e113183efe70cc2e"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/final-native-pocket-tank/1-candidate.stderr",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "2fdd1aeb70a5f0c491849b48b547ac95ac439d0c03e4ee2913ea491ccfdec41c",
+      "sanitizedSha256": "e2ad60609a45b16a943f7af80c3df698a37172c77e4571acf3393e6f6ab1ed4b"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/final-native-pocket-tank/2-baseline.stderr",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "3f438251fa7f2c5ee488b1447f00b5fb7c440efc117a3c24256dc2198cb72fda",
+      "sanitizedSha256": "3494ff3c1d1e96c56db43c4c2d31897866a1d48bfb25ad82183beb9a3651b495"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/final-native-pocket-tank/2-candidate.stderr",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "cd0dd7c77b9325f090c7b9a7655d5ec55c0998be03618a65468ea317ecce73a9",
+      "sanitizedSha256": "04fc4a26f9b1aa5d5b1ad0b9a7112d969f3c6e2399df201b2f733b49744309c7"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/final-native-pocket-tank/runs.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "bec111fca8e2809b7decfa95a5f5053ec5962a5d1bc1dcc2e7f01003c3e1238a",
+      "sanitizedSha256": "17968bc422284cd17752d53a62d41b03d7acc4de8816c4d5065d879250aad1c6"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/final-native-pocket-tank/summary.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "111a81084d383f009b7ae0d9e6f8dda7917ae72820d778c3c509d49cb1f67f26",
+      "sanitizedSha256": "f6bb30da9dc848b0f7f35b89cbe0c2b45e2ccb00738250f26127b2d3c2c0edf0"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/final-pocket-tank-source-glue/1-baseline/capture.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "d5c4769d1c8dc9959471d519340a60172cbd4a5f530baf05582d8d0785803142",
+      "sanitizedSha256": "4b062bf8a6ebe1804e3c596ed506162e77427f79761c7aa63701b4dba62e6008"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/final-pocket-tank-source-glue/1-candidate/capture.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "3fc3dbe4e0d96beb314c1d592f0385104442b733e83fdd4facbd1704b9cfdda1",
+      "sanitizedSha256": "0d33a1da7d7d9cd1f89ca70a7dac0c8f4fddf34c8c7237ecdc9fc5c1b2766dbf"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/final-pocket-tank-source-glue/2-baseline/capture.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "504b0e613da7bb14845d67eb105ecc29e7caa388486d34a9ddd056807f01ece2",
+      "sanitizedSha256": "479c624abd02a8588b2211a8d0a669c2182f2c2935531cf00931504e3e749ee4"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/final-pocket-tank-source-glue/2-candidate/capture.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "103a03ff189d9ec11ad8dbf7f4eb14ea483c029eb93915d17aa31575379d5c5e",
+      "sanitizedSha256": "36d50bda0d9abde56cd9c9ff0481a9f7c276d5393d3b23363952a1af1d285c34"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/final-pocket-tank-source-glue/baseline/build.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "4ba21645b2c559f8d46ad529e28ebc795f371343ca4bffbd74c58156f5266517",
+      "sanitizedSha256": "8c2a9b7d9cd7a894e8b71ecd33c2e7da0e17f1a4eb8deb56b130f973b96327ce"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/final-pocket-tank-source-glue/candidate/build.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "21ffef5064d59a985a09fbc0f605d0713d793ebf00c655565400ead00b184ba6",
+      "sanitizedSha256": "9f0b65956274c2dd581bc9cae2c7abe1640d2f4dd53e8c59e6d9768aefa57526"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/final-pocket-tank-source-glue/candidate/build.log",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "17bd172e86ec3e30ea7cbf50500413e7101837899fcb76f7a8cb086813135688",
+      "sanitizedSha256": "95786321122811b81df79e2eda3e2b5b1898f5c4f65727b49185ab6f730697a9"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/final-pocket-tank-source-glue/runs.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "b07cff1cfb0df01b7fcd751f3d2c95be0ff86f46bc17f76bad585a97ee56694d",
+      "sanitizedSha256": "1fe327c2381375a1232e23c74106d1d6f5047492ab33dd168846a6c0048ada0b"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/final-pocket-tank-source-glue/summary.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "2acb2d9c92dc718cdbc7d4b626af6a3aad3e9b48c3235798d32bac6832cd112b",
+      "sanitizedSha256": "15fe1340781d02a0bfe81cf29768b8920da093a14e9f5cfc692464c0fdb4efae"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/final-pocket-tank/1-baseline/capture.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "3a9842f038b7a1d3c9586f2b8a2ac49a9f45f9c2062a136e6077cd4b607e54c1",
+      "sanitizedSha256": "7bc0bf397fca72f9ad283e685da90ccd3afd057d62bd51c651af32284ac0cf37"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/final-pocket-tank/1-candidate/capture.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "223fd8268844821afad1cc6844522e2181e09e883c97fca1ac29f9ff7ff08a0a",
+      "sanitizedSha256": "ea82a682c02ae9a6e9015ef109d5535e4fb77a59b5c368edd150f43cc43bb89d"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/final-pocket-tank/2-baseline/capture.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "0160d8cbbcd9c3b70ba6cdc891fe2d901973326eaf895978ebe4d73492084d89",
+      "sanitizedSha256": "d1947de6addc134be6c3a4f3f8ba21dfd5066f4d2b998978b263eea14d5c9aff"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/final-pocket-tank/2-candidate/capture.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "68681c1015b31f72d47d932bab2689f3314e752a876c73dcabcccda679edd492",
+      "sanitizedSha256": "5cc8020354d01120af316f3a70adfbcbe0df9d85ab3451a7ca457094e5f482a5"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/final-pocket-tank/baseline/build.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "01d3e910d2499820779c9daa8568255bc74921b2287d73121c104b6cb884c5ef",
+      "sanitizedSha256": "5aae1ff456546c8aabeaa6d09ffee97c1d15a35718134c134f7a72eed3c9116b"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/final-pocket-tank/candidate/build.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "7ea7cebd8d1445bf6e056b3619419a8914a1c044592593f6cd3abf2a5cbb5ac2",
+      "sanitizedSha256": "3e3026651aa81b812fdd2963b1703c9a8dfe8127e8145c19548ed3b0544b59d6"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/final-pocket-tank/runs.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "851b2ad03da4ee371659241ab41ba4677dff89b897825f74f9335ef2b4f46a1d",
+      "sanitizedSha256": "650ed448289fab4539b8af42e9c58cde95e9909476398ae481986804fc6feb50"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/final-pocket-tank/summary.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "449b578cf50bf338e494bb9b50cfbd511b59254505d95a2a23dd46e6527eb5d9",
+      "sanitizedSha256": "0d621c633f0dd1a81c036f84ddfba1772fd6785eab8c38eb5fe8c5b0145f1c7a"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/native-pocket-tank/1-baseline.stderr",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "0ac4fae3df50c026e5f2f5bd65b28a9cc2b49df2f982ad434c285a2c9943bfb7",
+      "sanitizedSha256": "b36823cde4c2ac0919a7c10fc818458e916b8c58ed109c6715d7bac0eb04e374"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/native-pocket-tank/1-candidate.stderr",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "3f438251fa7f2c5ee488b1447f00b5fb7c440efc117a3c24256dc2198cb72fda",
+      "sanitizedSha256": "3494ff3c1d1e96c56db43c4c2d31897866a1d48bfb25ad82183beb9a3651b495"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/native-pocket-tank/2-baseline.stderr",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "2c13962fbbbc386e734b5b17c8717a8c56a356188102b7ca74fe7c19dfb71470",
+      "sanitizedSha256": "b9c8a672bddcf58dd544c994ad4afff0783daa3d876177066c86775331881446"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/native-pocket-tank/2-candidate.stderr",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "b949a60e188226c6c12f9468c5343a8eda10a1fbc59f07b6867e7095472f59eb",
+      "sanitizedSha256": "83688e4d687ad449dd30ea48719ef2bb637a87e99d3344922e66e725c331c713"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/native-pocket-tank/runs.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "0bf35c5d86d6832b8905ef458da3e0e7aa797db7a660cefdf0ce1ec1b3b39f6b",
+      "sanitizedSha256": "2970484ec26ca59217ca9081c886a410e536c37f2abfa3f3a1d7950f2135883c"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/native-pocket-tank/summary.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "0a647b0c9e597eb212364ffda084160994099fd987a38e0f865ec31dd6a52af7",
+      "sanitizedSha256": "d12660d54386a0e906a10d6af0fba286e5efe317f663e312ee12c206d58f0035"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/pocket-tank/1-baseline/capture.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "587af0a1bc44e57b990c9d68ea7bb833bf43ba2da90d797067eea694678a750c",
+      "sanitizedSha256": "73b632ad206ff586558597a62536794f034b9733b2cea2e300da9e976dc1263f"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/pocket-tank/1-candidate/capture.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "cf6b1e2246c57114e45b7289a7681143e485e7792019370932af61dc130c77fa",
+      "sanitizedSha256": "16370c8ad93091d0bb324198748951413a6d7789bc824db4f6a2fdbcb167e249"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/pocket-tank/2-baseline/capture.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "20f33b59d222cbf04dd2dcec4dedecd82f2d386174e2752e8d4cacfa4d348195",
+      "sanitizedSha256": "5d9540781b95d4cfd331c049dc2b8b0dd9a5b4ba07dfd3f0c55b0b7bd9d85d32"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/pocket-tank/2-candidate/capture.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "50b57adec2a457c448d8e768e8a6deab8424b36a99699e13cbf1a7b93e1de143",
+      "sanitizedSha256": "fcf1fc80844c7baf79cbfb52c5c096cd43463dabcf52a2497e505cdcf83eb416"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/pocket-tank/baseline/build.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "fee1d6975995961e0e6b9d53c53ba35c3fef9b27ef06231b3f37d97e02e3d332",
+      "sanitizedSha256": "193cbd91dbc6337cd530ae778e94cc60190f0d619f51ce6b108e9006faf27e5d"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/pocket-tank/candidate/build.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "4ba21645b2c559f8d46ad529e28ebc795f371343ca4bffbd74c58156f5266517",
+      "sanitizedSha256": "8c2a9b7d9cd7a894e8b71ecd33c2e7da0e17f1a4eb8deb56b130f973b96327ce"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/pocket-tank/runs.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "f92d158f7bc3573214fa52fb9c8bf647629483f862e2109108560eca5ce21c1d",
+      "sanitizedSha256": "1610ec73dd72b53ff4b54c3a67f5b8338b9e8ef082c642c918816359774999bb"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/pocket-tank/summary.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "37299bb08d57cd6aa202f0c11e60bc663aeb68d626fcad5fe90bc1cd5928f693",
+      "sanitizedSha256": "f06dbc53b9652d5f17280be6086742f649944a9457546fde8217d60fe1256303"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/tinydraw/1-baseline/capture.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "8ceb31e2f0dcb5ad4cedeaaf3106ad9c578e290b2f21ba781b9ebd87f0a8c648",
+      "sanitizedSha256": "154bf1bfe12c9c35784eb5cbc4661675f1b6a0c68aeae830d4db28d3ddbb0405"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/tinydraw/1-candidate/capture.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "c9a8f4e736cb7c042c2a6748da3138a1b8fe711d20c451e68d0e520f6bc28b41",
+      "sanitizedSha256": "8803e48290a28d110c4e73810607e992dd8143660d7754a599df9409920b1833"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/tinydraw/2-baseline/capture.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "a7a7b95b1c1a3adb556ea2d4abb7905e777e02d7fe3323510221f57d1d7ae450",
+      "sanitizedSha256": "e4d8f52c84e62be4d6031275b865c387ab2df0e3620e7d98fe3183565af56425"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/tinydraw/2-candidate/capture.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "a9d9d196a16a8245256200d872860afe86ed8f3bffbae40d24d22c74dc644899",
+      "sanitizedSha256": "2c3e24cd1913966145d5043cbe689dbb0f0ca83e15dab32061b68fa9954d259f"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/tinydraw/baseline/build.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "a3135827056041d2190a5f4bf27dba3ada279808339f231eaefa4e462362b997",
+      "sanitizedSha256": "656689a7a02cc522c7dcf24e34c8bcc0a290a85402d2079e27808ac8c0db1251"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/tinydraw/candidate/build.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "45ed3a6334bcbb964e43fdd3e79e789e16edeaf645382d78dd12d5de179ab68f",
+      "sanitizedSha256": "37be55b3162befbc48a6e536e292b1c5e8eced8136de6df9c798734f271eddf0"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/tinydraw/runs.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "930282b4c364c7327e835aaa8311b96d38f9e82aa9ae96faf1bf66ff8f08bb35",
+      "sanitizedSha256": "9053f48aa88402bd09a7b28341058ccb735a27b2f64af7e6c7649bc50ddb0b76"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/runs/tinydraw/summary.json",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "dba42b44f8f9037733ebe78eae1a2f002f6fb67d25e837af90ad2d22e6be0f9d",
+      "sanitizedSha256": "a3c050178801d65385dccbc6b98054b7e98aa407801819dcfdbe9f682e559c26"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/validation/clippy.log",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "82792d49a433571335e3c00aad6e1b74eaeb9aadde12b5fb8a779b1ef87d466c",
+      "sanitizedSha256": "665d7821465b710f23b8d9d54af78b817b46388c4d19236f5cfcc4481c3d745a"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/validation/native.log",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "d61ec0cf9a28bd7be475e23a348a8746059248024b93e2fc7fdc03cd1096e698",
+      "sanitizedSha256": "583975853e428394045d8c7afe12d8b3480170ca8477a37db82b6fe9576f2dfb"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/validation/production.log",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "6937ab39f425a0d9053f941b6156088c6ca6267a51ad7b62a8c8928219dbd600",
+      "sanitizedSha256": "4762f1fed2a9672cce33df7444a2f69089ec7e3ef54d6501ae0369a999f147d8"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/validation/profile-clippy.log",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "b5dce4acc2c6da2423958cb7ed243d89ceceb475cd910d018841b3ce91da1688",
+      "sanitizedSha256": "62109931c054a26c934cc97e7d66373e125f22230553b49b842cb1ffe4e24c77"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/validation/profile-final.log",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "ea529af4dbc2c5d844563d1653929c2005450f8b1bd2b7975780ecb7d9c06216",
+      "sanitizedSha256": "0c7ee1aff980794c86b6c0efef4a07f6c90f7311488e780484ea1643e44a5df1"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/validation/profile.log",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "8721ea871bc0bd310716cd53ca46a1fe6f693ef615775baa663236ec4e7829f3",
+      "sanitizedSha256": "cdb33ac0c4aa1366ba330d788f21f329e4f31b70ec0e0118b84263fb26fa7753"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/validation/vq.log",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "4fd431cccacb827511bc1adde373240c812e8f78bb0737c17f42c989442b797c",
+      "sanitizedSha256": "482869fa0290b70fbf4141717182b7bc8a6d3875eee5a2b91ee338ea81f69984"
+    },
+    {
+      "path": "docs/evidence/overnight-review-2026-09-20/validation/wasm.log",
+      "redactions": [
+        0
+      ],
+      "originalSha256": "11e9c6df47175e92707f7be36bb6a1a55ea440d6c29d6be3f66b1370e60e258a",
+      "sanitizedSha256": "e26442626400eb292b4f3a0f1f78a61c2433b05f39198adcd7e324bafd8490d5"
+    }
+  ]
+}

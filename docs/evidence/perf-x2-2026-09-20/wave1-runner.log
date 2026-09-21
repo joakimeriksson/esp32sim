@@ -1,0 +1,56 @@
+2026-09-20T18:53:56Z interactive browser running; waiting
+2026-09-20T18:54:56Z interactive browser running; waiting
+2026-09-20T18:55:56Z interactive browser running; waiting
+2026-09-20T18:56:56Z interactive browser running; waiting
+2026-09-20T18:57:57Z interactive browser running; waiting
+2026-09-20T18:58:57Z interactive browser running; waiting
+2026-09-20T18:59:57Z START control-aa-1 (2 pairs, pocket-tank) load={ 2.54 2.27 2.33 }
+2026-09-20T19:02:13.127Z DONE control-aa-1 {"reduction":-0.1830004948522701,"pairs":[-0.5814435416538366,0.21183373078791368]}
+2026-09-20T19:02:13Z START crumbs-all (2 pairs, pocket-tank) load={ 3.05 2.70 2.50 }
+2026-09-20T19:04:22.506Z DONE crumbs-all {"reduction":8.807635546353387,"pairs":[8.74464861003139,8.870508078144834]}
+2026-09-20T19:04:22Z START dispatch-s1s2s3s4s5s6 (2 pairs, pocket-tank) load={ 2.36 2.55 2.47 }
+2026-09-20T19:06:41.011Z DONE dispatch-s1s2s3s4s5s6 {"reduction":2.768318743413456,"pairs":[3.808579763117037,1.7050742551510623]}
+2026-09-20T19:06:41Z START inchain-s3 (2 pairs, pocket-tank) load={ 2.34 2.71 2.56 }
+2026-09-20T19:08:56.411Z DONE inchain-s3 {"reduction":1.69494525466376,"pairs":[1.7704915409591182,1.6193441819311039]}
+2026-09-20T19:08:56Z START hotwat-s1s2 (2 pairs, pocket-tank) load={ 2.77 2.91 2.67 }
+2026-09-20T19:11:11.939Z DONE hotwat-s1s2 {"reduction":2.3655238315624993,"pairs":[1.931185520057599,2.79717678881225]}
+2026-09-20T19:11:11Z START crumbs-dma (2 pairs, pocket-tank) load={ 2.54 3.14 2.82 }
+2026-09-20T19:13:27.363Z DONE crumbs-dma {"reduction":4.783397585823545,"pairs":[4.5758765387344695,4.990868909211732]}
+2026-09-20T19:13:27Z START inchain-s2 (2 pairs, pocket-tank) load={ 3.66 3.33 2.93 }
+2026-09-20T19:15:42.723Z DONE inchain-s2 {"reduction":1.4269113110635057,"pairs":[1.126633082593187,1.7268410952156033]}
+2026-09-20T19:15:42Z START inchain-s1 (2 pairs, pocket-tank) load={ 2.00 2.91 2.83 }
+2026-09-20T19:17:58.137Z DONE inchain-s1 {"reduction":0.8889311325227633,"pairs":[0.7322508412474948,1.045626557678303]}
+2026-09-20T19:17:58Z START tailchain-s2 (2 pairs, pocket-tank) load={ 4.17 3.09 2.89 }
+2026-09-20T19:20:19.502Z DONE tailchain-s2 {"reduction":-3.7185613279220764,"pairs":[-4.204205695435026,-3.233151000333212]}
+2026-09-20T19:20:19Z START dispatch-s1 (2 pairs, pocket-tank) load={ 2.54 2.83 2.81 }
+2026-09-20T19:22:34.872Z DONE dispatch-s1 {"reduction":0.2618340046568801,"pairs":[-0.08211682214718241,0.6060024319834212]}
+2026-09-20T19:22:34Z START control-aa-2 (2 pairs, pocket-tank) load={ 2.42 2.65 2.74 }
+2026-09-20T19:24:50.280Z DONE control-aa-2 {"reduction":-0.31038849720790296,"pairs":[-0.3849712843493558,-0.23511855768576506]}
+2026-09-20T19:24:50Z START crumbs-spi (2 pairs, pocket-tank) load={ 2.06 2.49 2.66 }
+2026-09-20T19:27:05.747Z DONE crumbs-spi {"reduction":1.7701253342009227,"pairs":[2.233541023614005,1.3025077866241297]}
+2026-09-20T19:27:05Z START crumbs-fma (2 pairs, pocket-tank) load={ 2.65 2.66 2.71 }
+2026-09-20T19:29:21.220Z DONE crumbs-fma {"reduction":1.4785296651421143,"pairs":[1.611629941701831,1.3452286682405945]}
+2026-09-20T19:29:21Z START hotwat-s1 (2 pairs, pocket-tank) load={ 2.24 2.50 2.63 }
+2026-09-20T19:31:36.659Z DONE hotwat-s1 {"reduction":0.3239465327212754,"pairs":[0.6021581072633952,0.044923476945346597]}
+2026-09-20T19:31:36Z START hotwat-s2 (2 pairs, pocket-tank) load={ 3.07 2.82 2.74 }
+2026-09-20T19:33:52.105Z DONE hotwat-s2 {"reduction":1.9918389347338028,"pairs":[1.5374402882269322,2.444726073175374]}
+2026-09-20T19:33:52Z START dispatch-s2 (2 pairs, pocket-tank) load={ 2.35 2.66 2.69 }
+2026-09-20T19:36:07.508Z DONE dispatch-s2 {"reduction":0.4646286002443878,"pairs":[0.23125746225579613,0.6984063217706837]}
+2026-09-20T19:36:07Z START tailchain-s1 (2 pairs, pocket-tank) load={ 2.34 2.64 2.67 }
+2026-09-20T19:38:29.004Z DONE tailchain-s1 {"reduction":-2.513669179547784,"pairs":[-2.8526713616280563,-2.176366919606143]}
+2026-09-20T19:38:29Z START dispatch-s3 (2 pairs, pocket-tank) load={ 3.03 2.80 2.73 }
+2026-09-20T19:40:44.442Z DONE dispatch-s3 {"reduction":0.27075805332062997,"pairs":[0.3124719426005451,0.22912771472187732]}
+2026-09-20T19:40:44Z START dispatch-s4 (2 pairs, pocket-tank) load={ 2.19 2.66 2.69 }
+2026-09-20T19:42:59.873Z DONE dispatch-s4 {"reduction":0.47620659352750616,"pairs":[0.7087241978635195,0.24214584386559324]}
+2026-09-20T19:42:59Z START crumbs-round (2 pairs, pocket-tank) load={ 2.67 2.81 2.74 }
+2026-09-20T19:45:15.334Z DONE crumbs-round {"reduction":1.2199705751434475,"pairs":[1.0684069755896752,1.3705533958215388]}
+2026-09-20T19:45:15Z START control-aa-3 (2 pairs, pocket-tank) load={ 3.04 3.00 2.83 }
+2026-09-20T19:47:30.638Z DONE control-aa-3 {"reduction":0.365328567530232,"pairs":[0.3820894637592831,0.3486097492450435]}
+2026-09-20T19:47:30Z START dispatch-s5 (2 pairs, pocket-tank) load={ 2.71 2.99 2.85 }
+2026-09-20T19:49:46.034Z DONE dispatch-s5 {"reduction":-1.4021670839842848,"pairs":[-1.5857429800626432,-1.2188543440476485]}
+2026-09-20T19:49:46Z START dispatch-s6 (2 pairs, pocket-tank) load={ 2.36 2.82 2.80 }
+2026-09-20T19:52:01.517Z DONE dispatch-s6 {"reduction":0.37073485186907007,"pairs":[0.24115805470206197,0.5005933700650389]}
+2026-09-20T19:52:01Z START crumbs-pub (2 pairs, pocket-tank) load={ 2.42 2.98 2.89 }
+2026-09-20T19:54:16.915Z DONE crumbs-pub {"reduction":0.4059580491039716,"pairs":[0.6524622470791552,0.1599641319678602]}
+2026-09-20T19:54:16Z START tailchain-s2-1k (2 pairs, pocket-tank) load={ 1.94 2.64 2.77 }
+2026-09-20T19:56:38.492Z DONE tailchain-s2-1k {"reduction":-3.9190498358214976,"pairs":[-3.540480806038393,-4.300827233021831]}

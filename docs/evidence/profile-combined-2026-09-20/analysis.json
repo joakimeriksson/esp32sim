@@ -1,0 +1,877 @@
+{
+  "cpu-pocket-tank": {
+    "sampledSeconds": 51.083606,
+    "idleSeconds": 1.166887,
+    "nonIdleSeconds": 49.916719,
+    "categories": [
+      {
+        "name": "generated blocks",
+        "seconds": 21.762694,
+        "nonIdlePercent": 43.59800571027114
+      },
+      {
+        "name": "JIT admission and wrapper",
+        "seconds": 9.856073,
+        "nonIdlePercent": 19.74503372306982
+      },
+      {
+        "name": "other",
+        "seconds": 7.771999,
+        "nonIdlePercent": 15.569931589454026
+      },
+      {
+        "name": "block dispatch",
+        "seconds": 2.888184,
+        "nonIdlePercent": 5.786005286124675
+      },
+      {
+        "name": "DMA and display transfer",
+        "seconds": 2.251896,
+        "nonIdlePercent": 4.51130612170243
+      },
+      {
+        "name": "scheduler",
+        "seconds": 2.08067,
+        "nonIdlePercent": 4.168282775155955
+      },
+      {
+        "name": "decoded-block lookup",
+        "seconds": 1.182884,
+        "nonIdlePercent": 2.3697150447728745
+      },
+      {
+        "name": "machine block wrapper",
+        "seconds": 1.176122,
+        "nonIdlePercent": 2.3561684813458994
+      },
+      {
+        "name": "interpreter",
+        "seconds": 0.946197,
+        "nonIdlePercent": 1.895551268103178
+      }
+    ],
+    "topFunctions": [
+      {
+        "name": "_RINvNtNtCsiC04ccAUUrS_10xtensa_lx73jit6native9run_innerNtNtCs1dGorymGPUm_7esp32s33bus6SocBusECsjNj4ZJhj47X_13esp32sim_wasm",
+        "seconds": 9.853519,
+        "nonIdlePercent": 19.739917200888144
+      },
+      {
+        "name": "_RINvNtCsiC04ccAUUrS_10xtensa_lx75block15run_block_innerNtNtCs1dGorymGPUm_7esp32s33bus6SocBusECsjNj4ZJhj47X_13esp32sim_wasm",
+        "seconds": 2.888184,
+        "nonIdlePercent": 5.786005286124675
+      },
+      {
+        "name": "_RINvMNtCs54gAw4bpYdk_7esp_soc7machineINtB3_7MachineNtNtCs1dGorymGPUm_7esp32s33soc2S3E13run_unmodeledKb0_ECsjNj4ZJhj47X_13esp32sim_wasm",
+        "seconds": 2.08067,
+        "nonIdlePercent": 4.168282775155955
+      },
+      {
+        "name": "_RINvNtNtCsiC04ccAUUrS_10xtensa_lx73jit6native3runNtNtCs1dGorymGPUm_7esp32s33bus6SocBusECsjNj4ZJhj47X_13esp32sim_wasm",
+        "seconds": 2.04112,
+        "nonIdlePercent": 4.089050804801493
+      },
+      {
+        "name": "xtensa_4200f75f",
+        "seconds": 1.729863,
+        "nonIdlePercent": 3.465498203117076
+      },
+      {
+        "name": "_RNvMs_NtNtCs1dGorymGPUm_7esp32s33bus3dmaNtB6_6SocBus8dma_copy",
+        "seconds": 1.432587,
+        "nonIdlePercent": 2.8699542532032205
+      },
+      {
+        "name": "xtensa_4200e9bd",
+        "seconds": 1.359557,
+        "nonIdlePercent": 2.7236505668571684
+      },
+      {
+        "name": "_RINvNtCsiC04ccAUUrS_10xtensa_lx75block10find_blockNtNtCs1dGorymGPUm_7esp32s33bus6SocBusECsjNj4ZJhj47X_13esp32sim_wasm",
+        "seconds": 1.182884,
+        "nonIdlePercent": 2.3697150447728745
+      },
+      {
+        "name": "_RNvMNtCs54gAw4bpYdk_7esp_soc7machineINtB2_7MachineNtNtCs1dGorymGPUm_7esp32s33soc2S3E11step_blocksCsjNj4ZJhj47X_13esp32sim_wasm",
+        "seconds": 1.176122,
+        "nonIdlePercent": 2.3561684813458994
+      },
+      {
+        "name": "xtensa_4200f793",
+        "seconds": 1.068746,
+        "nonIdlePercent": 2.1410581893413307
+      },
+      {
+        "name": "_RINvNtCsiC04ccAUUrS_10xtensa_lx74exec9exec_insnNtNtCs1dGorymGPUm_7esp32s33bus6SocBusECsjNj4ZJhj47X_13esp32sim_wasm",
+        "seconds": 0.946197,
+        "nonIdlePercent": 1.895551268103178
+      },
+      {
+        "name": "xtensa_4200f626",
+        "seconds": 0.863826,
+        "nonIdlePercent": 1.730534412728529
+      },
+      {
+        "name": "_RNvXs2_NtNtCs1dGorymGPUm_7esp32s35board18waveshare_amoled18NtB5_19WaveshareAmoled18V2NtNtCs54gAw4bpYdk_7esp_soc5board10BoardModel12spi_transfer",
+        "seconds": 0.819309,
+        "nonIdlePercent": 1.6413518684992097
+      },
+      {
+        "name": "xtensa_420180c5",
+        "seconds": 0.775932,
+        "nonIdlePercent": 1.554453128219425
+      },
+      {
+        "name": "Module",
+        "seconds": 0.619146,
+        "nonIdlePercent": 1.2403579650337195
+      },
+      {
+        "name": "xtensa_4200f69c",
+        "seconds": 0.543506,
+        "nonIdlePercent": 1.0888255696453126
+      },
+      {
+        "name": "xtensa_40056f44",
+        "seconds": 0.519322,
+        "nonIdlePercent": 1.0403768725264175
+      },
+      {
+        "name": "xtensa_4200f6b4",
+        "seconds": 0.491283,
+        "nonIdlePercent": 0.9842053120518598
+      },
+      {
+        "name": "_RNvNtNtCsiC04ccAUUrS_10xtensa_lx73jit6native7h_fused",
+        "seconds": 0.405627,
+        "nonIdlePercent": 0.8126074952963155
+      },
+      {
+        "name": "xtensa_4200fe75",
+        "seconds": 0.402388,
+        "nonIdlePercent": 0.8061186874081208
+      },
+      {
+        "name": "_RINvNtNtCsiC04ccAUUrS_10xtensa_lx73jit6native6h_execNtNtCs1dGorymGPUm_7esp32s33bus6SocBusECsjNj4ZJhj47X_13esp32sim_wasm",
+        "seconds": 0.382948,
+        "nonIdlePercent": 0.7671738200581653
+      },
+      {
+        "name": "xtensa_4200f6fc",
+        "seconds": 0.382345,
+        "nonIdlePercent": 0.7659658079690694
+      },
+      {
+        "name": "_RINvMs0_NtCs1dGorymGPUm_7esp32s33busNtB6_6SocBus14write32_accessKb0_EB8_",
+        "seconds": 0.368672,
+        "nonIdlePercent": 0.7385741839322412
+      },
+      {
+        "name": "_RNvMNtCs54gAw4bpYdk_7esp_soc7machineINtB2_7MachineNtNtCs1dGorymGPUm_7esp32s33soc2S3E16after_round_restCsjNj4ZJhj47X_13esp32sim_wasm",
+        "seconds": 0.349198,
+        "nonIdlePercent": 0.6995612031311593
+      },
+      {
+        "name": "xtensa_4200f82d",
+        "seconds": 0.339021,
+        "nonIdlePercent": 0.67917324453957
+      }
+    ]
+  },
+  "cpu-tinydraw-latest": {
+    "sampledSeconds": 21.031947,
+    "idleSeconds": 11.922636,
+    "nonIdleSeconds": 9.109311,
+    "categories": [
+      {
+        "name": "generated blocks",
+        "seconds": 2.672311,
+        "nonIdlePercent": 29.336038697108926
+      },
+      {
+        "name": "other",
+        "seconds": 2.523015,
+        "nonIdlePercent": 27.69710025269749
+      },
+      {
+        "name": "JIT admission and wrapper",
+        "seconds": 1.380083,
+        "nonIdlePercent": 15.150245721108874
+      },
+      {
+        "name": "block dispatch",
+        "seconds": 0.92994,
+        "nonIdlePercent": 10.208675496972274
+      },
+      {
+        "name": "scheduler",
+        "seconds": 0.499949,
+        "nonIdlePercent": 5.488329468606352
+      },
+      {
+        "name": "interpreter",
+        "seconds": 0.443868,
+        "nonIdlePercent": 4.872684662978353
+      },
+      {
+        "name": "machine block wrapper",
+        "seconds": 0.366276,
+        "nonIdlePercent": 4.020896860366278
+      },
+      {
+        "name": "decoded-block lookup",
+        "seconds": 0.293869,
+        "nonIdlePercent": 3.2260288401614567
+      }
+    ],
+    "topFunctions": [
+      {
+        "name": "_RINvNtNtCsiC04ccAUUrS_10xtensa_lx73jit6native9run_innerNtNtCs1dGorymGPUm_7esp32s33bus6SocBusECsjNj4ZJhj47X_13esp32sim_wasm",
+        "seconds": 1.380083,
+        "nonIdlePercent": 15.150245721108874
+      },
+      {
+        "name": "_RINvNtCsiC04ccAUUrS_10xtensa_lx75block15run_block_innerNtNtCs1dGorymGPUm_7esp32s33bus6SocBusECsjNj4ZJhj47X_13esp32sim_wasm",
+        "seconds": 0.92994,
+        "nonIdlePercent": 10.208675496972274
+      },
+      {
+        "name": "_RINvMNtCs54gAw4bpYdk_7esp_soc7machineINtB3_7MachineNtNtCs1dGorymGPUm_7esp32s33soc2S3E13run_unmodeledKb0_ECsjNj4ZJhj47X_13esp32sim_wasm",
+        "seconds": 0.499949,
+        "nonIdlePercent": 5.488329468606352
+      },
+      {
+        "name": "_RINvNtCsiC04ccAUUrS_10xtensa_lx74exec9exec_insnNtNtCs1dGorymGPUm_7esp32s33bus6SocBusECsjNj4ZJhj47X_13esp32sim_wasm",
+        "seconds": 0.443868,
+        "nonIdlePercent": 4.872684662978353
+      },
+      {
+        "name": "_RNvMNtCs54gAw4bpYdk_7esp_soc7machineINtB2_7MachineNtNtCs1dGorymGPUm_7esp32s33soc2S3E11step_blocksCsjNj4ZJhj47X_13esp32sim_wasm",
+        "seconds": 0.366276,
+        "nonIdlePercent": 4.020896860366278
+      },
+      {
+        "name": "_RINvNtNtCsiC04ccAUUrS_10xtensa_lx73jit6native3runNtNtCs1dGorymGPUm_7esp32s33bus6SocBusECsjNj4ZJhj47X_13esp32sim_wasm",
+        "seconds": 0.321286,
+        "nonIdlePercent": 3.5270065979743146
+      },
+      {
+        "name": "_RINvNtCsiC04ccAUUrS_10xtensa_lx75block10find_blockNtNtCs1dGorymGPUm_7esp32s33bus6SocBusECsjNj4ZJhj47X_13esp32sim_wasm",
+        "seconds": 0.293869,
+        "nonIdlePercent": 3.2260288401614567
+      },
+      {
+        "name": "loop",
+        "seconds": 0.261339,
+        "nonIdlePercent": 2.8689217000056315
+      },
+      {
+        "name": "_RINvNtNtCsiC04ccAUUrS_10xtensa_lx73jit6native6h_execNtNtCs1dGorymGPUm_7esp32s33bus6SocBusECsjNj4ZJhj47X_13esp32sim_wasm",
+        "seconds": 0.201161,
+        "nonIdlePercent": 2.2083009351640315
+      },
+      {
+        "name": "Module",
+        "seconds": 0.150623,
+        "nonIdlePercent": 1.6535059567073733
+      },
+      {
+        "name": "(program)",
+        "seconds": 0.101176,
+        "nonIdlePercent": 1.1106877347803803
+      },
+      {
+        "name": "_RNvXs1_NtCs1dGorymGPUm_7esp32s33busNtB5_6SocBusNtNtCs3QQYunS8OH3_8emu_core3bus3Bus7write32",
+        "seconds": 0.087022,
+        "nonIdlePercent": 0.9553082554761826
+      },
+      {
+        "name": "_RNvMNtCs54gAw4bpYdk_7esp_soc7machineINtB2_7MachineNtNtCs1dGorymGPUm_7esp32s33soc2S3E16after_round_restCsjNj4ZJhj47X_13esp32sim_wasm",
+        "seconds": 0.080716,
+        "nonIdlePercent": 0.8860823831791449
+      },
+      {
+        "name": "_RNvMs2_NtCs1dGorymGPUm_7esp32s33busNtB5_6SocBus11flush_ticks",
+        "seconds": 0.076132,
+        "nonIdlePercent": 0.8357602457529444
+      },
+      {
+        "name": "_RNvXNtCsiC04ccAUUrS_10xtensa_lx74coreNtNtB4_5state3CpuNtNtCs3QQYunS8OH3_8emu_core4core4Core14advance_cycles",
+        "seconds": 0.075728,
+        "nonIdlePercent": 0.831325223170007
+      },
+      {
+        "name": "_RNvMNtCsiC04ccAUUrS_10xtensa_lx74execNtNtB4_5state3Cpu16check_interrupts",
+        "seconds": 0.073419,
+        "nonIdlePercent": 0.805977532219506
+      },
+      {
+        "name": "_RNvXs0_NtCs58i1S6PDf40_10esp_periph4gpioNtB5_4GpioNtNtB7_6device6Device11irq_sources",
+        "seconds": 0.068345,
+        "nonIdlePercent": 0.7502762832446933
+      },
+      {
+        "name": "_RNvXs1_NtCs1dGorymGPUm_7esp32s33busNtB5_6SocBusNtNtCs3QQYunS8OH3_8emu_core3bus3Bus6read32",
+        "seconds": 0.06533,
+        "nonIdlePercent": 0.7171782805527224
+      },
+      {
+        "name": "_RNvMs2_NtCs1dGorymGPUm_7esp32s33busNtB5_6SocBus9tick_impl",
+        "seconds": 0.056398,
+        "nonIdlePercent": 0.6191247614665917
+      },
+      {
+        "name": "xtensa_403826cf vTaskSwitchContext",
+        "seconds": 0.053801,
+        "nonIdlePercent": 0.5906154702589471
+      },
+      {
+        "name": "_RNvNtCsiC04ccAUUrS_10xtensa_lx76decode6decode",
+        "seconds": 0.047789,
+        "nonIdlePercent": 0.5246170648910768
+      },
+      {
+        "name": "xtensa_4037e4f8 esp_cpu_compare_and_set",
+        "seconds": 0.046745,
+        "nonIdlePercent": 0.5131562639589317
+      },
+      {
+        "name": "xtensa_40381c0c xPortEnterCriticalTimeout",
+        "seconds": 0.042732,
+        "nonIdlePercent": 0.469102438153665
+      },
+      {
+        "name": "xtensa_400559cc unknown",
+        "seconds": 0.041653,
+        "nonIdlePercent": 0.4572574149680475
+      },
+      {
+        "name": "_RNvXNtCsiC04ccAUUrS_10xtensa_lx74coreNtNtB4_5state3CpuNtNtCs3QQYunS8OH3_8emu_core4core4Core17cycles_until_wake",
+        "seconds": 0.040175,
+        "nonIdlePercent": 0.4410322580928459
+      }
+    ]
+  },
+  "release-pocket-tank": {
+    "sampledSeconds": 48.055987,
+    "idleSeconds": 1.900825,
+    "nonIdleSeconds": 46.155162,
+    "categories": [
+      {
+        "name": "generated blocks",
+        "seconds": 20.716167,
+        "nonIdlePercent": 44.88374886431988
+      },
+      {
+        "name": "JIT admission and wrapper",
+        "seconds": 9.01945,
+        "nonIdlePercent": 19.54158453609154
+      },
+      {
+        "name": "machine block wrapper",
+        "seconds": 5.214438,
+        "nonIdlePercent": 11.297626904656948
+      },
+      {
+        "name": "other",
+        "seconds": 5.103063,
+        "nonIdlePercent": 11.056321284280186
+      },
+      {
+        "name": "DMA and display transfer",
+        "seconds": 2.171056,
+        "nonIdlePercent": 4.70382056074248
+      },
+      {
+        "name": "scheduler",
+        "seconds": 1.968073,
+        "nonIdlePercent": 4.26403659898323
+      },
+      {
+        "name": "decoded-block lookup",
+        "seconds": 1.185885,
+        "nonIdlePercent": 2.5693442479954895
+      },
+      {
+        "name": "interpreter",
+        "seconds": 0.77703,
+        "nonIdlePercent": 1.6835170029302464
+      }
+    ],
+    "topFunctions": [
+      {
+        "name": "wasm-function[0]",
+        "seconds": 20.716167,
+        "nonIdlePercent": 44.88374886431988
+      },
+      {
+        "name": "_RINvNtNtCs5F2i29bsihg_10xtensa_lx73jit6native9run_innerNtNtCs7lxvt5igX0z_7esp32s33bus6SocBusECsetaQYfaB9Ca_13esp32sim_wasm",
+        "seconds": 9.018163,
+        "nonIdlePercent": 19.53879611558941
+      },
+      {
+        "name": "_RNvMNtCslrqzjCal6eM_7esp_soc7machineINtB2_7MachineNtNtCs7lxvt5igX0z_7esp32s33soc2S3E11step_blocksCsetaQYfaB9Ca_13esp32sim_wasm",
+        "seconds": 5.214438,
+        "nonIdlePercent": 11.297626904656948
+      },
+      {
+        "name": "_RINvMNtCslrqzjCal6eM_7esp_soc7machineINtB3_7MachineNtNtCs7lxvt5igX0z_7esp32s33soc2S3E13run_unmodeledKb0_ECsetaQYfaB9Ca_13esp32sim_wasm",
+        "seconds": 1.968073,
+        "nonIdlePercent": 4.26403659898323
+      },
+      {
+        "name": "_RNvMs_NtNtCs7lxvt5igX0z_7esp32s33bus3dmaNtB6_6SocBus8dma_copy",
+        "seconds": 1.398479,
+        "nonIdlePercent": 3.0299514494175104
+      },
+      {
+        "name": "_RINvNtCs5F2i29bsihg_10xtensa_lx75block10find_blockNtNtCs7lxvt5igX0z_7esp32s33bus6SocBusECsetaQYfaB9Ca_13esp32sim_wasm",
+        "seconds": 1.185885,
+        "nonIdlePercent": 2.5693442479954895
+      },
+      {
+        "name": "_RINvNtCs5F2i29bsihg_10xtensa_lx74exec9exec_insnNtNtCs7lxvt5igX0z_7esp32s33bus6SocBusECsetaQYfaB9Ca_13esp32sim_wasm",
+        "seconds": 0.77703,
+        "nonIdlePercent": 1.6835170029302464
+      },
+      {
+        "name": "_RNvXs2_NtNtCs7lxvt5igX0z_7esp32s35board18waveshare_amoled18NtB5_19WaveshareAmoled18V2NtNtCslrqzjCal6eM_7esp_soc5board10BoardModel12spi_transfer",
+        "seconds": 0.772577,
+        "nonIdlePercent": 1.6738691113249695
+      },
+      {
+        "name": "Module",
+        "seconds": 0.493691,
+        "nonIdlePercent": 1.0696333380868646
+      },
+      {
+        "name": "_RINvNtNtCs5F2i29bsihg_10xtensa_lx73jit6native6h_execNtNtCs7lxvt5igX0z_7esp32s33bus6SocBusECsetaQYfaB9Ca_13esp32sim_wasm",
+        "seconds": 0.365683,
+        "nonIdlePercent": 0.7922905784622747
+      },
+      {
+        "name": "_RINvMs0_NtCs7lxvt5igX0z_7esp32s33busNtB6_6SocBus14write32_accessKb0_EB8_",
+        "seconds": 0.353517,
+        "nonIdlePercent": 0.7659316632882797
+      },
+      {
+        "name": "_RINvMs0_NtCs7lxvt5igX0z_7esp32s33busNtB6_6SocBus13read32_accessKb0_EB8_",
+        "seconds": 0.349615,
+        "nonIdlePercent": 0.757477570981118
+      },
+      {
+        "name": "_RNvMNtCslrqzjCal6eM_7esp_soc7machineINtB2_7MachineNtNtCs7lxvt5igX0z_7esp32s33soc2S3E16after_round_restCsetaQYfaB9Ca_13esp32sim_wasm",
+        "seconds": 0.312943,
+        "nonIdlePercent": 0.6780238362070964
+      },
+      {
+        "name": "fmaf",
+        "seconds": 0.311178,
+        "nonIdlePercent": 0.6741997785643131
+      },
+      {
+        "name": "_RNvNtNtCs5F2i29bsihg_10xtensa_lx73jit6native7h_fused",
+        "seconds": 0.279016,
+        "nonIdlePercent": 0.6045174318746839
+      },
+      {
+        "name": "_RNvXs0_NtCs58i1S6PDf40_10esp_periph4gpioNtB5_4GpioNtNtB7_6device6Device11irq_sources",
+        "seconds": 0.252055,
+        "nonIdlePercent": 0.546103597253109
+      },
+      {
+        "name": "_RNvMNtCs7lxvt5igX0z_7esp32s33busNtB2_6SocBus12periph_write",
+        "seconds": 0.155228,
+        "nonIdlePercent": 0.33631774491442584
+      },
+      {
+        "name": "_RNvMs2_NtCs7lxvt5igX0z_7esp32s33busNtB5_6SocBus9tick_impl",
+        "seconds": 0.107022,
+        "nonIdlePercent": 0.23187438926116216
+      },
+      {
+        "name": "_RNvXs1_NtCs7lxvt5igX0z_7esp32s33busNtB5_6SocBusNtNtCs3QQYunS8OH3_8emu_core3bus3Bus9code_page",
+        "seconds": 0.096466,
+        "nonIdlePercent": 0.2090037079709524
+      },
+      {
+        "name": "_RNvXNtCs5F2i29bsihg_10xtensa_lx74coreNtNtB4_5state3CpuNtNtCs3QQYunS8OH3_8emu_core4core4Core14advance_cycles",
+        "seconds": 0.090738,
+        "nonIdlePercent": 0.19659339512230506
+      },
+      {
+        "name": "_RNvMs2_NtCs7lxvt5igX0z_7esp32s33busNtB5_6SocBus11flush_ticks",
+        "seconds": 0.089223,
+        "nonIdlePercent": 0.19331098870371205
+      },
+      {
+        "name": "_RNvNtCs5F2i29bsihg_10xtensa_lx76decode6decode",
+        "seconds": 0.08574,
+        "nonIdlePercent": 0.18576470384829327
+      },
+      {
+        "name": "_RNvXs1_NtCs7lxvt5igX0z_7esp32s33busNtB5_6SocBusNtNtCs3QQYunS8OH3_8emu_core3bus3Bus7write32",
+        "seconds": 0.083976,
+        "nonIdlePercent": 0.18194281281040678
+      },
+      {
+        "name": "host_jit_compile",
+        "seconds": 0.075621,
+        "nonIdlePercent": 0.1638408288979681
+      },
+      {
+        "name": "_RNvXs1_NtCs7lxvt5igX0z_7esp32s33busNtB5_6SocBusNtNtCs3QQYunS8OH3_8emu_core3bus3Bus6read32",
+        "seconds": 0.073245,
+        "nonIdlePercent": 0.15869297566326385
+      }
+    ]
+  },
+  "release-tinydraw-latest": {
+    "sampledSeconds": 12.028399,
+    "idleSeconds": 6.975888,
+    "nonIdleSeconds": 5.052511,
+    "categories": [
+      {
+        "name": "generated blocks",
+        "seconds": 1.455587,
+        "nonIdlePercent": 28.809180227415634
+      },
+      {
+        "name": "other",
+        "seconds": 1.297323,
+        "nonIdlePercent": 25.676797141065105
+      },
+      {
+        "name": "machine block wrapper",
+        "seconds": 0.795784,
+        "nonIdlePercent": 15.750267540238903
+      },
+      {
+        "name": "JIT admission and wrapper",
+        "seconds": 0.766593,
+        "nonIdlePercent": 15.172515210753623
+      },
+      {
+        "name": "interpreter",
+        "seconds": 0.304695,
+        "nonIdlePercent": 6.030565791939889
+      },
+      {
+        "name": "scheduler",
+        "seconds": 0.289321,
+        "nonIdlePercent": 5.726281446987448
+      },
+      {
+        "name": "decoded-block lookup",
+        "seconds": 0.141963,
+        "nonIdlePercent": 2.8097514285471124
+      },
+      {
+        "name": "DMA and display transfer",
+        "seconds": 0.001245,
+        "nonIdlePercent": 0.02464121305228232
+      }
+    ],
+    "topFunctions": [
+      {
+        "name": "wasm-function[0]",
+        "seconds": 1.455587,
+        "nonIdlePercent": 28.809180227415634
+      },
+      {
+        "name": "_RNvMNtCslrqzjCal6eM_7esp_soc7machineINtB2_7MachineNtNtCs7lxvt5igX0z_7esp32s33soc2S3E11step_blocksCsetaQYfaB9Ca_13esp32sim_wasm",
+        "seconds": 0.795784,
+        "nonIdlePercent": 15.750267540238903
+      },
+      {
+        "name": "_RINvNtNtCs5F2i29bsihg_10xtensa_lx73jit6native9run_innerNtNtCs7lxvt5igX0z_7esp32s33bus6SocBusECsetaQYfaB9Ca_13esp32sim_wasm",
+        "seconds": 0.766593,
+        "nonIdlePercent": 15.172515210753623
+      },
+      {
+        "name": "_RINvNtCs5F2i29bsihg_10xtensa_lx74exec9exec_insnNtNtCs7lxvt5igX0z_7esp32s33bus6SocBusECsetaQYfaB9Ca_13esp32sim_wasm",
+        "seconds": 0.304695,
+        "nonIdlePercent": 6.030565791939889
+      },
+      {
+        "name": "_RINvMNtCslrqzjCal6eM_7esp_soc7machineINtB3_7MachineNtNtCs7lxvt5igX0z_7esp32s33soc2S3E13run_unmodeledKb0_ECsetaQYfaB9Ca_13esp32sim_wasm",
+        "seconds": 0.289321,
+        "nonIdlePercent": 5.726281446987448
+      },
+      {
+        "name": "loop",
+        "seconds": 0.151062,
+        "nonIdlePercent": 2.9898401012882507
+      },
+      {
+        "name": "_RINvNtCs5F2i29bsihg_10xtensa_lx75block10find_blockNtNtCs7lxvt5igX0z_7esp32s33bus6SocBusECsetaQYfaB9Ca_13esp32sim_wasm",
+        "seconds": 0.141963,
+        "nonIdlePercent": 2.8097514285471124
+      },
+      {
+        "name": "_RINvNtNtCs5F2i29bsihg_10xtensa_lx73jit6native6h_execNtNtCs7lxvt5igX0z_7esp32s33bus6SocBusECsetaQYfaB9Ca_13esp32sim_wasm",
+        "seconds": 0.130874,
+        "nonIdlePercent": 2.5902763992003184
+      },
+      {
+        "name": "Module",
+        "seconds": 0.089748,
+        "nonIdlePercent": 1.7763048907760914
+      },
+      {
+        "name": "(program)",
+        "seconds": 0.073222,
+        "nonIdlePercent": 1.4492200016981656
+      },
+      {
+        "name": "_RNvXNtCs5F2i29bsihg_10xtensa_lx74coreNtNtB4_5state3CpuNtNtCs3QQYunS8OH3_8emu_core4core4Core14advance_cycles",
+        "seconds": 0.057088,
+        "nonIdlePercent": 1.129893631107384
+      },
+      {
+        "name": "_RNvMs2_NtCs7lxvt5igX0z_7esp32s33busNtB5_6SocBus11flush_ticks",
+        "seconds": 0.051909,
+        "nonIdlePercent": 1.027390143237689
+      },
+      {
+        "name": "_RNvMNtCslrqzjCal6eM_7esp_soc7machineINtB2_7MachineNtNtCs7lxvt5igX0z_7esp32s33soc2S3E16after_round_restCsetaQYfaB9Ca_13esp32sim_wasm",
+        "seconds": 0.051576,
+        "nonIdlePercent": 1.020799360951416
+      },
+      {
+        "name": "_RNvXs1_NtCs7lxvt5igX0z_7esp32s33busNtB5_6SocBusNtNtCs3QQYunS8OH3_8emu_core3bus3Bus7write32",
+        "seconds": 0.046023,
+        "nonIdlePercent": 0.9108936130965375
+      },
+      {
+        "name": "_RNvXNtCs5F2i29bsihg_10xtensa_lx74coreNtNtB4_5state3CpuNtNtCs3QQYunS8OH3_8emu_core4core4Core17cycles_until_wake",
+        "seconds": 0.044622,
+        "nonIdlePercent": 0.8831648263605958
+      },
+      {
+        "name": "_RNvXs0_NtCs58i1S6PDf40_10esp_periph4gpioNtB5_4GpioNtNtB7_6device6Device11irq_sources",
+        "seconds": 0.039356,
+        "nonIdlePercent": 0.7789394223980908
+      },
+      {
+        "name": "_RNvXs1_NtCs7lxvt5igX0z_7esp32s33busNtB5_6SocBusNtNtCs3QQYunS8OH3_8emu_core3bus3Bus6read32",
+        "seconds": 0.037935,
+        "nonIdlePercent": 0.7508147928821927
+      },
+      {
+        "name": "_RNvMNtCs7lxvt5igX0z_7esp32s33busNtB2_6SocBus12periph_write",
+        "seconds": 0.029044,
+        "nonIdlePercent": 0.5748428850526006
+      },
+      {
+        "name": "_RNvXNtCs5F2i29bsihg_10xtensa_lx74coreNtNtB4_5state3CpuNtNtCs3QQYunS8OH3_8emu_core4core4Core11irq_pending",
+        "seconds": 0.026654,
+        "nonIdlePercent": 0.5275396728478177
+      },
+      {
+        "name": "js-to-wasm:i:d",
+        "seconds": 0.024129,
+        "nonIdlePercent": 0.47756452187832943
+      },
+      {
+        "name": "_RNvMs_NtNtCs7lxvt5igX0z_7esp32s33bus3dmaNtB6_6SocBus12dma_m2m_step",
+        "seconds": 0.021531,
+        "nonIdlePercent": 0.42614454476200053
+      },
+      {
+        "name": "now",
+        "seconds": 0.020347,
+        "nonIdlePercent": 0.40271065218858504
+      },
+      {
+        "name": "_RNvMs2_NtCs7lxvt5igX0z_7esp32s33busNtB5_6SocBus9tick_impl",
+        "seconds": 0.01772,
+        "nonIdlePercent": 0.35071670304131947
+      },
+      {
+        "name": "_RNvNtNtCs5F2i29bsihg_10xtensa_lx73jit6native7compile",
+        "seconds": 0.017605,
+        "nonIdlePercent": 0.3484406070565705
+      },
+      {
+        "name": "_RNvMNtCs5F2i29bsihg_10xtensa_lx74execNtNtB4_5state3Cpu8write_sr",
+        "seconds": 0.016592,
+        "nonIdlePercent": 0.3283911702517817
+      }
+    ]
+  },
+  "release-tinydraw-latest-dense": {
+    "sampledSeconds": 21.04972,
+    "idleSeconds": 11.224619,
+    "nonIdleSeconds": 9.825101,
+    "categories": [
+      {
+        "name": "generated blocks",
+        "seconds": 3.297895,
+        "nonIdlePercent": 33.56601626792437
+      },
+      {
+        "name": "other",
+        "seconds": 2.201201,
+        "nonIdlePercent": 22.40385111562721
+      },
+      {
+        "name": "machine block wrapper",
+        "seconds": 1.538279,
+        "nonIdlePercent": 15.656622766524233
+      },
+      {
+        "name": "JIT admission and wrapper",
+        "seconds": 1.455297,
+        "nonIdlePercent": 14.812030939936394
+      },
+      {
+        "name": "scheduler",
+        "seconds": 0.544523,
+        "nonIdlePercent": 5.54216185665674
+      },
+      {
+        "name": "interpreter",
+        "seconds": 0.492774,
+        "nonIdlePercent": 5.015459891964469
+      },
+      {
+        "name": "decoded-block lookup",
+        "seconds": 0.29004,
+        "nonIdlePercent": 2.9520307221269277
+      },
+      {
+        "name": "DMA and display transfer",
+        "seconds": 0.005092,
+        "nonIdlePercent": 0.05182643923965769
+      }
+    ],
+    "topFunctions": [
+      {
+        "name": "wasm-function[0]",
+        "seconds": 3.296559,
+        "nonIdlePercent": 33.55241844333203
+      },
+      {
+        "name": "_RNvMNtCslrqzjCal6eM_7esp_soc7machineINtB2_7MachineNtNtCs7lxvt5igX0z_7esp32s33soc2S3E11step_blocksCsetaQYfaB9Ca_13esp32sim_wasm",
+        "seconds": 1.538279,
+        "nonIdlePercent": 15.656622766524233
+      },
+      {
+        "name": "_RINvNtNtCs5F2i29bsihg_10xtensa_lx73jit6native9run_innerNtNtCs7lxvt5igX0z_7esp32s33bus6SocBusECsetaQYfaB9Ca_13esp32sim_wasm",
+        "seconds": 1.455297,
+        "nonIdlePercent": 14.812030939936394
+      },
+      {
+        "name": "_RINvMNtCslrqzjCal6eM_7esp_soc7machineINtB3_7MachineNtNtCs7lxvt5igX0z_7esp32s33soc2S3E13run_unmodeledKb0_ECsetaQYfaB9Ca_13esp32sim_wasm",
+        "seconds": 0.544523,
+        "nonIdlePercent": 5.54216185665674
+      },
+      {
+        "name": "_RINvNtCs5F2i29bsihg_10xtensa_lx74exec9exec_insnNtNtCs7lxvt5igX0z_7esp32s33bus6SocBusECsetaQYfaB9Ca_13esp32sim_wasm",
+        "seconds": 0.492774,
+        "nonIdlePercent": 5.015459891964469
+      },
+      {
+        "name": "_RINvNtCs5F2i29bsihg_10xtensa_lx75block10find_blockNtNtCs7lxvt5igX0z_7esp32s33bus6SocBusECsetaQYfaB9Ca_13esp32sim_wasm",
+        "seconds": 0.29004,
+        "nonIdlePercent": 2.9520307221269277
+      },
+      {
+        "name": "loop",
+        "seconds": 0.275801,
+        "nonIdlePercent": 2.8071060032868873
+      },
+      {
+        "name": "_RINvNtNtCs5F2i29bsihg_10xtensa_lx73jit6native6h_execNtNtCs7lxvt5igX0z_7esp32s33bus6SocBusECsetaQYfaB9Ca_13esp32sim_wasm",
+        "seconds": 0.211794,
+        "nonIdlePercent": 2.155641962357435
+      },
+      {
+        "name": "Module",
+        "seconds": 0.14008,
+        "nonIdlePercent": 1.4257359797115572
+      },
+      {
+        "name": "_RNvMNtCslrqzjCal6eM_7esp_soc7machineINtB2_7MachineNtNtCs7lxvt5igX0z_7esp32s33soc2S3E16after_round_restCsetaQYfaB9Ca_13esp32sim_wasm",
+        "seconds": 0.08191,
+        "nonIdlePercent": 0.8336809972742265
+      },
+      {
+        "name": "_RNvMs2_NtCs7lxvt5igX0z_7esp32s33busNtB5_6SocBus11flush_ticks",
+        "seconds": 0.077186,
+        "nonIdlePercent": 0.7856000666049133
+      },
+      {
+        "name": "_RNvXs0_NtCs58i1S6PDf40_10esp_periph4gpioNtB5_4GpioNtNtB7_6device6Device11irq_sources",
+        "seconds": 0.073756,
+        "nonIdlePercent": 0.7506894840063222
+      },
+      {
+        "name": "(program)",
+        "seconds": 0.068757,
+        "nonIdlePercent": 0.69980959992167
+      },
+      {
+        "name": "_RNvXs1_NtCs7lxvt5igX0z_7esp32s33busNtB5_6SocBusNtNtCs3QQYunS8OH3_8emu_core3bus3Bus7write32",
+        "seconds": 0.063233,
+        "nonIdlePercent": 0.6435862593168253
+      },
+      {
+        "name": "_RNvMs2_NtCs7lxvt5igX0z_7esp32s33busNtB5_6SocBus9tick_impl",
+        "seconds": 0.0626,
+        "nonIdlePercent": 0.6371435774553361
+      },
+      {
+        "name": "_RNvXs1_NtCs7lxvt5igX0z_7esp32s33busNtB5_6SocBusNtNtCs3QQYunS8OH3_8emu_core3bus3Bus6read32",
+        "seconds": 0.056528,
+        "nonIdlePercent": 0.5753426860446523
+      },
+      {
+        "name": "_RNvXNtCs5F2i29bsihg_10xtensa_lx74coreNtNtB4_5state3CpuNtNtCs3QQYunS8OH3_8emu_core4core4Core17cycles_until_wake",
+        "seconds": 0.055603,
+        "nonIdlePercent": 0.5659280245566941
+      },
+      {
+        "name": "postMessage",
+        "seconds": 0.051423,
+        "nonIdlePercent": 0.5233839326435423
+      },
+      {
+        "name": "_RNvXNtCs5F2i29bsihg_10xtensa_lx74coreNtNtB4_5state3CpuNtNtCs3QQYunS8OH3_8emu_core4core4Core14advance_cycles",
+        "seconds": 0.049691,
+        "nonIdlePercent": 0.5057556151331167
+      },
+      {
+        "name": "_RNvMNtCs7lxvt5igX0z_7esp32s33busNtB2_6SocBus12periph_write",
+        "seconds": 0.047832,
+        "nonIdlePercent": 0.4868346900454255
+      },
+      {
+        "name": "js-to-wasm:i:d",
+        "seconds": 0.040818,
+        "nonIdlePercent": 0.4154461109356535
+      },
+      {
+        "name": "_RNvXNtCs5F2i29bsihg_10xtensa_lx74coreNtNtB4_5state3CpuNtNtCs3QQYunS8OH3_8emu_core4core4Core11irq_pending",
+        "seconds": 0.040288,
+        "nonIdlePercent": 0.4100517643533639
+      },
+      {
+        "name": "_RNvNtCs5F2i29bsihg_10xtensa_lx76decode6decode",
+        "seconds": 0.039465,
+        "nonIdlePercent": 0.4016752601321859
+      },
+      {
+        "name": "_RNvNtNtCs5F2i29bsihg_10xtensa_lx73jit6native7compile",
+        "seconds": 0.037592,
+        "nonIdlePercent": 0.3826118428706229
+      },
+      {
+        "name": "_RNvNtNtCs5F2i29bsihg_10xtensa_lx73jit6native7h_fused",
+        "seconds": 0.035726,
+        "nonIdlePercent": 0.3636196716959958
+      }
+    ]
+  }
+}

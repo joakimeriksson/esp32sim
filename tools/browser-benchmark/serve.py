@@ -42,7 +42,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if key not in workloads:
                 self.send_error(404, f'unknown workload {key}')
                 return
-            data = json.dumps({'name': key, **workloads[key]}).encode()
+            data = json.dumps({**workloads[key], 'name': workloads[key].get('as', key), 'key': key}).encode()
             kind = 'application/json'
         else:
             if name.startswith('/asset/'):

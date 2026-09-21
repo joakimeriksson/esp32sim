@@ -35,7 +35,6 @@ impl BoardModel for WaveshareLcd4b {
     fn display_version(&self) -> u64 { self.frames }
     fn display_frames(&self) -> u64 { self.frames }
     fn touch(&mut self, x: u16, y: u16, down: bool) {
-        let mut t = self.touch_state.lock().unwrap(); t.x = x; t.y = y;
-        if down { t.down = true; t.seen = false; t.release_pending = false; } else if t.seen { t.down = false; } else { t.release_pending = true; }
+        self.touch_state.lock().unwrap().update(x, y, down);
     }
 }

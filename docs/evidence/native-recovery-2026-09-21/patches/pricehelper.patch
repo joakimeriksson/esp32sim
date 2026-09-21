@@ -1,0 +1,14 @@
+diff --git a/esp32s3/src/bus.rs b/esp32s3/src/bus.rs
+index deb65b0e..3c734b69 100644
+--- a/esp32s3/src/bus.rs
++++ b/esp32s3/src/bus.rs
+@@ -213,7 +213,8 @@ impl SocBus {
+         true
+     }
+ 
+-    #[inline]
++    #[cfg_attr(not(target_arch = "wasm32"), inline(always))]
++    #[cfg_attr(target_arch = "wasm32", inline)]
+     fn price_cached_data(&mut self, entry: TlbEntry, address: u32, width: u32, write: bool) {
+         if !matches!(entry.src as u8, SRC_FLASH | SRC_PSRAM) { return; }
+         if let Some(cache) = &mut self.approximate_cache {

@@ -1,0 +1,6 @@
+WARN `--no-project` was provided, but no project was found
+............
+----------------------------------------------------------------------
+Ran 12 tests in 0.010s
+
+OK

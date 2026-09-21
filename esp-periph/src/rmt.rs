@@ -8,6 +8,10 @@ pub const RMT_MEM_WORDS: usize = 48;
 pub struct RmtTxCh {
     pub conf0: u32, pub tx_lim: u32, pub carrier: u32,
     pub running: bool, pub rd: usize, pub since_thr: u32, pub wr: usize,
+    pub mem_empty: bool,
+    /// An end marker has been decoded; any preceding pulse must finish first.
+    end_pending: bool,
+    loop_count: u32,
     pub acc_cycles: i64,
     pub bits: Vec<bool>,
 }
@@ -27,7 +31,7 @@ impl Rmt {
     pub fn read(&self, off: u32) -> u32 {
         match off {
             0x20..=0x2c => { let c = &self.ch[((off - 0x20) / 4) as usize]; c.conf0 & !(1 << 0) & !(1 << 1) & !(1 << 2) & !(1 << 23) & !(1 << 24) }
-            0x50..=0x5c => { let n = ((off - 0x50) / 4) as usize; let c = &self.ch[n]; ((c.wr as u32 + (n as u32) * 48) << 11) | if c.running { 2 << 22 } else { 0 } }
+            0x50..=0x5c => { let n = ((off - 0x50) / 4) as usize; let c = &self.ch[n]; ((c.wr as u32 + (n as u32) * 48) << 11) | ((c.mem_empty as u32) << 25) | if c.running { 2 << 22 } else { 0 } }
             0x70 => self.int_raw, 0x74 => self.int_raw & self.int_ena, 0x78 => self.int_ena,
             0x80..=0x8c => self.ch[((off - 0x80) / 4) as usize].carrier,
             0xa0..=0xac => self.ch[((off - 0xa0) / 4) as usize].tx_lim,
@@ -44,13 +48,13 @@ impl Rmt {
                 let c = &mut self.ch[n];
                 c.conf0 = v;
                 if v & (1 << 2) != 0 { c.wr = 0; }                          // APB_MEM_RST
-                if v & (1 << 1) != 0 { c.rd = 0; }                          // MEM_RD_RST
-                if v & (1 << 0) != 0 { c.running = true; c.rd = 0; c.since_thr = 0; c.acc_cycles = 0; c.bits.clear(); }   // TX_START
+                if v & (1 << 1) != 0 { c.rd = 0; c.mem_empty = false; c.end_pending = false; }      // MEM_RD_RST
+                if v & (1 << 0) != 0 { c.running = true; c.rd = 0; c.mem_empty = false; c.end_pending = false; c.since_thr = 0; c.acc_cycles = 0; c.bits.clear(); c.loop_count = 0; }   // TX_START
                 if v & (1 << 7) != 0 { c.running = false; }                 // TX_STOP
             }
             0x78 => self.int_ena = v, 0x7c => self.int_raw &= !v,
             0x80..=0x8c => self.ch[((off - 0x80) / 4) as usize].carrier = v,
-            0xa0..=0xac => self.ch[((off - 0xa0) / 4) as usize].tx_lim = v,
+            0xa0..=0xac => { let c = &mut self.ch[((off - 0xa0) / 4) as usize]; c.tx_lim = v & !(1 << 20); if v & (1 << 20) != 0 { c.loop_count = 0; } },
             0xc0 => self.sys_conf = v,
             0x800..=0xbfc => self.mem[((off - 0x800) / 4) as usize] = v,
             _ => self.ram.write(off, v),
@@ -67,16 +71,48 @@ impl Rmt {
             let mem_words = (((c.conf0 >> 16) & 0xf).max(1) as usize) * RMT_MEM_WORDS;
             let base = n * RMT_MEM_WORDS;
             let mut guard = 0;
-            while c.acc_cycles > 0 && guard < 4096 {
+            while (c.acc_cycles > 0 || (c.acc_cycles == 0 && c.end_pending)) && guard < 4096 {
                 guard += 1;
-                let sym = self.mem[base + (c.rd % mem_words)];
-                let (d0, l0, d1, l1) = ((sym & 0x7fff) as i64, sym & 0x8000 != 0, ((sym >> 16) & 0x7fff) as i64, sym & 0x8000_0000 != 0);
-                if d0 == 0 { // end marker
+                if c.end_pending {
+                    c.end_pending = false;
+                    if c.conf0 & (1 << 3) != 0 {
+                        let progressed = c.rd != 0;
+                        // Continuous output is not a completed WS2812 frame. Retain only
+                        // the current lap, so a buzzer cannot accumulate host memory.
+                        c.bits.clear();
+                        c.rd = 0;
+                        if c.tx_lim & (1 << 19) != 0 {
+                            c.loop_count += 1;
+                            if c.loop_count >= ((c.tx_lim >> 9) & 0x3ff).max(1) {
+                                self.int_raw |= 1 << (12 + n); // TX_LOOP
+                                c.loop_count = 0;
+                                if c.tx_lim & (1 << 21) != 0 { c.running = false; break; }
+                            }
+                        }
+                        if !progressed { c.acc_cycles = 0; break; }
+                        continue;
+                    }
                     c.running = false;
                     self.int_raw |= 1 << n;
                     self.tx_count += 1;
                     self.done.push((n, std::mem::take(&mut c.bits)));
                     break;
+                }
+                // No-wrap exhaustion is an empty-memory error, not an end marker
+                // (S3 TRM 37.4). Invalid block allocations must not index host RAM.
+                let repeats = c.conf0 & ((1 << 3) | (1 << 4)) != 0; // continuous or wrap TX
+                if mem_words > self.mem.len() - base || (c.rd >= mem_words && !repeats) {
+                    c.running = false;
+                    c.mem_empty = true;
+                    self.int_raw |= 1 << (4 + n);
+                    break;
+                }
+                if c.rd != 0 && c.rd.is_multiple_of(mem_words) && c.conf0 & (1 << 3) != 0 { c.bits.clear(); }
+                let sym = self.mem[base + (c.rd % mem_words)];
+                let (d0, l0, d1, l1) = ((sym & 0x7fff) as i64, sym & 0x8000 != 0, ((sym >> 16) & 0x7fff) as i64, sym & 0x8000_0000 != 0);
+                if d0 == 0 { // end marker
+                    c.end_pending = true;
+                    continue;
                 }
                 // decode WS2812 bit: compare high vs low durations
                 let high = if l0 { d0 } else { 0 } + if l1 { d1 } else { 0 };
@@ -86,7 +122,7 @@ impl Rmt {
                 c.rd += 1;
                 c.since_thr += 1;
                 if c.tx_lim & 0x1ff != 0 && c.since_thr >= c.tx_lim & 0x1ff { c.since_thr = 0; self.int_raw |= 1 << (8 + n); }   // TX_THR_EVENT
-                if d1 == 0 && !l1 && c.rd.is_multiple_of(mem_words) && c.conf0 & (1 << 4) == 0 { /* no wrap: stop at end of memory */ }
+                c.end_pending = d1 == 0;
             }
         }
     }

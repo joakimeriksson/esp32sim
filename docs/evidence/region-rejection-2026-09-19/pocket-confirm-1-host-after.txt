@@ -1,0 +1,11 @@
+# Sanitized host-load capture
+# Process names, command lines, PIDs, login counts and uptime omitted.
+# CPU values are the retained sample rows, not total system utilization.
+Load averages (1, 5, 15 min): 8.30, 7.97, 10.11
+38.4% CPU (process identity omitted)
+37.8% CPU (process identity omitted)
+28.6% CPU (process identity omitted)
+17.8% CPU (process identity omitted)
+17.0% CPU (process identity omitted)
+10.6% CPU (process identity omitted)
+8.8% CPU (process identity omitted)

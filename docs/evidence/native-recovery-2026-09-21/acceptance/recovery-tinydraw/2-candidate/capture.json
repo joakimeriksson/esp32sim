@@ -1,0 +1,31 @@
+{
+  "mode": "timing",
+  "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+  "loadBefore": [
+    3.03173828125,
+    2.53369140625,
+    2.0478515625
+  ],
+  "harnessSha256": {
+    "run-pairs.py": "e84dacf743a93dad097c2ff52e53290ade8e6c737c7bcb474a2087a7ecd3d5fd",
+    "serve.py": "b7f3ec6dca66bdb802fa0db1d4f9f9889210a55210bd12ac3655a185a585fcd7",
+    "capture-battery.mjs": "3a6eb7f654af08075d808296bf1b4eea7da5607518687594f7115dbe608a286d"
+  },
+  "chromeCommand": [
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "--headless=new",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--disable-background-timer-throttling",
+    "--disable-renderer-backgrounding",
+    "--remote-debugging-address=127.0.0.1",
+    "--remote-debugging-port=52761",
+    "--user-data-dir=/Users/alice/bench/esp32sim/overnight-review/runs/recovery-tinydraw/2-candidate/chrome-profile",
+    "about:blank"
+  ],
+  "loadAfter": [
+    2.90576171875,
+    2.55859375,
+    2.07421875
+  ]
+}

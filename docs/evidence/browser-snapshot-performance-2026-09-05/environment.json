@@ -16,6 +16,6 @@
   "helperJsSha256": "e93ec7d9ac6d3766903fa00eaf0b8994e14d0e716ef370df76286b421bc505bc",
   "runOrder": "queue-a1,b1,b2,a2,a3,b3 then helper-a1,b1,b2,a2,a3,b3",
   "method": "Each run uses a fresh dedicated headless Chrome browser. No simultaneous builds or other emulator benchmarks. RSS sampled every two seconds across owned browser and descendant processes; shared memory may be double counted.",
-  "buildRustcPath": "/Users/REDACTED/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc",
+  "buildRustcPath": "/Users/alice/.rustup/toolchains/stable-aarch64-apple-darwin/bin/rustc",
   "buildRustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)\nbinary: rustc\ncommit-hash: 88d9e12ae178fab0fb5cc050a94da85685d449ea\ncommit-date: 2026-08-18\nhost: aarch64-apple-darwin\nrelease: 1.98.0\nLLVM version: 22.1.8"
 }

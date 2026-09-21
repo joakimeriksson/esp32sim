@@ -1,0 +1,114 @@
+diff --git a/xtensa-lx7/src/block.rs b/xtensa-lx7/src/block.rs
+index f6e0e7c6..e5cd31f6 100644
+--- a/xtensa-lx7/src/block.rs
++++ b/xtensa-lx7/src/block.rs
+@@ -242,6 +242,10 @@ fn build<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc0: u32) -> Result<(u32, u32, u16)
+ /// Returns `(iterations, trap)` where iterations is what a loop over `step()` would have
+ /// consumed: executed instructions, plus one for a trap taken before an instruction ran.
+ pub fn run_block<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Option<Trap>) {
++    #[cfg(not(target_arch = "wasm32"))]
++    if !cpu.price_control && cpu.approximate_cpi == 1 {
++        return run_block_inner::<B, true>(cpu, bus, budget);
++    }
+     let result = run_block_profiled(cpu, bus, budget);
+     // Trap entry is independent of instruction retirement and profiling.
+     if cpu.price_control && matches!(result.1, Some(Trap::Exception(_) | Trap::Interrupt(_))) { cpu.timing_extra += 6; }
+@@ -256,7 +260,7 @@ fn run_block_profiled<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32,
+             cpu.blocks.profile_entry = if cpu.blocks.resume.2 == pc { cpu.blocks.resume.0 as usize } else { BlockCache::index(pc) };
+             let before = cpu.blocks.jit_instructions;
+             let start = crate::jit::profile::now();
+-            let result = run_block_inner(cpu, bus, budget);
++            let result = run_block_inner::<B, false>(cpu, bus, budget);
+             let elapsed = crate::jit::profile::now() - start;
+             let e = cpu.blocks.entries[cpu.blocks.profile_entry];
+             let ops = &cpu.blocks.arena[e.start as usize..(e.start + e.n as u32) as usize];
+@@ -266,21 +270,21 @@ fn run_block_profiled<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32,
+             return result;
+         }
+     }
+-    run_block_inner(cpu, bus, budget)
++    run_block_inner::<B, false>(cpu, bus, budget)
+ }
+ 
+ // Keep this boundary visible to a sampling profiler without adding per-block clocks.
+ #[cfg_attr(all(target_arch = "wasm32", feature = "wasm-cpu-profile"), inline(never))]
+-fn run_block_inner<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Option<Trap>) {
++fn run_block_inner<B: Bus, const DEFAULT: bool>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Option<Trap>) {
+     if let Some(t) = cpu.check_interrupts() { return (1, Some(t)); }
+-    if cpu.waiting { cpu.advance_ccount(cpu.approximate_cpi); return (1, None); }
++    if cpu.waiting { cpu.advance_ccount(if DEFAULT { 1 } else { cpu.approximate_cpi }); return (1, None); }
+     let (ei, k, end) = match find_block(cpu, bus) { Ok(b) => b, Err(t) => return (1, Some(t)) };
+     #[cfg(all(target_arch = "wasm32", feature = "wasm-jit-profile"))]
+     { cpu.blocks.profile_entry = ei as usize; }
+     cpu.blocks.resume.2 = 1;
+     cpu.blocks.alias_pc = 1;
+ 
+-    run_decoded(cpu, bus, budget, ei, k, end)
++    run_decoded::<B, DEFAULT>(cpu, bus, budget, ei, k, end)
+ }
+ 
+ /// A store may bump a code-page version without changing this block's instructions.
+@@ -371,7 +375,7 @@ pub(crate) fn step_extra<B: Bus>(cpu: &mut Cpu, bus: &mut B, i: &Insn) -> u32 {
+     cpu.blocks.extras[k as usize] as u32
+ }
+ 
+-fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k: u32, end: u32) -> (u32, Option<Trap>) {
++fn run_decoded<B: Bus, const DEFAULT: bool>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k: u32, end: u32) -> (u32, Option<Trap>) {
+     // never run past a CCOMPARE match: the timer interrupt must land on the same instruction
+     #[cfg(not(target_arch = "wasm32"))]
+     let mut limit = (end - k).min(budget);
+@@ -381,7 +385,7 @@ fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k:
+     let mut limit = budget.min(0xffff);
+     for i in 0..3 {
+         let d = cpu.ccompare[i].wrapping_sub(cpu.ccount);
+-        let d = if cpu.approximate_cpi == 1 { d } else { d.div_ceil(cpu.approximate_cpi) };
++        let d = if DEFAULT || cpu.approximate_cpi == 1 { d } else { d.div_ceil(cpu.approximate_cpi) };
+         if d != 0 && d < limit { limit = d; }
+     }
+ 
+@@ -390,8 +394,8 @@ fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k:
+     // fast path, but execute opt-in pricing and deferred quanta in the interpreter.
+     // WASM records exact instruction ranges, up to 64 per compiled call.
+     #[cfg(target_arch = "wasm32")]
+-    if cpu.price_control && cpu.icache_fill != 0 { limit = limit.min(64); }
+-    let observed_timing = cpu.price_control && cfg!(not(target_arch = "wasm32"));
++    if !DEFAULT && cpu.price_control && cpu.icache_fill != 0 { limit = limit.min(64); }
++    let observed_timing = !DEFAULT && cpu.price_control && cfg!(not(target_arch = "wasm32"));
+     let native_deferred = cfg!(not(target_arch = "wasm32")) && bus.defer_armed();
+     if !observed_timing && !native_deferred && code != crate::jit::NONE && cpu.blocks.jit_enabled && crate::jit::ready(cpu.blocks.code.as_ref().unwrap(), code, cpu.lend) {
+         let entry = cpu.blocks.arena[k as usize].off;
+@@ -431,7 +435,7 @@ fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k:
+ 
+         cpu.blocks.jit_instructions += done as u64;
+         cpu.insn_count += done as u64;
+-        cpu.advance_ccount(done * cpu.approximate_cpi);
++        cpu.advance_ccount(if DEFAULT { done } else { done * cpu.approximate_cpi });
+         return match exit {
+             crate::jit::CODE_TRAP => (done, cpu.jit_trap.take()),
+             crate::jit::CODE_TRAP_PRE => (done + 1, cpu.jit_trap.take()),
+@@ -479,14 +483,14 @@ fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k:
+         let at = cpu.pc;
+         if crate::exec::defer_instruction(cpu, bus, &e.insn) { break; }
+         bus.note_pc(at);
+-        if cpu.price_control && cpu.icache_fill != 0 {
++        if !DEFAULT && cpu.price_control && cpu.icache_fill != 0 {
+             cpu.touch_fetch_lines(at, at.wrapping_add(e.insn.len.max(1) as u32 - 1));
+         }
+         let expected = at.wrapping_add(e.insn.len as u32);
+         let r = exec_insn(cpu, bus, &e.insn);
+         seq = cpu.pc == expected;
+         done += 1; k += 1;
+-        if cpu.price_control && r.is_ok() {
++        if !DEFAULT && cpu.price_control && r.is_ok() {
+             let taken = crate::exec::control_taken(cpu, &e.insn);
+             cpu.timing_extra += crate::exec::control_price(e.insn.op, taken) + cpu.blocks.extras[k as usize - 1] as u32
+                 + u32::from(taken && crate::exec::transfers(e.insn.op) && crate::exec::straddles(bus, cpu.pc));
+@@ -495,7 +499,7 @@ fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k:
+         if cpu.pc != expected || bus.block_break() { broke = true; break; }
+     }
+     cpu.insn_count += done as u64;
+-    cpu.advance_ccount(done * cpu.approximate_cpi);
++    cpu.advance_ccount(if DEFAULT { done } else { done * cpu.approximate_cpi });
+     if ALIAS && ALIAS_SEQ && trap.is_none() && seq && k < end { cpu.blocks.alias_pc = cpu.pc; }
+     // cut short by the budget or a timer deadline while still inside the block: resume there
+     if trap.is_none() && !broke && k < end { cpu.blocks.resume = (ei, k, cpu.pc); }

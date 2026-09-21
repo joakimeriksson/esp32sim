@@ -1,0 +1,376 @@
+{
+  "records": [
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2037653,
+      "oldLine": 484,
+      "newLine": 486,
+      "column": 9
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2037669,
+      "oldLine": 518,
+      "newLine": 520,
+      "column": 106
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2037685,
+      "oldLine": 558,
+      "newLine": 560,
+      "column": 38
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2037701,
+      "oldLine": 562,
+      "newLine": 564,
+      "column": 64
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2037717,
+      "oldLine": 579,
+      "newLine": 581,
+      "column": 33
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2037733,
+      "oldLine": 524,
+      "newLine": 526,
+      "column": 100
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2037749,
+      "oldLine": 602,
+      "newLine": 604,
+      "column": 31
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2037765,
+      "oldLine": 512,
+      "newLine": 514,
+      "column": 42
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2037781,
+      "oldLine": 512,
+      "newLine": 514,
+      "column": 104
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2037797,
+      "oldLine": 509,
+      "newLine": 511,
+      "column": 57
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2037813,
+      "oldLine": 485,
+      "newLine": 487,
+      "column": 79
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2037829,
+      "oldLine": 585,
+      "newLine": 587,
+      "column": 63
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2037845,
+      "oldLine": 656,
+      "newLine": 658,
+      "column": 42
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2037861,
+      "oldLine": 636,
+      "newLine": 638,
+      "column": 99
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2037877,
+      "oldLine": 637,
+      "newLine": 639,
+      "column": 55
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2037893,
+      "oldLine": 616,
+      "newLine": 618,
+      "column": 99
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2037909,
+      "oldLine": 617,
+      "newLine": 619,
+      "column": 39
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2041025,
+      "oldLine": 542,
+      "newLine": 544,
+      "column": 60
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2041041,
+      "oldLine": 592,
+      "newLine": 594,
+      "column": 63
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2041533,
+      "oldLine": 890,
+      "newLine": 892,
+      "column": 29
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2041565,
+      "oldLine": 347,
+      "newLine": 348,
+      "column": 34
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2041949,
+      "oldLine": 865,
+      "newLine": 867,
+      "column": 126
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2041965,
+      "oldLine": 372,
+      "newLine": 374,
+      "column": 34
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2041981,
+      "oldLine": 382,
+      "newLine": 384,
+      "column": 80
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2041997,
+      "oldLine": 385,
+      "newLine": 387,
+      "column": 76
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2042145,
+      "oldLine": 463,
+      "newLine": 465,
+      "column": 26
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2042601,
+      "oldLine": 410,
+      "newLine": 412,
+      "column": 34
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2042617,
+      "oldLine": 423,
+      "newLine": 425,
+      "column": 133
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2042633,
+      "oldLine": 425,
+      "newLine": 427,
+      "column": 34
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2042649,
+      "oldLine": 432,
+      "newLine": 434,
+      "column": 136
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2042665,
+      "oldLine": 682,
+      "newLine": 684,
+      "column": 46
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2050445,
+      "oldLine": 347,
+      "newLine": 348,
+      "column": 34
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2050593,
+      "oldLine": 749,
+      "newLine": 751,
+      "column": 35
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2050709,
+      "oldLine": 865,
+      "newLine": 867,
+      "column": 126
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2050725,
+      "oldLine": 372,
+      "newLine": 374,
+      "column": 34
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2050741,
+      "oldLine": 382,
+      "newLine": 384,
+      "column": 80
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2050757,
+      "oldLine": 385,
+      "newLine": 387,
+      "column": 76
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2050873,
+      "oldLine": 410,
+      "newLine": 412,
+      "column": 34
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2050889,
+      "oldLine": 423,
+      "newLine": 425,
+      "column": 133
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2050905,
+      "oldLine": 425,
+      "newLine": 427,
+      "column": 34
+    },
+    {
+      "file": "esp-soc/src/machine.rs",
+      "recordOffset": 2050921,
+      "oldLine": 432,
+      "newLine": 434,
+      "column": 136
+    },
+    {
+      "file": "xtensa-lx7/src/block.rs",
+      "recordOffset": 2039717,
+      "oldLine": 350,
+      "newLine": 351,
+      "column": 40
+    },
+    {
+      "file": "xtensa-lx7/src/block.rs",
+      "recordOffset": 2039733,
+      "oldLine": 356,
+      "newLine": 357,
+      "column": 40
+    },
+    {
+      "file": "xtensa-lx7/src/block.rs",
+      "recordOffset": 2039749,
+      "oldLine": 370,
+      "newLine": 371,
+      "column": 22
+    },
+    {
+      "file": "xtensa-lx7/src/block.rs",
+      "recordOffset": 2039765,
+      "oldLine": 387,
+      "newLine": 388,
+      "column": 34
+    },
+    {
+      "file": "xtensa-lx7/src/block.rs",
+      "recordOffset": 2039781,
+      "oldLine": 395,
+      "newLine": 396,
+      "column": 145
+    },
+    {
+      "file": "xtensa-lx7/src/block.rs",
+      "recordOffset": 2039797,
+      "oldLine": 469,
+      "newLine": 470,
+      "column": 33
+    },
+    {
+      "file": "xtensa-lx7/src/block.rs",
+      "recordOffset": 2039813,
+      "oldLine": 490,
+      "newLine": 491,
+      "column": 97
+    },
+    {
+      "file": "xtensa-lx7/src/block.rs",
+      "recordOffset": 2039829,
+      "oldLine": 396,
+      "newLine": 397,
+      "column": 37
+    },
+    {
+      "file": "xtensa-lx7/src/block.rs",
+      "recordOffset": 2039845,
+      "oldLine": 414,
+      "newLine": 415,
+      "column": 48
+    },
+    {
+      "file": "xtensa-lx7/src/block.rs",
+      "recordOffset": 2039861,
+      "oldLine": 443,
+      "newLine": 444,
+      "column": 52
+    },
+    {
+      "file": "xtensa-lx7/src/block.rs",
+      "recordOffset": 2039877,
+      "oldLine": 446,
+      "newLine": 447,
+      "column": 51
+    },
+    {
+      "file": "xtensa-lx7/src/block.rs",
+      "recordOffset": 2039893,
+      "oldLine": 383,
+      "newLine": 384,
+      "column": 60
+    }
+  ],
+  "unexpectedDataDifferences": []
+}

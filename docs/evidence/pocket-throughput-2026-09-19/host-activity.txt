@@ -1,0 +1,21 @@
+September 19, 2026, approximately 11:57 UTC: spot process inspection during
+the late candidate arm of fresh S8 confirmation pair 1.
+
+Sample: CPU percentages for the 12 busiest processes.
+133.9% CPU (process identity omitted)
+60.9% CPU (process identity omitted)
+58.3% CPU (process identity omitted)
+55.8% CPU (process identity omitted)
+44.7% CPU (process identity omitted)
+34.8% CPU (process identity omitted)
+24.4% CPU (process identity omitted)
+19.1% CPU (process identity omitted)
+11.8% CPU (process identity omitted)
+9.2% CPU (process identity omitted)
+6.4% CPU (process identity omitted)
+6.2% CPU (process identity omitted)
+
+An immediate follow-up found that the two build processes had exited.
+The task did not terminate or interrupt them. Their duration and exact
+work are unknown. Team builds/tests were paused, but this sample proves
+the host was not wholly idle. Small timing differences are inconclusive.

@@ -24,7 +24,8 @@ impl GpSpi {
     pub fn irq(&self) -> bool { self.int_raw & self.int_ena != 0 }
     pub fn read(&self, off: u32) -> u32 {
         match off {
-            0x00 => self.regs.read(0) & !((1 << 23) | (1 << 24)),      // CMD: UPDATE and USR self-clear
+            0x00 => (self.regs.read(0) & !((1 << 23) | (1 << 24)))
+                | if self.pending.is_some() { 1 << 24 } else { 0 }, // USR stays busy until completion
             0x34 => self.int_ena, 0x3c => self.int_raw, 0x40 => self.int_raw & self.int_ena,
             0x98..=0xd4 => self.w[((off - 0x98) / 4) as usize],
             0xf0 => 0x2101_0100,
@@ -33,7 +34,7 @@ impl GpSpi {
     }
     pub fn write(&mut self, off: u32, v: u32) {
         match off {
-            0x00 => { self.regs.write(0, v & !((1 << 23) | (1 << 24))); if v & (1 << 24) != 0 { self.transfer(); } }
+            0x00 => { self.regs.write(0, v & !((1 << 23) | (1 << 24))); if v & (1 << 24) != 0 && self.pending.is_none() { self.transfer(); } }
             0x34 => self.int_ena = v, 0x38 => self.int_raw &= !v,
             0x98..=0xd4 => self.w[((off - 0x98) / 4) as usize] = v,
             _ => self.regs.write(off, v),
@@ -70,6 +71,39 @@ impl GpSpi {
     }
 
     pub fn has_pending_transfer(&self) -> bool { self.pending.is_some() }
+
+    /// S3 SPI_CLOCK, SPI_USER and SPI_CTRL wire clocks at the SPI source frequency.
+    /// Normal SDR command/address/data phases only; this is a wire-time floor,
+    /// without DMA setup, memory contention, CS setup/hold or source-clock changes.
+    pub fn wire_source_cycles(&self) -> u64 {
+        let user = self.regs.read(0x10);
+        let ctrl = self.regs.read(0x08);
+        let clock = self.regs.read(0x0c);
+        let divider = if clock & (1 << 31) != 0 { 1 } else {
+            (((clock >> 18) & 15) + 1) * (((clock >> 12) & 63) + 1)
+        };
+        let lanes = |oct, quad, dual| if oct { 8u64 } else if quad { 4 } else if dual { 2 } else { 1 };
+        let mut clocks = 0;
+        if user & (1 << 31) != 0 {
+            clocks += u64::from(((self.regs.read(0x18) >> 28) & 15) + 1)
+                .div_ceil(lanes(ctrl & (1 << 10) != 0, ctrl & (1 << 9) != 0, ctrl & (1 << 8) != 0));
+        }
+        if user & (1 << 30) != 0 {
+            clocks += u64::from((self.regs.read(0x14) >> 27) + 1)
+                .div_ceil(lanes(ctrl & (1 << 7) != 0, ctrl & (1 << 6) != 0, ctrl & (1 << 5) != 0));
+        }
+        if user & (1 << 29) != 0 { clocks += u64::from((self.regs.read(0x14) & 255) + 1); }
+        let data_bits = u64::from((self.regs.read(0x1c) & 0x3ffff) + 1);
+        let mosi = if user & (1 << 27) != 0 {
+            data_bits.div_ceil(lanes(user & (1 << 14) != 0, user & (1 << 13) != 0, user & (1 << 12) != 0))
+        } else { 0 };
+        let miso = if user & (1 << 28) != 0 {
+            data_bits.div_ceil(lanes(ctrl & (1 << 16) != 0, ctrl & (1 << 15) != 0, ctrl & (1 << 14) != 0))
+        } else { 0 };
+        // DOUTDIN overlaps the data phases; otherwise MOSI precedes MISO.
+        clocks += if user & 1 != 0 { mosi.max(miso) } else { mosi + miso };
+        (clocks * u64::from(divider)).max(1)
+    }
 
     pub fn take_transfer(&mut self) -> Option<GpSpiTransfer> {
         if self.dma_tx_pending.is_some() {
@@ -130,6 +164,41 @@ mod tests {
     use super::*;
 
     #[test]
+    fn wire_time_uses_read_lanes_and_duplex_phase_order() {
+        let mut spi = GpSpi::new();
+        spi.write(0x0c, 1 << 31);
+        spi.write(0x1c, 31);
+        for (user, ctrl, expected) in [
+            ((1 << 28) | (1 << 13), 0, 32), // FWRITE must not shorten MISO
+            (1 << 28, 1 << 15, 8),
+            (1 << 28, 1 << 14, 16),
+            ((1 << 27) | (1 << 28), 0, 64), // sequential half duplex
+            ((1 << 27) | (1 << 28) | 1, 0, 32), // concurrent full duplex
+            ((1 << 27) | (1 << 28) | (1 << 13), 1 << 14, 24),
+        ] {
+            spi.write(0x10, user);
+            spi.write(0x08, ctrl);
+            assert_eq!(spi.wire_source_cycles(), expected, "USER={user:#x} CTRL={ctrl:#x}");
+        }
+    }
+
+    #[test]
+    fn wire_time_uses_divider_and_quad_data_lanes() {
+        let mut spi = GpSpi::new();
+        spi.write(0x0c, 1 << 12); // 80 MHz / 2
+        spi.write(0x10, (1 << 31) | (1 << 30) | (1 << 27) | (1 << 13));
+        spi.write(0x18, 7 << 28); // eight command bits
+        spi.write(0x14, 23 << 27); // 24 address bits, still single lane
+        spi.write(0x1c, 32768 * 8 - 1);
+        assert_eq!(spi.wire_source_cycles(), (8 + 24 + 32768 * 2) * 2);
+        spi.write(0x00, 1 << 24);
+        assert_ne!(spi.read(0) & (1 << 24), 0);
+        let transfer = spi.take_transfer().unwrap();
+        spi.finish_transfer(transfer, &[]);
+        assert_eq!(spi.read(0) & (1 << 24), 0);
+    }
+
+    #[test]
     fn splits_phases_and_writes_the_board_response_to_miso_words() {
         let mut spi = GpSpi::new();
         let user = (1 << 31) | (1 << 30) | (1 << 28) | (1 << 27) | (1 << 24);
@@ -170,7 +239,7 @@ mod tests {
     }
 
     #[test]
-    fn cpu_transfer_replaces_a_stale_dma_wait() {
+    fn cpu_transfer_requires_aborting_an_active_dma_wait() {
         let mut spi = GpSpi::new();
         spi.write(0x30, 1 << 28);
         spi.write(0x10, 1 << 27);
@@ -178,11 +247,44 @@ mod tests {
         spi.write(0x00, 1 << 24);
         assert!(spi.take_transfer().is_none());
 
+        spi.abort_transfer();
         spi.write(0x30, 0);
         spi.write(0x98, 0x5a);
         spi.write(0x00, 1 << 24);
 
-        let transfer = spi.take_transfer().expect("CPU transaction must replace a stale DMA wait");
+        let transfer = spi.take_transfer().expect("CPU transaction may start after abort");
         assert_eq!(transfer.tx, [0x5a]);
+    }
+}
+
+#[cfg(test)]
+mod busy_rewrite_tests {
+    use super::*;
+    #[test]
+    fn command_read_modify_write_preserves_pending_transfer() {
+        let mut spi = GpSpi::new();
+        spi.write(0x10, 1 << 27);
+        spi.write(0x1c, 7);
+        spi.write(0x98, 0x42);
+        spi.write(0, 1 << 24);
+        spi.write(0x98, 0x99);
+        spi.write(0, spi.read(0));
+        assert_eq!(spi.take_transfer().unwrap().tx, [0x42]);
+    }
+}
+
+#[cfg(test)]
+mod octal_timing_tests {
+    use super::*;
+    #[test]
+    fn octal_data_uses_eight_lanes() {
+        for read in [false, true] {
+            let mut spi = GpSpi::new();
+            spi.write(0x0c, 1 << 31);
+            spi.write(0x10, if read { 1 << 28 } else { (1 << 27) | (1 << 14) });
+            spi.write(0x08, if read { 1 << 16 } else { 0 });
+            spi.write(0x1c, 64 - 1);
+            assert_eq!(spi.wire_source_cycles(), 8);
+        }
     }
 }

@@ -1,0 +1,10 @@
+    Checking esp-periph v0.2.0 (/Users/alice/tmp/esp32-review-integration/esp-periph)
+    Checking xtensa-lx7 v0.2.0 (/Users/alice/tmp/esp32-review-integration/xtensa-lx7)
+    Checking esp-soc v0.2.0 (/Users/alice/tmp/esp32-review-integration/esp-soc)
+    Checking esp32s3 v0.2.0 (/Users/alice/tmp/esp32-review-integration/esp32s3)
+    Checking esp32c6 v0.2.0 (/Users/alice/tmp/esp32-review-integration/esp32c6)
+    Checking esp32c3 v0.2.0 (/Users/alice/tmp/esp32-review-integration/esp32c3)
+    Checking esp32sim v0.2.0 (/Users/alice/tmp/esp32-review-integration/cli)
+    Checking esp32sim-wasm-jit v0.2.0 (/Users/alice/tmp/esp32-review-integration/wasm-jit)
+    Checking esp32sim-wasm v0.2.0 (/Users/alice/tmp/esp32-review-integration/wasm)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.66s

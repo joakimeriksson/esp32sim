@@ -1,0 +1,7 @@
+Compared 9bc4d5a5762454c00d858badb6beb0f6366aa175 to 92cc3f20f931d38d03ff96fd05ee16649f2ad551
+Command: git diff --name-only 9bc4d5a5 92cc3f20
+docs/evidence/overnight-review-2026-09-20/reviews.md
+esp-soc/tests/cost_model.rs
+esp32s3/tests/machine.rs
+
+All differences are documentation or standalone integration tests. Production source and build configuration are byte-identical.

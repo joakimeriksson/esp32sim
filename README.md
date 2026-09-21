@@ -14,14 +14,21 @@ projects end to end. No cloud, no accounts. MIT.
 | CPU | 2 × Xtensa LX7 @ 240 MHz | 1 × RISC-V RV32IMC @ 160 MHz | 1 × RISC-V RV32IMAC @ 160 MHz |
 | Command | `esp32sim` | `esp32sim-c3` | `esp32sim-c6` |
 | Core crate | `xtensa-lx7` | `riscv-rv32` | `riscv-rv32` (+ the A extension) |
-| Decoder vs `objdump` | 977 k instructions, 0 mismatches | 161 k instructions, 0 mismatches | 126 k instructions, 0 mismatches |
+| Reported full-listing decoder checks | 977 k instructions, 0 mismatches | 161 k instructions, 0 mismatches | 126 k instructions, 0 mismatches |
 | Boots | ROM → bootloader → FreeRTOS → app | ROM → bootloader → FreeRTOS → app | ROM → bootloader → FreeRTOS → app |
 | Boards / displays | ST7735, ST7701S 480×480 + touch, WS2812, camera, audio | none — console only | ST7789 172×320 over SPI+DMA, WS2812, an 802.15.4 energy-detect stand-in |
 | WiFi | virtual AP, WPA2, DHCP/DNS/NTP, NAT to the real network, HTTPS | not modelled | not modelled |
 | Speed | block interpreter + **AArch64 JIT**, ~150–240 Minsn/s | plain interpreter (no block cache or JIT yet) — still well above real time on hello_world | same interpreter |
 | In the browser | yes (WebAssembly) | yes (WebAssembly) | yes (WebAssembly) |
-| Checked against silicon | JTAG lock-step, 8000 steps, 0 PC divergences | console diff, 205/208 lines identical | console diff, 203/204 lines identical |
+| Reported hardware comparisons | JTAG trace, 8000 steps after timing-loop resynchronization | console diff, 205/208 lines identical | console diff, 203/204 lines identical |
 | Status | mature | draft — see [docs/esp32c3.md](docs/esp32c3.md) | draft — see [docs/esp32c6.md](docs/esp32c6.md) |
+
+These full-listing and hardware counts describe earlier manual runs. CI runs the checked-in
+sampled decoder corpora and emulator golden outputs; it excludes the external full-listing
+tests. The Xtensa objdump test excludes PIE operand comparisons. Hardware trace comparison
+normalizes window exceptions and resynchronizes delay loops, so it is not uninterrupted
+cycle-by-cycle agreement. See the [test scope](tests/README.md), [CI workflow](.github/workflows/ci.yml),
+[Xtensa decoder test](xtensa-lx7/tests/objdump_diff.rs) and [hardware comparator](hw/compare.py).
 
 Most of the SoC is shared: the C3 reuses the S3's UART, USB-Serial/JTAG, systimer, timer groups,
 GPIO, SPI flash controller, GDMA and SHA/AES/RSA models unchanged, and adds its own memory map,
@@ -37,10 +44,10 @@ esp32sim/
   emu-core/       the Bus and Core traits, Trap, ClockTree, AArch64 encoder — shared by both cores
   esp-soc/        Machine<S: Soc>: scheduler, device time, console, scripts, web UI, loaders, boards —
                   one machine for every chip; a chip plugs in its cores, bus and interrupt routing
-  esp-periph/     the peripheral IP both chips share (UART, systimer, TIMG, GPIO, SPI_MEM, GDMA, crypto,
+  esp-periph/     the peripheral IP the chips share (UART, systimer, TIMG, GPIO, SPI_MEM, GDMA, crypto,
                   I2S, RMT, I2C, …), the Device trait, and the device_set! table that mounts them
   ── ESP32-S3 (Xtensa LX7, dual core) ──
-  xtensa-lx7/     decoder (verified 100% against objdump over app+ROM+IDF), interpreter
+  xtensa-lx7/     decoder (sampled objdump checks plus optional full listings), interpreter
                   (windowed regs, loops, XEA2 exceptions/interrupts, FPU, MAC16, booleans,
                   PIE SIMD), basic-block interpreter, AArch64 JIT, objdump-compatible disassembler
   esp32s3/        SoC + boards: memory map, cache MMU, SPI flash/PSRAM, SHA/AES/RSA, RNG,
@@ -49,14 +56,14 @@ esp32sim/
                   AP + NAT; board/: atech14 / waveshare-cam / waveshare-lcd4b / waveshare-amoled18-v2 / none
   cli/            the `esp32sim` command line, every chip (`--chip`); `esp32sim-c3` / `esp32sim-c6` are alias binaries
   ── ESP32-C3 and ESP32-C6 (RISC-V, single core) ──
-  riscv-rv32/     RV32IMAC decoder (verified 100% against objdump), interpreter, disassembler
+  riscv-rv32/     RV32IMAC decoder (sampled objdump checks), interpreter, disassembler
   esp32c3/        the C3 SoC: memory map, interrupt matrix, cache controller, RNG;
                   peripheral models shared with esp32s3 where the IP is identical
   esp32c6/        the C6 SoC: unified memory map and MMU, interrupt matrix + PLIC/INTPRI, L1 cache,
                   PCR, the LP blocks (reset cause, software reset, RTC timer), ASSIST_DEBUG
   tests/          golden-output regression tests and their fixtures (tests/README.md)
   ── shared ──
-  wasm/           C-ABI crate wrapping either Machine for the browser (both chips, one module)
+  wasm/           C-ABI crate wrapping all three Machines for the browser in one module
   web/            browser UI (board drawing, console, audio, camera) + emu.js/worker.js for wasm
   hw/             JTAG differential-test scripts against a real board, captured C3 and C6 consoles
   examples/       hello_world (IDF, S3, C3 and C6), waveshare-cam (autopling run script + photo)

@@ -1,0 +1,5 @@
+    Checking esp-periph v0.2.0 (/Users/alice/src/a/esp32sim/esp-periph)
+    Checking esp32s3 v0.2.0 (/Users/alice/src/a/esp32sim/esp32s3)
+    Checking xtensa-lx7 v0.2.0 (/Users/alice/src/a/esp32sim/xtensa-lx7)
+    Checking riscv-rv32 v0.2.0 (/Users/alice/src/a/esp32sim/riscv-rv32)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.14s

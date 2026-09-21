@@ -1,0 +1,20 @@
+{
+ "workload": "pocket-tank",
+ "status": "completed",
+ "passed": false,
+ "guestSeconds": 30,
+ "wallSeconds": 50.21366499999166,
+ "instructions": 4569736626,
+ "verdict": null,
+ "jit": {
+  "compiled": 6119,
+  "failed": 0,
+  "released": 1514,
+  "compileMs": 634.6400006115437,
+  "bytes": 96655120,
+  "liveBytes": 79568835,
+  "peakBytes": 79568835,
+  "peakModules": 4782,
+  "instructions": 4462797311
+ }
+}

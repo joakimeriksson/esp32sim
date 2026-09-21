@@ -365,12 +365,12 @@
     }
   ],
   "assets": {
-    "wasm": "/Users/sarah/src/a/esp32sim/web/wasm/esp32sim.wasm",
-    "rom": "/Users/sarah/.espressif/tools/esp-rom-elfs/20241011/esp32s3_rev0_rom.elf",
-    "bootloader": "/Users/sarah/src/a/esp32sim/target/tinydraw-battery-2026-09-04/firmware/bootloader/bootloader.bin",
-    "ptable": "/Users/sarah/src/a/esp32sim/target/tinydraw-battery-2026-09-04/firmware/partition_table/partition-table.bin",
-    "app": "/Users/sarah/src/a/esp32sim/target/tinydraw-battery-2026-09-04/firmware/tinydraw_esp32.bin",
-    "elf": "/Users/sarah/src/a/esp32sim/target/tinydraw-battery-2026-09-04/firmware/tinydraw_esp32.elf"
+    "wasm": "/Users/alice/src/a/esp32sim/web/wasm/esp32sim.wasm",
+    "rom": "/Users/alice/.espressif/tools/esp-rom-elfs/20241011/esp32s3_rev0_rom.elf",
+    "bootloader": "/Users/alice/src/a/esp32sim/target/tinydraw-battery-2026-09-04/firmware/bootloader/bootloader.bin",
+    "ptable": "/Users/alice/src/a/esp32sim/target/tinydraw-battery-2026-09-04/firmware/partition_table/partition-table.bin",
+    "app": "/Users/alice/src/a/esp32sim/target/tinydraw-battery-2026-09-04/firmware/tinydraw_esp32.bin",
+    "elf": "/Users/alice/src/a/esp32sim/target/tinydraw-battery-2026-09-04/firmware/tinydraw_esp32.elf"
   },
   "summary": {
     "strokes": 3,
@@ -422,7 +422,7 @@
     "endpoint": "Queued input to changed pixels near its position submitted to canvas; lift report is firmware console arrival. Not optical presentation."
   },
   "_rawArtifact": {
-    "url": "https://github.com/aliceisjustplaying/esp32sim/blob/6791daa7c68315e742b904366616e8f4ed9dda10/docs/evidence/tinydraw-browser-jit-priorities-2026-09-05/production-drawing/drawing-response.json",
+    "url": "https://github.com/aliceisjustplaying/esp32sim/blob/sanitized-6791daa7c68315e742b904366616e8f4ed9dda10/docs/evidence/tinydraw-browser-jit-priorities-2026-09-05/production-drawing/drawing-response.json",
     "sha256": "8ad971068d861af584433642dbd33d935a654cbc1eae53ab2321e473c581cc14",
     "bytes": 133662,
     "omittedFields": [

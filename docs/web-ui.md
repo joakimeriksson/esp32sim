@@ -15,6 +15,12 @@ panel with picture upload / webcam and speaker meter; bare: console only), the U
 UART0 consoles, an action box for the SDK's JSON protocol, and audio through WebAudio
 (click 🔇 once — browsers require a user gesture).
 
+The native server accepts browser WebSocket connections only from pages at
+`http://127.0.0.1:PORT` or `http://localhost:PORT`, using the server's port. It checks
+the browser's `Origin` header, which identifies the page's scheme, host and port.
+Local native clients may omit `Origin`; the server treats those tools as trusted.
+See the [Origin check](../esp-soc/src/web.rs) for the implementation.
+
 The header shows emulated time, instructions, frames, and `real time` / `⚠ N% of real time` /
 resync count. The percentage is emulated seconds per wall second over the last second: a
 resynchronisation resets the lag but not this, so a run that cannot keep up stays visible. The audio buffer is adaptive: it starts at 60 ms and grows on underrun (up to

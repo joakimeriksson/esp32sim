@@ -97,6 +97,73 @@ fn idle_cut_includes_each_enabled_cores_timer() {
 }
 
 #[test]
+fn mixed_idle_rounds_end_at_the_sleeping_cores_timer() {
+    for vq in [1, 8] {
+        for sleeping in [0, 1] {
+            for wake in [3, 67, 131] {
+                let mut m = machine();
+                m.vq_max = vq;
+                for core in &mut m.cores { core.set_jit(false); }
+                park(&mut m, 0, IRAM, &SPIN);
+                esp_soc::SocBus::load_bytes(&mut m.bus, RESET, &SPIN).unwrap();
+                m.bus.write32(0x600c_0000, 0b010).unwrap();
+                m.run(64);
+                m.cores[sleeping].waiting = true;
+                m.cores[sleeping].ps = 0;
+                m.cores[sleeping].intenable = 1 << xtensa_lx7::state::TIMER_INTERRUPT[0];
+                let before: Vec<_> = m.cores.iter().map(|c| c.ccount).collect();
+                m.cores[sleeping].ccompare[0] = before[sleeping].wrapping_add(wake);
+                let now = m.bus.cycles;
+                m.max_cycles = now + u64::from(wake);
+                assert!(matches!(m.run(u64::MAX), Stop::Halted));
+                assert_eq!(m.bus.cycles, now + u64::from(wake), "vq={vq}, sleeping={sleeping}");
+                for (core, before) in m.cores.iter().zip(before) {
+                    assert_eq!(core.ccount.wrapping_sub(before), wake, "both core clocks stay at the device horizon");
+                }
+                assert!(m.cores[sleeping].irq_pending());
+                if std::env::var_os("ESP32SIM_VQ_NATIVE").is_some() && vq > 1 && wake == 131 {
+                    assert!(m.vq_stats[0] > 0, "exercise the deferred multi-quantum path");
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn software_reset_stops_before_the_siblings_store_and_charges_only_executed_time() {
+    use esp_soc::observers::PcHist;
+    const STORE: [u8; 3] = [0x22, 0x63, 0x00]; // s32i a2,a3,0
+    const SRAM: u32 = 0x3fc9_0000;
+    for (mode, cpi) in [(0, 1), (1, 1), (2, 1), (2, 3), (3, 1), (3, 3)] {
+        let mut m = machine();
+        m.vq_max = 1;
+        if mode == 1 { m.add_observer(Box::new(PcHist::new(1))); }
+        if mode >= 2 { m.set_approximate_jit_timing(cpi, 64).unwrap(); }
+        if mode == 3 { m.set_approximate_jit_frontiers(true).unwrap(); }
+        park(&mut m, 0, IRAM, &SPIN);
+        esp_soc::SocBus::load_bytes(&mut m.bus, RESET, &SPIN).unwrap();
+        m.bus.write32(0x600c_0000, 0b010).unwrap();
+        m.max_cycles = 64 * u64::from(cpi);
+        m.run(u64::MAX);
+        m.max_cycles = u64::MAX;
+        park(&mut m, 0, IRAM + 16, &STORE);
+        park(&mut m, 1, IRAM + 32, &STORE);
+        m.cores[0].set_ar(2, 1 << 31);
+        m.cores[0].set_ar(3, 0x6000_8000); // RTC_CNTL_OPTIONS0.SW_SYS_RST
+        m.cores[1].set_ar(2, 0xdead_beef);
+        m.cores[1].set_ar(3, SRAM);
+        let before = (m.bus.cycles, m.cores[1].insn_count(), m.run_steps(), m.cores[0].ccount);
+        assert!(matches!(m.run(128), Stop::SwReset), "mode={mode}");
+        assert_eq!(m.bus.read32(SRAM).unwrap(), 0, "core 1 must not store after core 0 resets, mode={mode}");
+        assert_eq!((m.bus.cycles, m.cores[1].insn_count()), (before.0 + u64::from(cpi), before.1), "only the reset instruction's time, mode={mode}");
+        assert_eq!(m.cores[0].ccount - before.3, cpi);
+        assert_eq!(m.run_steps() - before.2, 1);
+        m.reboot();
+        assert_eq!(m.run_steps(), before.2 + 1, "run budget survives chip reset");
+    }
+}
+
+#[test]
 fn precise_trap_observer_reports_fault_after_resumed_hardware_loop() {
     use esp_soc::observe::{Ctx, Observer, Wants};
     use std::sync::{Arc, Mutex};
@@ -183,6 +250,7 @@ fn quiet_display_publication_remains_live_during_continuous_changes() {
             Some((1, 1, vec![version as u16], version))
         }
     }
+    const PUSH: u64 = 240_000_000 / 50;   // one page-push interval at the default display_push_hz
     let mut m = machine();
     let version = Arc::new(AtomicU64::new(0));
     m.bus.board = Box::new(Display(version.clone()));
@@ -192,16 +260,16 @@ fn quiet_display_publication_remains_live_during_continuous_changes() {
     m.web = Some(web.clone());
     for push in 1..=6 {
         version.store(push, Ordering::Relaxed);
-        m.run_until_cycle(push * 4_800_000);
+        m.run_until_cycle(push * PUSH);
         let frames: Vec<_> = web.take_outbox().into_iter().filter(|(kind, data)| *kind == 2 && data[0] == 1).collect();
         if push % 2 == 0 {
             assert_eq!(frames, [(2, vec![1, 1, 0, 1, 0, push as u8, 0])]);
         } else { assert!(frames.is_empty()); }
     }
     version.store(7, Ordering::Relaxed);
-    m.run_until_cycle(7 * 4_800_000);
+    m.run_until_cycle(7 * PUSH);
     web.take_outbox();
-    m.run_until_cycle(8 * 4_800_000); // a quiet interval publishes the pending version
+    m.run_until_cycle(8 * PUSH); // a quiet interval publishes the pending version
     assert!(web.take_outbox().iter().any(|(kind, data)| *kind == 2 && data == &[1, 1, 0, 1, 0, 7, 0]));
 }
 
@@ -252,7 +320,11 @@ fn core1_runs_when_released() {
 fn browser_external_blocks_are_single_core_scheduler_transactions() {
     let mut m = machine();
     park(&mut m, 0, IRAM, &SPIN);
-    assert_eq!(m.browser_external_block_budget(1), Some(64));
+    assert_eq!(m.browser_external_block_budget(0), None);
+    assert_eq!(m.browser_external_block_budget(1), None);
+    assert_eq!(m.browser_external_block_budget(63), None);
+    assert_eq!(m.browser_external_block_budget(64), Some(64));
+    assert_eq!(m.browser_external_block_budget(128), Some(64));
     assert!(m.finish_browser_external_quantum().is_none());
     assert_eq!(m.bus.cycles, 64);
 
@@ -400,6 +472,36 @@ fn observers_count_the_same_instructions_either_way() {
 }
 
 #[test]
+fn block_observers_keep_working_with_instruction_observers() {
+    use esp_soc::observers::{BlockProfile, Coverage, PcHist};
+    for until in [false, true] {
+        let mut m = machine();
+        park(&mut m, 0, IRAM, &[0x0c, 0x03, 0x1b, 0x33, 0x86, 0xfe, 0xff]);
+        m.add_observer(Box::new(BlockProfile::new(4)));
+        m.add_observer(Box::new(Coverage::new(None)));
+        m.add_observer(Box::new(PcHist::new(4)));
+        if until { m.run_until_cycle(128); } else { m.run(128); }
+        let report = m.reports();
+        assert!(report.contains("[profile-blocks] top 4 functions of 128 instructions"), "{report}");
+        assert!(report.contains("[coverage] 3 block starts"), "{report}");
+    }
+}
+
+#[test]
+fn breakpoints_stop_at_first_fetch_and_at_a_sleeping_pc() {
+    use esp_soc::observers::Breakpoints;
+    for asleep in [false, true] {
+        let mut m = machine();
+        park(&mut m, 0, IRAM, &WAITI_LOOP);
+        m.cores[0].waiting = asleep;
+        m.add_observer(Box::new(Breakpoints { pcs: vec![IRAM] }));
+        assert!(matches!(m.run(64), Stop::Breakpoint(IRAM)));
+        assert_eq!(m.cores[0].insn_count(), 0);
+        assert_eq!(m.bus.cycles, 0);
+    }
+}
+
+#[test]
 fn queued_web_input_is_ordered_and_does_not_advance_guest_time() {
     let mut m = machine();
     let board = esp32s3::board::WaveshareAmoled18V2::new();
@@ -527,4 +629,101 @@ fn light_grid_reports_the_glass_not_the_chain() {
         assert_eq!(g7.leds[cell7.0 * 3 + cell7.1], [51, 0, 0], "chain {} on port 7", chain_i);
         assert_eq!(g11.leds[cell11.0 * 3 + cell11.1], [51, 0, 0], "chain {} on port 11", chain_i);
     }
+}
+
+#[test]
+fn zero_display_rate_is_safe_and_virtual_rounds_reuse_the_interval() {
+    use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+    struct DisplayRate(Arc<AtomicUsize>);
+    impl esp_soc::board::BoardModel for DisplayRate {
+        fn name(&self) -> &'static str { "zero-rate" }
+        fn display_push_hz(&self) -> u64 { self.0.fetch_add(1, Ordering::Relaxed); 0 }
+    }
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut m = machine();
+    m.bus.board = Box::new(DisplayRate(calls.clone()));
+    m.web = Some(esp_soc::web::WebServer::queued());
+    m.vq_max = 1024;
+    for core in &mut m.cores { core.set_jit(false); }
+    park(&mut m, 0, IRAM, &SPIN);
+    assert!(matches!(m.run(8192), Stop::MaxInsns));
+    assert_eq!(calls.load(Ordering::Relaxed), 1, "one configuration read, no per-round division");
+}
+
+#[test]
+fn unmatched_breakpoints_preserve_idle_timeline() {
+    use esp_soc::observers::Breakpoints;
+    for until in [false, true] {
+        let mut results = Vec::new();
+        for observed in [false, true] {
+            let mut m = machine();
+            park(&mut m, 0, IRAM, &WAITI_LOOP);
+            m.script.events = vec![(71, ScriptAction::Stop)];
+            if observed { m.add_observer(Box::new(Breakpoints { pcs: vec![IRAM + 100] })); }
+            if until { m.run_until_cycle(1000); } else { m.run(1000); }
+            results.push((m.bus.cycles, m.insns(), m.cores[0].pc, m.cores[0].ccount));
+        }
+        assert_eq!(results[0], results[1], "until={until}");
+        assert_eq!(results[1].0, 71);
+    }
+}
+
+#[test]
+fn block_profile_does_not_count_idle_single_steps() {
+    use esp_soc::observers::{BlockProfile, PcHist};
+    let mut m = machine();
+    park(&mut m, 0, IRAM, &WAITI_LOOP);
+    m.add_observer(Box::new(PcHist::new(4)));
+    m.add_observer(Box::new(BlockProfile::new(4)));
+    m.run(128);
+    assert!(m.reports().contains("[profile-blocks] top 4 functions of 1 instructions"));
+}
+
+#[test]
+fn reset_partial_round_delivers_mmio_and_round_observations() {
+    use esp_soc::observe::{Ctx, Observer, Wants};
+    use std::sync::{Arc, Mutex};
+    #[derive(Default)]
+    struct Events { writes: Vec<u32>, rounds: Vec<u64> }
+    struct Watch(Arc<Mutex<Events>>);
+    impl Observer<esp32s3::S3> for Watch {
+        fn name(&self) -> &'static str { "reset-observer" }
+        fn wants(&self) -> Wants { Wants::MMIO | Wants::ROUND }
+        fn on_mmio(&mut self, _: &Ctx, _: u32, addr: u32, _: u32, write: bool) {
+            if write { self.0.lock().unwrap().writes.push(addr); }
+        }
+        fn on_round(&mut self, cx: &Ctx) { self.0.lock().unwrap().rounds.push(cx.cycles); }
+    }
+    for until in [false, true] {
+        let mut m = machine();
+        park(&mut m, 0, IRAM, &[0x22, 0x63, 0]); // s32i a2,a3,0
+        m.cores[0].set_ar(2, 1 << 31);
+        m.cores[0].set_ar(3, 0x6000_8000);
+        let events = Arc::new(Mutex::new(Events::default()));
+        m.add_observer(Box::new(Watch(events.clone())));
+        if until { assert!(matches!(m.run_until_cycle(64), esp_soc::RunUntil::Stop(Stop::SwReset))); }
+        else { assert!(matches!(m.run(64), Stop::SwReset)); }
+        let events = events.lock().unwrap();
+        assert_eq!(events.writes, [0x6000_8000]);
+        assert_eq!(events.rounds, [1]);
+    }
+}
+
+#[test]
+fn zero_display_rate_is_safe() {
+    use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+    struct DisplayRate(Arc<AtomicUsize>);
+    impl esp_soc::board::BoardModel for DisplayRate {
+        fn name(&self) -> &'static str { "zero-rate" }
+        fn display_push_hz(&self) -> u64 { self.0.fetch_add(1, Ordering::Relaxed); 0 }
+    }
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut m = machine();
+    m.bus.board = Box::new(DisplayRate(calls.clone()));
+    m.web = Some(esp_soc::web::WebServer::queued());
+    m.vq_max = 1024;
+    for core in &mut m.cores { core.set_jit(false); }
+    park(&mut m, 0, IRAM, &SPIN);
+    assert!(matches!(m.run(8192), Stop::MaxInsns));
+    assert!(calls.load(Ordering::Relaxed) > 0);
 }

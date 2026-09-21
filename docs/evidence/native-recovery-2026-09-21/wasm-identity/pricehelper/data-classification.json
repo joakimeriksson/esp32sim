@@ -1,0 +1,222 @@
+{
+  "records": [
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2037925,
+      "oldLine": 555,
+      "newLine": 556,
+      "column": 33
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2037941,
+      "oldLine": 560,
+      "newLine": 561,
+      "column": 192
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2037957,
+      "oldLine": 571,
+      "newLine": 572,
+      "column": 192
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2037973,
+      "oldLine": 582,
+      "newLine": 583,
+      "column": 157
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2037989,
+      "oldLine": 589,
+      "newLine": 590,
+      "column": 207
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2038005,
+      "oldLine": 600,
+      "newLine": 601,
+      "column": 207
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2041397,
+      "oldLine": 238,
+      "newLine": 239,
+      "column": 55
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2041413,
+      "oldLine": 348,
+      "newLine": 349,
+      "column": 41
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2041429,
+      "oldLine": 350,
+      "newLine": 351,
+      "column": 59
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2041445,
+      "oldLine": 301,
+      "newLine": 302,
+      "column": 25
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2054709,
+      "oldLine": 555,
+      "newLine": 556,
+      "column": 33
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2054725,
+      "oldLine": 560,
+      "newLine": 561,
+      "column": 192
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2054741,
+      "oldLine": 571,
+      "newLine": 572,
+      "column": 192
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2054757,
+      "oldLine": 582,
+      "newLine": 583,
+      "column": 157
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2054773,
+      "oldLine": 600,
+      "newLine": 601,
+      "column": 207
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2055685,
+      "oldLine": 531,
+      "newLine": 532,
+      "column": 38
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2055957,
+      "oldLine": 360,
+      "newLine": 361,
+      "column": 116
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2056037,
+      "oldLine": 475,
+      "newLine": 476,
+      "column": 63
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2056053,
+      "oldLine": 482,
+      "newLine": 483,
+      "column": 25
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2056069,
+      "oldLine": 477,
+      "newLine": 478,
+      "column": 73
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2056085,
+      "oldLine": 284,
+      "newLine": 285,
+      "column": 36
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2056101,
+      "oldLine": 497,
+      "newLine": 498,
+      "column": 67
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2056217,
+      "oldLine": 516,
+      "newLine": 517,
+      "column": 63
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2056233,
+      "oldLine": 516,
+      "newLine": 517,
+      "column": 69
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2056249,
+      "oldLine": 516,
+      "newLine": 517,
+      "column": 79
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2056265,
+      "oldLine": 516,
+      "newLine": 517,
+      "column": 89
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2056345,
+      "oldLine": 251,
+      "newLine": 252,
+      "column": 13
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2056361,
+      "oldLine": 348,
+      "newLine": 349,
+      "column": 41
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2056377,
+      "oldLine": 350,
+      "newLine": 351,
+      "column": 59
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2056393,
+      "oldLine": 301,
+      "newLine": 302,
+      "column": 25
+    },
+    {
+      "file": "esp32s3/src/bus.rs",
+      "recordOffset": 2056409,
+      "oldLine": 337,
+      "newLine": 338,
+      "column": 21
+    }
+  ],
+  "unexpectedDataDifferences": []
+}

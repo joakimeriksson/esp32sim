@@ -1,0 +1,17 @@
+M	.github/workflows/ci.yml
+A	docs/evidence/overnight-review-2026-09-20/redistribution.md
+A	docs/evidence/overnight-review-2026-09-20/redistribution/final-clippy.log
+A	docs/evidence/overnight-review-2026-09-20/redistribution/final-js.log
+A	docs/evidence/overnight-review-2026-09-20/redistribution/final-native.log
+A	docs/evidence/overnight-review-2026-09-20/redistribution/final-production.log
+A	docs/evidence/overnight-review-2026-09-20/redistribution/final-profile.log
+A	docs/evidence/overnight-review-2026-09-20/redistribution/final-python.log
+A	docs/evidence/overnight-review-2026-09-20/redistribution/final-summary.txt
+A	docs/evidence/overnight-review-2026-09-20/redistribution/final-vq.log
+A	docs/evidence/overnight-review-2026-09-20/redistribution/final-wasm.log
+A	docs/evidence/overnight-review-2026-09-20/redistribution/parity.txt
+A	docs/evidence/overnight-review-2026-09-20/redistribution/tested-heads.json
+M	docs/evidence/overnight-review-2026-09-20/reviews.md
+M	docs/experiments.md
+M	esp-soc/tests/cost_model.rs
+M	esp32s3/tests/machine.rs

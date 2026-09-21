@@ -1,0 +1,51 @@
+{
+  "mainSource": "d5446b4aa9a1b035aff74eba082611822676f285",
+  "frozenRegressedSource": "946497a3c14ad545296e2acb9b607e117d526019",
+  "productionEquivalentSource": "9bc4d5a5762454c00d858badb6beb0f6366aa175",
+  "compiler": "rustc 1.98.1",
+  "nativeBuildCommand": "cargo build --release -p esp32sim --bin esp32sim",
+  "rustflags": null,
+  "candidates": {
+    "cadence": {
+      "baselineSource": "9bc4d5a5762454c00d858badb6beb0f6366aa175",
+      "candidateSource": "62258e7a83c7023d7f8e9e2a9648f97a22b17d02"
+    },
+    "wrappers": {
+      "baselineSource": "9bc4d5a5762454c00d858badb6beb0f6366aa175",
+      "candidateSource": "e6ff2e5c9b88358371dda2cd11816fddceeb5066"
+    },
+    "blockinline": {
+      "baselineSource": "9bc4d5a5762454c00d858badb6beb0f6366aa175",
+      "candidateSource": "866b90bac6a131539ec1a1f4e0a01d05e6d6695d"
+    },
+    "combo": {
+      "baselineSource": "9bc4d5a5762454c00d858badb6beb0f6366aa175",
+      "candidateSource": "b548b1df94fe5223a0baa1108cfd785bb243491b"
+    },
+    "pricedcombo": {
+      "baselineSource": "b548b1df94fe5223a0baa1108cfd785bb243491b",
+      "candidateSource": "3af32826ea713440097e2f7470f433c0e1136776"
+    },
+    "coreinline": {
+      "baselineSource": "b548b1df94fe5223a0baa1108cfd785bb243491b",
+      "candidateSource": "464a837826210991480ad7557e77426877deade7"
+    },
+    "pricehelper": {
+      "baselineSource": "b548b1df94fe5223a0baa1108cfd785bb243491b",
+      "candidateSource": "82a660047c033bcb422b28a4b3834bf89a0267af"
+    },
+    "combotlb": {
+      "baselineSource": "b548b1df94fe5223a0baa1108cfd785bb243491b",
+      "candidateSource": "7a240e4350cbe92ee21d90cece1f4a573192ceaf"
+    },
+    "nativestate": {
+      "baselineSource": "b548b1df94fe5223a0baa1108cfd785bb243491b",
+      "candidateSource": "0c92b640658e37d23f5a1680643e6953d1f98c69"
+    },
+    "recovery": {
+      "baselineSource": "9bc4d5a5762454c00d858badb6beb0f6366aa175",
+      "candidateSource": "88dda10694470e9c50cb7bb12ed69f3d7a1a7711"
+    }
+  },
+  "publishedProductionEquivalentSource": "b2a25703b59fda73ec1715774c22a151d60a973a"
+}

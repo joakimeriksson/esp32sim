@@ -12,9 +12,9 @@ use crate::decode::decode;
 use crate::exec::max_ar;
 use std::collections::HashMap;
 
-pub(super) const MAX_CHUNKS: usize = 8;
-pub(super) const MAX_INSNS: usize = 64;
-const MAX_PAGES: usize = 4;
+pub(super) const MAX_CHUNKS: usize = 64;
+pub(super) const MAX_INSNS: usize = 512;
+pub(in crate::jit) const MAX_PAGES: usize = 8;
 
 /// One straight-line piece of a region, decoded independently of the block cache.
 pub(in crate::jit) struct Chunk {
@@ -45,17 +45,12 @@ pub(super) struct RegionGen {
     /// control depth at the top level of the current chunk's code
     pub chunk_depth: usize,
     /// last retired PC for each exit site, indexed by the tag in the result
-    pub sites: Vec<u32>,
+    pub sites: Vec<ExitSite>,
     /// version-page index range covering every chunk (stores inside it set DIRTY)
     pub page_lo: u32,
     pub page_hi: u32,
     /// LEND -> LBEG for the region's own hardware loops
     pub loops: HashMap<u32, u32>,
-}
-
-/// May appear anywhere in a chunk.
-fn eligible(i: &crate::Insn, fast: bool) -> bool {
-    supported_insn(i, fast) && !terminal(i.op)
 }
 
 /// Ends a chunk and leaves the region by itself: calls, returns and computed jumps.
@@ -100,9 +95,9 @@ fn chunk<B: Bus>(cpu: &Cpu, bus: &mut B, head: u32, pc0: u32, fast: bool, room: 
     while v.len() < room.min(MAX_LEN) {
         let Ok(bytes) = bus.fetch(pc) else { break };
         let i = decode(pc, bytes);
-        if i.len == 0 || !(eligible(&i, fast) || terminal(i.op)) { break }
+        if i.len == 0 || !(supported_insn(&i, fast) || terminal(i.op)) { break }
         if pc != head && (must_start_block(&i) || cpu.boundary_bloom & pc_bit(pc) != 0) { break }
-        v.push(BlockInsn { insn: i, max_ar: max_ar(&i), off: v.len() as u32 });
+        v.push(BlockInsn { insn: i, max_ar: max_ar(&i), straddle: cpu.price_control && crate::exec::static_target(&i).is_some_and(|t| crate::exec::straddles(bus, t)), off: v.len() as u32 });
         // Includes the head: an internal backedge to it would skip a probe there.
         *bloom |= pc_bit(pc);
         pc = pc.wrapping_add(i.len as u32);
@@ -220,6 +215,21 @@ pub(super) fn region_edge(g: &mut Gen, target: u32, direct: bool) {
             g.begin_if();
             g.spill();
             g.cpu_const(PC, target);
+            #[cfg(feature = "wasm-jit-profile")]
+            {
+                // Only the diagnostic module distinguishes these runtime causes.
+                // If both hold, classify DIRTY as the reason execution must leave.
+                let saved = g.last_kind;
+                g.get(DIRTY);
+                g.begin_if();
+                g.last_kind = ExitKind::Dirty;
+                g.ret_value(CODE_LEFT);
+                g.end();
+                g.last_kind = ExitKind::Budget;
+                g.ret_value(CODE_LEFT);
+                g.last_kind = saved;
+            }
+            #[cfg(not(feature = "wasm-jit-profile"))]
             g.ret_value(CODE_LEFT);
             g.end();
             if !direct || index != current + 1 || g.depth() != chunk_depth {
@@ -233,12 +243,16 @@ pub(super) fn region_edge(g: &mut Gen, target: u32, direct: bool) {
         None => {
             g.spill();
             g.cpu_const(PC, target);
+            #[cfg(feature = "wasm-jit-profile")]
+            let saved = std::mem::replace(&mut g.last_kind, ExitKind::Edge);
             g.ret_value(CODE_LEFT);
+            #[cfg(feature = "wasm-jit-profile")]
+            { g.last_kind = saved; }
         }
     }
 }
 
-pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_loops: &[(u32, u32)], fast: bool) -> (Vec<u8>, Vec<u32>) {
+pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_loops: &[(u32, u32)], fast: bool) -> (Vec<u8>, Vec<ExitSite>) {
     let page_lo = pages.iter().map(|p| p.0).min().unwrap_or(0);
     let page_hi = pages.iter().map(|p| p.0).max().unwrap_or(0);
     let all = || chunks.iter().flat_map(|c| c.instructions.iter());
@@ -257,8 +271,7 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
     let entry_head = chunks[0].instructions[0].insn.op == crate::Op::Entry;
     let guard_max_ar = if entry_head { chunks[0].instructions[0].max_ar } else { max_ar };
     // Every instruction is emitted, so both coprocessor bits can be proved at entry.
-    let cp = (all().any(|bi| float::requires_coprocessor(bi.insn.op)) as u32)
-        | if all().any(|bi| bi.insn.op == crate::Op::Pie) { pie::CP3 } else { 0 };
+    let cp = all().fold(0, |mask, bi| mask | policy::required_coprocessors(bi.insn.op));
     let heads = chunks.iter().enumerate().map(|(i, c)| (c.pc, (i, c.instructions.len() as u32))).collect();
     let loops = formed_loops.iter().copied().collect();
     let mut g = Gen {
@@ -273,9 +286,7 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
     // state are proved here. Anything else takes a block module, which handles cuts.
     g.reload();
     if guard_max_ar >= 4 {
-        g.get(WINDOWS);
-        g.c((1 << (guard_max_ar / 4)) - 1);
-        g.op(0x71);
+        g.window_collision(guard_max_ar);
         g.begin_if();
         g.c(CODE_REJECT << 16);
         g.op(0x0f);
@@ -286,9 +297,7 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
         g.get(4);
         g.c(0);
         g.op(0x47);
-        g.get(WINDOWS);
-        g.c((1 << (max_ar / 4)) - 1);
-        g.op(0x71);
+        g.window_collision(max_ar);
         g.c(0);
         g.op(0x47);
         g.op(0x71);

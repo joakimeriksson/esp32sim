@@ -15,6 +15,7 @@ try {
   let source = await fs.readFile(batteryPath, 'utf8');
   source = source.replace("'./verdict.mjs'", JSON.stringify(pathToFileURL(path.join(harness, 'verdict.mjs')).href));
   source = source.replace("'/web/wasm/jit.mjs'", JSON.stringify(pathToFileURL(path.join(root, 'web/wasm/jit.mjs')).href));
+  source = source.replace("'/web/wasm/experiments.mjs'", JSON.stringify(pathToFileURL(path.join(root, 'web/wasm/experiments.mjs')).href));
   await fs.writeFile(path.join(temp, 'battery.mjs'), source);
   const schema = JSON.parse(await fs.readFile(path.join(harness, 'verdict-schema.json'), 'utf8'));
   const verdict = [schema.marker, ...schema.gates.map(key => `${key}=1`), 'ssaa_receipt=yellow'].join(' ');

@@ -24,3 +24,33 @@ immutable revisions listed in the [capture archive](ARCHIVE.md). This is a trans
 for existing evidence, not the storage location for future captures. No captures have
 been uploaded to a release by this cleanup. Removing files reduces the current tree;
 it does not reclaim their bytes from existing Git history.
+
+## Privacy and curation
+
+Retain negative results in [the experiment catalog](../experiments.md). Keep only
+material needed to reproduce or challenge the conclusion.
+
+Before committing a capture:
+
+- Replace personal home-directory labels with `/Users/alice` or `/home/alice`.
+- Remove personal hostnames, logins, email addresses, device identifiers and
+  session details. Harnesses must accept remote targets from the caller.
+- Remove unrelated application names, process inventories and command lines.
+  Preserve load averages or anonymous CPU samples if they explain noise. Label
+  partial process samples as partial; their sum is not total machine utilization.
+- Inspect compressed profiles, structured records, screenshots and binary
+  metadata as well as plain text. Retain a sanitized summary instead when the
+  raw capture adds no reproducibility value.
+- Record what was removed and whether that limits the conclusion. For existing
+  receipts, retain a manifest of original and sanitized file hashes. Historical
+  artifact hashes still identify the original measured artifacts; do not silently
+  replace them with hashes of edited receipts.
+
+Run `node tools/check-evidence-privacy.mjs` from the repository root. CI runs the
+same check on tracked text and gzip evidence. It detects configured patterns and
+does not establish that arbitrary text, images or binaries contain no personal data.
+Manual review remains necessary. Keep private raw captures outside Git only when
+there is a specific need for them.
+
+[September 21 redactions](privacy-review-2026-09-21/redactions.json) map the existing
+capture bytes to their sanitized replacements.

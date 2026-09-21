@@ -1,0 +1,25 @@
+size=1632 align=16
+pc=1400
+ar=512
+windowbase=1404
+windowstart=1408
+ps=1412
+sar=1416
+lbeg=1420
+lend=1424
+lcount=1428
+br=1432
+ccount=1476
+approximate_cpi=1480
+ccompare=1488
+qr=768
+waiting=1624
+insn_count=1160
+blocks=1216
+boundary_bloom=1168
+jit_trap=1612
+timing_extra=1600
+price_control=1625
+icache_fill=1604
+icache_misses=1176
+fetch_cache=1184

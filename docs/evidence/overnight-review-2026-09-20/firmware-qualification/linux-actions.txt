@@ -1,0 +1,6 @@
+24 uart0 root
+27 uart0 changeme123
+31 uart0 uname -a
+33 uart0 ifconfig -a
+35 uart0 route -n
+37 uart0 ls /usr/bin /usr/sbin /sbin

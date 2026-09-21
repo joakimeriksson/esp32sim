@@ -76,17 +76,46 @@ impl Co5300 {
             // SPI transfers while keeping chip select active. Preserve the command
             // after the header-only transfer so the next transfer sets the window.
             Some(0x2a | 0x2b) => {}
-            Some(0x2c | 0x3c) => {
-                for &byte in data {
-                    match self.pixel_hi.take() {
-                        None => self.pixel_hi = Some(byte),
-                        Some(high) => self.write_pixel(u16::from_be_bytes([high, byte])),
-                    }
-                }
-            }
+            Some(0x2c | 0x3c) => self.write_pixel_bytes(data),
             Some(_) => self.pending = None,
             None => {}
         }
+    }
+
+    /// EX158/EX170: the per-byte loop, a row run at a time. Same window walk and `pixels_written`.
+    fn write_pixel_bytes(&mut self, mut data: &[u8]) {
+        if let Some(high) = self.pixel_hi {
+            let Some((&low, rest)) = data.split_first() else { return };
+            self.pixel_hi = None;
+            self.write_pixel(u16::from_be_bytes([high, low]));
+            data = rest;
+        }
+        let (pairs, rest) = data.as_chunks::<2>();
+        let mut pairs = pairs;
+        while !pairs.is_empty() {
+            let (x, x1) = (self.x as usize, self.x1 as usize);
+            let to_edge = if x < x1 { x1 - x + 1 } else { 1 };
+            let run = to_edge.min(pairs.len());
+            let (now, later) = pairs.split_at(run);
+            if (self.y as usize) < Self::HEIGHT {
+                let lo = x.max(Self::X_OFFSET as usize);
+                let hi = (x + run).min(Self::X_OFFSET as usize + Self::WIDTH);
+                if lo < hi {
+                    let row = self.y as usize * Self::WIDTH;
+                    let xo = Self::X_OFFSET as usize;
+                    for (dst, src) in self.frame[row + lo - xo..row + hi - xo].iter_mut().zip(&now[lo - x..hi - x]) { *dst = u16::from_be_bytes(*src); }
+                    self.pixels_written += (hi - lo) as u64;
+                }
+            }
+            if run == to_edge {
+                self.x = self.x0;
+                if self.y >= self.y1 { self.y = self.y0; } else { self.y += 1; }
+            } else {
+                self.x += run as u16;
+            }
+            pairs = later;
+        }
+        if let [byte] = rest { self.pixel_hi = Some(*byte); }
     }
 
     fn write_pixel(&mut self, pixel: u16) {
@@ -112,9 +141,12 @@ pub struct WaveshareAmoled18V2 {
     pub gpio_events: u64,
     pub panel: Co5300,
     pub touch_state: std::sync::Arc<std::sync::Mutex<crate::i2c::TouchState>>,
+    smooth_display: bool,
     cycle: VirtualCycle,
     next_te_cycle: Option<VirtualCycle>,
     te_level: bool,
+    te_high_cycles: VirtualCycle,
+    te_low_cycles: VirtualCycle,
     touch_irq_level: bool,
     /// At most two touch IRQ transitions: the first observable edge and a coalesced final level.
     pending_touch_irq: Option<(VirtualCycle, bool)>,
@@ -130,9 +162,12 @@ impl WaveshareAmoled18V2 {
             gpio_events: 0,
             panel: Co5300::new(),
             touch_state: Default::default(),
+            smooth_display: false,
             cycle: 0,
             next_te_cycle: Some(Self::APPROXIMATE_TE_HALF_PERIOD),
             te_level: true,
+            te_high_cycles: Self::APPROXIMATE_TE_HALF_PERIOD,
+            te_low_cycles: Self::APPROXIMATE_TE_HALF_PERIOD,
             touch_irq_level: true,
             pending_touch_irq: None,
             pending_touch_final: None,
@@ -140,14 +175,19 @@ impl WaveshareAmoled18V2 {
         }
     }
 
+    /// Fixed waveform from TinyDraw's 2026-08-15 CO5300 hardware receipt:
+    /// 16,773 us period, 578 us high. Phase starts high at reset; no jitter model.
+    pub fn with_measured_te() -> Self {
+        let mut board = Self::new();
+        board.te_high_cycles = 578 * (crate::periph::CPU_HZ / 1_000_000);
+        board.te_low_cycles = (16_773 - 578) * (crate::periph::CPU_HZ / 1_000_000);
+        board.next_te_cycle = Some(board.te_high_cycles);
+        board
+    }
+
     fn queue_touch(&mut self, cycle: VirtualCycle, x: u16, y: u16, down: bool) {
-        let mut touch = self.touch_state.lock().expect("AMOLED touch state mutex poisoned");
-        touch.x = x.min(Co5300::WIDTH as u16 - 1);
-        touch.y = y.min(Co5300::HEIGHT as u16 - 1);
-        if down { touch.down = true; touch.seen = false; touch.release_pending = false; }
-        else if touch.seen { touch.down = false; }
-        else { touch.release_pending = true; }
-        drop(touch);
+        self.touch_state.lock().expect("AMOLED touch state mutex poisoned")
+            .update(x.min(Co5300::WIDTH as u16 - 1), y.min(Co5300::HEIGHT as u16 - 1), down);
         let level = !down;
         let queued_level = self.pending_touch_final.or(self.pending_touch_irq.map(|(_, level)| level)).unwrap_or(self.touch_irq_level);
         if level != queued_level {
@@ -185,7 +225,9 @@ impl BoardModel for WaveshareAmoled18V2 {
     }
     fn display_version(&self) -> u64 { self.panel.pixels_written }
     fn display_frames(&self) -> u64 { self.panel.frames }
-    fn display_quiet_push(&self) -> bool { true }
+    fn display_quiet_push(&self) -> bool { !self.smooth_display }
+    fn display_push_hz(&self) -> u64 { if self.smooth_display { 120 } else { 50 } }
+    fn set_smooth_display(&mut self, on: bool) -> bool { self.smooth_display = on; true }
     fn input_levels(&self) -> Vec<(u8, bool)> {
         vec![(PIN_AMOLED_TE, self.te_level), (PIN_AMOLED_TOUCH_INT, self.touch_irq_level)]
     }
@@ -206,7 +248,7 @@ impl BoardModel for WaveshareAmoled18V2 {
             if self.next_te_cycle == Some(deadline) {
                 self.te_level = !self.te_level;
                 self.edges.push(BoardEdge { cycle: deadline, pin: PIN_AMOLED_TE, level: self.te_level });
-                self.next_te_cycle = deadline.checked_add(Self::APPROXIMATE_TE_HALF_PERIOD);
+                self.next_te_cycle = deadline.checked_add(if self.te_level { self.te_high_cycles } else { self.te_low_cycles });
             }
             if self.pending_touch_irq.is_some_and(|(touch_cycle, _)| touch_cycle == deadline) {
                 let (_, level) = self.pending_touch_irq.take().expect("due touch interrupt must remain pending");
@@ -229,6 +271,20 @@ impl BoardModel for WaveshareAmoled18V2 {
 #[cfg(test)]
 mod amoled_tests {
     use super::*;
+
+    #[test]
+    fn smooth_publication_is_an_explicit_opt_in() {
+        for mut board in [WaveshareAmoled18V2::new(), WaveshareAmoled18V2::with_measured_te()] {
+            assert_eq!(board.display_push_hz(), 50);
+            assert!(board.display_quiet_push());
+            assert!(board.set_smooth_display(true));
+            assert_eq!(board.display_push_hz(), 120);
+            assert!(!board.display_quiet_push());
+            assert!(board.set_smooth_display(false));
+            assert_eq!(board.display_push_hz(), 50);
+            assert!(board.display_quiet_push());
+        }
+    }
 
     fn cpu_transfer(command: u8, data: &[u8]) -> Vec<u8> {
         let mut spi = esp_periph::gpspi::GpSpi::new();
@@ -255,6 +311,30 @@ mod amoled_tests {
         spi.write(0, 1 << 24);
         spi.complete_dma_tx(data);
         spi.take_transfer().expect("DMA GP-SPI transfer must be ready").tx
+    }
+
+    #[test]
+    fn bulk_pixel_bytes_match_the_per_byte_walk() {
+        let mut seed = 0x1234_5678u32;
+        let mut rnd = move |n: u32| { seed ^= seed << 13; seed ^= seed >> 17; seed ^= seed << 5; seed % n };
+        for _ in 0..300 {
+            let (mut a, mut b) = (Co5300::new(), Co5300::new());
+            let x0 = rnd(400) as u16; let x1 = if rnd(8) == 0 { x0.saturating_sub(rnd(5) as u16) } else { x0.saturating_add(rnd(420) as u16) };   // also windows with x1 < x0
+            let y0 = rnd(460) as u16; let y1 = y0 + rnd(30) as u16;
+            for p in [&mut a, &mut b] {
+                p.transaction(&[0x02, 0, 0x2a, 0, (x0 >> 8) as u8, x0 as u8, (x1 >> 8) as u8, x1 as u8]);
+                p.transaction(&[0x02, 0, 0x2b, 0, (y0 >> 8) as u8, y0 as u8, (y1 >> 8) as u8, y1 as u8]);
+                p.transaction(&[0x32, 0, 0x2c, 0]);
+            }
+            for _ in 0..rnd(6) + 1 {
+                let mut data: Vec<u8> = (0..rnd(3000)).map(|_| rnd(256) as u8).collect();
+                if let Some(first) = data.first_mut() { *first |= 0x80; } // not a 0x02/0x32 command header
+                a.transaction(&data);
+                for &byte in &data { match b.pixel_hi.take() { None => b.pixel_hi = Some(byte), Some(h) => b.write_pixel(u16::from_be_bytes([h, byte])) } }
+            }
+            assert_eq!((a.x, a.y, a.pixel_hi, a.pixels_written), (b.x, b.y, b.pixel_hi, b.pixels_written));
+            assert!(a.frame == b.frame);
+        }
     }
 
     #[test]
@@ -329,6 +409,18 @@ mod amoled_tests {
         assert_eq!(crate::board::make_board("waveshare-amoled18-v2").unwrap().name(), "waveshare-amoled18-v2");
         assert_eq!(crate::board::make_board("amoled18-v2").unwrap().name(), "waveshare-amoled18-v2");
         assert!(crate::board::make_board("waveshare-amoled18").is_none());
+    }
+
+    #[test]
+    fn measured_te_matches_hardware_period_and_high_width() {
+        let mut board = WaveshareAmoled18V2::with_measured_te();
+        let us = crate::periph::CPU_HZ / 1_000_000;
+        board.advance_to(16_773 * us + 578 * us);
+        assert_eq!(board.take_edges(), [
+            BoardEdge { cycle: 578 * us, pin: PIN_AMOLED_TE, level: false },
+            BoardEdge { cycle: 16_773 * us, pin: PIN_AMOLED_TE, level: true },
+            BoardEdge { cycle: (16_773 + 578) * us, pin: PIN_AMOLED_TE, level: false },
+        ]);
     }
 
     #[test]

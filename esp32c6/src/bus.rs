@@ -140,7 +140,7 @@ impl SocBus {
     /// A word of SRAM for the DMA engines (descriptors and buffers live there).
     fn sram32(&self, addr: u32) -> u32 {
         let o = addr.wrapping_sub(SRAM_LOW) as usize;
-        if o + 4 <= self.sram.len() { u32::from_le_bytes(self.sram[o..o + 4].try_into().unwrap()) } else { 0 }
+        if o.checked_add(4).is_some_and(|end| end <= self.sram.len()) { u32::from_le_bytes(self.sram[o..o + 4].try_into().unwrap()) } else { 0 }
     }
 
     /// The 802.15.4 TX DMA: `buf[0]` is the PSDU length including the 2-byte FCS the hardware
@@ -152,7 +152,7 @@ impl SocBus {
         let psdu = match self.sram.get(o) {
             Some(&len) => {
                 let mac = (len & 0x7f).saturating_sub(2) as usize;
-                if o + 1 + mac <= self.sram.len() { self.sram[o + 1..o + 1 + mac].to_vec() } else { Vec::new() }
+                if o.checked_add(1 + mac).is_some_and(|end| end <= self.sram.len()) { self.sram[o + 1..o + 1 + mac].to_vec() } else { Vec::new() }
             }
             None => Vec::new(),
         };
@@ -164,7 +164,7 @@ impl SocBus {
     fn radio_rx_store(&mut self) {
         let Some((addr, buf)) = self.periph.radio.rx_write.take() else { return };
         let o = addr.wrapping_sub(SRAM_LOW) as usize;
-        if o + buf.len() <= self.sram.len() { self.sram[o..o + buf.len()].copy_from_slice(&buf); }
+        if o.checked_add(buf.len()).is_some_and(|end| end <= self.sram.len()) { self.sram[o..o + buf.len()].copy_from_slice(&buf); }
         else { eprintln!("[802.15.4] RX_DONE: DMA_RX_ADDR {:#010x} is not in SRAM, frame lost", addr); }
     }
 
@@ -193,7 +193,7 @@ impl SocBus {
             let d = read_desc(&|a| self.sram32(a), desc);
             let n = (d.length as usize).min(want - data.len());
             let o = d.buf.wrapping_sub(SRAM_LOW) as usize;
-            if o + n <= self.sram.len() { data.extend_from_slice(&self.sram[o..o + n]); } else { break; }
+            if o.checked_add(n).is_some_and(|end| end <= self.sram.len()) { data.extend_from_slice(&self.sram[o..o + n]); } else { break; }
             last = desc;
             if d.eof { break; }
             desc = d.next;
@@ -229,8 +229,9 @@ impl SocBus {
 
     /// Write straight into flash (image loaders, not the guest).
     pub fn write_flash(&mut self, offset: usize, data: &[u8]) -> Result<(), String> {
-        if offset + data.len() > self.flash.len() { return Err("flash image too large".into()); }
-        self.flash[offset..offset + data.len()].copy_from_slice(data);
+        let target = self.flash.get_mut(offset..).and_then(|tail| tail.get_mut(..data.len()))
+            .ok_or("flash image too large")?;
+        target.copy_from_slice(data);
         Ok(())
     }
 

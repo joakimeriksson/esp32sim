@@ -1,0 +1,144 @@
+{
+  "args": [
+    "--rom",
+    "/Users/alice/.espressif/tools/esp-rom-elfs/20241011/esp32s3_rev0_rom.elf",
+    "--board",
+    "waveshare-lcd4b",
+    "--boot",
+    "rom",
+    "--no-dump",
+    "--console",
+    "usb",
+    "--flash-mb",
+    "16",
+    "--psram-mb",
+    "8",
+    "--bootloader",
+    "/Users/alice/src/a/esp32sim/web/wasm/fw/public/panel-bootloader.bin",
+    "--ptable",
+    "/Users/alice/src/a/esp32sim/web/wasm/fw/public/panel-ptable.bin",
+    "--app",
+    "/Users/alice/src/a/esp32sim/web/wasm/fw/public/panel-demo.bin",
+    "--flash-at",
+    "0x610000=/Users/alice/src/a/esp32sim/web/wasm/fw/public/energydata.json",
+    "--script",
+    "/Users/alice/src/a/esp32sim/web/wasm/fw/public/panel-sid.txt",
+    "--max-seconds",
+    "7"
+  ],
+  "identities": {
+    "baseline": {
+      "path": "/Users/alice/src/a/esp32sim/work/native-panel-qualification-0919/base89-esp32sim",
+      "sha256": "4ae4c4f02268ade5958894a01546e6e882661dfddff141136a933e01f07e1877"
+    },
+    "candidate": {
+      "path": "/Users/alice/src/a/esp32sim/work/native-panel-qualification-0919/final-esp32sim",
+      "sha256": "a071bb85d33b2d30aa27e7338b8e247ccf4558097cd34fa2993b5beac7aeafed"
+    }
+  },
+  "inputs": {
+    "/Users/alice/.espressif/tools/esp-rom-elfs/20241011/esp32s3_rev0_rom.elf": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+    "/Users/alice/src/a/esp32sim/web/wasm/fw/public/panel-bootloader.bin": "f804e8ef245d68ee0932650062e8f4d6b14df22d61fb39ba50f5e33977127801",
+    "/Users/alice/src/a/esp32sim/web/wasm/fw/public/panel-ptable.bin": "fb462bc675bf6928afe8de87977f72c7dfce38491d32aa89a9204b6d4d5b1066",
+    "/Users/alice/src/a/esp32sim/web/wasm/fw/public/panel-demo.bin": "8094e4be95f8d92c7ce41fe1acbbecbcdb3b31725fc292a1eef63cfcc22cf5a0",
+    "/Users/alice/src/a/esp32sim/web/wasm/fw/public/energydata.json": "aa8d5326406a83aa254d953d16f18f644c0112d523ef2e2e66b3ab1add4ff0cb",
+    "/Users/alice/src/a/esp32sim/web/wasm/fw/public/panel-sid.txt": "bb6e0b1f1d5945265f0310f2a40b59b03602b257b412f52f649fc2c66823f420"
+  },
+  "rows": [
+    {
+      "pair": 1,
+      "arm": "baseline",
+      "wallSeconds": 4.243135833999999,
+      "coreInstructions": [
+        "260026792",
+        "136442769"
+      ],
+      "jitLine": "[emu] blocks: 21269 built (0 cache flushes) core0, 10172 (0) core1; jit: 31441 compiled, 25275 KB code",
+      "consoleSha256": "a77aaabb68350611617f518acdf4687b919906b7439ef327d816239c62b683d9",
+      "jitWork": "[emu] blocks: 21269 built (0 cache flushes) core0, 10172 (0) core1; jit: 31441 compiled"
+    },
+    {
+      "pair": 1,
+      "arm": "candidate",
+      "wallSeconds": 4.474724291,
+      "coreInstructions": [
+        "260026792",
+        "136442769"
+      ],
+      "jitLine": "[emu] blocks: 21269 built (0 cache flushes) core0, 10172 (0) core1; jit: 31441 compiled, 25602 KB code",
+      "consoleSha256": "a77aaabb68350611617f518acdf4687b919906b7439ef327d816239c62b683d9",
+      "jitWork": "[emu] blocks: 21269 built (0 cache flushes) core0, 10172 (0) core1; jit: 31441 compiled"
+    },
+    {
+      "pair": 2,
+      "arm": "candidate",
+      "wallSeconds": 3.911697333,
+      "coreInstructions": [
+        "260026792",
+        "136442769"
+      ],
+      "jitLine": "[emu] blocks: 21269 built (0 cache flushes) core0, 10172 (0) core1; jit: 31441 compiled, 25602 KB code",
+      "jitWork": "[emu] blocks: 21269 built (0 cache flushes) core0, 10172 (0) core1; jit: 31441 compiled",
+      "consoleSha256": "a77aaabb68350611617f518acdf4687b919906b7439ef327d816239c62b683d9"
+    },
+    {
+      "pair": 2,
+      "arm": "baseline",
+      "wallSeconds": 3.655726875,
+      "coreInstructions": [
+        "260026792",
+        "136442769"
+      ],
+      "jitLine": "[emu] blocks: 21269 built (0 cache flushes) core0, 10172 (0) core1; jit: 31441 compiled, 25275 KB code",
+      "jitWork": "[emu] blocks: 21269 built (0 cache flushes) core0, 10172 (0) core1; jit: 31441 compiled",
+      "consoleSha256": "a77aaabb68350611617f518acdf4687b919906b7439ef327d816239c62b683d9"
+    },
+    {
+      "pair": 3,
+      "arm": "baseline",
+      "wallSeconds": 3.679422667,
+      "coreInstructions": [
+        "260026792",
+        "136442769"
+      ],
+      "jitLine": "[emu] blocks: 21269 built (0 cache flushes) core0, 10172 (0) core1; jit: 31441 compiled, 25275 KB code",
+      "jitWork": "[emu] blocks: 21269 built (0 cache flushes) core0, 10172 (0) core1; jit: 31441 compiled",
+      "consoleSha256": "a77aaabb68350611617f518acdf4687b919906b7439ef327d816239c62b683d9"
+    },
+    {
+      "pair": 3,
+      "arm": "candidate",
+      "wallSeconds": 3.893246541999999,
+      "coreInstructions": [
+        "260026792",
+        "136442769"
+      ],
+      "jitLine": "[emu] blocks: 21269 built (0 cache flushes) core0, 10172 (0) core1; jit: 31441 compiled, 25602 KB code",
+      "jitWork": "[emu] blocks: 21269 built (0 cache flushes) core0, 10172 (0) core1; jit: 31441 compiled",
+      "consoleSha256": "a77aaabb68350611617f518acdf4687b919906b7439ef327d816239c62b683d9"
+    }
+  ],
+  "medianWallSeconds": {
+    "baseline": 3.679422667,
+    "candidate": 3.911697333
+  },
+  "candidateSlowerPercent": 6.312801953502789,
+  "sourceRevisions": {
+    "baseline": "5a1bba827c277160860f528768423950c3ecaa61",
+    "candidate": "da3b5752aa8e2eede1d30132248a3809843c2503",
+    "equivalentTree": "85715360"
+  },
+  "pairSlowerPercent": [
+    5.457955296747663,
+    7.001903226153905,
+    5.811343092429766
+  ],
+  "build": {
+    "rustc": "1.98.1 (48a229cea 2026-09-01)",
+    "host": "aarch64-apple-darwin",
+    "baselineCommand": "env -u RUSTFLAGS -u CARGO_ENCODED_RUSTFLAGS -u ESP32SIM_VQ_BUILD cargo build --release -p esp32sim --bin esp32sim",
+    "candidateCommand": "cargo test --release --workspace -- --include-ignored --skip external_",
+    "candidateProvenance": "resolve91 confirms binary built and exercised by goldens at da3b5752; no feature or RUSTFLAGS overrides introduced; hash verified after snapshot"
+  },
+  "scope": "Timing disabled, native JIT enabled; current PR89 versus final combined review, not historical original PR89/PR91 comparison. Team builds stopped; external desktop CPU activity remained."
+}

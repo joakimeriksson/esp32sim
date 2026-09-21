@@ -1,0 +1,15 @@
+{
+ "wasm": "wasm/blockq-g128.wasm",
+ "secs": 30,
+ "insns": "11487511227",
+ "consoleSha256": "530186f9d377e96dcd915233622f386ec0f00471075fdfb4583c913123fada29",
+ "frames": 3083,
+ "panics": 0,
+ "jitFailures": 0,
+ "wallSeconds": 82.459,
+ "refInsns": "10073833775",
+ "refSha": "b9d9966e",
+ "refFrames": 3094,
+ "EXACT": false
+}
+EXACT FAIL: instruction total or console hash differs from base

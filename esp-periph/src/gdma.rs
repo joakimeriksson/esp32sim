@@ -87,6 +87,8 @@ impl Gdma {
     }
     /// Find the out channel bound to peripheral `peri` (GDMA_TRIG_PERIPH_*).
     pub fn out_channel_for(&self, peri: u32) -> Option<usize> { (0..GDMA_CHANNELS).find(|&i| self.out[i].running && self.out[i].peri_sel == peri) }
+    /// An armed receive channel is passive. Each producer added here must also
+    /// provide an active-cadence term or a deadline in the owning SoC scheduler.
     pub fn in_channel_for(&self, peri: u32) -> Option<usize> { (0..GDMA_CHANNELS).find(|&i| self.inp[i].running && self.inp[i].peri_sel == peri) }
 }
 

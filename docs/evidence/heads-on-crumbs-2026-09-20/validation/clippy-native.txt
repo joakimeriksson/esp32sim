@@ -1,0 +1,6 @@
+    Checking emu-core v0.2.0 (/private/tmp/esp32sim-heads-integration-0920/emu-core)
+    Checking xtensa-lx7 v0.2.0 (/private/tmp/esp32sim-heads-integration-0920/xtensa-lx7)
+    Checking esp-periph v0.2.0 (/private/tmp/esp32sim-heads-integration-0920/esp-periph)
+    Checking esp-soc v0.2.0 (/private/tmp/esp32sim-heads-integration-0920/esp-soc)
+    Checking esp32s3 v0.2.0 (/private/tmp/esp32sim-heads-integration-0920/esp32s3)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.16s

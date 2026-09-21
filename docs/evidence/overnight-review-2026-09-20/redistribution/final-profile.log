@@ -1,0 +1,9 @@
+   Compiling esp-soc v0.2.0 (/workspace/redistribution/validate-wasm/esp-soc)
+   Compiling xtensa-lx7 v0.2.0 (/workspace/redistribution/validate-wasm/xtensa-lx7)
+   Compiling esp32sim-wasm v0.2.0 (/workspace/redistribution/validate-wasm/wasm)
+   Compiling esp32c3 v0.2.0 (/workspace/redistribution/validate-wasm/esp32c3)
+   Compiling esp32c6 v0.2.0 (/workspace/redistribution/validate-wasm/esp32c6)
+   Compiling esp32s3 v0.2.0 (/workspace/redistribution/validate-wasm/esp32s3)
+   Compiling esp32sim-wasm-jit v0.2.0 (/workspace/redistribution/validate-wasm/wasm-jit)
+    Finished `release` profile [optimized + debuginfo] target(s) in 52.36s
+PASS: 79628 WASM differential cases (ALU, helper continuation, memory, faults, loops, windows, budget/resume, invalidation, timer, script stop, peer-state MMIO); 82222 compiled modules released

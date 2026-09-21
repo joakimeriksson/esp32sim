@@ -1,0 +1,32 @@
+{
+  "scope": "Tracked evidence at 5167baad; original hashes identify captures, sanitized hashes identify the distributed files. Benchmark outcomes and artifact hashes are not rewritten.",
+  "redactionReasons": [
+    "Normalize host home-directory labels to alice",
+    "Remove profiler process and login identifiers",
+    "Require caller-supplied SSH target; remove personal host-key alias",
+    "Retain sampled CPU/load values; remove process and session identities"
+  ],
+  "parts": [
+    {
+      "manifest": "browser-snapshot-performance-2026-09-05.json",
+      "files": 1
+    },
+    {
+      "manifest": "native-recovery-2026-09-21.json",
+      "files": 120
+    },
+    {
+      "manifest": "overnight-review-2026-09-20.json",
+      "files": 75
+    },
+    {
+      "manifest": "perf-x2-2026-09-20.json",
+      "files": 3
+    },
+    {
+      "manifest": "region-rejection-2026-09-19.json",
+      "files": 6
+    }
+  ],
+  "totalFiles": 205
+}

@@ -1,0 +1,119 @@
+diff --git a/xtensa-lx7/src/block.rs b/xtensa-lx7/src/block.rs
+index efa509fb..70f75dd8 100644
+--- a/xtensa-lx7/src/block.rs
++++ b/xtensa-lx7/src/block.rs
+@@ -61,6 +61,8 @@ pub struct BlockCache {
+     /// A block cut short by the caller's budget or a timer deadline resumes here rather than
+     /// spawning a new block at the cut point: (entry index, arena index, pc at that index).
+     resume: (u32, u32, u32),
++    /// EX153: decoded entry of the block the WASM wrapper chained into last; a CUT resumes in it.
++    pub(crate) chain_ei: u32,
+     pub builds: u64,
+     pub flushes: u64,
+     /// native code for blocks, when the host supports it and `jit_enabled`
+@@ -86,7 +88,7 @@ impl BlockCache {
+         BlockCache {
+                      #[cfg(all(target_arch = "wasm32", feature = "wasm-jit-profile"))]
+                      profile: crate::jit::profile::Profile::default(),
+-                     entries: vec![Entry::EMPTY; ENTRIES], arena: Vec::with_capacity(ARENA_MAX + MAX_LEN), extras: Vec::new(), resume: (0, 0, 1), builds: 0, flushes: 0,
++                     entries: vec![Entry::EMPTY; ENTRIES], arena: Vec::with_capacity(ARENA_MAX + MAX_LEN), extras: Vec::new(), resume: (0, 0, 1), chain_ei: u32::MAX, builds: 0, flushes: 0,
+                      code, jit_enabled: crate::jit::AVAILABLE, observed: false, compiled: 0, jit_instructions: 0 }
+     }
+     pub fn flush(&mut self) {
+@@ -103,6 +105,15 @@ impl BlockCache {
+         #[allow(unreachable_code)]
+         None
+     }
++    /// EX153: a valid decoded entry with compiled code at `pc` whose first instruction needs no
++    /// exact block-boundary state.
++    #[inline(always)]
++    pub(crate) fn chain_target(&self, pc: u32, pv: &[u32]) -> Option<(u32, u32)> {
++        let ei = Self::index(pc);
++        let e = &self.entries[ei];
++        (e.pc == pc && e.code != crate::jit::NONE && Self::valid(e, pv) && !must_start_block(&self.arena[e.start as usize].insn))
++            .then_some((ei as u32, e.code))
++    }
+     pub fn jit_active(&self) -> bool { self.jit_enabled && self.code.is_some() }
+     #[inline(always)]
+     fn index(pc: u32) -> usize { ((pc >> 1) ^ (pc >> 16)) as usize & (ENTRIES - 1) }
+@@ -346,6 +357,10 @@ fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k:
+                 {
+                     // The WASM wrapper accounts for repeated prefixes when returning
+                     // the next decoded index; no PC scan is needed here.
++                    let (ei, end) = if cpu.blocks.chain_ei != u32::MAX {
++                        let e = &cpu.blocks.entries[cpu.blocks.chain_ei as usize];
++                        (cpu.blocks.chain_ei, e.start + e.n as u32)
++                    } else { (ei, end) };
+                     let index = cpu.blocks.entries[ei as usize].start + (r >> 19);
+                     if index < end { cpu.blocks.resume = (ei, index, cpu.pc); }
+                 }
+diff --git a/xtensa-lx7/src/jit/wasm.rs b/xtensa-lx7/src/jit/wasm.rs
+index dda43a6e..0fcba412 100644
+--- a/xtensa-lx7/src/jit/wasm.rs
++++ b/xtensa-lx7/src/jit/wasm.rs
+@@ -82,9 +82,9 @@ pub struct RegionStats {
+ #[cfg(feature = "wasm-jit-profile")]
+ impl RegionStats {
+     pub fn report(&self) -> String {
+-        format!("[ex153] run_calls={} budget64_calls={} whole_calls={} whole_retired={} tailcut_calls={} tailcut_retired={} resumed_calls={} resumed_retired={} resumed_cut_again={} zero_retired_calls={} budget_sum={}\n[wasm-region] formed={} failed={} covered={} dropped={} chunks={} instructions={} bytes={} calls={} rejected={} retired={} exits[end,left,trap,cut,pre]={:?} left_kinds[call,callx,retw,ret,jx,sr,memory,edge,budget,dirty,other]={:?}",
++        format!("[ex153] run_calls={} budget64_calls={} whole_calls={} whole_retired={} tailcut_calls={} tailcut_retired={} resumed_calls={} resumed_retired={} resumed_cut_again={} zero_retired_calls={} budget_sum={} chained={}\n[wasm-region] formed={} failed={} covered={} dropped={} chunks={} instructions={} bytes={} calls={} rejected={} retired={} exits[end,left,trap,cut,pre]={:?} left_kinds[call,callx,retw,ret,jx,sr,memory,edge,budget,dirty,other]={:?}",
+             self.ex153[0].get(), self.ex153[1].get(), self.ex153[2].get(), self.ex153[3].get(), self.ex153[4].get(), self.ex153[5].get(),
+-            self.ex153[6].get(), self.ex153[7].get(), self.ex153[8].get(), self.ex153[9].get(), self.ex153[10].get(),
++            self.ex153[6].get(), self.ex153[7].get(), self.ex153[8].get(), self.ex153[9].get(), self.ex153[10].get(), self.ex153[11].get(),
+             self.formed.get(), self.failed.get(), self.covered.get(), self.dropped.get(), self.chunks.get(),
+             self.instructions.get(), self.bytes.get(), self.calls.get(), self.rejected.get(), self.retired.get(),
+             self.exits[..5].iter().map(|c| c.get()).collect::<Vec<_>>(),
+@@ -92,6 +92,10 @@ impl RegionStats {
+     }
+ }
+ const HOT: u32 = 32;
++/// EX153: chain compiled calls inside the wrapper.
++const CHAIN: bool = true;
++/// EX153: an interpreter helper ran during this wrapper call; the dispatcher must look again.
++static HELPED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+ /// EX138: emit control-flow prices into code generated from now on.
+ pub static PRICED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+ /// Emit the inline data-cache probe into code generated from now on (a `cache-inline` build that
+@@ -392,6 +396,7 @@ extern "C" fn h_exec<B: Bus>(
+     // SAFETY: The compiled caller passes the exclusive live CPU/bus and an instruction
+     // owned by its live CodeCache. No Rust execution overlaps generated access.
+     let (cpu, bus, instruction) = unsafe { (&mut *cpu, &mut *bus, &*instruction) };
++    HELPED.store(true, std::sync::atomic::Ordering::Relaxed);
+     cpu.pc = pc;
+     if crate::exec::defer_instruction(cpu, bus, &instruction.insn) {
+         cpu.jit_trap = None;
+@@ -461,7 +466,33 @@ pub unsafe fn run<B: Bus>(
+     cpu.fetch_n = 0;
+     let budget = if cpu.icache_fill != 0 { budget.min(64) } else { budget };
+     // SAFETY: preserve the caller's live code, helper and memory guarantees.
+-    let result = unsafe { run_inner(cc, code, cpu, bus, h, budget, entry, fm) };
++    HELPED.store(false, std::sync::atomic::Ordering::Relaxed);
++    cpu.blocks.chain_ei = NONE;
++    let mut result = unsafe { run_inner(cc, code, cpu, bus, h, budget, entry, fm) };
++    // EX153: keep going inside this wrapper while nothing the dispatcher would look at can have
++    // changed: a plain END/LEFT exit, no interpreter helper ran, credit remains, and the next PC
++    // has a valid decoded entry with ready code that may start without a boundary check.
++    if CHAIN {
++        let mut total = 0u32;
++        loop {
++            let exit = (result >> 16) & 7;
++            let sofar = total + (result & 0xffff);
++            if (exit != CODE_END && exit != CODE_LEFT) || sofar >= budget || cpu.blocks.observed
++                || HELPED.load(std::sync::atomic::Ordering::Relaxed) { break; }
++            let pc = cpu.pc;
++            if cpu.boundary_bloom & emu_core::core::pc_bit(pc) != 0 { break; }
++            let Some((ei, next)) = cpu.blocks.chain_target(pc, bus.page_versions()) else { break };
++            let slot = cc.blocks[next as usize].slot.get();
++            if slot == NONE || slot == 0 { break; }
++            total = sofar;
++            cpu.blocks.chain_ei = ei;
++            #[cfg(feature = "wasm-jit-profile")]
++            { let st = &cc.region_stats.ex153; st[11].set(st[11].get() + 1); }
++            // SAFETY: the entry is valid for the current code pages and its code is ready in this cache.
++            result = unsafe { run_inner(cc, next, cpu, bus, h, budget - total, 0, fm) };
++        }
++        result += total;
++    }
+     #[cfg(feature = "wasm-jit-profile")]
+     {
+         let st = &cc.region_stats.ex153;

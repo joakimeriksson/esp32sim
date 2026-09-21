@@ -1,0 +1,19 @@
+   Compiling xtensa-lx7 v0.2.0 (/Users/alice/tmp/esp32-review-integration/xtensa-lx7)
+   Compiling esp-soc v0.2.0 (/Users/alice/tmp/esp32-review-integration/esp-soc)
+   Compiling esp32sim-wasm v0.2.0 (/Users/alice/tmp/esp32-review-integration/wasm)
+   Compiling esp32c6 v0.2.0 (/Users/alice/tmp/esp32-review-integration/esp32c6)
+   Compiling esp32c3 v0.2.0 (/Users/alice/tmp/esp32-review-integration/esp32c3)
+   Compiling esp32s3 v0.2.0 (/Users/alice/tmp/esp32-review-integration/esp32s3)
+   Compiling esp32sim-wasm-jit v0.2.0 (/Users/alice/tmp/esp32-review-integration/wasm-jit)
+    Finished `release` profile [optimized + debuginfo] target(s) in 24.34s
+-rwxr-xr-x@ 1 user  staff  12832899 Sep 20 23:57 web/wasm/esp32sim.wasm
+WASM timing ABI: prerequisite, range, inline mode and lifecycle checks passed
+ok   wasm JIT handoff: shared-memory block committed at a scheduler boundary
+ok   hello: board none, 4.3 M insns in 0.3 s wall (14.6 Minsn/s), 129 console lines, 0 binary frames
+ok   c3-hello: board none, 480.0 M insns in 1.1 s wall (435.2 Minsn/s), 125 console lines, 0 binary frames
+ok   c6-hello: board none, 480.0 M insns in 1.3 s wall (356.6 Minsn/s), 121 console lines, 0 binary frames
+ok   c6-energy-scan: board waveshare-c6-lcd147, 480.0 M insns in 6.6 s wall (72.4 Minsn/s), 149 console lines, 141 binary frames
+ok   c6-contiki: board waveshare-c6-lcd147, 1920.0 M insns in 6.8 s wall (284.0 Minsn/s), 181 console lines, 17 binary frames
+ok   c6-contiki-net: 2 nodes, n0 tx 5/rx 5, n1 tx 5/rx 5, 30 s simulated in 9.0 s wall (3x real time)
+ok   c6-rpl-net: 2 nodes, n0 tx 27/rx 27, n1 tx 27/rx 27, 90 s simulated in 25.6 s wall (4x real time)
+ok   panel: board waveshare-lcd4b, 142.4 M insns in 3.3 s wall (43.6 Minsn/s), 193 console lines, 252 binary frames

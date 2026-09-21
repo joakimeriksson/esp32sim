@@ -1,0 +1,19 @@
+new jobs: ['dispatch2-stack-t1t2t3t4', 'dispatch2-stack-t1', 'dispatch2-stack-t2', 'dispatch2-stack-t3', 'dispatch2-stack-t4', 'dispatch2-t1', 'dispatch2-t2', 'dispatch2-t3', 'dispatch2-t4', 'heads-s1', 'heads-s2', 'heads-s3', 'spec2-ex150-k4', 'spec2-ex150-k16', 'spec2-ex150-k64', 'spec2-ex150-tax1']
+wasm/base.wasm: OK
+wasm/d11540983438.wasm: OK
+wasm/eec028438859.wasm: OK
+wasm/c4ab8143551c.wasm: OK
+wasm/1912470f05c9.wasm: OK
+wasm/56b55dbb85b2.wasm: OK
+wasm/bfaad70f6b40.wasm: OK
+wasm/a0fc1d49825a.wasm: OK
+wasm/69c2c22256af.wasm: OK
+wasm/7cf2fc5c2b1b.wasm: OK
+wasm/7a7e1c98ed21.wasm: OK
+wasm/37b9d5aa44f0.wasm: OK
+wasm/af124c493c9a.wasm: OK
+wasm/5e7ba389ea2f.wasm: OK
+wasm/21ec74c7339f.wasm: OK
+wasm/b9835afcac59.wasm: OK
+wasm/2c1fae3c544f.wasm: OK
+41

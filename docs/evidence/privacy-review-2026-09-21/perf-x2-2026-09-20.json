@@ -1,0 +1,28 @@
+{
+  "files": [
+    {
+      "path": "docs/evidence/perf-x2-2026-09-20/harness/ssh-m3.sh",
+      "redactions": [
+        2
+      ],
+      "originalSha256": "89d13763083c7b0d7c7978d7906ef7f0af0d9e1e5601e517efab31107f4ad5c7",
+      "sanitizedSha256": "fa946d84c00f6b75a66e625f08638605b9ae128063f8b7b1ee4206ebea3d99de"
+    },
+    {
+      "path": "docs/evidence/perf-x2-2026-09-20/harness/status.sh",
+      "redactions": [
+        2
+      ],
+      "originalSha256": "d6c6a3b17f83f584ecf445ff2ab5cb378896d086237dc362feebca43d154630e",
+      "sanitizedSha256": "c3b7c923a75fa617a1880aa10432ed811e6d530eb65037940d8fe32d4eea27fb"
+    },
+    {
+      "path": "docs/evidence/perf-x2-2026-09-20/harness/sync-jobs.sh",
+      "redactions": [
+        2
+      ],
+      "originalSha256": "60dbfac651ef38682c418b78785d4b3ba1840bbadf1909d573fe6a3f3b0c81fb",
+      "sanitizedSha256": "48afeffb315109298d84cb68b8078fe1ba581ab1f82b5620ee8df4d7d67700c8"
+    }
+  ]
+}

@@ -6,7 +6,7 @@ use crate::regram::RegRam;
 pub struct I2s {
     pub rx_conf: u32, pub tx_conf: u32, pub int_raw: u32, pub int_ena: u32,
     ram: RegRam,
-    /// TX_CONF1 (0x2c: slot width, BCK divider), TX_CLKM_CONF (0x34: source, integer MCLK divider),
+    /// TX_CONF1 (0x2c: data/slot/frame widths, BCK divider), TX_CLKM_CONF (0x34: source, integer MCLK divider),
     /// TX_CLKM_DIV_CONF (0x3c: fractional MCLK divider x/y/z/yn1), TX_TDM_CTRL (0x54: slot count)
     pub tx_conf1: u32, pub tx_clkm_conf: u32, pub tx_clkm_div_conf: u32, pub tx_tdm_ctrl: u32,
     /// frame rate on the wire, derived from the clock registers exactly as the silicon divides
@@ -21,13 +21,16 @@ pub struct I2s {
     cpu_hz: u64,
 }
 impl I2s {
-    pub fn new(cpu_hz: u64) -> Self { I2s { cpu_hz, rx_conf: 0, tx_conf: 0, int_raw: 0, int_ena: 0, ram: RegRam::new(), tx_conf1: 0, tx_clkm_conf: 0, tx_clkm_div_conf: 0, tx_tdm_ctrl: 0, sample_rate: 44100, bytes_per_frame: 4, acc: 0, pcm: Vec::new(), frames_out: 0, tx_started_log: false } }
+    pub fn new(cpu_hz: u64) -> Self { I2s { cpu_hz, rx_conf: 0, tx_conf: 0, int_raw: 0, int_ena: 0, ram: RegRam::new(), tx_conf1: 0, tx_clkm_conf: 0, tx_clkm_div_conf: 0, tx_tdm_ctrl: 0xffff, sample_rate: 44100, bytes_per_frame: 1, acc: 0, pcm: Vec::new(), frames_out: 0, tx_started_log: false } }
     pub fn tx_running(&self) -> bool { self.tx_conf & (1 << 2) != 0 }
+    /// Packed DMA sample width, independent of padding in the wire's time slots.
+    pub fn sample_bytes(&self) -> usize { (((self.tx_conf1 >> 13) & 0x1f) + 1).div_ceil(8) as usize }
     pub fn read(&self, off: u32) -> u32 {
         match off {
             0xc => self.int_raw, 0x10 => self.int_raw & self.int_ena, 0x14 => self.int_ena,
             0x20 => self.rx_conf & !(1 << 8) & !3, 0x24 => self.tx_conf & !(1 << 8) & !3,   // update/reset bits self-clear
             0x6c => if self.tx_running() { 0 } else { 1 },                                   // STATE: tx_idle
+            0x54 => self.tx_tdm_ctrl,
             0x80 => 0x2003070,
             _ => self.ram.read(off),
         }
@@ -49,27 +52,37 @@ impl I2s {
     ///                                  `i2s_ll_tx_set_mclk` encodes them (b = z, a = (x+1)·z + y;
     ///                                  with yn1 the fraction is 1 − b/a)
     ///   BCK  = MCLK / (bck_div_num + 1)
-    ///   fs   = BCK / (slot_bits · slots)
+    ///   fs   = BCK / (2 · (half_sample_bits + 1))
     /// Returns None while the clock is off or unprogrammed, so the default stays in force.
     pub fn derive_rate(&self) -> Option<u32> {
         let c = self.tx_clkm_conf;
         if c & (1 << 26) == 0 { return None; }                                   // TX_CLK_ACTIVE
-        let src: u64 = match (c >> 27) & 3 { 0 => 40_000_000, 3 => return None, _ => 160_000_000 };   // XTAL / PLL_F160M / external
+        let src: u64 = match (c >> 27) & 3 { 0 => 40_000_000, 1 => 240_000_000, 2 => 160_000_000, _ => return None };   // XTAL / PLL240M / PLL160M / external
         let n = (c & 0xff) as u64;
         if n == 0 { return None; }
         let d = self.tx_clkm_div_conf;
         let (z, y, x, yn1) = ((d & 0x1ff) as u64, ((d >> 9) & 0x1ff) as u64, ((d >> 18) & 0x1ff) as u64, d & (1 << 27) != 0);
         let (a, b) = if z == 0 { (1, 0) } else { let a = (x + 1) * z + y; (a, if yn1 { a - z } else { z }) };
         let bck = ((self.tx_conf1 >> 7) & 0x3f) as u64 + 1;
-        let slot_bits = (self.tx_conf1 & 0x7f) as u64 + 1;                       // TX_TDM_WS_WIDTH = slot width − 1
-        let slots = ((self.tx_tdm_ctrl >> 16) & 0xf) as u64 + 1;                 // TX_TDM_TOT_CHAN_NUM = slots − 1
-        let denom = (n * a + b) * bck * slot_bits * slots;
+        // WS_WIDTH controls the WS pulse, not the frame duration. IDF programs
+        // HALF_SAMPLE_BITS = slot_bits * total_slots / 2 - 1 for standard/TDM TX.
+        let frame_bits = 2 * (((self.tx_conf1 >> 18) & 0x3f) as u64 + 1);
+        let denom = (n * a + b) * bck * frame_bits;
         if denom == 0 { return None; }
         let fs = (src * a + denom / 2) / denom;
         if !(1_000..=400_000).contains(&fs) { return None; }
         Some(fs as u32)
     }
-    fn update_rate(&mut self) { if let Some(fs) = self.derive_rate() { self.sample_rate = fs; } }
+    fn update_rate(&mut self) {
+        if let Some(fs) = self.derive_rate() { self.sample_rate = fs; }
+        let slots = ((self.tx_tdm_ctrl >> 16) & 0xf) + 1;
+        let active = (self.tx_tdm_ctrl & ((1 << slots) - 1)).count_ones();
+        // SKIP_MSK consumes DMA data for inactive slots too. Otherwise only
+        // enabled slots have data; mono reuses one sample across the frame.
+        let dma_slots = if self.tx_conf & (1 << 5) != 0 { u32::from(active != 0) }
+            else if self.tx_tdm_ctrl & (1 << 20) != 0 { slots } else { active };
+        self.bytes_per_frame = self.sample_bytes() as u32 * dma_slots;
+    }
     /// Number of frames due after `cycles` CPU cycles at the configured sample rate.
     pub fn frames_due(&mut self, cycles: u64) -> u32 {
         if !self.tx_running() { self.acc = 0; return 0; }

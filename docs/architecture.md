@@ -1,10 +1,11 @@
 # Architecture
 
-esp32sim emulates two ESP32 SoCs across both of Espressif's CPU architectures: the **ESP32-S3**
-(two Xtensa LX7 cores) and the **ESP32-C3** (one RISC-V RV32IMC core, see
-[esp32c3.md](esp32c3.md)). They share the SoC peripheral models wherever the IP is identical, and
+esp32sim emulates three ESP32 SoCs across both of Espressif's CPU architectures: the **ESP32-S3**
+(two Xtensa LX7 cores), **ESP32-C3** (one RISC-V RV32IMC core, see
+[esp32c3.md](esp32c3.md)) and **ESP32-C6** (one RISC-V RV32IMAC core, see
+[esp32c6.md](esp32c6.md)). They share the SoC peripheral models wherever the IP is identical and
 differ in their CPU crate, memory map and interrupt controller. This document describes the S3,
-which is the more complete of the two; the C3 follows the same shape.
+which has the most complete model; the C3 and C6 follow the same shape.
 
 esp32sim is an instruction-level emulator of the ESP32-S3: it executes the real mask ROM, the
 real second-stage bootloader and an unmodified application image on two emulated Xtensa LX7
@@ -14,8 +15,8 @@ licensed, and contains no third-party emulator code (QEMU was consulted for inst
 *semantics* only).
 
 ```
-cli/          esp32sim binary, both chips: argument parsing, image loading, run loop, reports
-              (`--chip s3|c3`; the setup that is chip-specific is one function per chip)
+cli/          esp32sim binary, all three chips: argument parsing, image loading, run loop, reports
+              (`--chip s3|c3|c6`; the setup that is chip-specific is one function per chip)
 esp-soc/      Machine<S: Soc>, written once for every chip: the scheduler (64-instruction quanta,
               idle skipping, per-core reset state), lazy device time, console capture, action
               scripts, function stubs/probes, tracing and watchpoints, the web UI protocol,
@@ -34,10 +35,7 @@ esp32s3/      the SoC and boards
   wifi.rs     virtual 802.11 access point: beacons, probe/auth/assoc, WPA2 four-way handshake
   net.rs      the emulated subnet 10.0.2.0/24: ARP, DHCP, ICMP, DNS, SNTP
   nat.rs      user-mode NAT: guest TCP/UDP relayed over ordinary host sockets
-  crypto.rs   SHA-1/2, HMAC, PBKDF2, the 802.11 PRF, AES, AES key wrap, bignum arithmetic
   board/      one file per board: Atech14, WaveshareCam, WaveshareLcd4b, WaveshareAmoled18V2 (BoardModel from esp-soc)
-  web.rs      dependency-free HTTP + WebSocket server
-  elf.rs / image.rs / picture.rs   loaders (ELF symbols/segments, ESP app images, BMP/PPM)
 esp-periph/   the peripheral IP Espressif chips share, one file each (UART, USB-Serial/JTAG,
               systimer, TIMG, GPIO, RTC_CNTL, efuse, SYSTEM, SPI_MEM, GDMA, SHA/AES/RSA, I2S, RMT,
               I2C), the `Device` trait they implement, and `device_set!`: the one table per chip
@@ -62,9 +60,10 @@ wasm-jit/     receipt-priced wasm emitter; first SRAM opcode slice, shared-memor
 ## CPU core (`xtensa-lx7`)
 
 - **Decoder**: `decode(pc, bytes) -> Insn` with fields `op, r, s, t, imm, imm2, len, raw`.
-  Verified against `xtensa-esp32s3-elf-objdump` over the Pocket Synth app, the mask ROM, the
-  IDF 5.5 bootloader, `hello_world` and the autopling image (977 544 instructions, 0
-  mismatches, `xtensa-lx7/tests/objdump_diff.rs`).
+  Earlier full-listing runs reported 977,544 instructions with zero mismatches over the
+  Pocket Synth app, mask ROM, IDF 5.5 bootloader, `hello_world` and autopling image.
+  CI checks sampled corpora; the optional full-listing test requires external inputs.
+  PIE operand comparisons are excluded by [the decoder test](../xtensa-lx7/tests/objdump_diff.rs).
 - **PIE**: all 217 `ee.*` encodings come from the TRM chapter-1 "Instruction Word" layouts
   (`tools/gen_pie_table.py` + `tools/pie_trm.json` → `pie_table.rs`), cross-checked against
   the ESP-IDF 5.5 assembler. Execution follows the TRM "Operation" pseudo-code; PIE is
@@ -120,8 +119,8 @@ wasm-jit/     receipt-priced wasm emitter; first SRAM opcode slice, shared-memor
   the MAC's TSF timestamp, the FE's IQ-done bit) are handled in `DeviceSet::pre_access`.
 - **Interrupts**: every source has a level computed by its model (`Peripherals::source_status`);
   the per-core interrupt matrix maps sources to the 32 Xtensa interrupt lines. Lines are
-  recomputed when a register write flags `irq_dirty` or every 32 cycles, then written into
-  `cpu.interrupt` so the next `step()` sees them.
+  recomputed after delivered device ticks or a change flags `irq_dirty`, then presented to
+  the core before execution continues. The scheduler does not poll them every 32 cycles.
 - **DMA**: GDMA out-channels feed I2S0/I2S1 (audio → `pcm` samples at the configured rate),
   in-channels are fed by the LCD_CAM camera engine (one frame per sensor period). Descriptor
   chains are walked in guest memory exactly as the driver builds them.
@@ -142,8 +141,10 @@ change), `--coverage[-file]` (block starts per function), `--irq-latency` (raise
 line), `--vcd` (GPIO edges and interrupt lines as a waveform). These two use ordinary `TRAP`
 callbacks and retain block execution. `TRAP` receives the run-entry PC and post-trap CPU state;
 `TRAP_PC` requests exact instruction attribution, at a throughput cost. Only `INSN` observers
-force the single-step hooks, and only those that say `NO_IDLE_SKIP` change emulated timing — `--profile` does,
-`--break` does not, exactly as before. A `CostModel` (`Machine::set_cost_model`) switches the
+force the single-step hooks, and only those that say `NO_IDLE_SKIP` change emulated timing.
+`--profile` requests it. Breakpoints instead inspect sleeping PCs at scheduling boundaries
+without disabling idle skipping (`IDLE_PC`).
+A `CostModel` (`Machine::set_cost_model`) switches the
 machine to a per-event path that records the conceptual fetch, CPU bus accesses, control event,
 trap timing and next pc. The model may refuse any event it cannot price.
 
@@ -161,6 +162,27 @@ With `--web` the machine is paced to wall time (sleeping when ahead, resynchroni
 than bursting if it falls > 0.5 s behind). Work that costs host syscalls — reading the NAT's
 sockets — runs on its own emulated-time cadence rather than every round, because at 240 MHz a
 per-round syscall costs more than the instructions it interleaves with.
+
+**Virtual quanta.** When exactly one core is busy and every other core is idle, the 64-instruction
+cut serves nobody: no other core runs between the quanta, and nothing else can change until the
+next device deadline. `run_unmodeled` then gives the busy core one budget of up to `vq_max` quanta
+(`Machine::vq_max`, 1024 in the browser build, 1 natively) and afterwards closes the rounds it
+spanned exactly as the loop would have closed them one by one. The run length is bounded so that
+no interior boundary has work: no device flush (`SocBus::next_deadline`), script event, page push,
+timer wake-up of an idle core, cycle or instruction limit. A device register is reached only at
+exact device time: while such a run is active the bus is armed (`SocBus::set_defer`), the executor
+asks `Bus::defer_access` before a word access (a 16-register scan covers PIE and MAC16 operands),
+and a hit stops in front of the instruction; the machine closes the completed rounds and finishes
+the current quantum the ordinary way, where the access executes. A run that a register cuts short
+inside two quanta doubles a skip counter, so firmware that polls registers every few instructions
+is left alone. Results are bit-identical with `vq_max = 1`: the TinyDraw and pocket-tank batteries
+keep their pinned instruction totals and console hashes, and the Atech, SID and panel goldens keep
+their WAV hashes (`ESP32SIM_VQ_NATIVE=1 ESP32SIM_VQ=1000 --no-jit`; the AArch64 JIT's helpers have
+no deferral guard, which is why the native default is off). `SocBus::vq_violations` counts any
+register access that escaped deferral; it must stay zero for the claim to hold. The S3 bus also
+lengthens its device-tick backstop from 256 to 32,768 cycles while no cadence-driven device is
+active (I2S, LCD_CAM, GDMA, WiFi, AES/SHA DMA, SPI2, RMT, GPIO changes, the RTC watchdog, USB SOF
+interrupts), which is what lets a run reach the next timer deadline.
 
 With a cost model, each core has a next-ready timestamp in the one shared device timeline. The
 machine runs the ready core with the lowest timestamp, breaking ties by core index, and advances

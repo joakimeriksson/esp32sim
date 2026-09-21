@@ -162,7 +162,7 @@ fn decode_compressed(pc: u32, c: u32) -> Insn {
         // ---- quadrant 0
         (0, 0) => {
             let imm = ((((c >> 11) & 3) << 4) | (((c >> 7) & 0xf) << 6) | (((c >> 6) & 1) << 2) | (((c >> 5) & 1) << 3)) as i32;
-            if imm == 0 { return ILL2; }                       // canonical illegal / reserved
+            if imm == 0 { return Insn { raw: c, ..ILL2 }; }                       // canonical illegal / reserved
             mk(Op::Addi, rdp, 2, 0, imm, Comp::Addi4spn)
         }
         (0, 2) => mk(Op::Lw, rdp, rs1p, 0, lw_off, Comp::Lw),
@@ -175,42 +175,40 @@ fn decode_compressed(pc: u32, c: u32) -> Insn {
         (1, 3) if rd == 2 => {
             let imm = sext((((c >> 12) & 1) << 9) | (((c >> 6) & 1) << 4) | (((c >> 5) & 1) << 6)
                            | (((c >> 3) & 3) << 7) | (((c >> 2) & 1) << 5), 10);
-            if imm == 0 { return ILL2; }
+            if imm == 0 { return Insn { raw: c, ..ILL2 }; }
             mk(Op::Addi, 2, 2, 0, imm, Comp::Addi16sp)
         }
         (1, 3) if rd != 0 => {
             let imm = sext((((c >> 12) & 1) << 17) | (((c >> 2) & 0x1f) << 12), 18);
-            if imm == 0 { return ILL2; }
+            if imm == 0 { return Insn { raw: c, ..ILL2 }; }
             mk(Op::Lui, rd, 0, 0, imm, Comp::Lui)
         }
         (1, 4) => {
             let shamt = ((((c >> 12) & 1) << 5) | ((c >> 2) & 0x1f)) as i32;
             match (c >> 10) & 3 {
-                0 => mk(Op::Srli, rs1p, rs1p, 0, shamt, Comp::Srli),
-                1 => mk(Op::Srai, rs1p, rs1p, 0, shamt, Comp::Srai),
+                0 if shamt < 32 => mk(Op::Srli, rs1p, rs1p, 0, shamt, Comp::Srli),
+                1 if shamt < 32 => mk(Op::Srai, rs1p, rs1p, 0, shamt, Comp::Srai),
                 2 => mk(Op::Andi, rs1p, rs1p, 0, imm6, Comp::Andi),
                 3 if (c >> 12) & 1 == 0 => {
                     let op = match (c >> 5) & 3 { 0 => Op::Sub, 1 => Op::Xor, 2 => Op::Or, _ => Op::And };
                     let comp = match (c >> 5) & 3 { 0 => Comp::Sub, 1 => Comp::Xor, 2 => Comp::Or, _ => Comp::And };
                     mk(op, rs1p, rs1p, rdp, 0, comp)
                 }
-                _ => ILL2,                                     // C.SUBW/C.ADDW are RV64-only
+                _ => Insn { raw: c, ..ILL2 }, // RV64-only arithmetic or unsupported custom shifts.
             }
         }
         (1, 5) => mk(Op::Jal, 0, 0, 0, pc.wrapping_add(cj_off as u32) as i32, Comp::J),
         (1, 6) => mk(Op::Beq, 0, rs1p, 0, pc.wrapping_add(cb_off as u32) as i32, Comp::Beqz),
         (1, 7) => mk(Op::Bne, 0, rs1p, 0, pc.wrapping_add(cb_off as u32) as i32, Comp::Bnez),
         // ---- quadrant 2
-        (2, 0) => {
-            let shamt = ((((c >> 12) & 1) << 5) | ((c >> 2) & 0x1f)) as i32;
-            mk(Op::Slli, rd, rd, 0, shamt, Comp::Slli)
-        }
+        // RV32C shamt[5] = 1 belongs to custom extensions, not the standard shifts.
+        (2, 0) if c & (1 << 12) == 0 => mk(Op::Slli, rd, rd, 0, rs2 as i32, Comp::Slli),
         (2, 2) if rd != 0 => {
             let imm = ((((c >> 12) & 1) << 5) | (((c >> 4) & 7) << 2) | (((c >> 2) & 3) << 6)) as i32;
             mk(Op::Lw, rd, 2, 0, imm, Comp::Lwsp)
         }
         (2, 4) => match ((c >> 12) & 1, rd, rs2) {
-            (0, 0, _) => ILL2,
+            (0, 0, _) => Insn { raw: c, ..ILL2 },
             (0, _, 0) => mk(Op::Jalr, 0, rd, 0, 0, Comp::Jr),
             (0, _, _) => mk(Op::Add, rd, 0, rs2, 0, Comp::Mv),
             (1, 0, 0) => mk(Op::Ebreak, 0, 0, 0, 0, Comp::Ebreak),
@@ -221,6 +219,37 @@ fn decode_compressed(pc: u32, c: u32) -> Insn {
             let imm = ((((c >> 9) & 0xf) << 2) | (((c >> 7) & 3) << 6)) as i32;
             mk(Op::Sw, 0, 2, rs2, imm, Comp::Swsp)
         }
-        _ => ILL2,                                              // includes every F/D form: no FPU on the C3
+        _ => Insn { raw: c, ..ILL2 }, // Includes every F/D form: no FPU on the C3.
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_compressed_encoding_preserves_raw_bits() {
+        for raw in 0..=u16::MAX as u32 {
+            if raw & 3 == 3 { continue; }
+            let insn = decode_compressed(0, raw);
+            assert_eq!(insn.raw, raw, "encoding {raw:04x}");
+            assert_eq!(insn.len, 2);
+        }
+    }
+
+    #[test]
+    fn rv32_compressed_shifts_reject_custom_high_shamt_bit() {
+        // RISC-V C v2.0: shamt[5] = 1 is custom space for all three RV32C shifts.
+        // https://docs.riscv.org/reference/isa/unpriv/c-st-ext.html
+        for (base, op) in [(0x0082, Op::Slli), (0x8001, Op::Srli), (0x8401, Op::Srai)] {
+            for shamt in 0..64 {
+                let raw = base | (shamt & 31) << 2 | (shamt >> 5) << 12;
+                let insn = decode_compressed(0, raw);
+                assert_eq!(insn.raw, raw);
+                assert_eq!(insn.len, 2);
+                assert_eq!(insn.op, if shamt < 32 { op } else { Op::Illegal }, "{raw:04x}");
+                if shamt < 32 { assert_eq!(insn.imm, shamt as i32); }
+            }
+        }
     }
 }

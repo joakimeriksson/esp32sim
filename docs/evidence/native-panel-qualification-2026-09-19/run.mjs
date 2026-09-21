@@ -1,0 +1,32 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {spawnSync} from 'node:child_process';
+import {createHash} from 'node:crypto';
+const [baseline,candidate,out] = process.argv.slice(2);
+if(!baseline||!candidate||!out)throw Error('usage: node run.mjs BASE_BINARY CANDIDATE_BINARY NEW_OUTPUT_DIRECTORY');
+const root='/Users/alice/src/a/esp32sim', fw=root+'/web/wasm/fw/public';
+const args=['--rom','/Users/alice/.espressif/tools/esp-rom-elfs/20241011/esp32s3_rev0_rom.elf','--board','waveshare-lcd4b','--boot','rom','--no-dump','--console','usb','--flash-mb','16','--psram-mb','8','--bootloader',fw+'/panel-bootloader.bin','--ptable',fw+'/panel-ptable.bin','--app',fw+'/panel-demo.bin','--flash-at','0x610000='+fw+'/energydata.json','--script',fw+'/panel-sid.txt','--max-seconds','7'];
+const env={...process.env};for(const k of Object.keys(env))if(k.startsWith('ESP32SIM_'))delete env[k];
+const sha=x=>createHash('sha256').update(x).digest('hex');
+const bins={baseline:path.resolve(baseline),candidate:path.resolve(candidate)};
+const identities=Object.fromEntries(Object.entries(bins).map(([n,p])=>[n,{path:p,sha256:sha(fs.readFileSync(p))}]));
+const inputs=Object.fromEntries([args[1],...['panel-bootloader.bin','panel-ptable.bin','panel-demo.bin','energydata.json','panel-sid.txt'].map(p=>fw+'/'+p)].map(p=>[p,sha(fs.readFileSync(p))]));
+const resume=fs.existsSync(out+'/runs.json');
+if(!resume)fs.mkdirSync(out,{recursive:false});
+const rows=resume?JSON.parse(fs.readFileSync(out+'/runs.json')).rows:[];
+for(const row of rows)row.jitWork=row.jitLine.replace(/, \d+ KB code$/,'');
+for(let pair=1;pair<=3;pair++)for(const arm of pair%2?['baseline','candidate']:['candidate','baseline']){
+ if(rows.some(r=>r.pair===pair&&r.arm===arm))continue;
+ const tag=`${pair}-${arm}`;
+ fs.writeFileSync(out+'/'+tag+'-processes.txt',spawnSync('ps',['-axo','pid,pcpu,comm'],{encoding:'utf8'}).stdout||'ps unavailable');
+ const t=performance.now();const r=spawnSync(bins[arm],args,{env,encoding:'utf8',timeout:120000,maxBuffer:8e6});const wallSeconds=(performance.now()-t)/1000;
+ fs.writeFileSync(out+'/'+tag+'.stdout',r.stdout||'');fs.writeFileSync(out+'/'+tag+'.stderr',r.stderr||'');
+ if(r.status!==0)throw Error(tag+' exit '+r.status+' '+r.error);
+ const work=r.stderr.match(/core0 (\d+) \+ core1 (\d+) insns/);const jit=r.stderr.match(/\[emu\] blocks: .*jit: (\d+) compiled, (\d+) KB code/);
+ if(!work||!jit||Number(jit[1])===0||r.stderr.includes('APPROXIMATE timing'))throw Error(tag+' missing work/JIT or unexpected timing');
+ const row={pair,arm,wallSeconds,coreInstructions:work.slice(1),jitLine:jit[0],jitWork:jit[0].replace(/, \d+ KB code$/,''),consoleSha256:sha(r.stdout)};rows.push(row);
+ fs.writeFileSync(out+'/runs.json',JSON.stringify({args,identities,inputs,rows},null,2)+'\n');console.log(JSON.stringify(row));
+ const reference=rows[0];for(const key of ['coreInstructions','jitWork','consoleSha256'])if(JSON.stringify(reference[key])!==JSON.stringify(row[key]))throw Error('unmatched '+key);
+}
+const median=a=>a.sort((a,b)=>a-b)[1];const medians=Object.fromEntries(Object.keys(bins).map(arm=>[arm,median(rows.filter(x=>x.arm===arm).map(x=>x.wallSeconds))]));
+fs.writeFileSync(out+'/summary.json',JSON.stringify({args,identities,inputs,rows,medianWallSeconds:medians,candidateSlowerPercent:100*(medians.candidate/medians.baseline-1)},null,2)+'\n');

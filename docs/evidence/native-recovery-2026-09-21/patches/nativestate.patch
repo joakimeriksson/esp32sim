@@ -1,0 +1,29 @@
+diff --git a/xtensa-lx7/src/state.rs b/xtensa-lx7/src/state.rs
+index ce1727d6..19d7602b 100644
+--- a/xtensa-lx7/src/state.rs
++++ b/xtensa-lx7/src/state.rs
+@@ -158,7 +158,10 @@ pub struct Cpu {
+     pub fetch_cache: SharedFetchCache,
+     /// Executed instruction byte ranges in a bounded compiled call (written by
+     /// generated code, drained by `jit::run`).
+-    pub fetch_ring: [[u32; 2]; 64], pub fetch_n: u32,
++    #[cfg(target_arch = "wasm32")]
++    pub fetch_ring: [[u32; 2]; 64],
++    #[cfg(target_arch = "wasm32")]
++    pub fetch_n: u32,
+ }
+ 
+ impl Default for Cpu {
+@@ -209,7 +212,11 @@ impl Cpu {
+             icache: vec![crate::decode::CacheEntry::EMPTY; crate::decode::ICACHE_SIZE],
+             #[cfg(target_arch = "wasm32")]
+             jit_helped: false,
+-            blocks: crate::block::BlockCache::new(), boundary_bloom: 0, jit_trap: None, timing_extra: 0, price_control: false, icache_fill: 0, icache_misses: 0, fetch_cache: SharedFetchCache::default(), fetch_ring: [[0; 2]; 64], fetch_n: 0,
++            blocks: crate::block::BlockCache::new(), boundary_bloom: 0, jit_trap: None, timing_extra: 0, price_control: false, icache_fill: 0, icache_misses: 0, fetch_cache: SharedFetchCache::default(),
++            #[cfg(target_arch = "wasm32")]
++            fetch_ring: [[0; 2]; 64],
++            #[cfg(target_arch = "wasm32")]
++            fetch_n: 0,
+         };
+         c.reset();
+         c

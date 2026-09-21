@@ -57,6 +57,8 @@ pub trait Soc: 'static {
     /// Bytes per table entry: (dst_start, dst_end, rom_src[, 0]) — 16 on the S3 and C3, 12 on the C6.
     const ROM_DATA_TABLE_STRIDE: u32 = 16;
     fn new_core(i: usize) -> Self::Core;
+    /// Connect core-local state to resources owned by this machine's bus.
+    fn new_core_with_bus(i: usize, _bus: &Self::Bus) -> Self::Core { Self::new_core(i) }
     /// Bring core `i` back to its reset state (after a chip reset or a release from reset).
     fn reset_core(core: &mut Self::Core, i: usize);
     /// Set a core up to start the app image at `entry` as the 2nd-stage bootloader would have.
@@ -71,6 +73,12 @@ pub trait SocBus: Bus {
     /// CPU cycles from the current device horizon to the next transition that may wake a core.
     fn next_deadline(&self) -> Option<u64> { None }
     fn irq_dirty(&mut self) -> &mut bool;
+    /// Arm or disarm device-register deferral for a multi-quantum run (EX133); clears the flag.
+    /// Whether `set_defer` is honoured; without it a multi-quantum run is never attempted.
+    fn can_defer(&self) -> bool { false }
+    fn set_defer(&mut self, on: bool) { let _ = on; }
+    /// Whether the last dispatch stopped in front of a device-register access; clears it.
+    fn take_deferred(&mut self) -> bool { false }
     /// Re-derive the interrupt lines after a device change; true if a core's input may differ.
     fn refresh_irq(&mut self) -> bool;
     /// Deliver deferred device time now (a bus that defers it).

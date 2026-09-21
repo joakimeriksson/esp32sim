@@ -28,6 +28,7 @@ console.log('worker pacing tests passed');
 
 // Exercise the actual worker loop with a deterministic WASM stand-in. Each run advances
 // exactly its requested cycles and consumes host time; scheduling must not invent guest time.
+const { applyExperiments } = await import('../web/wasm/experiments.mjs');
 const { readFile } = await import('node:fs/promises');
 const { runInNewContext } = await import('node:vm');
 let wall = 0, cycles = 0;
@@ -44,7 +45,7 @@ const wasm = {
 const source = (await readFile(new URL('../web/wasm/worker.js', import.meta.url), 'utf8'))
   .replace(/^import .*;\n/gm, '');
 const context = {
-  createPacing, createJitHost: () => ({ imports: {} }), TextEncoder, TextDecoder,
+  applyExperiments, createPacing, createJitHost: () => ({ imports: {} }), TextEncoder, TextDecoder,
   performance: { now: () => wall }, Date, postMessage() {},
   WebAssembly: { instantiate: async () => ({ instance: { exports: wasm } }) },
   setTimeout: (callback) => pending.push(callback),
@@ -80,7 +81,7 @@ assert.equal(cycles, stoppedCycles, 'a pending callback cannot run a stopped emu
   const wasm2 = { ...wasm, esp32sim_cycles: () => cycles2, esp32sim_insns: () => cycles2,
     esp32sim_run(_emu, amount) { cycles2 += amount; wall2 += amount / 16_000; return 0; } };
   const context2 = {
-    createPacing, createJitHost: () => ({ imports: {} }), TextEncoder, TextDecoder,
+    applyExperiments, createPacing, createJitHost: () => ({ imports: {} }), TextEncoder, TextDecoder,
     performance: { now: () => wall2 }, Date, postMessage(message) { if (message.pace) paces.push(message.pace); },
     WebAssembly: { instantiate: async () => ({ instance: { exports: wasm2 } }) },
     setTimeout: (callback) => queue.push(callback),

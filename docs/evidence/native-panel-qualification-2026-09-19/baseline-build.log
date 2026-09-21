@@ -1,0 +1,10 @@
+   Compiling emu-core v0.2.0 (/Users/alice/src/a/esp32sim/work/native-panel-base89-0919/emu-core)
+   Compiling esp-periph v0.2.0 (/Users/alice/src/a/esp32sim/work/native-panel-base89-0919/esp-periph)
+   Compiling riscv-rv32 v0.2.0 (/Users/alice/src/a/esp32sim/work/native-panel-base89-0919/riscv-rv32)
+   Compiling xtensa-lx7 v0.2.0 (/Users/alice/src/a/esp32sim/work/native-panel-base89-0919/xtensa-lx7)
+   Compiling esp-soc v0.2.0 (/Users/alice/src/a/esp32sim/work/native-panel-base89-0919/esp-soc)
+   Compiling esp32c6 v0.2.0 (/Users/alice/src/a/esp32sim/work/native-panel-base89-0919/esp32c6)
+   Compiling esp32s3 v0.2.0 (/Users/alice/src/a/esp32sim/work/native-panel-base89-0919/esp32s3)
+   Compiling esp32c3 v0.2.0 (/Users/alice/src/a/esp32sim/work/native-panel-base89-0919/esp32c3)
+   Compiling esp32sim v0.2.0 (/Users/alice/src/a/esp32sim/work/native-panel-base89-0919/cli)
+    Finished `release` profile [optimized + debuginfo] target(s) in 20.59s

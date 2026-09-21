@@ -1,0 +1,61 @@
+{
+  "arms": 16,
+  "checks": "Expected frozen hashes, pinned work, console equality, browser versions, zero JIT failures, balanced order, unchanged non-WASM input hashes and recomputed medians/reductions",
+  "browser": "Chrome/153.0.8010.53",
+  "v8": "15.3.76.13",
+  "runs": [
+    {
+      "name": "control-before",
+      "pairs": 2,
+      "medianWallSeconds": {
+        "baseline": 29.405040000000966,
+        "candidate": 29.661675000000745
+      },
+      "reduction": -0.8727585475135191,
+      "pairedReductions": [
+        -0.9821351605748374,
+        -0.7637918890728956
+      ],
+      "jitBytes": [
+        "baseline:83786506",
+        "candidate:83786506"
+      ]
+    },
+    {
+      "name": "heads-on-crumbs",
+      "pairs": 4,
+      "medianWallSeconds": {
+        "baseline": 29.767487500000744,
+        "candidate": 28.758697499997915
+      },
+      "reduction": 3.388898710389321,
+      "pairedReductions": [
+        3.7141844109508493,
+        2.8008314173959103,
+        3.203417778206008,
+        3.3932140741375183
+      ],
+      "jitBytes": [
+        "baseline:83786506",
+        "candidate:49478716"
+      ]
+    },
+    {
+      "name": "control-after",
+      "pairs": 2,
+      "medianWallSeconds": {
+        "baseline": 29.72895749999769,
+        "candidate": 29.626834999999033
+      },
+      "reduction": 0.3435118772619816,
+      "pairedReductions": [
+        -0.32176648585184875,
+        1.003003803565572
+      ],
+      "jitBytes": [
+        "baseline:83786506",
+        "candidate:83786506"
+      ]
+    }
+  ]
+}

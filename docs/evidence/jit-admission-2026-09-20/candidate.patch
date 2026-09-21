@@ -1,0 +1,86 @@
+diff --git a/xtensa-lx7/src/jit/wasm.rs b/xtensa-lx7/src/jit/wasm.rs
+index eaba014e..e42cf35d 100644
+--- a/xtensa-lx7/src/jit/wasm.rs
++++ b/xtensa-lx7/src/jit/wasm.rs
+@@ -138,7 +138,7 @@ struct Block {
+     uncovered_epoch: Cell<u64>,
+     /// EX136: everything a dispatch at this head needs to enter its region, copied out of the
+     /// owning block so the common path follows no pointers; valid while `epoch` is current.
+-    hot: Cell<Hot>,
++    hot: RefCell<Hot>,
+ }
+ /// Entry facts of one region chunk. `sites` points into the owning region's vector, which
+ /// lives until that region is dropped, and every drop moves `CodeCache::region_epoch` on.
+@@ -326,7 +326,7 @@ fn queue(cc: &mut CodeCache, instructions: &mut [BlockInsn], pc: u32, fast: bool
+         region_tries: Cell::new(0),
+         covered_by: Cell::new((NONE, 0)),
+         uncovered_epoch: Cell::new(u64::MAX),
+-        hot: Cell::new(Hot::NONE),
++        hot: RefCell::new(Hot::NONE),
+     });
+     cc.by_pc.insert(key, id);
+     id
+@@ -569,27 +569,33 @@ unsafe fn run_inner<B: Bus>(
+     if entry == 0 && !cpu.blocks.observed {
+         // EX136: the facts the checks below would fetch through the owning block, its region and
+         // three of its vectors are cached in this block while no region has been dropped.
+-        let hot = b.hot.get();
+-        if hot.epoch == cc.region_epoch.get() && budget >= hot.len && cpu.boundary_bloom & hot.bloom == 0
+-            && (cpu.lcount == 0 || cpu.lend.wrapping_sub(hot.lo) > hot.span)
++        // Read cached admission facts in place instead of copying the entire descriptor.
++        // End the borrow before entering generated code or updating the cached descriptor.
+         {
+-            let pv = bus.page_versions();
+-            if hot.pages[..hot.npages as usize].iter().all(|&(i, v)| pv.get(i as usize).copied().unwrap_or(0) == v) {
+-                // SAFETY: as for the region call below; the epoch proves slot and sites are live.
+-                let f: Run<B> = unsafe { std::mem::transmute(hot.slot as usize) };
+-                let result = f(cpu, bus, h, budget.min(0xffff), hot.k, tlb, versions);
+-                let site = if (result >> 16) & 7 != CODE_REJECT {
+-                    assert!((result >> 19) < hot.nsites);
+-                    // SAFETY: index checked against the live vector's length.
+-                    Some(unsafe { *hot.sites.add((result >> 19) as usize) })
+-                } else { None };
+-                region_stats(cc, result, budget, site);
+-                if site.is_some() { census(0, 1); census(1, (result & 0xffff) as u64); }
+-                if let Some(site) = site {
+-                    bus.note_pc(site_pc(site));
+-                    return result & 0x7ffff;
++            let hot = b.hot.borrow();
++            if hot.epoch == cc.region_epoch.get() && budget >= hot.len && cpu.boundary_bloom & hot.bloom == 0
++                && (cpu.lcount == 0 || cpu.lend.wrapping_sub(hot.lo) > hot.span)
++            {
++                let pv = bus.page_versions();
++                if hot.pages[..hot.npages as usize].iter().all(|&(i, v)| pv.get(i as usize).copied().unwrap_or(0) == v) {
++                    // SAFETY: as for the region call below; the epoch proves slot and sites are live.
++                    let (slot, k, sites, nsites) = (hot.slot, hot.k, hot.sites, hot.nsites);
++                    drop(hot);
++                    let f: Run<B> = unsafe { std::mem::transmute(slot as usize) };
++                    let result = f(cpu, bus, h, budget.min(0xffff), k, tlb, versions);
++                    let site = if (result >> 16) & 7 != CODE_REJECT {
++                        assert!((result >> 19) < nsites);
++                        // SAFETY: index checked against the live vector's length.
++                        Some(unsafe { *sites.add((result >> 19) as usize) })
++                    } else { None };
++                    region_stats(cc, result, budget, site);
++                    if site.is_some() { census(0, 1); census(1, (result & 0xffff) as u64); }
++                    if let Some(site) = site {
++                        bus.note_pc(site_pc(site));
++                        return result & 0x7ffff;
++                    }
++                    return run_block_body(cc, code, cpu, bus, h, budget, entry, tlb, versions);
+                 }
+-                return run_block_body(cc, code, cpu, bus, h, budget, entry, tlb, versions);
+             }
+         }
+         // The region to run: this block's own, or the one covering this PC.
+@@ -680,8 +686,8 @@ unsafe fn run_inner<B: Bus>(
+                     if r.pages.len() <= 8 {
+                         let mut pages = [(0, 0); 8];
+                         pages[..r.pages.len()].copy_from_slice(&r.pages);
+-                        b.hot.set(Hot { epoch: cc.region_epoch.get(), bloom: r.bloom, slot: r.slot, k, len: r.lens[k as usize], lo: r.lo,
+-                            span: r.hi.wrapping_sub(r.lo), pages, npages: r.pages.len() as u32, nsites: r.sites.len() as u32, sites: r.sites.as_ptr() });
++                        *b.hot.borrow_mut() = Hot { epoch: cc.region_epoch.get(), bloom: r.bloom, slot: r.slot, k, len: r.lens[k as usize], lo: r.lo,
++                            span: r.hi.wrapping_sub(r.lo), pages, npages: r.pages.len() as u32, nsites: r.sites.len() as u32, sites: r.sites.as_ptr() };
+                     }
+                     let result = f(cpu, bus, h, budget.min(0xffff), k, tlb, versions);
+                     let site = if (result >> 16) & 7 != CODE_REJECT {

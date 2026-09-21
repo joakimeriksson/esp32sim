@@ -1,0 +1,45 @@
+# round 2 (Sep 21). name wasm pairs [workload]. Baseline is always wasm/base.wasm (x2/base 414c6e07, inline 4000).
+control-aa-1 base.wasm 2
+# tier 1: stacks and the biggest singles
+crumbs-all 0d0a0603b0fa.wasm 2
+dispatch-s1s2s3s4s5s6 633a7182076a.wasm 2
+inchain-s3 80f11d9064e2.wasm 2
+hotwat-s1s2 c5075be40dd0.wasm 2
+crumbs-dma 80be45a3228e.wasm 2
+inchain-s2 2d5023254e93.wasm 2
+inchain-s1 7db351fa0212.wasm 2
+tailchain-s2 d04dac13e1d7.wasm 2
+dispatch-s1 ad34620d7609.wasm 2
+control-aa-2 base.wasm 2
+# tier 2: singles predicted around +1%
+crumbs-spi 573534ecad42.wasm 2
+crumbs-fma 604d5760dca8.wasm 2
+hotwat-s1 2ee1a70141b1.wasm 2
+hotwat-s2 a1f5a4ca877c.wasm 2
+dispatch-s2 e4e8d03b71be.wasm 2
+tailchain-s1 c8d66195ce3b.wasm 2
+dispatch-s3 0a6678f4fada.wasm 2
+dispatch-s4 3163b7b02361.wasm 2
+crumbs-round f13ce16a24e4.wasm 2
+control-aa-3 base.wasm 2
+dispatch2-stack-t1t2t3t4 d11540983438.wasm 2
+dispatch2-stack-t1 eec028438859.wasm 2
+dispatch2-stack-t2 c4ab8143551c.wasm 2
+dispatch2-stack-t3 1912470f05c9.wasm 2
+dispatch2-stack-t4 56b55dbb85b2.wasm 2
+dispatch2-t1 bfaad70f6b40.wasm 2
+dispatch2-t2 a0fc1d49825a.wasm 2
+dispatch2-t3 69c2c22256af.wasm 2
+dispatch2-t4 7cf2fc5c2b1b.wasm 2
+heads-s1 7a7e1c98ed21.wasm 2
+heads-s2 37b9d5aa44f0.wasm 2
+heads-s3 af124c493c9a.wasm 2
+spec2-ex150-k4 5e7ba389ea2f.wasm 2
+spec2-ex150-k16 21ec74c7339f.wasm 2
+spec2-ex150-k64 b9835afcac59.wasm 2
+spec2-ex150-tax1 2c1fae3c544f.wasm 2
+# tier 3: predicted below the noise floor or near-duplicates; runs only when nothing else is waiting
+dispatch-s5 9f8b3ff191e2.wasm 2
+dispatch-s6 92526aeb2403.wasm 2
+crumbs-pub 47eaa7446c71.wasm 2
+tailchain-s2-1k e01d226efa81.wasm 2

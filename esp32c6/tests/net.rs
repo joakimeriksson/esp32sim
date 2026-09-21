@@ -33,8 +33,8 @@ fn external_two_motes_exchange_nullnet_broadcasts() {
     // different MACs: Contiki takes its link-layer address from the efuses and drops a frame
     // that looks like its own. Staggered starts: two identical images booted together stay in
     // lockstep and collide forever (see the module docs).
-    net.add([0x02, 0, 0, 0, 0, 1], 2 << 20, 0, 0.0, 0.0, "none");
-    net.add([0x02, 0, 0, 0, 0, 2], 2 << 20, 1_300_000_000, 2.0, 0.0, "none");
+    net.add([0x02, 0, 0, 0, 0, 1], 2 << 20, 0, 0.0, 0.0, "none").unwrap();
+    net.add([0x02, 0, 0, 0, 0, 2], 2 << 20, 1_300_000_000, 2.0, 0.0, "none").unwrap();
     for i in 0..2 { load(&mut net, i, &rom, &dir); }
     net.boot();
     net.run_until(30_000_000_000);
@@ -49,4 +49,29 @@ fn external_two_motes_exchange_nullnet_broadcasts() {
     assert!(heard[0] || heard[1], "neither node's nullnet layer received a frame:\nnode0 tail:\n{}\nnode1 tail:\n{}",
             &out[0][out[0].len().saturating_sub(400)..], &out[1][out[1].len().saturating_sub(400)..]);
     assert!(net.nodes[0].rx + net.nodes[1].rx > 0, "no frame was taken by a radio");
+}
+
+#[test]
+fn unknown_board_does_not_add_a_node() {
+    let mut net = Network::new();
+    assert_eq!(net.add([0; 6], 1 << 20, 0, 0.0, 0.0, "none"), Ok(0));
+    for name in ["", "typo", "s3", "atech14"] {
+        let error = net.add([1; 6], 1 << 20, 0, 0.0, 0.0, name).unwrap_err();
+        assert!(error.contains("unknown ESP32-C6 board"), "{error}");
+        assert_eq!(net.nodes.len(), 1);
+    }
+    assert_eq!(net.add([2; 6], 1 << 20, 0, 0.0, 0.0, "bare"), Ok(1));
+}
+
+#[test]
+fn supported_network_board_aliases_keep_the_selected_board() {
+    let mut net = Network::new();
+    for (name, canonical) in [
+        ("none", "none"), ("bare", "none"),
+        ("waveshare-c6-lcd147", "waveshare-c6-lcd147"),
+        ("c6-lcd147", "waveshare-c6-lcd147"), ("lcd147", "waveshare-c6-lcd147"),
+    ] {
+        let index = net.add([0; 6], 1 << 20, 0, 0.0, 0.0, name).unwrap();
+        assert_eq!(net.nodes[index].m.bus.board.name(), canonical);
+    }
 }

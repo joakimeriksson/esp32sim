@@ -1,3 +1,4 @@
+import { experimentsFromParams } from '/web/wasm/experiments.mjs';
 // Uses the production worker, including pacing and the input queue.
 const canvas = document.querySelector('canvas'), ctx = canvas.getContext('2d');
 const status = document.querySelector('#status');
@@ -67,7 +68,9 @@ worker.onmessage = ({data: message}) => {
   for (let i = waiters.length - 1; i >= 0; i--) {
     if (message[waiters[i].key] !== undefined) { const [pending] = waiters.splice(i, 1); pending.resolve(message); }
   }
-  if (message.bin) frame(message.bin);
+  if (message.bin) {
+    try { frame(message.bin); } finally { if (message.ack) worker.postMessage({op: 'frame-ack'}); }
+  }
   if (message.text) {
     const event = JSON.parse(message.text);
     if (event.t === 'serial' && event.src === 'usb') {
@@ -86,14 +89,21 @@ worker.onmessage = ({data: message}) => {
 worker.onerror = event => { status.textContent = event.message; receipt.error = event.message; };
 receipt.assets = await (await fetch('/assets.json')).json();
 const wasm = await (await fetch('/asset/wasm')).arrayBuffer();
-await command({op: 'init', wasm}, 'ready');
-await command({op: 'create', board: 'waveshare-amoled18-v2', flash_mb: 16, psram_mb: 8}, 'created');
+await command({op: 'init', wasm, frameAck: true}, 'ready');
+const experiments = experimentsFromParams(new URL(location.href).searchParams);
+await command({op: 'create', board: 'waveshare-amoled18-v2', smoothDisplay: true, flash_mb: 16, psram_mb: 8, experiments}, 'created');
 for (const [name, kind] of [['rom', 0], ['bootloader', 1], ['ptable', 2], ['app', 3], ['elf', 4]]) {
   const data = await (await fetch('/asset/' + name)).arrayBuffer();
   const result = await command({op: 'load', kind, data}, 'loaded');
   if (!result.ok) throw Error('Load failed: ' + name);
 }
-await command({op: 'start'}, 'started');
+const start = await command({op: 'start'}, 'started');
+receipt.started = start.started;
+if (!start.started) {
+  status.textContent = 'Timing configuration or boot failed (see worker logs).';
+  throw Error(status.textContent);
+}
+receipt.appliedExports = experiments;
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 async function replay() {
   if (!ready || replayed) return;

@@ -1,0 +1,38 @@
+Rejected complete DONE plus serial failure
+Rejected complete DONE plus host_log failure
+✔ tools/browser-benchmark/battery-failure.test.mjs (204.099084ms)
+✔ pocket-tank loads its model at the flash offset, runs its guest duration and passes its checks (6.75275ms)
+✔ hardware receipts retain the requested key, alias and actually applied exports (2.641167ms)
+✔ pocket-tank fails when the model never decides (2.237167ms)
+✔ pocket-tank rejects a firmware panic even when the checks pass (2.101958ms)
+✔ page and response timing parameters preserve valid models and bisects (1.516583ms)
+✔ malformed bisects and ineffective quantum combinations reject (0.951208ms)
+✔ diagnostic setters remain supported but invalid argument shapes never dispatch (0.703666ms)
+✔ board-specific preset setters are selected before boot (0.26525ms)
+✔ versioned verdict requires all 36 gates and the separate receipt (1.694417ms)
+✔ reject empty, missing, duplicate, unknown and malformed fields (0.30125ms)
+✔ serial extraction requires exactly one complete verdict line (0.144833ms)
+✔ unavailable counters differ from measured zero (0.08125ms)
+✔ a dense burst delivers its newest point without needing another event (3.186167ms)
+✔ pointerup preserves the pending point and ends the contact exactly once (0.557667ms)
+✔ pointercancel preserves the pending point and ends the contact exactly once (0.406875ms)
+✔ lostpointercapture preserves the pending point and ends the contact exactly once (0.374875ms)
+✔ rapid successive contacts stay ordered and a second pointer cannot release the first (0.373959ms)
+✔ captured movement outside the panel is clamped to the controller bounds (0.380416ms)
+✔ rotated panel views map touches back to panel coordinates (4.442ms)
+✔ the touch handler sends panel coordinates for a rotated view (0.520541ms)
+ℹ tests 21
+ℹ suites 0
+ℹ pass 21
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 236.47075
+worker pacing tests passed
+worker integration test passed
+worker pace report test passed
+worker native-channel, consumer ACK, replacement and network failure tests passed
+worker native-channel, consumer ACK, replacement and experiment tests passed
+worker rejected stub and WiFi boot status tests passed
+worker smooth display configuration tests passed

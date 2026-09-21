@@ -1,0 +1,39 @@
+WARN `--no-project` was provided, but no project was found
+Sampled interval: 21.050 s; exclusive samples, not inclusive call-tree totals.
+  15.718 s  74.7%  other
+   3.298 s  15.7%  generated blocks
+   1.538 s   7.3%  machine block wrapper
+   0.493 s   2.3%  interpreter instruction execution
+   0.003 s   0.0%  PIE and 128-bit helpers
+
+Largest exclusive functions:
+  11.225 s  (idle)
+   1.538 s  _RNvMNtCslrqzjCal6eM_7esp_soc7machineINtB2_7MachineNtNtCs7lxvt5igX0z_7esp32s33soc2S3E11step_blocksCsetaQYfaB9Ca_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   1.455 s  _RINvNtNtCs5F2i29bsihg_10xtensa_lx73jit6native9run_innerNtNtCs7lxvt5igX0z_7esp32s33bus6SocBusECsetaQYfaB9Ca_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.545 s  _RINvMNtCslrqzjCal6eM_7esp_soc7machineINtB3_7MachineNtNtCs7lxvt5igX0z_7esp32s33soc2S3E13run_unmodeledKb0_ECsetaQYfaB9Ca_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.493 s  _RINvNtCs5F2i29bsihg_10xtensa_lx74exec9exec_insnNtNtCs7lxvt5igX0z_7esp32s33bus6SocBusECsetaQYfaB9Ca_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.290 s  _RINvNtCs5F2i29bsihg_10xtensa_lx75block10find_blockNtNtCs7lxvt5igX0z_7esp32s33bus6SocBusECsetaQYfaB9Ca_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.276 s  loop  http://127.0.0.1:8796/web/wasm/worker.js
+   0.212 s  _RINvNtNtCs5F2i29bsihg_10xtensa_lx73jit6native6h_execNtNtCs7lxvt5igX0z_7esp32s33bus6SocBusECsetaQYfaB9Ca_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.140 s  Module
+   0.082 s  _RNvMNtCslrqzjCal6eM_7esp_soc7machineINtB2_7MachineNtNtCs7lxvt5igX0z_7esp32s33soc2S3E16after_round_restCsetaQYfaB9Ca_13esp32sim_wasm  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.077 s  _RNvMs2_NtCs7lxvt5igX0z_7esp32s33busNtB5_6SocBus11flush_ticks  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.074 s  _RNvXs0_NtCs58i1S6PDf40_10esp_periph4gpioNtB5_4GpioNtNtB7_6device6Device11irq_sources  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.069 s  (program)
+   0.065 s  wasm-function[0]  wasm://wasm/000461ee
+   0.063 s  _RNvXs1_NtCs7lxvt5igX0z_7esp32s33busNtB5_6SocBusNtNtCs3QQYunS8OH3_8emu_core3bus3Bus7write32  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.063 s  _RNvMs2_NtCs7lxvt5igX0z_7esp32s33busNtB5_6SocBus9tick_impl  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.057 s  _RNvXs1_NtCs7lxvt5igX0z_7esp32s33busNtB5_6SocBusNtNtCs3QQYunS8OH3_8emu_core3bus3Bus6read32  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.056 s  _RNvXNtCs5F2i29bsihg_10xtensa_lx74coreNtNtB4_5state3CpuNtNtCs3QQYunS8OH3_8emu_core4core4Core17cycles_until_wake  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.051 s  postMessage
+   0.050 s  _RNvXNtCs5F2i29bsihg_10xtensa_lx74coreNtNtB4_5state3CpuNtNtCs3QQYunS8OH3_8emu_core4core4Core14advance_cycles  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.048 s  _RNvMNtCs7lxvt5igX0z_7esp32s33busNtB2_6SocBus12periph_write  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.041 s  js-to-wasm:i:d  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.040 s  _RNvXNtCs5F2i29bsihg_10xtensa_lx74coreNtNtB4_5state3CpuNtNtCs3QQYunS8OH3_8emu_core4core4Core11irq_pending  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.039 s  _RNvNtCs5F2i29bsihg_10xtensa_lx76decode6decode  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.038 s  _RNvNtNtCs5F2i29bsihg_10xtensa_lx73jit6native7compile  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.036 s  _RNvNtNtCs5F2i29bsihg_10xtensa_lx73jit6native7h_fused  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.034 s  wasm-function[0]  wasm://wasm/000242b2
+   0.033 s  wasm-function[0]  wasm://wasm/00022742
+   0.032 s  esp32sim_cycles  wasm://wasm/esp32sim_wasm.wasm-0304ebf6
+   0.032 s  wasm-function[0]  wasm://wasm/517fa176

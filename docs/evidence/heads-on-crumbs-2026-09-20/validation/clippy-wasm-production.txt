@@ -1,0 +1,5 @@
+    Checking xtensa-lx7 v0.2.0 (/private/tmp/esp32sim-heads-integration-0920/xtensa-lx7)
+   Compiling esp32sim-wasm v0.2.0 (/private/tmp/esp32sim-heads-integration-0920/wasm)
+    Checking esp32s3 v0.2.0 (/private/tmp/esp32sim-heads-integration-0920/esp32s3)
+    Checking esp32sim-wasm-jit v0.2.0 (/private/tmp/esp32sim-heads-integration-0920/wasm-jit)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.59s

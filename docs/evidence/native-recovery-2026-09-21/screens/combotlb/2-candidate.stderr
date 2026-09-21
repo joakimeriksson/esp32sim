@@ -1,0 +1,17 @@
+[emu] ROM loaded from /Users/alice/bench/esp32sim/overnight-review/../assets/pocket-tank/rom.elf
+[emu] flash 0x290000: /Users/alice/bench/esp32sim/overnight-review/../assets/pocket-tank/model.bin (7557640 bytes)
+[emu] ROM boot from reset vector 0x40000400
+
+[emu] stop: Halted — core0 4446180089 + core1 5627653686 insns in 48.3s wall = 208.4 Minsn/s; emulated 30.000s (7200000055 cycles); 1006391 exceptions, 95179 interrupts
+[irq] per core, cpu-int: count (peripheral sources mapped to it)
+  core0 int2       1861  sources [79]
+  core0 int3      29878  sources [57]
+  core0 int8       5664  sources [42]
+  core0 int9      25802  sources []
+  core0 int13      1843  sources [67]
+  core1 int0        149  sources [80]
+  core1 int1      29982  sources [58]
+
+[emu] i2s frames out: 0 (i2s0 @ 44100 Hz) 0 (i2s1 @ 44100 Hz)
+[emu] crypto: 0 AES blocks, 7696 SHA blocks, 0 RSA/MPI operations
+[emu] blocks: 25998 built (0 cache flushes) core0, 3200 (0) core1; jit: 29198 compiled, 29363 KB code

@@ -1,0 +1,61 @@
+diff --git a/esp32s3/src/bus.rs b/esp32s3/src/bus.rs
+index deb65b0e..e9f43c66 100644
+--- a/esp32s3/src/bus.rs
++++ b/esp32s3/src/bus.rs
+@@ -710,8 +710,7 @@ impl SocBus {
+     /// Refresh the cached deadline after host-side device configuration changes.
+     /// Pending elapsed cycles are retained and count toward the new threshold.
+     pub fn refresh_tick_budget(&mut self) {
+-        let cap = if self.cadence_active() { MAX_TICK_DEFER } else { QUIET_TICK_DEFER };
+-        let mut budget = self.periph.cycles_until_timer().clamp(1, cap);
++        let mut budget = self.periph.cycles_until_timer().clamp(1, QUIET_TICK_DEFER.max(MAX_TICK_DEFER));
+         if let Some((deadline, _)) = &self.spi2_scheduled {
+             let until = u64::from(self.tick_pending).saturating_add(deadline.saturating_sub(self.cycles));
+             budget = budget.min(until.clamp(1, u64::from(MAX_TICK_DEFER)) as u32);
+@@ -719,9 +718,14 @@ impl SocBus {
+         if let Some(deadline) = self.board.next_deadline() {
+             let until_deadline = u64::from(self.tick_pending)
+                 .saturating_add(deadline.saturating_sub(self.cycles))
+-                .clamp(1, u64::from(cap));
++                .clamp(1, u64::from(QUIET_TICK_DEFER.max(MAX_TICK_DEFER)));
+             budget = budget.min(until_deadline as u32);
+         }
++        // EX134: a nearer explicit deadline already enforces the active-device cap.
++        // Only scan cadence-driven devices when their cap can tighten this budget.
++        if budget > MAX_TICK_DEFER.min(QUIET_TICK_DEFER) {
++            budget = budget.min(if self.cadence_active() { MAX_TICK_DEFER } else { QUIET_TICK_DEFER });
++        }
+         self.tick_budget = budget;
+     }
+ 
+diff --git a/esp32s3/src/bus/tests.rs b/esp32s3/src/bus/tests.rs
+index 485b9a87..19063c20 100644
+--- a/esp32s3/src/bus/tests.rs
++++ b/esp32s3/src/bus/tests.rs
+@@ -1140,3 +1140,26 @@ fn gdma_m2m_productive_copy_resumes_after_work_budget() {
+     assert!(!bus.periph.gdma.out[0].running);
+     for i in 0..COUNT { assert_eq!(bus.read8(M2M_DST + i).unwrap(), i as u8); }
+ }
++
++#[test]
++fn deadline_first_budget_matches_cadence_first_for_short_and_long_horizons() {
++    for active in [false, true] {
++        for now in [0, 100, 1000] {
++            for pending in [0, 1, 64, 256] {
++                for deadline in [0, 1, 63, 256, 257, 300, 32768, u64::MAX] {
++                    let mut bus = SocBus::new(1024, 1024, [0; 6]);
++                    bus.cycles = now;
++                    bus.tick_pending = pending;
++                    bus.board = Box::new(FixedDeadlineBoard { deadline });
++                    if active { bus.periph.usb.int_ena |= 1 << 1; }
++                    let cap = if bus.cadence_active() { MAX_TICK_DEFER } else { QUIET_TICK_DEFER };
++                    let expected = bus.periph.cycles_until_timer().clamp(1, cap).min(
++                        u64::from(pending).saturating_add(deadline.saturating_sub(now))
++                            .clamp(1, u64::from(cap)) as u32);
++                    bus.refresh_tick_budget();
++                    assert_eq!(bus.tick_budget, expected, "active={active} now={now} pending={pending} deadline={deadline}");
++                }
++            }
++        }
++    }
++}

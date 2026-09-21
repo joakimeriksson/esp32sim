@@ -1,0 +1,11 @@
+   Compiling emu-core v0.2.0 (/Users/alice/bench/esp32sim/overnight-review/recovery/emu-core)
+   Compiling esp32sim-wasm v0.2.0 (/Users/alice/bench/esp32sim/overnight-review/recovery/wasm)
+   Compiling esp-periph v0.2.0 (/Users/alice/bench/esp32sim/overnight-review/recovery/esp-periph)
+   Compiling riscv-rv32 v0.2.0 (/Users/alice/bench/esp32sim/overnight-review/recovery/riscv-rv32)
+   Compiling xtensa-lx7 v0.2.0 (/Users/alice/bench/esp32sim/overnight-review/recovery/xtensa-lx7)
+   Compiling esp-soc v0.2.0 (/Users/alice/bench/esp32sim/overnight-review/recovery/esp-soc)
+   Compiling esp32c3 v0.2.0 (/Users/alice/bench/esp32sim/overnight-review/recovery/esp32c3)
+   Compiling esp32c6 v0.2.0 (/Users/alice/bench/esp32sim/overnight-review/recovery/esp32c6)
+   Compiling esp32s3 v0.2.0 (/Users/alice/bench/esp32sim/overnight-review/recovery/esp32s3)
+   Compiling esp32sim-wasm-jit v0.2.0 (/Users/alice/bench/esp32sim/overnight-review/recovery/wasm-jit)
+    Finished `release` profile [optimized + debuginfo] target(s) in 17.63s

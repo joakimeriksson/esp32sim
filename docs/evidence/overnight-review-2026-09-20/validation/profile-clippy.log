@@ -1,0 +1,5 @@
+    Checking xtensa-lx7 v0.2.0 (/Users/alice/tmp/esp32-review-integration/xtensa-lx7)
+    Checking esp32s3 v0.2.0 (/Users/alice/tmp/esp32-review-integration/esp32s3)
+    Checking esp32sim-wasm-jit v0.2.0 (/Users/alice/tmp/esp32-review-integration/wasm-jit)
+    Checking esp32sim-wasm v0.2.0 (/Users/alice/tmp/esp32-review-integration/wasm)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.10s

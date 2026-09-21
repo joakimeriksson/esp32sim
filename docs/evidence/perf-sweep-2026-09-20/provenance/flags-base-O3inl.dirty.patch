@@ -1,0 +1,1 @@
+flags-base-O3inl: wasm-opt -O3 --inline-functions-with-loops --flexible-inline-max-function-size=200 on base

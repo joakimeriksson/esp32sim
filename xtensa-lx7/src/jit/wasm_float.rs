@@ -2,95 +2,13 @@
 //! the exact FMA helper and existing exception/memory helpers see committed bits.
 use super::*;
 
-pub(super) fn supported(op: crate::Op) -> bool {
-    use crate::Op::*;
-    matches!(
-        op,
-        AddS | SubS
-            | MulS
-            | MaddS
-            | MsubS
-            | MovS
-            | AbsS
-            | NegS
-            | Rfr
-            | Wfr
-            | ConstS
-            | FloatS
-            | UfloatS
-            | RoundS
-            | TruncS
-            | FloorS
-            | CeilS
-            | UtruncS
-            | UnS
-            | OeqS
-            | UeqS
-            | OltS
-            | UltS
-            | OleS
-            | UleS
-            | MoveqzS
-            | MovnezS
-            | MovltzS
-            | MovgezS
-            | MovfS
-            | MovtS
-            | MaddnS
-            | DivnS
-            | Div0S
-            | Nexp01S
-            | Recip0S
-            | Rsqrt0S
-            | Sqrt0S
-            | AddexpS
-            | MkdadjS
-            | MksadjS
-            | AddexpmS
-            | Movf
-            | Movt
-            | Bf
-            | Bt
-    )
-}
-
-// CPENABLE cannot change within an entirely supported block. A final call/return
-// helper may change machine state, but exits immediately. Do not extend this proof
-// across arbitrary interpreter helpers: they may write CPENABLE before later FP.
-pub(super) fn can_hoist_guard(instructions: &[BlockInsn], fast: bool) -> bool {
-    instructions
-        .iter()
-        .any(|bi| requires_coprocessor(bi.insn.op))
-        && instructions.iter().enumerate().all(|(n, bi)| {
-            super::supported_insn(&bi.insn, fast)
-                || (n + 1 == instructions.len() && terminal_helper(bi.insn.op))
-        })
-}
-
-pub(super) fn requires_coprocessor(op: crate::Op) -> bool {
-    use crate::Op::*;
-    (supported(op) && !matches!(op, Movf | Movt | Bf | Bt)) || matches!(op, Lsi | Ssi)
-}
-
-pub(super) fn guard(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
-    // Keep the check at the instruction boundary: prefixes and budget cuts must
-    // complete before a disabled-coprocessor exception is delivered.
-    g.cpu(offset_of!(Cpu, cpenable));
-    g.c(1);
-    g.op(0x71);
-    g.op(0x45);
-    g.begin_if();
-    g.fallback(bi, pc, next, last, false);
-    g.end();
-}
-
 pub(super) fn emit(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool, cp_enabled: bool) {
     use crate::Op::*;
     let i = &bi.insn;
     let (r, s, t) = (i.r, i.s, i.t);
     let imm = i.imm as u32;
-    if !cp_enabled && requires_coprocessor(i.op) {
-        guard(g, bi, pc, next, last);
+    if !cp_enabled && policy::requires_coprocessor(i.op) {
+        g.guard_coprocessor(1, bi, pc, next, last);
     }
     match i.op {
         MaddnS | DivnS | Div0S | Nexp01S | Recip0S | Rsqrt0S | Sqrt0S | AddexpS => {}
@@ -111,12 +29,38 @@ pub(super) fn emit(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool, 
             g.store(offset_of!(Cpu, fr) + 4 * r as usize);
         }
         MaddS | MsubS => {
+            // EX170: the helper's own common case inline. libm's `fmaf` (fma_wide_round) computes
+            // promote(s) * promote(t) + promote(r) in f64 and narrows it unless the low 29 result
+            // bits are exactly the f32 halfway pattern; only that pattern still calls the helper.
             g.get(0);
+            g.float(s);
+            if i.op == MsubS { g.op(0x8c); }                  // f32.neg: the helper's sign-bit flip
+            g.op(0xbb);                                       // f64.promote_f32
+            g.float(t);
+            g.op(0xbb);
+            g.op(0xa2);                                       // f64.mul
+            g.float(r);
+            g.op(0xbb);
+            g.op(0xa0);                                       // f64.add
+            g.op(0xbd);                                       // i64.reinterpret_f64
+            g.tee(WIDE);
+            g.op(0x42); sleb(&mut g.bytes, 0x1fff_ffff);
+            g.op(0x83);                                       // i64.and
+            g.op(0x42); sleb(&mut g.bytes, 0x1000_0000);
+            g.op(0x52);                                       // i64.ne
+            g.bytes.extend([0x04, 0x7f]);                     // if (result i32)
+            g.ctl.push(Ctl::If(g.pending));
+            g.get(WIDE);
+            g.op(0xbf);                                       // f64.reinterpret_i64
+            g.op(0xb6);                                       // f32.demote_f64
+            g.op(0xbc);                                       // i32.reinterpret_f32
+            g.op(0x05);                                       // else
             g.fr(s);
             g.fr(t);
             g.fr(r);
             g.c((i.op == MsubS) as u32);
             g.helper(offset_of!(Helpers, fused), 1);
+            g.end();
             g.store(offset_of!(Cpu, fr) + 4 * r as usize);
         }
         FloatS | UfloatS => {

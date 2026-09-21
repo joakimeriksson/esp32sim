@@ -1,0 +1,1 @@
+PASS: 1M triples (MADD.S and MSUB.S each), mismatches=0, halfway-class triples=97558, jit={"compiled":1,"failed":0,"released":1,"compileMs":0.14945800000000276,"bytes":1233,"liveBytes":0,"peakBytes":1233,"peakModules":1}
