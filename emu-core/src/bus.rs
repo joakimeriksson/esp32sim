@@ -34,31 +34,37 @@ pub fn tlb_index(addr: u32) -> usize { (((addr >> TLB_INDEX_SHIFT) ^ (addr >> TL
 /// The 32-byte alignment keeps `size_of` a power of two on both 32-bit and 64-bit hosts, which
 /// the native JIT's shifted entry indexing requires (jit/mod.rs `TLB_ENTRY_SHIFT`).
 ///
-/// `span` is `hi - lo` for a live mapping and 0 for an empty slot (EX173). It lets generated code
+/// On wasm32, `span` is `hi - lo` for a live mapping and 0 for an empty slot (EX173). It lets generated code
 /// decide a whole access with one unsigned compare against `addr - lo`, because an address below
 /// `lo` wraps the subtraction above any possible span and an empty slot rejects every offset.
 /// Always derive it with [`TlbEntry::with_span`] from the final endpoints.
 /// x4 pack: `writable` and `code` are 16-bit flags sharing one word, so the entry stays 32 bytes
 /// on wasm32 with both `code` (EX110) and `span` (EX173); generated code loads them as u16.
+/// Native probes use `lo`/`hi`, so omit their unused span to keep native entries at 32 bytes too.
 #[repr(C, align(32))]
 #[derive(Clone, Copy)]
-pub struct TlbEntry { pub lo: u32, pub hi: u32, pub base: *mut u8, pub vbase: u32, pub writable: u16, pub code: u16, pub off: u32, pub src: u32, pub span: u32 }
+pub struct TlbEntry { pub lo: u32, pub hi: u32, pub base: *mut u8, pub vbase: u32, pub writable: u16, pub code: u16, pub off: u32, pub src: u32,
+    #[cfg(target_arch = "wasm32")] pub span: u32,
+}
 impl TlbEntry {
-    pub const EMPTY: TlbEntry = TlbEntry { lo: 1, hi: 0, base: std::ptr::null_mut(), vbase: 0, writable: 0, off: 0, src: 0, code: 1, span: 0 };
+    pub const EMPTY: TlbEntry = TlbEntry { lo: 1, hi: 0, base: std::ptr::null_mut(), vbase: 0, writable: 0, off: 0, src: 0, code: 1,
+        #[cfg(target_arch = "wasm32")] span: 0,
+    };
     /// Publish the endpoints to generated code. An entry that never passes through this keeps
     /// `span` 0, which no access can satisfy, so it simply takes the slow path.
     #[inline(always)]
-    pub fn with_span(mut self) -> TlbEntry {
+    pub fn with_span(self) -> TlbEntry {
         debug_assert!(self.hi >= self.lo);
-        self.span = self.hi.wrapping_sub(self.lo);
-        self
+        Self {
+            #[cfg(target_arch = "wasm32")] span: self.hi.wrapping_sub(self.lo),
+            ..self
+        }
     }
 }
 // SAFETY: Sending this Copy value transfers only address bits. TlbEntry has no safe operation that
 // dereferences `base`; generated access must separately uphold the documented owner invariants.
 unsafe impl Send for TlbEntry {}
-// x4 pack: generated WASM indexes the table by this size.
-#[cfg(target_pointer_width = "32")]
+// Both backends must retain the compact entry footprint.
 const _: () = assert!(std::mem::size_of::<TlbEntry>() == 32);
 // SAFETY: Sharing this value exposes address bits but performs no dereference. Generated access
 // through `base` must separately uphold the documented lifetime and synchronization invariants.

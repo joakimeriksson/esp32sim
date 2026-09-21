@@ -44,7 +44,7 @@ impl Ram {
             off: 0,
             src: 0,
             code: 1,
-            span: 0,
+            ..TlbEntry::EMPTY
         }
         .with_span();
         Self {
