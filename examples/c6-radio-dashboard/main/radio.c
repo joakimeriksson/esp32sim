@@ -214,7 +214,11 @@ void radio_start(int initial_page)
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     netif = esp_netif_create_default_wifi_sta();
     assert(netif);
-    assert(xTaskCreate(worker, "radio", 6144, (void *)(intptr_t)initial_page, 4, NULL) == pdPASS);
+    // Not inside the assert: with assertions compiled out the call would go with it, and the
+    // dashboard would have no scanning, no connection and no energy measurements.
+    BaseType_t made = xTaskCreate(worker, "radio", 6144, (void *)(intptr_t)initial_page, 4, NULL);
+    assert(made == pdPASS);
+    (void)made;
 }
 
 static void wifi_setup(void)
