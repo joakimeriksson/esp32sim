@@ -7,8 +7,6 @@
 use super::*;
 use crate::pie::{extract, Cmp, Kind, LdKind, Mode, Ops, PieInsn, Role, OPS};
 
-const ACCX: usize = offset_of!(Cpu, accx);
-
 const QR: usize = offset_of!(Cpu, qr);
 /// CPENABLE bit for PIE.
 pub(super) const CP3: u32 = 1 << 3;
@@ -16,6 +14,27 @@ pub(super) const CP3: u32 = 1 << 3;
 fn table(i: &crate::Insn) -> (&'static PieInsn, Ops) {
     let p = &OPS[i.imm as usize];
     (p, extract(i.raw, p))
+}
+
+/// EX178: the largest magnitude one `ee.vmulas.s*.accx` can add, `lanes * 2^(2w-2)`.
+fn max_dot(w: u8) -> i64 {
+    (128 / w as i64) * (1i64 << (2 * w as u32 - 2))
+}
+
+/// EX178: instructions that may run while ACCX is held in a local. `ee.zero.accx` starts
+/// the run and the accumulates extend it; the two `.ip` vector moves are admitted because
+/// they never read the accumulator and their own miss path spills it. Everything else,
+/// `rur.accx_0` above all, forces the memory copy first.
+pub(super) fn accx_local_safe(i: &crate::Insn, fast: bool) -> bool {
+    i.op == crate::Op::Pie
+        && policy::pie(i, fast)
+        && matches!(
+            OPS[i.imm as usize].kind,
+            Kind::ZeroAccx
+                | Kind::Vld128(Mode::Ip)
+                | Kind::Vst128(Mode::Ip)
+                | Kind::Vmulas { accx: true, .. }
+        )
 }
 
 fn v128_load(g: &mut Gen, offset: usize) {
@@ -147,8 +166,17 @@ pub(super) fn emit(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool, 
         Kind::Vld128(Mode::Ip) => vmem(g, bi, pc, next, last, &o, false, None),
         Kind::Vst128(Mode::Ip) => vmem(g, bi, pc, next, last, &o, true, None),
         Kind::ZeroAccx => {
-            g.cpu_const(ACCX, 0);
-            g.cpu_const(ACCX + 4, 0);
+            if g.accx_ok {
+                // EX178: start a run. The memory copy stays stale until `accx_spill`,
+                // which every exit, join and foreign reader emits first.
+                g.c64(0);
+                g.set(ACC);
+                g.accx_live = true;
+                g.accx_head = 0;
+            } else {
+                g.cpu_const(ACCX, 0);
+                g.cpu_const(ACCX + 4, 0);
+            }
         }
         Kind::Vmulas { w, ld: LdKind::None, .. } => accumulate(g, w, o.get(Role::Qx), o.get(Role::Qy)),
         Kind::Vmulas { w, ld: LdKind::Ip, .. } => {
@@ -156,19 +184,6 @@ pub(super) fn emit(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool, 
             vmem(g, bi, pc, next, last, &o, false, Some((w, x, y)));
         }
         _ => unreachable!("PIE instruction was checked before emission"),
-    }
-}
-
-fn i64_const(g: &mut Gen, mut n: i64) {
-    g.op(0x42);
-    loop {
-        let b = (n as u8) & 127;
-        n >>= 7;
-        let done = (n == 0 && b & 64 == 0) || (n == -1 && b & 64 != 0);
-        g.bytes.push(b | if done { 0 } else { 128 });
-        if done {
-            break;
-        }
     }
 }
 
@@ -185,21 +200,48 @@ fn add_i32_lanes(g: &mut Gen) {
 
 /// ACCX += Σ x·y over the signed `w`-bit lanes of Q registers `x` and `y`, saturated to 40
 /// bits: exactly `pie::exec_packed`. The products are widening vector multiplies over the low
-/// and high halves; the lane sums and ACCX itself are 64-bit, so no intermediate can wrap.
+/// and high halves. Signed-8 products sum in 32 bits (at most 16 * 128 * 128);
+/// signed-16 products and ACCX need 64 bits.
 fn accumulate(g: &mut Gen, w: u8, x: i32, y: i32) {
-    i64_const(g, 0);
+    // EX178: after the `ee.zero.accx` that dominates this run the accumulator is exactly
+    // the sum of the products added since, whose magnitudes `accx_head` bounds. While that
+    // bound stays inside [-2^39, 2^39-1] neither the 40-bit sign extension of the old value
+    // nor the two saturating selects can change anything, so the sum can live in a local.
+    let step = max_dot(w);
+    if g.accx_live && g.accx_head > ((1i64 << 39) - 1) - step {
+        g.accx_flush();
+    }
+    let held = g.accx_live;
+    if held {
+        g.accx_head += step;
+    }
     if w == 8 {
-        // i8·i8 fits i16; two products per i32 lane after the pairwise add.
+        // i8·i8 fits i16; two products per i32 lane after the pairwise add, and the whole
+        // dot product fits i32 (EX042 s8 reduction), so it is widened once.
         for high in [false, true] {
             q(g, x);
             q(g, y);
             g.bytes.extend([0xfd, if high { 0x9d } else { 0x9c }, 0x01]); // i16x8.extmul_{low,high}_i8x16_s
             g.bytes.extend([0xfd, 0x7e]); // i32x4.extadd_pairwise_i16x8_s
+            if high {
+                g.get(V128);
+                g.bytes.extend([0xfd, 0xae, 0x01]); // i32x4.add
+            }
             g.set(V128);
-            add_i32_lanes(g);
+        }
+        for lane in 0..4 {
+            g.get(V128);
+            g.bytes.extend([0xfd, 0x1b, lane]); // i32x4.extract_lane
+            if lane != 0 { g.op(0x6a); } // i32.add
+        }
+        g.op(0xac); // i64.extend_i32_s
+        if held {
+            g.get(ACC);
+            g.op(0x7c); // i64.add
         }
     } else {
-        // i16·i16 fits i32; eight products, summed in 64 bits.
+        // i16·i16 fits i32; eight products, summed in 64 bits on top of the held value.
+        if held { g.get(ACC); } else { g.c64(0); }
         for high in [false, true] {
             q(g, x);
             q(g, y);
@@ -208,52 +250,165 @@ fn accumulate(g: &mut Gen, w: u8, x: i32, y: i32) {
             add_i32_lanes(g);
         }
     }
-    // ACCX, sign-extended from 40 bits: accx[0] | (accx[1] & 0xff) << 32.
+    if held {
+        g.set(ACC);
+        return;
+    }
+    // The two ACCX words are contiguous. Sign-extend their low 40 bits, ignoring
+    // the unused upper bits of accx[1].
     g.get(0);
-    g.op(0x35); // i64.load32_u
+    g.op(0x29); // i64.load
     uleb(&mut g.bytes, 2);
     uleb(&mut g.bytes, ACCX);
-    g.get(0);
-    g.op(0x35);
-    uleb(&mut g.bytes, 2);
-    uleb(&mut g.bytes, ACCX + 4);
-    i64_const(g, 0xff);
-    g.op(0x83); // i64.and
-    i64_const(g, 32);
-    g.op(0x86); // i64.shl
-    g.op(0x84); // i64.or
-    i64_const(g, 24);
+    g.c64(24);
     g.op(0x86);
-    i64_const(g, 24);
+    g.c64(24);
     g.op(0x87); // i64.shr_s
     g.op(0x7c); // i64.add
     // Saturate: min(v, 2^39-1), then max(v, -2^39). `select` keeps its first operand when
     // the condition holds.
     for (bound, cmp) in [((1i64 << 39) - 1, 0x55u8), (-(1i64 << 39), 0x53u8)] { // i64.gt_s, i64.lt_s
         g.set(WIDE);
-        i64_const(g, bound);
+        g.c64(bound);
         g.get(WIDE);
         g.get(WIDE);
-        i64_const(g, bound);
+        g.c64(bound);
         g.op(cmp);
         g.op(0x1b); // select
     }
     g.set(WIDE);
-    // Store it back as accx_set does: the low 32 bits, then bits 32..40.
+    // Store the canonical 40-bit value, leaving accx[1]'s unused bits zero.
     g.get(0);
     g.get(WIDE);
-    g.op(0x3e); // i64.store32
+    g.c64((1i64 << 40) - 1);
+    g.op(0x83);
+    g.op(0x37); // i64.store
     uleb(&mut g.bytes, 2);
     uleb(&mut g.bytes, ACCX);
-    g.get(0);
-    g.get(WIDE);
-    i64_const(g, 32);
-    g.op(0x87);
-    i64_const(g, 0xff);
-    g.op(0x83);
-    g.op(0x3e);
-    uleb(&mut g.bytes, 2);
-    uleb(&mut g.bytes, ACCX + 4);
+}
+
+/// EX178 s1: a straight-line run of PIE post-increment vector loads through one base
+/// register. Each address is `(ar[As] & !15) + offsets[k]`, because the hardware ignores
+/// the low four address bits and every `.ip` immediate is a multiple of 16 (`pie_table.rs`
+/// scales Role::Imm by 16), so one range probe over `span` bytes stands for all of them.
+pub(super) struct Run {
+    pub len: usize,
+    /// Bytes from the first address to the end of the last access.
+    span: u32,
+    /// Sum of the post-increments, applied to the base register once at the end.
+    total: u32,
+    base: u8,
+    offsets: Vec<u32>,
+}
+
+/// Longest coalescable run starting at `bis[0]`, if it is worth a shared probe.
+pub(super) fn coalesce(bis: &[BlockInsn], fast: bool) -> Option<Run> {
+    use std::sync::atomic::Ordering::Relaxed;
+    // The inline data-cache probe and the fetch ring add per-access work that a shared
+    // probe cannot carry; neither is on in the benchmarked configuration.
+    if super::CACHE_PROBES.load(Relaxed) || super::FETCH_RING.load(Relaxed) {
+        return None;
+    }
+    // A positive immediate keeps the offsets inside the probed range and increasing.
+    let load = |bi: &BlockInsn| -> Option<(u8, u32)> {
+        if bi.insn.op != crate::Op::Pie || !policy::pie(&bi.insn, fast) {
+            return None;
+        }
+        let (p, o) = table(&bi.insn);
+        let ip = matches!(p.kind, Kind::Vld128(Mode::Ip) | Kind::Vmulas { accx: true, ld: LdKind::Ip, .. });
+        let imm = o.get(Role::Imm);
+        (ip && imm > 0).then(|| ((o.get(Role::As) & 15) as u8, imm as u32))
+    };
+    let mut offsets: Vec<u32> = Vec::new();
+    let mut total = 0u32;
+    let mut base = None;
+    for bi in bis {
+        let Some((b, imm)) = load(bi) else { break };
+        // One base register only: its post-increments are the sole writes to it, so the
+        // addresses stay statically known for the whole run.
+        if *base.get_or_insert(b) != b || total + 16 > 4096 {
+            break;
+        }
+        offsets.push(total);
+        total += imm;
+    }
+    (offsets.len() >= 2).then(|| Run {
+        len: offsets.len(),
+        span: offsets[offsets.len() - 1] + 16,
+        total,
+        base: base.unwrap(),
+        offsets,
+    })
+}
+
+/// Emit `run` twice: once behind a single range probe against one TLB entry, once exactly
+/// as the per-access path would. Inside the coalesced copy no access can miss, fault or
+/// reach a helper, so the intermediate values of the base register are unobservable and
+/// the post-increments collapse into one addition. A probe that fails for any reason (the
+/// run crosses an entry, the mapping is absent, the PIE price mode is on) falls into the
+/// second copy, where faults are still raised by exactly the instruction that causes them.
+pub(super) fn emit_run(g: &mut Gen, bis: &[BlockInsn], pc0: u32, extras: &[u8], run: &Run, block_end: bool) {
+    let mut pcs = Vec::with_capacity(run.len + 1);
+    let mut pc = pc0;
+    for bi in bis {
+        pcs.push(pc);
+        pc = pc.wrapping_add(bi.insn.len as u32);
+    }
+    pcs.push(pc);
+    let entry_pending = g.pending;
+    let held = (g.accx_live, g.accx_head);
+    g.begin_block(); // join
+    g.begin_block(); // per-access copy
+    g.ar(run.base);
+    g.c(!15u32);
+    g.op(0x71);
+    g.set(ADDR);
+    // Mode 1 prices PIE memory operations in the interpreter, exactly as `vmem` does.
+    g.cpu(offset_of!(Cpu, approximate_pie_mode));
+    g.c(1);
+    g.op(0x46);
+    g.bytes.extend([0x0d, 0]);
+    g.get(5);
+    g.op(0x45);
+    g.bytes.extend([0x0d, 0]);
+    memory::probe(g, run.span, false);
+    g.get(TLB);
+    g.load(offset_of!(TlbEntry, base));
+    g.get(REL);
+    g.op(0x6a);
+    g.set(HOSTP);
+    for (k, bi) in bis.iter().enumerate() {
+        g.last_pc = pcs[k];
+        g.wait_price = extras[k] as u32;
+        g.price(g.wait_price);
+        let (p, o) = table(&bi.insn);
+        // The accumulate reads Qx and Qy before the load overwrites Qu, which may alias.
+        if let Kind::Vmulas { w, .. } = p.kind {
+            accumulate(g, w, o.get(Role::Qx), o.get(Role::Qy));
+        }
+        g.get(0);
+        g.get(HOSTP);
+        v128_load(g, run.offsets[k] as usize);
+        set_q(g, o.get(Role::Qu));
+        g.advance();
+    }
+    g.ar(run.base);
+    g.c(run.total);
+    g.op(0x6a);
+    g.set_ar(run.base);
+    g.bytes.extend([0x0c, 1]);
+    g.end();
+    (g.accx_live, g.accx_head) = held;
+    for (k, bi) in bis.iter().enumerate() {
+        g.last_pc = pcs[k];
+        g.wait_price = extras[k] as u32;
+        g.price(g.wait_price);
+        emit(g, bi, pcs[k], pcs[k + 1], block_end && k + 1 == run.len, true);
+        g.advance();
+    }
+    g.end();
+    // Both copies retire the whole run; `end` restored the count at the join.
+    g.pending = entry_pending + run.len as u32;
 }
 
 /// Aligned 128-bit load or store through the fast mapping, then the post-increment.

@@ -208,6 +208,9 @@ pub(in crate::jit) fn form<B: Bus>(cpu: &Cpu, bus: &mut B, head: u32, block: &[B
 /// `direct` is the final edge of a chunk's code: only that one may fall into the
 /// next chunk's code without a branch.
 pub(super) fn region_edge(g: &mut Gen, target: u32, direct: bool) {
+    // EX178: the next chunk may also be reached from the dispatch table, so ACCX must be
+    // in memory on every edge, not only on the ones that leave.
+    g.accx_flush();
     g.flush();
     let r = g.region.as_ref().unwrap();
     let (current, loop_depth, chunk_depth) = (r.current, r.loop_depth, r.chunk_depth);
