@@ -287,7 +287,16 @@ fn setup_c6(o: &Opts) -> esp32c6::Machine {
     if !o.debug.is_empty() { let mut f = esp_soc::DebugFlags::from_env(); for d in &o.debug { f.parse(d); } m.set_debug(&f); }
     let name = if o.board == "atech14" { "none" } else { o.board.as_str() };   // the S3 default means "bare module" here
     match esp32c6::board::make_board(name) { Some(b) => m.bus.board = b, None => { eprintln!("--board {}: none or waveshare-c6-lcd147 on the C6", name); std::process::exit(2) } }
-    for (flag, on) in [("--wifi", o.wifi.is_some()), ("--cam-image", o.cam_image.is_some()), ("--psram-mb", o.psram_mb.is_some()), ("--efuse-regs", o.efuse_regs.is_some()), ("--regs-init", o.regs_init.is_some()), ("--regstat", o.regstat.is_some())] {
+    if let Some(spec) = &o.wifi {
+        let cfg = esp_soc::wifi::ApConfig::parse(spec).unwrap_or_else(|e| { eprintln!("--wifi: {e}"); std::process::exit(2) });
+        eprintln!("[emu] virtual AP '{}' bssid {} channel {} ({})", cfg.ssid, esp_soc::wifi::mac_str(&cfg.bssid), cfg.channel, if cfg.psk.is_some() { "WPA2-PSK" } else { "open" });
+        m.bus.periph.wifi_mac.ap = Some(esp_soc::wifi::VirtualAp::new(cfg, m.bus.debug.has("wifi-frames")));
+        let mut net = esp_soc::net::VirtualNet::new(m.bus.debug.has("net"));
+        if o.net == "nat" || o.net == "user" { net.nat = Some(esp_soc::nat::Nat::new(m.bus.debug.has("net"))); }
+        eprintln!("[emu] virtual network: station {}.{}.{}.{}, gateway {}.{}.{}.{} (DHCP, ARP, ICMP, DNS, NTP)", net.sta_ip[0], net.sta_ip[1], net.sta_ip[2], net.sta_ip[3], net.gw_ip[0], net.gw_ip[1], net.gw_ip[2], net.gw_ip[3]);
+        m.bus.periph.wifi_mac.net = Some(net);
+    }
+    for (flag, on) in [("--cam-image", o.cam_image.is_some()), ("--psram-mb", o.psram_mb.is_some()), ("--efuse-regs", o.efuse_regs.is_some()), ("--regs-init", o.regs_init.is_some()), ("--regstat", o.regstat.is_some())] {
         if on { eprintln!("{} is not available on the C6", flag); std::process::exit(2); }
     }
     m

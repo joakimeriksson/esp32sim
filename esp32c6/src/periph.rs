@@ -23,6 +23,7 @@ pub const CPU_SUB_END: u32 = 0x2000_2000;
 /// Interrupt sources, numbered by the order of the `INTMTX_CORE0_*_MAP_REG` registers (which is
 /// also `soc/interrupts.h`'s order on this chip). Only the sources we can assert are listed.
 pub mod src {
+    pub const WIFI_MAC: usize = 0; pub const WIFI_PWR: usize = 2;
     pub const LP_TIMER: usize = 7; pub const ZB_MAC: usize = 12; pub const PMU: usize = 13; pub const EFUSE: usize = 14;
     pub const LP_RTC_TIMER: usize = 15; pub const LP_WDT: usize = 18;
     /// software interrupts, raised by writing `INTPRI_CPU_INTR_FROM_CPU_n`: the FreeRTOS yield
@@ -414,7 +415,7 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 10), 
     0x96 "PCR" (pcr) => [];
     0xa0 "MODEM_BB" (modem_bb) => [];
     0xa3 "IEEE802154" (radio) => [src::ZB_MAC];
-    0xa4 "WIFI_MAC" (wifi_mac) => [];
+    0xa4 "WIFI_MAC" (wifi_mac) => [src::WIFI_MAC];
     0xaf "I2C_ANA_MST" (ana_mst) delta -0x800 @ 0x800..=0xfff => [];
     // the LP address space: PMU at 0xb0000 is generic; the four LP blocks below are one device
     0xb0 "LP_CLKRST" (lpsys) delta -0x400 @ 0x400..=0x7ff => [];

@@ -181,6 +181,118 @@ impl SocBus {
 
     /// GP-SPI2's MOSI data phase through the GDMA out-channel bound to it (trigger 0): walk the
     /// descriptor chain, hand the bytes to the SPI model, and complete the channel.
+    /// Bytes of HP SRAM for the WiFi MAC's DMA, or nothing if the range is not all SRAM.
+    fn sram_bytes(&self, addr: u32, len: usize) -> Option<&[u8]> {
+        let o = addr.wrapping_sub(SRAM_LOW) as usize;
+        o.checked_add(len).filter(|&end| end <= self.sram.len()).map(|end| &self.sram[o..end])
+    }
+    fn sram_store(&mut self, addr: u32, data: &[u8]) -> bool {
+        let o = addr.wrapping_sub(SRAM_LOW) as usize;
+        match o.checked_add(data.len()).filter(|&end| end <= self.sram.len()) {
+            Some(end) => { self.sram[o..end].copy_from_slice(data); true }
+            None => false,
+        }
+    }
+    fn now_us(&self) -> u64 { self.cycles / (crate::periph::CPU_HZ / 1_000_000) }
+
+    /// WiFi transmit: the frames the library queued come out of their descriptors (word 0 bits
+    /// 27:14 the packet's length, word 1 the packet), complete at once, and go to the access point; what
+    /// it passes on as data goes to the network behind it.
+    fn wifi_tx_step(&mut self) {
+        let now_us = self.now_us();
+        for (queue, low) in std::mem::take(&mut self.periph.wifi_mac.tx_pending) {
+            let desc = self.periph.wifi_mac.addr(low);
+            let (dw0, pkt) = (self.sram32(desc), self.sram32(desc.wrapping_add(4)));
+            // The packet is an 8-byte hardware header (word 0 bits 13:0 the frame's length) and the frame.
+            const TX_HEADER: usize = 8;
+            let packet = self.sram_bytes(pkt, ((dw0 >> 14) & 0x3fff) as usize).unwrap_or_default();
+            let len = packet.get(..4).map_or(0, |w| (u32::from_le_bytes(w.try_into().unwrap()) & 0x3fff) as usize);
+            let frame = packet.get(TX_HEADER..TX_HEADER + len).unwrap_or_default().to_vec();
+            if frame.is_empty() && !packet.is_empty() { eprintln!("[wifi] TX queue {}: a {}-byte packet whose header says {} bytes of frame; not sent", queue, packet.len(), len); }
+            if self.periph.wifi_mac.log || self.debug.has("wifi-frames") { eprintln!("[wifi] TX queue {} desc {:#010x} {}", queue, desc, esp_soc::wifi::describe(&frame)); }
+            let mac = &mut self.periph.wifi_mac;
+            mac.tx_done(queue);
+            if let Some(ap) = &mut mac.ap {
+                if let Some(data) = ap.on_station_tx(&frame, now_us) {
+                    if let Some(eth) = esp_soc::wifi::data_to_eth(&data) { mac.eth_tx.push(eth); }
+                }
+            }
+            self.irq_dirty = true;
+        }
+    }
+
+    /// The virtual air: what the access point has due (beacons, responses) and what the network
+    /// sends the station, one frame at a time into the RX ring. The pacing is the S3's, for the
+    /// same library behaviour: a frame is only indicated up the stack while the ring is shallow,
+    /// so wait until software has recycled the last descriptor — but not for ever.
+    fn wifi_air_step(&mut self) {
+        let now_us = self.now_us();
+        let (last_us, last_desc) = (self.periph.wifi_mac.last_rx_us, self.periph.wifi_mac.last_rx_desc);
+        if now_us.wrapping_sub(last_us) < 400 { return; }
+        let busy = last_desc != 0 && self.sram32(last_desc) & (1 << 30) != 0;
+        if busy && now_us.wrapping_sub(last_us) < 50_000 { return; }
+        let mac = &mut self.periph.wifi_mac;
+        let Some(ap) = mac.ap.as_mut() else { return };
+        let mut due = ap.step(now_us);
+        for e in std::mem::take(&mut mac.eth_rx) {
+            if let Some(f) = ap.data_from_ds(&e) { due.push(esp_soc::wifi::AirFrame { at_us: now_us, frame: f }); }
+        }
+        if due.is_empty() { return; }
+        due.sort_by_key(|a| (esp_soc::wifi::is_beacon(&a.frame), a.at_us));   // a connect exchange goes before beacons
+        let first = due.remove(0);
+        ap.queue.extend(due);
+        self.wifi_rx_deliver(&first.frame, now_us);
+    }
+
+    /// One received frame into the next RX descriptor, behind the control header this MAC puts in
+    /// front. The layout is the one `wDev_ProcessRxSucData` reads, which is not the public
+    /// `esp_wifi_rxctrl_t`: 84 fixed bytes (byte 0 the RSSI, byte 3 bits 4 and 5 the address
+    /// match, byte 8 the end state, bytes 12..15 the timestamp, bytes 33..34 bits 9:0 the length
+    /// of a channel-estimate dump), that dump, then 8 bytes with the frame length (14 bits, FCS
+    /// included) and the receive state, then the frame and its FCS. No channel estimate is
+    /// produced, so the header is 92 bytes. The library writes the channel into byte 21 itself.
+    fn wifi_rx_deliver(&mut self, frame: &[u8], now_us: u64) {
+        const RX_CTRL: usize = 92;
+        let mac = &self.periph.wifi_mac;
+        if mac.rx_next == 0 { self.periph.wifi_mac.rx_dropped += 1; return; }
+        let desc = mac.addr(mac.rx_next);
+        let log = mac.ap.as_ref().is_some_and(|ap| ap.log);
+        let (dw0, buf, next) = (self.sram32(desc), self.sram32(desc.wrapping_add(4)), self.sram32(desc.wrapping_add(8)));
+        let total = RX_CTRL + frame.len() + 4;
+        // hardware-owned, empty, and big enough (size is the low 14 bits)
+        if dw0 & (1 << 31) == 0 || dw0 & (1 << 30) != 0 || ((dw0 & 0x3fff) as usize) < total { self.periph.wifi_mac.rx_dropped += 1; return; }
+        let group = frame.len() >= 5 && frame[4] & 1 == 1;
+        let mut words = [0u32; RX_CTRL / 4];
+        words[0] = 0xd8 | 1 << 28 | if group { 0 } else { 1 << 29 };   // rssi -40 dBm, 1 Mbps legacy; match 0, and match 1 for our own address
+        words[3] = now_us as u32;                                       // timestamp
+        words[5] = 0xa6;                                                // noise floor -90 dBm
+        words[21] = (frame.len() as u32 + 4) & 0x3fff;                  // byte 84: the frame's length with its FCS
+        words[22] = 0;                                                  // byte 88: receive state, 0 = good
+        let mut b: Vec<u8> = words.iter().flat_map(|w| w.to_le_bytes()).collect();
+        b.extend_from_slice(frame);
+        b.extend_from_slice(&esp_soc::wifi::fcs(frame).to_le_bytes());
+        if !self.sram_store(buf, &b) { self.periph.wifi_mac.rx_dropped += 1; return; }
+        let filled = (dw0 & !(0x3fff << 14)) | (total as u32) << 14 | 1 << 30;           // length, has_data; size and owner stay
+        self.sram_store(desc, &filled.to_le_bytes());
+        self.periph.wifi_mac.rx_filled(desc, next, now_us);
+        if log { eprintln!("[wifi] RX -> desc {:#010x} (was {:#010x}, next {:#010x}) buf {:#010x} {}", desc, dw0, next, buf, esp_soc::wifi::describe(frame)); }
+        self.irq_dirty = true;
+    }
+
+    /// The network behind the access point: what the station sent is answered at once, the host
+    /// sockets are read every 500 us (syscalls every round would cost more than the CPU).
+    fn wifi_net_step(&mut self) {
+        let now_us = self.now_us();
+        let mac = &mut self.periph.wifi_mac;
+        let Some(net) = mac.net.as_mut() else { return };
+        let out = std::mem::take(&mut mac.eth_tx);
+        let due = now_us.wrapping_sub(mac.net_polled_us) >= 500;
+        if out.is_empty() && !due { return; }
+        if due { mac.net_polled_us = now_us; }
+        for e in out { let r = net.handle(&e, now_us); mac.eth_rx.extend(r); }
+        let r = net.poll(now_us); mac.eth_rx.extend(r);
+    }
+
     fn spi2_dma_tx(&mut self) {
         let Some(bits) = self.periph.spi2.dma_tx_pending else { return };
         let want = (bits as usize).div_ceil(8);
@@ -202,6 +314,54 @@ impl SocBus {
         c.running = false; c.desc = 0; c.eof_desc = last;
         c.int_raw |= (1 << 0) | (1 << 1) | (1 << 3);                 // OUT_DONE, OUT_EOF, OUT_TOTAL_EOF
         self.periph.spi2.complete_dma_tx(&data);
+    }
+
+    /// AES through GDMA (peripheral 6), which is the only way ESP-IDF's driver uses the block on
+    /// this chip: the OUT chain is the input, the cipher is the shared model's, the result goes
+    /// into the IN chain, each descriptor written back with its length, SUC_EOF on the last and
+    /// the owner handed to the CPU. All of it happens in the round that set the trigger. A chain
+    /// that leaves SRAM, or an IN chain too short for the result, ends the transform where it is:
+    /// the driver sees the AES done with what was delivered.
+    fn aes_dma_step(&mut self) {
+        self.periph.aes.dma_pending = false;
+        let (out_ch, in_ch) = { let g = &self.periph.gdma.gdma; (g.out_channel_for(6), g.in_channel_for(6)) };
+        if let (Some(out_ch), Some(in_ch)) = (out_ch, in_ch) {
+            let mut input = Vec::new();
+            let (mut desc, mut last) = (self.periph.gdma.gdma.out[out_ch].desc, 0);
+            for _ in 0..4096 {
+                if desc == 0 { break; }
+                let d = read_desc(&|a| self.sram32(a), desc);
+                let Some(bytes) = self.sram_bytes(d.buf, d.length as usize) else { break };
+                input.extend_from_slice(bytes);
+                last = desc;
+                if d.eof { break; }
+                desc = d.next;
+            }
+            let c = &mut self.periph.gdma.gdma.out[out_ch];
+            c.running = false; c.desc = 0; c.eof_desc = last;
+            c.int_raw |= (1 << 0) | (1 << 1) | (1 << 3);                 // OUT_DONE, OUT_EOF, OUT_TOTAL_EOF
+
+            let output = self.periph.aes.transform_blocks(&input);
+            let (mut desc, mut pos, mut last) = (self.periph.gdma.gdma.inp[in_ch].desc, 0usize, 0);
+            for _ in 0..4096 {
+                if desc == 0 || pos >= output.len() { break; }
+                let d = read_desc(&|a| self.sram32(a), desc);
+                let n = (d.size as usize).min(output.len() - pos);
+                if n == 0 || !self.sram_store(d.buf, &output[pos..pos + n]) { break; }
+                pos += n;
+                let eof = pos == output.len();
+                let dw0 = (self.sram32(desc) & !(0xfff << 12) & !(3 << 30)) | (n as u32) << 12 | if eof { 1 << 30 } else { 0 };
+                self.sram_store(desc, &dw0.to_le_bytes());
+                last = desc;
+                desc = d.next;
+            }
+            let c = &mut self.periph.gdma.gdma.inp[in_ch];
+            c.running = false; c.desc = 0; c.eof_desc = last;
+            c.int_raw |= (1 << 0) | (1 << 1);                            // IN_DONE, IN_SUC_EOF
+        }
+        self.periph.aes.state = 2;                                       // DONE
+        self.periph.aes.int_raw |= 1;
+        self.irq_dirty = true;
     }
 
     /// Pin-level events to the board, in order: GPIO edges first, then what went out on the
@@ -255,6 +415,9 @@ impl SocBus {
         self.periph.tick(cycles as u64);
         if self.periph.radio.rx_write.is_some() { self.radio_rx_store(); }
         if self.periph.spi2.dma_tx_pending.is_some() { self.spi2_dma_tx(); }
+        if self.periph.aes.dma_pending { self.aes_dma_step(); }
+        if !self.periph.wifi_mac.tx_pending.is_empty() { self.wifi_tx_step(); }
+        if self.periph.wifi_mac.ap.is_some() { self.wifi_air_step(); self.wifi_net_step(); }
         self.deliver_board_events();
     }
 }
