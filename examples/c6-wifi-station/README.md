@@ -15,11 +15,12 @@ Every step is one console line that starts with a fixed word (the values here ar
     station: GOT_IP ip=192.168.1.23 mask=255.255.255.0 gw=192.168.1.1
     station: PING seq=1 time=4 ms
     station: PING done sent=5 received=5
-    station: STATUS rssi=-49 channel=6
+    station: STATUS state=connected rssi=-49 channel=6
     station: DISCONNECTED reason=201 NO_AP_FOUND
 
-A disconnect is retried after two seconds, forever; `STATUS` repeats every five seconds while
-the lease holds.
+A disconnect is retried after two seconds, forever. `STATUS` repeats every five seconds whatever
+the state (`connecting`, `associated_no_ip`, `connected`, `disconnected`), so the log is never
+silent: a network that associates but withholds DHCP shows as `associated_no_ip`.
 
 ## The screen
 

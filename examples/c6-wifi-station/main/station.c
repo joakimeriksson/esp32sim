@@ -27,6 +27,7 @@ enum { ROW_TITLE, ROW_AP, ROW_STATE, ROW_IP, ROW_GW, ROW_RSSI, ROW_PING, ROW_SCA
 static EventGroupHandle_t events;
 static esp_netif_t *netif;
 static int attempts;
+static const char *volatile state = "starting";     // what the heartbeat reports
 
 static const char *security(wifi_auth_mode_t auth)
 {
@@ -66,12 +67,14 @@ static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
         wifi_event_sta_connected_t *e = data;
         ESP_LOGI(TAG, "CONNECTED channel=%u bssid=" MACSTR, e->channel, MAC2STR(e->bssid));
         lcd_line(ROW_STATE, LCD_AMBER, "ASSOCIATED CH %u", e->channel);
+        state = "associated_no_ip";
     } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED) {
         wifi_event_sta_disconnected_t *e = data;
         ESP_LOGI(TAG, "DISCONNECTED reason=%u %s", e->reason, reason_name(e->reason));
         lcd_line(ROW_STATE, LCD_RED, "DISC %u %s", e->reason, reason_name(e->reason));
         lcd_line(ROW_IP, LCD_GREY, "IP --");
         lcd_line(ROW_GW, LCD_GREY, "GW --");
+        state = "disconnected";
         xEventGroupClearBits(events, GOT_IP);
         xEventGroupSetBits(events, RETRY);
     } else if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
@@ -81,6 +84,7 @@ static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data)
         lcd_line(ROW_STATE, LCD_GREEN, "CONNECTED");
         lcd_line(ROW_IP, LCD_WHITE, "IP " IPSTR, IP2STR(&e->ip_info.ip));
         lcd_line(ROW_GW, LCD_WHITE, "GW " IPSTR, IP2STR(&e->ip_info.gw));
+        state = "connected";
         xEventGroupSetBits(events, GOT_IP);
     }
 }
@@ -161,6 +165,7 @@ static void connect(void)
     esp_err_t err = esp_wifi_connect();
     ESP_LOGI(TAG, "CONNECT attempt=%d ssid=\"%s\" %s", attempts, CONFIG_STATION_SSID, esp_err_to_name(err));
     lcd_line(ROW_STATE, LCD_AMBER, "CONNECTING #%d", attempts);
+    state = "connecting";
 }
 
 void app_main(void)
@@ -216,12 +221,19 @@ void app_main(void)
             connect();
             continue;
         }
-        if (!(bits & GOT_IP)) continue;
-        if (!pinged) { pinged = true; ping_gateway(); }
+        // Never silent: the state goes out every five seconds, lease or not. Associated without
+        // a lease (a guest network that withholds DHCP, say) would otherwise look like a hang.
         wifi_ap_record_t ap;
         if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK) {
-            ESP_LOGI(TAG, "STATUS rssi=%d channel=%u", ap.rssi, ap.primary);
+            ESP_LOGI(TAG, "STATUS state=%s rssi=%d channel=%u", state, ap.rssi, ap.primary);
             lcd_line(ROW_RSSI, LCD_WHITE, "RSSI %d dBm CH %u", ap.rssi, ap.primary);
+        } else {
+            ESP_LOGI(TAG, "STATUS state=%s", state);
         }
+        if (!(bits & GOT_IP)) {
+            if (!strcmp(state, "associated_no_ip")) lcd_line(ROW_IP, LCD_AMBER, "IP waiting for DHCP");
+            continue;
+        }
+        if (!pinged) { pinged = true; ping_gateway(); }
     }
 }
