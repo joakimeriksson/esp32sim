@@ -1,0 +1,71 @@
+# Browser measurements
+
+Positive reductions mean less wall time. Each job compares with its round’s plain base, not the preceding candidate. The reported reduction is the original harness aggregate; paired reductions are preserved separately in each JSON. All retained arms pass their workload verdict and report zero JIT failures.
+
+| Round | Job | Pairs | Wall-time reduction | Receipt |
+|---|---|---:|---:|---|
+| x3 | calls-s1 | 2 | -19.85% | [Result](x3/calls-s1.json) |
+| x3 | calls-s2 | 2 | -3.12% | [Result](x3/calls-s2.json) |
+| x3 | calls-s3 | 2 | -3.34% | [Result](x3/calls-s3.json) |
+| x3 | calls-s4 | 2 | -1.81% | [Result](x3/calls-s4.json) |
+| x3 | coalesce-s1 | 2 | 0.53% | [Result](x3/coalesce-s1.json) |
+| x3 | coalesce-s1s2 | 2 | 2.17% | [Result](x3/coalesce-s1s2.json) |
+| x3 | coalesce-s2 | 2 | 0.76% | [Result](x3/coalesce-s2.json) |
+| x3 | coldpath-s1 | 2 | -0.37% | [Result](x3/coldpath-s1.json) |
+| x3 | coldpath-s1s2 | 2 | -2.87% | [Result](x3/coldpath-s1s2.json) |
+| x3 | coldpath-s3 | 2 | -2.58% | [Result](x3/coldpath-s3.json) |
+| x3 | confirm-all | 4 | 4.43% | [Result](x3/confirm-all.json) |
+| x3 | confirm-all-noaccx | 4 | 4.09% | [Result](x3/confirm-all-noaccx.json) |
+| x3 | confirm-all-noaccx-td | 3 | 4.04% | [Result](x3/confirm-all-noaccx-td.json) |
+| x3 | confirm-all-td | 3 | 3.98% | [Result](x3/confirm-all-td.json) |
+| x3 | confirm-dispatch | 4 | 2.15% | [Result](x3/confirm-dispatch.json) |
+| x3 | confirm-dispatch-inchain | 4 | 3.42% | [Result](x3/confirm-dispatch-inchain.json) |
+| x3 | confirm-dispatch-t3t4 | 4 | 2.50% | [Result](x3/confirm-dispatch-t3t4.json) |
+| x3 | confirm-inchain | 4 | 1.75% | [Result](x3/confirm-inchain.json) |
+| x3 | control-aa-1 | 2 | -1.02% | [Result](x3/control-aa-1.json) |
+| x3 | control-aa-2 | 2 | 0.18% | [Result](x3/control-aa-2.json) |
+| x3 | control-aa-td | 2 | 0.03% | [Result](x3/control-aa-td.json) |
+| x3 | hints-inv | 2 | -6.19% | [Result](x3/hints-inv.json) |
+| x3 | hints-s1 | 2 | -0.23% | [Result](x3/hints-s1.json) |
+| x3 | hints-s2 | 2 | 1.00% | [Result](x3/hints-s2.json) |
+| x3 | hints-s3 | 2 | 0.02% | [Result](x3/hints-s3.json) |
+| x3 | hints-s4 | 2 | 0.42% | [Result](x3/hints-s4.json) |
+| x3 | pgo-s1 | 2 | -0.64% | [Result](x3/pgo-s1.json) |
+| x3 | pgo-s2 | 2 | -4.33% | [Result](x3/pgo-s2.json) |
+| x3 | pgo-s3 | 2 | -0.60% | [Result](x3/pgo-s3.json) |
+| x3 | pgo-s4 | 2 | -0.23% | [Result](x3/pgo-s4.json) |
+| x3 | pgo-s5b | 2 | -0.24% | [Result](x3/pgo-s5b.json) |
+| x3 | pgo-s6b | 2 | 0.31% | [Result](x3/pgo-s6b.json) |
+| x3 | prevpage-b | 2 | -1.24% | [Result](x3/prevpage-b.json) |
+| x3 | prevpage-storever | 2 | 1.08% | [Result](x3/prevpage-storever.json) |
+| x3 | probe-s1 | 2 | 0.18% | [Result](x3/probe-s1.json) |
+| x3 | probe-s1s2 | 2 | 3.21% | [Result](x3/probe-s1s2.json) |
+| x3 | probe-s1s2s3 | 2 | 3.20% | [Result](x3/probe-s1s2s3.json) |
+| x3 | rounds-k16 | 2 | 1.41% | [Result](x3/rounds-k16.json) |
+| x3 | rounds-k16s2 | 2 | 2.61% | [Result](x3/rounds-k16s2.json) |
+| x3 | rounds-k4 | 2 | -0.58% | [Result](x3/rounds-k4.json) |
+| x3 | rounds-k64 | 2 | 2.15% | [Result](x3/rounds-k64.json) |
+| x3 | rounds-s2 | 2 | -1.27% | [Result](x3/rounds-s2.json) |
+| x3 | sramwin-s1 | 2 | -0.29% | [Result](x3/sramwin-s1.json) |
+| x3 | sramwin-s1s3 | 2 | 0.03% | [Result](x3/sramwin-s1s3.json) |
+| x3 | sramwin-s2 | 2 | 0.58% | [Result](x3/sramwin-s2.json) |
+| x3 | storever-s1 | 2 | 1.07% | [Result](x3/storever-s1.json) |
+| x4 | coalesce-s1s2 | 4 | 1.86% | [Result](x4/coalesce-s1s2.json) |
+| x4 | control-aa-1 | 2 | -0.87% | [Result](x4/control-aa-1.json) |
+| x4 | control-aa-td | 2 | 0.24% | [Result](x4/control-aa-td.json) |
+| x4 | everything-accx-k128 | 4 | 13.16% | [Result](x4/everything-accx-k128.json) |
+| x4 | everything-accx-k128-pack32 | 4 | 13.08% | [Result](x4/everything-accx-k128-pack32.json) |
+| x4 | everything-accx-k128-pack32-r2 | 4 | 13.58% | [Result](x4/everything-accx-k128-pack32-r2.json) |
+| x4 | everything-accx-k128-r2 | 4 | 12.42% | [Result](x4/everything-accx-k128-r2.json) |
+| x4 | everything-accx-k128-td | 3 | 7.60% | [Result](x4/everything-accx-k128-td.json) |
+| x4 | everything-k64 | 4 | 11.00% | [Result](x4/everything-k64.json) |
+| x4 | everything-k64-td | 3 | 7.78% | [Result](x4/everything-k64-td.json) |
+| x4 | probe-s1s2 | 4 | 3.38% | [Result](x4/probe-s1s2.json) |
+| x4 | rounds-k1024 | 4 | 2.13% | [Result](x4/rounds-k1024.json) |
+| x4 | rounds-k128 | 4 | 2.25% | [Result](x4/rounds-k128.json) |
+| x4 | rounds-k256 | 4 | 1.70% | [Result](x4/rounds-k256.json) |
+| x4 | rounds-k64 | 4 | 1.85% | [Result](x4/rounds-k64.json) |
+| x4 | stack-accx | 4 | 4.47% | [Result](x4/stack-accx.json) |
+| x4 | stack-noaccx | 4 | 4.09% | [Result](x4/stack-noaccx.json) |
+| x4 | stack-noaccx-td | 3 | 4.06% | [Result](x4/stack-noaccx-td.json) |
+| x4 | storever-s1 | 4 | 1.96% | [Result](x4/storever-s1.json) |

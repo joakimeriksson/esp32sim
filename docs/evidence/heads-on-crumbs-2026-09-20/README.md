@@ -10,7 +10,7 @@
 | [heads-s3 on crumbs-all](runs/heads-on-crumbs.json) | 4 | 29.767488 s | 28.758697 s | **3.39%** | **3.71%, 2.80%, 3.20%, 3.39%** |
 | [Identical-build control after](runs/control-after.json) | 2 | 29.728957 s | 29.626835 s | 0.34% | −0.32%, 1.00% |
 
-Positive percentages mean less wall time. The headline is the ratio of arm medians, not the median paired reduction. Controls describe the campaign's observed variation; no confidence interval is claimed. This is an incremental comparison against crumbs-all, not against the original round baseline and not a sum of earlier percentages.
+Positive percentages mean less wall time. The headline is the ratio of arm medians, not the median paired reduction. Controls describe the campaign's observed variation. This is an incremental comparison against crumbs-all, not against the original round baseline and not a sum of earlier percentages.
 
 M3 Pro, Chrome 153.0.8010.53 / V8 15.3.76.13, Pocket Tank 30 guest seconds. Each campaign alternates AB/BA order. [Audit](audit.json) verifies all 16 arms: expected frozen WASM hashes, 10,073,833,775 instructions, matching console hashes and browser versions, unchanged non-WASM inputs, `passed=true` and zero JIT failures. The [runner log](runner.txt), [runner](runner.sh) and [provenance](provenance.json) preserve conditions and input identities.
 

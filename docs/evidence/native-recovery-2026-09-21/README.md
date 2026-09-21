@@ -15,7 +15,7 @@ Before is main `d5446b4a`; after is selected `88dda106`, production-equivalent t
 | Browser TinyDraw | 61.93931 | 28.89977 | 53.342% | 2.143× | 2 |
 | Native panel SID control | 2.74603 | 2.64967 | 3.509% | 1.036× | 2 |
 
-The native panel SID control reuses the exact hashed inputs and seven-guest-second workload from the prior EX027 qualification, with fresh main/selected binaries. All four arms retired core 0 **260,026,792** plus core 1 **136,442,769** instructions and emitted console SHA-256 `a77aaabb68350611617f518acdf4687b919906b7439ef327d816239c62b683d9`. Both balanced pairs favored the selected source, but this short secondary control has no confidence interval. [Panel receipts](acceptance/confirm-panel-recovery/summary.json) · [panel harness](screen-panel.mjs) · [prior manifest](../native-panel-qualification-2026-09-19/summary.json).
+The native panel SID control reuses the exact hashed inputs and seven-guest-second workload from the prior EX027 qualification, with fresh main/selected binaries. All four arms retired core 0 **260,026,792** plus core 1 **136,442,769** instructions and emitted console SHA-256 `a77aaabb68350611617f518acdf4687b919906b7439ef327d816239c62b683d9`. Both balanced pairs favored the selected source in this short secondary control. [Panel receipts](acceptance/confirm-panel-recovery/summary.json) · [panel harness](screen-panel.mjs) · [prior manifest](../native-panel-qualification-2026-09-19/summary.json).
 
 ## Selected source and profiling
 

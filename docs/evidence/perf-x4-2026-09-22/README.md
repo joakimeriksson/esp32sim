@@ -1,0 +1,47 @@
+# x3/x4 execution improvements
+
+The packed x4 integration reduces Pocket Tank browser wall time by 13.08% and 13.58% in two four-pair jobs against the same plain base. The shipping default enables up to 128 scheduling rounds on wasm32. Restoring the measured indexed loop after a Clippy rewrite makes all 1,356 production WASM function bodies match the measured packed build. [First job](x4/everything-accx-k128-pack32.json), [repeat](x4/everything-accx-k128-pack32-r2.json), [code comparison](codegen/default128-comparison.json).
+
+TinyDraw's battery improved by 7.60% in three pairs on the earlier **64-byte TLB layout** integration. That is not a measurement of the packed 32-byte layout. Its verdict pins 9,819,885,134 instructions. Pocket Tank pins 10,073,833,775 instructions per 30 guest seconds. [Battery result](x4/everything-accx-k128-td.json).
+
+## What is selected
+
+- **Dispatch overhead (EX168):** cache cheap rejection and chainability facts, avoid identical hot-entry refills, copy helper decoration only when a cache view exists and outline cold tails. The rejected inline interrupt-check variant is excluded.
+- **Interpret small blocks inside a compiled chain (EX171):** use an explicit instruction-class whitelist. The admitted classes and pricing exclusions are the correctness contract; widening those classes requires new analysis and tests.
+- **Memory accesses (EX110/EX173):** skip code-version updates only for mappings no decoded consumer watches. Watching a page marks the blocks containing that page and its neighboring pages, then invalidates published TLB entries. Keep the previous-page update inside that same code flag. A precomputed mapping span shortens each bounds probe. Pack the writable/code flags as adjacent u16 values so a WASM TLB entry stays 32 bytes; native entries remain 64 bytes.
+- **PIE arithmetic and loads (EX169/EX178):** sum signed-byte products in i32 and widen once, retain a bounded accumulator after a dominating reset and share a range probe over proven post-increment load runs. Exit paths spill the held accumulator. The unheld path still sign-extends and saturates the architectural 40-bit accumulator.
+- **Scheduling (EX177):** batch round housekeeping while preserving core order and each core's instruction quantum. Deadlines and deferred device accesses bound batches. The wasm32 cap is 128; the native default remains 1.
+- **Previous-page bookkeeping (EX180):** generated stores now follow the bus's rule at page offsets 0..2. This corrects divergent version counters; no stale-code execution or user-visible failure was demonstrated.
+
+Relevant implementation: [scheduler](../../../esp-soc/src/machine.rs), [block classes](../../../xtensa-lx7/src/block.rs), [TLB layout](../../../emu-core/src/bus.rs), [memory emission](../../../xtensa-lx7/src/jit/wasm_memory.rs), [PIE emission](../../../xtensa-lx7/src/jit/wasm_pie.rs).
+
+## Measurements and limits
+
+[All 65 retained jobs](results.md) include positive and negative results. Each JSON preserves the original aggregate, every paired reduction, arm order, wall times, work totals, output hashes, workload verdicts, JIT failures, browser/V8 versions and asset/harness hashes. The aggregate reduction is the harness's ratio of median arm times; it is not necessarily the median of the per-pair reductions.
+
+The measurement host was an M3 Pro running Chrome 153.0.8010.53 / V8 15.3.76.13, as recorded in the arms. x4 base is `7828e683bec41b9fc47dbbc38391a3a794fc4956` (main `0042d053` plus EX180); x3 base is `5167baada039ba3014575f7c4bcfbcb56ba70240`. Candidates were compared against their plain round base. Subtracting two standalone reductions does not measure incremental benefit in a stack. x4 Pocket Tank jobs have four pairs, TinyDraw jobs three and controls two. Earlier x3 jobs retain their actual pair counts.
+
+The x4 Pocket Tank A/A job reports −0.87% (paired reductions −1.19%, −0.55%); TinyDraw A/A reports +0.24% (+0.26%, +0.22%). The packed-versus-64-byte difference is small relative to this variation and was not measured by a direct candidate-versus-candidate job. Packing is retained for its smaller WASM entry footprint. [Pocket Tank control](x4/control-aa-1.json), [battery control](x4/control-aa-td.json).
+
+Native throughput was not measured. Local native tests have no ROM directory, so ROM-dependent paths are not exercised locally; CI supplies ROMs. Code-section identity establishes identical emitted WASM instructions, not identical debug metadata or a fresh browser measurement.
+
+## Build and verification
+
+Production builds use the existing release recipe with LLVM inline threshold 4000, no wasm-opt and no profiling feature. The earlier measured rounds builds set `ESP32SIM_BB_BUILD=128`; the shipping integration uses its wasm32 default without that variable.
+
+```sh
+RUSTFLAGS='-Cllvm-args=-inline-threshold=4000' cargo build --release --target wasm32-unknown-unknown -p esp32sim-wasm
+tools/wasm-jit-test.sh
+cargo test --release --workspace -- --include-ignored --skip external_
+ESP32SIM_VQ_NATIVE=1 cargo test --release -p esp32s3 --test machine --test virtual_stops
+cargo clippy --workspace --all-targets -- -D warnings
+node tools/check-evidence-privacy.mjs
+```
+
+Use the [browser benchmark harness](../../../tools/browser-benchmark/README.md) with the frozen workload assets identified in each JSON, Pocket Tank at 30 guest seconds and TinyDraw in battery mode. Historical candidate source revisions are recorded per job; these identify preserved local experiment commits, not a promise that every rejected experiment branch is published. The six shipping PRs contain the selected source. Raw source revisions must be available to reproduce a rejected candidate exactly.
+
+`codegen/compare.mjs BEFORE.wasm AFTER.wasm` compares binary function bodies and sections. The recorded default build has SHA-256 `9766e5164a94a318d63208b27078a4f2dab46a126bfec610fde3ba74c8645a5e`; the measured packed artifact is `25f0b2ab1676853fc19817d2ec947e057ef8381d15969998e53037b9983f1fa9`. All function bodies and all other non-custom sections except data match. All 34 changed data bytes are diagnostic source-line numbers, identified by `codegen/restored-data-locations.json`. No timing rerun was performed for this source-only lint repair/default selection.
+
+## Evidence curation
+
+[Redaction manifest](redactions.json) records original and curated summary hashes and byte sizes. Curated summaries omit local run-directory paths and the obsolete `screeningOnly` field when present. Timings, artifact hashes, output checks and order are unchanged. Added fields identify round, source revision and workload. No private original or process inventory is included. Removing local paths limits filesystem navigation, not the numeric comparison; source-revision availability is the separate limitation described above.
