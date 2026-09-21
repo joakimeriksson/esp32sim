@@ -31,8 +31,8 @@ pub fn tlb_index(addr: u32) -> usize { (((addr >> TLB_INDEX_SHIFT) ^ (addr >> TL
 /// nor on the pages `bump` would move with them, so a write through it needs no version
 /// bookkeeping at all. A bus that cannot prove that must publish a nonzero `code`, and a bus that
 /// does must answer `note_code_page` by clearing entries it has already published.
-/// The 32-byte alignment keeps `size_of` a power of two on both 32-bit and 64-bit hosts, which
-/// the native JIT's shifted entry indexing requires (jit/mod.rs `TLB_ENTRY_SHIFT`).
+/// Both backends keep 32-byte entries. Native retains its natural pointer alignment so
+/// returning an optional entry does not acquire extra padding and stack alignment.
 ///
 /// On wasm32, `span` is `hi - lo` for a live mapping and 0 for an empty slot (EX173). It lets generated code
 /// decide a whole access with one unsigned compare against `addr - lo`, because an address below
@@ -41,7 +41,8 @@ pub fn tlb_index(addr: u32) -> usize { (((addr >> TLB_INDEX_SHIFT) ^ (addr >> TL
 /// x4 pack: `writable` and `code` are 16-bit flags sharing one word, so the entry stays 32 bytes
 /// on wasm32 with both `code` (EX110) and `span` (EX173); generated code loads them as u16.
 /// Native probes use `lo`/`hi`, so omit their unused span to keep native entries at 32 bytes too.
-#[repr(C, align(32))]
+#[repr(C)]
+#[cfg_attr(target_arch = "wasm32", repr(align(32)))]
 #[derive(Clone, Copy)]
 pub struct TlbEntry { pub lo: u32, pub hi: u32, pub base: *mut u8, pub vbase: u32, pub writable: u16, pub code: u16, pub off: u32, pub src: u32,
     #[cfg(target_arch = "wasm32")] pub span: u32,
@@ -64,8 +65,11 @@ impl TlbEntry {
 // SAFETY: Sending this Copy value transfers only address bits. TlbEntry has no safe operation that
 // dereferences `base`; generated access must separately uphold the documented owner invariants.
 unsafe impl Send for TlbEntry {}
-// Both backends must retain the compact entry footprint.
+// Both JIT backends must retain the compact entry footprint.
+#[cfg(any(target_arch = "wasm32", target_pointer_width = "64"))]
 const _: () = assert!(std::mem::size_of::<TlbEntry>() == 32);
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(std::mem::align_of::<TlbEntry>() == std::mem::align_of::<usize>());
 // SAFETY: Sharing this value exposes address bits but performs no dereference. Generated access
 // through `base` must separately uphold the documented lifetime and synchronization invariants.
 unsafe impl Sync for TlbEntry {}
