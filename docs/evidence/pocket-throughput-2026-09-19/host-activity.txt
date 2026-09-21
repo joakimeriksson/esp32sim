@@ -1,8 +1,7 @@
 September 19, 2026, approximately 11:57 UTC: spot process inspection during
 the late candidate arm of fresh S8 confirmation pair 1.
 
-Command: ps -axo pid,pcpu,comm | sort -k2 -nr | head -n 12
-
+Sample: CPU percentages for the 12 busiest processes.
 133.9% CPU (process identity omitted)
 60.9% CPU (process identity omitted)
 58.3% CPU (process identity omitted)
@@ -16,8 +15,7 @@ Command: ps -axo pid,pcpu,comm | sort -k2 -nr | head -n 12
 6.4% CPU (process identity omitted)
 6.2% CPU (process identity omitted)
 
-Immediate follow-up: process-presence check (identifiers omitted).
-returned only its header with exit status 1; both processes had exited.
+An immediate follow-up found that the two build processes had exited.
 The task did not terminate or interrupt them. Their duration and exact
 work are unknown. Team builds/tests were paused, but this sample proves
 the host was not wholly idle. Small timing differences are inconclusive.
