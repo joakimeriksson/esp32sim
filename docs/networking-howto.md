@@ -32,6 +32,11 @@ adopts whatever you give it. The AP is WPA2-PSK when `psk=` is present and open 
 gateway with an immediate RST, so applications fail fast instead of hanging — useful when you want a
 run to be reproducible and offline.
 
+The same `--wifi` and `--net` work on the **ESP32-C6** (`esp32sim-c6`): the access point and the
+network are the same code, the MAC model is the C6's own ([wifi-c6-plan.md](wifi-c6-plan.md)). A C6
+radio run also needs `--stub bb_init=0`, and what has been tried is one station on one open or
+WPA2 network; `examples/c6-wifi-station` has the full command. The C3 has no WiFi model.
+
 ## What the network gives the firmware
 
 - **DHCP** — address, mask, gateway, DNS, so `esp_netif` reaches `IP_EVENT_STA_GOT_IP`.

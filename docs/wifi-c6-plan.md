@@ -12,12 +12,13 @@ supplicant's key unwrap, and the access point, network and NAT moved out of the 
 power block are register RAM, and nothing beyond one station on one open or WPA2 network has
 been tried. The browser build runs it too, from a local manifest (the example's README).
 
-The C6 emulator currently models the IEEE 802.15.4 MAC in `esp32c6/src/radio.rs`. Its WiFi
-support is explicitly rejected by the CLI, and the C6 documentation says that WiFi 6 is not
-modelled. The S3 implementation in `esp32s3/src/wifi.rs`, `esp32s3/src/periph.rs`, and
-`esp32s3/src/bus.rs` is a useful protocol and virtual-network reference, but its register map
-must not be copied to the C6: the C6 has a different RISC-V SoC and a different WiFi 6 MAC/PHY
-integration.
+Where this started: the C6 emulator modelled only the IEEE 802.15.4 MAC (`esp32c6/src/radio.rs`),
+the CLI rejected `--wifi` on the C6, and the C6 documentation said WiFi 6 was not modelled. The
+rest of this document is the plan as it was written then, kept for the register map and the
+reasoning. The S3's MAC model (`esp32s3/src/periph.rs`, `esp32s3/src/bus.rs`) and the access point
+it talks to (then `esp32s3/src/wifi.rs`, now `esp-soc/src/wifi.rs`) were a useful protocol and
+virtual-network reference, but the S3's register map must not be copied to the C6: the C6 has a
+different RISC-V SoC and a different WiFi 6 MAC/PHY integration.
 
 ## The MAC register map, as read from the library
 
