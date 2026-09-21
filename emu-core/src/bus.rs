@@ -26,13 +26,40 @@ pub fn tlb_index(addr: u32) -> usize { (((addr >> TLB_INDEX_SHIFT) ^ (addr >> TL
 /// write-version index of `lo`. The JIT uses this C layout's field offsets and entry size. Copying or
 /// sharing an entry never dereferences `base`; a JIT owner must separately keep its backing buffer
 /// alive and unmoved, and serialize generated access to it.
-#[repr(C)]
+///
+/// EX110: `code` is zero only when no decoded consumer depends on any byte this mapping covers,
+/// nor on the pages `bump` would move with them, so a write through it needs no version
+/// bookkeeping at all. A bus that cannot prove that must publish a nonzero `code`, and a bus that
+/// does must answer `note_code_page` by clearing entries it has already published.
+/// The 32-byte alignment keeps `size_of` a power of two on both 32-bit and 64-bit hosts, which
+/// the native JIT's shifted entry indexing requires (jit/mod.rs `TLB_ENTRY_SHIFT`).
+///
+/// `span` is `hi - lo` for a live mapping and 0 for an empty slot (EX173). It lets generated code
+/// decide a whole access with one unsigned compare against `addr - lo`, because an address below
+/// `lo` wraps the subtraction above any possible span and an empty slot rejects every offset.
+/// Always derive it with [`TlbEntry::with_span`] from the final endpoints.
+/// x4 pack: `writable` and `code` are 16-bit flags sharing one word, so the entry stays 32 bytes
+/// on wasm32 with both `code` (EX110) and `span` (EX173); generated code loads them as u16.
+#[repr(C, align(32))]
 #[derive(Clone, Copy)]
-pub struct TlbEntry { pub lo: u32, pub hi: u32, pub base: *mut u8, pub vbase: u32, pub writable: u32, pub off: u32, pub src: u32 }
-impl TlbEntry { pub const EMPTY: TlbEntry = TlbEntry { lo: 1, hi: 0, base: std::ptr::null_mut(), vbase: 0, writable: 0, off: 0, src: 0 }; }
+pub struct TlbEntry { pub lo: u32, pub hi: u32, pub base: *mut u8, pub vbase: u32, pub writable: u16, pub code: u16, pub off: u32, pub src: u32, pub span: u32 }
+impl TlbEntry {
+    pub const EMPTY: TlbEntry = TlbEntry { lo: 1, hi: 0, base: std::ptr::null_mut(), vbase: 0, writable: 0, off: 0, src: 0, code: 1, span: 0 };
+    /// Publish the endpoints to generated code. An entry that never passes through this keeps
+    /// `span` 0, which no access can satisfy, so it simply takes the slow path.
+    #[inline(always)]
+    pub fn with_span(mut self) -> TlbEntry {
+        debug_assert!(self.hi >= self.lo);
+        self.span = self.hi.wrapping_sub(self.lo);
+        self
+    }
+}
 // SAFETY: Sending this Copy value transfers only address bits. TlbEntry has no safe operation that
 // dereferences `base`; generated access must separately uphold the documented owner invariants.
 unsafe impl Send for TlbEntry {}
+// x4 pack: generated WASM indexes the table by this size.
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(std::mem::size_of::<TlbEntry>() == 32);
 // SAFETY: Sharing this value exposes address bits but performs no dereference. Generated access
 // through `base` must separately uphold the documented lifetime and synchronization invariants.
 unsafe impl Sync for TlbEntry {}
@@ -83,6 +110,13 @@ pub trait Bus {
     /// versions of the pages holding its first and last byte and assumes there is no third.
     fn page_versions(&self) -> &[u32] { &[] }
     fn code_page(&mut self, pc: u32) -> u32 { let _ = pc; 0 }
+    /// EX110: decoded code is about to record the version of page `vidx`, so every later write
+    /// that could change a byte of it must move a version this consumer will compare. Call this
+    /// before reading the version to remember: the bytes and the version are then read after the
+    /// page is watched, so writes before the call are already visible in the bytes and writes
+    /// after it move the version. A bus that skips version bookkeeping for unwatched memory must
+    /// implement this; the default costs nothing to a bus that always bumps.
+    fn note_code_page(&mut self, vidx: u32) { let _ = vidx; }
     /// The pc of the instruction about to execute, for buses that attribute accesses to code.
     #[inline(always)]
     fn note_pc(&mut self, pc: u32) { let _ = pc; }

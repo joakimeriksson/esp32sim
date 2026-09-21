@@ -299,8 +299,13 @@ fn build<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc0: u32) -> Result<(u32, u32, u16)
     let last_byte = last.wrapping_add(cpu.blocks.arena[(start + n as u32 - 1) as usize].insn.len.max(1) as u32 - 1);
     let vidx0 = bus.code_page(pc0);
     let vidx1 = if last_byte >> 7 != pc0 >> 7 { bus.code_page(last_byte) } else { vidx0 };   // pages are >= 128 B
+    // EX110: watch both pages before reading the versions this entry will compare against.
+    bus.note_code_page(vidx0);
+    if vidx1 != vidx0 { bus.note_code_page(vidx1); }
     let pv = bus.page_versions();
     let ver = [pv.get(vidx0 as usize).copied().unwrap_or(0), pv.get(vidx1 as usize).copied().unwrap_or(0)];
+    #[cfg(feature = "wasm-jit-profile")]
+    { crate::census::note_code_page(vidx0, 1); crate::census::note_code_page(vidx1, 1); }
     let ei = BlockCache::index(pc0);
     let mut code = crate::jit::NONE;
     let fast = bus.fast_mem().is_some();

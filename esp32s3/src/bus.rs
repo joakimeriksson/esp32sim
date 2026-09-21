@@ -33,6 +33,13 @@ pub const MMU_ENTRIES: usize = 512;
 pub const MMU_INVALID: u32 = 1 << 14;
 pub const MMU_SPIRAM: u32 = 1 << 15;
 pub const PAGE: u32 = 0x1_0000;
+const _: () = {
+    // EX173: a generated access derives its alignment from `addr - entry.lo`, so every mapping
+    // this bus can build must start at least 16-byte aligned (the widest access is a PIE vector).
+    assert!(PAGE.is_multiple_of(16) && DRAM_LOW.is_multiple_of(16) && IRAM_LOW.is_multiple_of(16) && IROM_MASK_LOW.is_multiple_of(16));
+    assert!(DROM_MASK_LOW.is_multiple_of(16) && RTC_FAST_LOW.is_multiple_of(16) && RTC_SLOW_LOW.is_multiple_of(16));
+    assert!(DBUS_LOW.is_multiple_of(16) && IBUS_LOW.is_multiple_of(16));
+};
 
 pub struct SocBus {
     pub sram: Vec<u8>,
@@ -67,6 +74,13 @@ pub struct SocBus {
     page_ver: Vec<u32>,
     /// first `page_ver` index of each buffer, by `SRC_*`
     ver_base: [u32; 7],
+    /// EX110 census only: flash MMU remaps, each bumping every flash and PSRAM page version.
+    pub remaps: u64,
+    /// EX110: one flag per 64 KiB block of the `page_ver` index space (256 pages, the span of one
+    /// TLB entry): some decode cache, block or region has recorded the version of a page in it, or
+    /// of a page next to it. Never cleared while the buffers stand. `TlbEntry.code` copies it, so a
+    /// write through a mapping whose whole block is unwatched can skip the version bump entirely.
+    code_blk: Vec<u8>,
     /// Device time is advanced lazily: cycles accumulate here and the devices see them in one
     /// batch when a timer is due, a peripheral register is accessed, or the active-device
     /// backstop expires. Quiet devices allow a longer backstop.
@@ -127,7 +141,7 @@ impl SocBus {
             rtc_fast: vec![0; 8192], rtc_slow: vec![0; 8192], flash: vec![0xff; flash_size], psram: vec![0; psram_size],
             mmu: [MMU_INVALID; MMU_ENTRIES], periph: Peripherals::new(mac), board: Box::new(crate::board::Atech14::new()), cycles: 0, last_fault: None, spi2_dma_fault: None, irq_dirty: false, gpio_events: None, debug: Default::default(),
             spi2_timing: false, spi2_scheduled: None,
-            tlb: vec![TlbEntry::EMPTY; TLB_SIZE], page_ver: Vec::new(), ver_base: [0; 7], tick_pending: 0, tick_budget: 0, defer_mmio: false, mmio_deferred: false, vq_violations: 0,
+            tlb: vec![TlbEntry::EMPTY; TLB_SIZE], page_ver: Vec::new(), ver_base: [0; 7], remaps: 0, code_blk: Vec::new(), tick_pending: 0, tick_budget: 0, defer_mmio: false, mmio_deferred: false, vq_violations: 0,
             approximate_cache: None, approximate_cache_pending: 0, approximate_cache_fast_internal: false, approximate_cache_inline: false,
             approximate_cache_yield_miss: false,
             cache_resource: CacheResource::default(),
@@ -270,15 +284,27 @@ impl SocBus {
         let mut base = 0u32;
         for (i, n) in sizes.iter().enumerate() { self.ver_base[i] = base; base += ((n + VPAGE_MASK) >> VPAGE_SHIFT) as u32; }
         self.page_ver = vec![0; base as usize + 1];
+        // Buffer sizes are whole 64 KiB blocks, so a block never spans two buffers. Marks are kept
+        // across a resize: forgetting one could let a write to watched code skip its version bump.
+        self.code_blk.resize((self.page_ver.len() >> 8) + 2, 0);
         self.invalidate_tlb();
     }
+
+    /// EX110: is any page of the 64 KiB block holding version page `p` watched by decoded code?
+    /// Unknown indices answer yes, so a mapping outside the table never skips bookkeeping.
+    #[inline(always)]
+    fn blk_watched(&self, p: u32) -> bool { self.code_blk.get((p >> 8) as usize).copied().unwrap_or(1) != 0 }
 
     /// Forget every cached mapping. Anything that re-points the flash MMU must call this.
     /// A remap changes which bytes a cache-window pc refers to without any write happening, so
     /// the flash and PSRAM page versions are bumped too: that is what invalidates decoded
     /// instructions and blocks that were built through the old mapping. Shared fetch tags
     /// are virtual, so remapping also makes the shared instruction cache cold.
+    /// EX110 census only: the first `page_ver` index of each `SRC_*` buffer.
+    pub fn ver_bases(&self) -> [u32; 7] { self.ver_base }
+
     pub fn invalidate_tlb(&mut self) {
+        self.remaps += 1;
         self.fetch_cache.reset();
         for e in self.tlb.iter_mut() { *e = TlbEntry::EMPTY; }
         let (a, b) = (self.ver_base[SRC_FLASH as usize] as usize, self.ver_base[SRC_DROM as usize] as usize);
@@ -308,7 +334,7 @@ impl SocBus {
         let page = addr & !0xffff;
         let region = |lo: u32, hi: u32, src: u8, w: bool| -> TlbEntry {
             let lo_ = page.max(lo); let hi_ = (page + 0x10000).min(hi);
-            TlbEntry { lo: lo_, hi: hi_, base: std::ptr::null_mut(), off: lo_ - lo, vbase: 0, src: src as u32, writable: w as u32 }
+            TlbEntry { lo: lo_, hi: hi_, base: std::ptr::null_mut(), off: lo_ - lo, vbase: 0, src: src as u32, writable: w as u16, code: 1, span: 0 }
         };
         let mut e = match addr {
             DRAM_LOW..=0x3FCF_FFFF => { let mut e = region(DRAM_LOW, 0x3FD0_0000, SRC_SRAM, true); e.off += 0x8000; e }
@@ -324,13 +350,19 @@ impl SocBus {
                 let off = (entry & 0x3fff) as usize * PAGE as usize;
                 let (src, w) = if entry & MMU_SPIRAM != 0 { (SRC_PSRAM, true) } else { (SRC_FLASH, false) };
                 if off + PAGE as usize > self.buf(src).len() { return None; }
-                TlbEntry { lo: page, hi: page + 0x10000, base: std::ptr::null_mut(), off: off as u32, vbase: 0, src: src as u32, writable: w as u32 }
+                TlbEntry { lo: page, hi: page + 0x10000, base: std::ptr::null_mut(), off: off as u32, vbase: 0, src: src as u32, writable: w as u16, code: 1, span: 0 }
             }
             _ => return None,
         };
         e.vbase = self.ver_base[e.src as usize] + (e.off as usize >> VPAGE_SHIFT) as u32;
+        // EX110: an entry spans at most 64 KiB, so its pages lie in at most two blocks.
+        e.code = (self.blk_watched(e.vbase) || self.blk_watched(e.vbase + ((e.hi - e.lo - 1) >> VPAGE_SHIFT))) as u16;
         let off = e.off as usize;
         e.base = self.buf_mut(e.src as u8).as_mut_ptr().wrapping_add(off);
+        // EX173: generated probes test `addr - lo` against this span, and derive an access's
+        // alignment from the same difference, so every mapping starts 16-byte aligned.
+        debug_assert_eq!(e.lo % 16, 0);
+        let e = e.with_span();
         // Do not publish external mappings to generated loads/stores while pricing cache accesses.
         // Returning the mapping still lets the slow accessor perform this one access.
         if !(self.approximate_cache.is_some() && self.approximate_cache_fast_internal && !self.approximate_cache_inline
@@ -342,7 +374,8 @@ impl SocBus {
 
     /// Record that `len` bytes at `off` of the page group starting at `vbase` changed. An
     /// instruction can begin up to two bytes before a page boundary, so the previous page is
-    /// bumped too when the write touches the first bytes of one.
+    /// bumped too when the write touches the first bytes of one. EX110: guest stores call this
+    /// only through a mapping with `code != 0`; every other caller bumps unconditionally.
     #[inline(always)]
     fn bump(&mut self, vbase: u32, off: usize, len: usize) {
         let p = vbase as usize + (off >> VPAGE_SHIFT);
@@ -350,6 +383,19 @@ impl SocBus {
         let last = vbase as usize + ((off + len - 1) >> VPAGE_SHIFT);
         if last != p { self.page_ver[last] = self.page_ver[last].wrapping_add(1); }
         if off & VPAGE_MASK < 3 && p > 0 { self.page_ver[p - 1] = self.page_ver[p - 1].wrapping_add(1); }
+    }
+
+    /// EX110: watch page `vidx` from now on. A code page also marks its neighbors' blocks,
+    /// because `bump` moves the page before a write in the first three bytes of a page and the
+    /// page after a write that spans one: if the written page's own block is unwatched, then no
+    /// consumer depends on any of the three, and the whole bump can go. Published entries are
+    /// dropped so that generated code reloads the new flag; no byte changed, so no version moves.
+    fn watch_code_page(&mut self, vidx: u32) {
+        let mut changed = false;
+        for p in [vidx.saturating_sub(1), vidx, vidx.saturating_add(1)] {
+            if let Some(f) = self.code_blk.get_mut((p >> 8) as usize) { if *f == 0 { *f = 1; changed = true; } }
+        }
+        if changed { for e in self.tlb.iter_mut() { *e = TlbEntry::EMPTY; } }
     }
 
     /// Record a write done behind the bus's back (image loaders, the SPI flash controller).
@@ -580,14 +626,14 @@ impl SocBus {
         // This is an explicit emulator policy, not a model of optional PMS IRQs.
         if Self::is_periph(addr) { self.last_fault = Some((addr, true)); return Err(Fault::Prohibited); }
         match self.lookup(addr) {
-            Some(e) if e.writable != 0 => { if CPU { self.price_cached_data(e, addr, 1, true); } let rel = (addr - e.lo) as usize; self.buf_mut(e.src as u8)[e.off as usize + rel] = v; self.bump(e.vbase, rel, 1); Ok(()) }
+            Some(e) if e.writable != 0 => { if CPU { self.price_cached_data(e, addr, 1, true); } let rel = (addr - e.lo) as usize; self.buf_mut(e.src as u8)[e.off as usize + rel] = v; if e.code != 0 { self.bump(e.vbase, rel, 1); } Ok(()) }
             _ => { self.last_fault = Some((addr, true)); Err(Fault::Prohibited) }
         }
     }
     fn write16_access<const CPU: bool>(&mut self, addr: u32, v: u16) -> Result<(), Fault> {
         if Self::is_periph(addr) { self.last_fault = Some((addr, true)); return Err(Fault::Prohibited); }
         match self.lookup(addr) {
-            Some(e) if e.writable != 0 && e.hi - addr >= 2 => { if CPU { self.price_cached_data(e, addr, 2, true); } let rel = (addr - e.lo) as usize; let o = e.off as usize + rel; self.buf_mut(e.src as u8)[o..o + 2].copy_from_slice(&v.to_le_bytes()); self.bump(e.vbase, rel, 2); Ok(()) }
+            Some(e) if e.writable != 0 && e.hi - addr >= 2 => { if CPU { self.price_cached_data(e, addr, 2, true); } let rel = (addr - e.lo) as usize; let o = e.off as usize + rel; self.buf_mut(e.src as u8)[o..o + 2].copy_from_slice(&v.to_le_bytes()); if e.code != 0 { self.bump(e.vbase, rel, 2); } Ok(()) }
             Some(e) if e.writable != 0 => { let b = v.to_le_bytes(); self.write8_access::<CPU>(addr, b[0])?; self.write8_access::<CPU>(addr + 1, b[1]) }
             _ => { self.last_fault = Some((addr, true)); Err(Fault::Prohibited) }
         }
@@ -598,7 +644,7 @@ impl SocBus {
             self.periph_write(addr, v); return Ok(());
         }
         match self.lookup(addr) {
-            Some(e) if e.writable != 0 && e.hi - addr >= 4 => { if CPU { self.price_cached_data(e, addr, 4, true); } let rel = (addr - e.lo) as usize; let o = e.off as usize + rel; self.buf_mut(e.src as u8)[o..o + 4].copy_from_slice(&v.to_le_bytes()); self.bump(e.vbase, rel, 4); Ok(()) }
+            Some(e) if e.writable != 0 && e.hi - addr >= 4 => { if CPU { self.price_cached_data(e, addr, 4, true); } let rel = (addr - e.lo) as usize; let o = e.off as usize + rel; self.buf_mut(e.src as u8)[o..o + 4].copy_from_slice(&v.to_le_bytes()); if e.code != 0 { self.bump(e.vbase, rel, 4); } Ok(()) }
             Some(e) if e.writable != 0 => { let b = v.to_le_bytes(); for i in 0..4 { self.write8_access::<CPU>(addr + i, b[i as usize])?; } Ok(()) }
             _ => { self.last_fault = Some((addr, true)); Err(Fault::Prohibited) }
         }
@@ -636,6 +682,7 @@ impl Bus for SocBus {
     }
     #[inline(always)]
     fn page_versions(&self) -> &[u32] { &self.page_ver }
+    fn note_code_page(&mut self, vidx: u32) { self.watch_code_page(vidx); }
     #[inline(always)]
     fn note_pc(&mut self, pc: u32) { self.periph.misc.cur_pc = pc; }
     fn fast_mem(&mut self) -> Option<FastMem> { if self.approximate_cache.is_some() && !self.approximate_cache_fast_internal { None } else { Some(FastMem { tlb: self.tlb.as_ptr(), page_ver: self.page_ver.as_mut_ptr() }) } }

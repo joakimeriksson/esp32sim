@@ -216,22 +216,26 @@ mod native {
     const OFF_BR: u32 = std::mem::offset_of!(Cpu, br) as u32;
 
     const TLB_INDEX_BITS: u32 = TLB_ENTRIES.ilog2();
-    const TLB_ENTRY_SHIFT: u32 = std::mem::size_of::<TlbEntry>().ilog2();
+    /// Scale an index by the entry size with shifted adds: size == TLB_ENTRY_ODD << TLB_ENTRY_SHIFT.
+    const TLB_ENTRY_SHIFT: u32 = std::mem::size_of::<TlbEntry>().trailing_zeros();
+    const TLB_ENTRY_ODD: u32 = (std::mem::size_of::<TlbEntry>() >> TLB_ENTRY_SHIFT) as u32;
     const TLB_LO: u32 = std::mem::offset_of!(TlbEntry, lo) as u32;
     const TLB_HI: u32 = std::mem::offset_of!(TlbEntry, hi) as u32;
     const TLB_BASE: u32 = std::mem::offset_of!(TlbEntry, base) as u32;
     const TLB_VBASE: u32 = std::mem::offset_of!(TlbEntry, vbase) as u32;
     const TLB_WRITABLE: u32 = std::mem::offset_of!(TlbEntry, writable) as u32;
+    const TLB_CODE: u32 = std::mem::offset_of!(TlbEntry, code) as u32;
     // Generated instructions require power-of-two indexing and encodable shifts/offsets.
     const _: () = {
         assert!(TLB_ENTRIES.is_power_of_two() && TLB_INDEX_BITS > 0 && TLB_INDEX_BITS < 32);
-        assert!(std::mem::size_of::<TlbEntry>().is_power_of_two() && TLB_ENTRY_SHIFT < 64);
+        assert!(matches!(TLB_ENTRY_ODD, 1 | 5) && TLB_ENTRY_SHIFT < 64);   // 1 << k, or 5 << k with one add
         assert!(TLB_INDEX_SHIFT < 32 && TLB_XOR_SHIFT < 32);
         assert!(VPAGE_SHIFT >= 3 && VPAGE_SHIFT <= 12); // page edge test uses a 12-bit immediate
         assert!(TLB_LO.is_multiple_of(4) && TLB_LO < 16384 && TLB_HI.is_multiple_of(4) && TLB_HI < 16384);
         assert!(TLB_BASE.is_multiple_of(8) && TLB_BASE < 32768);
         assert!(TLB_VBASE.is_multiple_of(4) && TLB_VBASE < 16384);
-        assert!(TLB_WRITABLE.is_multiple_of(4) && TLB_WRITABLE < 16384);
+        assert!(TLB_WRITABLE.is_multiple_of(2) && TLB_WRITABLE < 8192);
+        assert!(TLB_CODE.is_multiple_of(2) && TLB_CODE < 8192);
     };
 
     const CPU: Reg = 19; const BUS: Reg = 20; const AR: Reg = 21; const WB4: Reg = 22; const LEFT: Reg = 23;
@@ -276,6 +280,8 @@ mod native {
         /// x12 = host base of the entry, w10 = offset of the access within it. Otherwise jumps to `slow`.
         fn tlb_probe(&mut self, addr: Reg, size: u32, slow: Label) {
             self.a.lsr_imm(9, addr, TLB_INDEX_SHIFT); self.a.eor_lsr(9, 9, addr, TLB_XOR_SHIFT); self.a.and_mask(9, 9, TLB_INDEX_BITS, 0);
+            // The masked index is below 2^32 / size, so the 32-bit scaling add cannot overflow.
+            if TLB_ENTRY_ODD == 5 { self.a.add_lsl(9, 9, 9, 2); }
             self.a.add_x_lsl(9, TLB, 9, TLB_ENTRY_SHIFT);
             self.a.ldr(10, 9, TLB_LO); self.a.ldr(11, 9, TLB_HI);
             self.a.cmp(addr, 10); self.a.b_cond(Cond::Lo, slow);
@@ -448,13 +454,17 @@ mod native {
                     let (slow, done) = (g.a.label(), g.a.label());
                     if fast {
                         g.tlb_probe(1, size, slow);                               // x12 = entry base, w10 = offset, x9 = entry
-                        g.a.ldr(11, 9, TLB_WRITABLE); g.a.cbz(11, slow);
+                        g.a.ldrh(11, 9, TLB_WRITABLE); g.a.cbz(11, slow);
                         // stay on the fast path only when the write-version bump touches one page
                         // and not its first three bytes (an instruction may straddle into it)
                         g.a.and_mask(13, 10, VPAGE_SHIFT, 0); g.a.sub_imm(13, 13, 3); g.a.cmp_imm(13, (1 << VPAGE_SHIFT) - 3 - size); g.a.b_cond(Cond::Hi, slow);
                         match i.op { S8i => g.a.strb_u(2, 12, 10), S16i => g.a.strh_u(2, 12, 10), _ => g.a.str_u(2, 12, 10) }
+                        // EX110: no decoded consumer depends on any page this mapping could bump.
+                        let nobump = g.a.label();
+                        g.a.ldrh(11, 9, TLB_CODE); g.a.cbz(11, nobump);
                         g.a.ldr(11, 9, TLB_VBASE); g.a.add_lsr(11, 11, 10, VPAGE_SHIFT);
                         g.a.ldr_idx(13, PVER, 11); g.a.add_imm(13, 13, 1); g.a.str_idx(13, PVER, 11);
+                        g.a.bind(nobump);
                         g.a.movz(12, 0, 0);
                         g.a.b(done);
                     } else { g.a.b(slow); }

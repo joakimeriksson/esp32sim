@@ -142,6 +142,7 @@ impl Asm {
     // ---------------------------------------------------------------- memory
     pub fn ldr(&mut self, rt: Reg, rn: Reg, off: u32) { debug_assert!(off.is_multiple_of(4) && off < 16384); self.e(0xb940_0000 | (off / 4) << 10 | rn << 5 | rt); }
     pub fn str(&mut self, rt: Reg, rn: Reg, off: u32) { debug_assert!(off.is_multiple_of(4) && off < 16384); self.e(0xb900_0000 | (off / 4) << 10 | rn << 5 | rt); }
+    pub fn ldrh(&mut self, rt: Reg, rn: Reg, off: u32) { debug_assert!(off.is_multiple_of(2) && off < 8192); self.e(0x7940_0000 | (off / 2) << 10 | rn << 5 | rt); }
     pub fn ldr_x(&mut self, rt: Reg, rn: Reg, off: u32) { debug_assert!(off.is_multiple_of(8) && off < 32768); self.e(0xf940_0000 | (off / 8) << 10 | rn << 5 | rt); }
     pub fn str_x(&mut self, rt: Reg, rn: Reg, off: u32) { debug_assert!(off.is_multiple_of(8) && off < 32768); self.e(0xf900_0000 | (off / 8) << 10 | rn << 5 | rt); }
     /// `ldr wt, [xn, wm, uxtw #2]`
@@ -256,6 +257,7 @@ mod tests {
         t!("str w10, [x21, w9, uxtw #2]", a.str_idx(10, 21, 9));
         t!("ldr w0, [x12, w10, uxtw]", a.ldr_u(0, 12, 10));
         t!("ldrh w0, [x12, w10, uxtw]", a.ldrh_u(0, 12, 10));
+        t!("ldrh w11, [x9, #24]", a.ldrh(11, 9, 24));
         t!("ldrb w0, [x12, w10, uxtw]", a.ldrb_u(0, 12, 10));
         t!("ldrsh w0, [x12, w10, uxtw]", a.ldrsh_u(0, 12, 10));
         t!("str w2, [x12, w10, uxtw]", a.str_u(2, 12, 10));

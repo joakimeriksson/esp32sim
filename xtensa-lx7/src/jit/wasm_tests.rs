@@ -14,6 +14,10 @@ struct Ram {
     tlb: Vec<TlbEntry>,
     fast: bool,
     readonly: bool,
+    /// EX110: does decoded code depend on this mapping? Cleared by `unwatch`, set again by
+    /// `note_code_page`, and honored by `wrote` exactly as the generated store honors
+    /// `TlbEntry.code`, so both paths must produce the same counters.
+    watched: bool,
     noted: u32,
     slow: [u8; 256],
     slow_writes: u32,
@@ -36,16 +40,20 @@ impl Ram {
             hi: BASE + 65536,
             base: ram.mem.as_mut_ptr(),
             vbase: 0,
-            writable: (!readonly) as u32,
+            writable: (!readonly) as u16,
             off: 0,
             src: 0,
-        };
+            code: 1,
+            span: 0,
+        }
+        .with_span();
         Self {
             ram,
             versions: vec![0; 256],
             tlb,
             fast,
             readonly,
+            watched: true,
             noted: 0,
             slow: [0x5a; 256],
             slow_writes: 0,
@@ -62,6 +70,7 @@ impl Ram {
     /// into the first three bytes of a page also changes instructions whose code page
     /// is the previous one.
     fn wrote(&mut self, a: u32, n: u32) {
+        if !self.watched { return }
         let off = a - BASE;
         for p in off / 256..=(off + n - 1) / 256 {
             self.versions[p as usize] += 1;
@@ -69,6 +78,11 @@ impl Ram {
         if off & 255 < 3 && off >= 256 {
             self.versions[(off / 256 - 1) as usize] += 1;
         }
+    }
+    /// EX110: no decoded consumer depends on this mapping yet, so neither path records writes.
+    fn unwatch(&mut self) {
+        self.watched = false;
+        for e in self.tlb.iter_mut() { e.code = 0; }
     }
 }
 impl Bus for Ram {
@@ -133,6 +147,10 @@ impl Bus for Ram {
     }
     fn note_pc(&mut self, pc: u32) {
         self.noted = pc;
+    }
+    fn note_code_page(&mut self, _vidx: u32) {
+        self.watched = true;
+        for e in self.tlb.iter_mut() { if e.hi > e.lo { e.code = 1; } }
     }
     fn defer_armed(&self) -> bool { self.defer_armed }
     fn defer_access(&mut self, addr: u32) -> bool {
@@ -219,6 +237,11 @@ struct Case {
     readonly: bool,
     loop_end: bool,
     overflow: bool,
+    /// EX110: run with no decoded consumer for the mapping, so version bookkeeping is skipped.
+    unwatched: bool,
+    /// Bytes cut off the end of the mapping and of its backing memory, so the fast mapping's
+    /// length is not a multiple of the access width (EX173).
+    shrink: u32,
 }
 
 fn compare(block: &mut [BlockInsn], case: Case, configure: impl Fn(&mut Cpu)) {
@@ -229,11 +252,21 @@ fn compare(block: &mut [BlockInsn], case: Case, configure: impl Fn(&mut Cpu)) {
 }
 
 fn compare_hinted(block: &mut [BlockInsn], case: Case, configure: &impl Fn(&mut Cpu), hint: u32) -> bool {
-    let Case { seed, entry, budget, addr, fast, readonly, loop_end, overflow } = case;
+    let Case { seed, entry, budget, addr, fast, readonly, loop_end, overflow, unwatched: _, shrink } = case;
     let priced = PRICED.load(std::sync::atomic::Ordering::Relaxed);
     CONTEXT.with(|c| *c.borrow_mut() = format!("{:?} seed={seed} entry={entry} budget={budget} fast={fast} loop_end={loop_end} overflow={overflow} priced={priced}",
         block.iter().map(|b| b.insn.op).collect::<Vec<_>>()));
     let (mut ra, mut rb) = (Ram::new(fast, readonly), Ram::new(fast, readonly));
+    if case.unwatched { ra.unwatch(); rb.unwatch(); }
+    for r in [&mut ra, &mut rb] {
+        // `truncate` keeps the allocation, so the entry's host base stays valid: an access the
+        // probe wrongly admits reads or writes bytes the bus itself now refuses.
+        let len = r.ram.mem.len() - shrink as usize;
+        r.ram.mem.truncate(len);
+        let slot = tlb_index(BASE);
+        r.tlb[slot].hi -= shrink;
+        r.tlb[slot] = r.tlb[slot].with_span();
+    }
     for bi in block.iter_mut() {
         bi.straddle = priced && crate::exec::static_target(&bi.insn).is_some_and(|pc| crate::exec::straddles(&mut ra, pc));
     }
@@ -357,7 +390,7 @@ pub fn run_tests() -> u32 {
     // EX180 first: the cheapest proof that a fast store records the pages the bus records.
     tests += memory::page_boundary_stores() + memory::straddling_instruction_rewrite();
     tests += arithmetic::basic_ops() + arithmetic::division()
-        + memory::loads_and_stores() + control::helper_continuation();
+        + memory::loads_and_stores() + memory::probe_boundaries() + control::helper_continuation();
     scheduler::scheduler();
     scheduler::wrapper_chain();
     tests += 1;
@@ -366,6 +399,7 @@ pub fn run_tests() -> u32 {
     scheduler::interior_alias_instruction_bytes();
     tests += 3;
     tests += memory::extension_deferral() + memory::flat_ram_bounds() + regions::regions();
+    tests += memory::code_page_flag();
     scheduler::retention();
     tests += 1;
     loops::hardware_loop_scheduler();

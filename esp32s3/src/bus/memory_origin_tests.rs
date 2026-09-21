@@ -45,6 +45,8 @@ fn unpriced_accesses_preserve_data_versions_faults_and_cpu_debt() {
     let mut bus = timed_bus();
     // Alias the next MMU page so split accesses exercise the byte fallback.
     bus.mmu[1] = MMU_SPIRAM;
+    // EX110: decoded code depends on both pages, so every write there must be recorded.
+    for a in [DBUS_LOW, DBUS_LOW + PAGE] { let v = bus.code_page(a); bus.note_code_page(v); }
     bus.write32(DBUS_LOW + 128, 1).unwrap();
     let stats = bus.approximate_cache_stats();
     let versions = bus.page_ver.clone();
@@ -61,6 +63,51 @@ fn unpriced_accesses_preserve_data_versions_faults_and_cpu_debt() {
     assert_eq!(bus.take_timing_penalty(), 120, "existing CPU debt is retained");
     bus.read32(DBUS_LOW + 64).unwrap();
     assert_eq!(bus.take_timing_penalty(), 216, "CPU writes still dirty the victim");
+}
+
+/// EX110: with nothing decoded, a store writes its bytes and records nothing. The first decode
+/// that reads a page makes its mapping record writes again, including a page that only a
+/// boundary-straddling instruction could reach, and including already-published mappings.
+#[test]
+fn unwatched_mappings_skip_version_bookkeeping_until_code_arrives() {
+    let mut bus = SocBus::new(65536, 65536, [0; 6]);
+    bus.mmu[0] = MMU_SPIRAM;
+    let before = bus.page_ver.clone();                  // sizing the table already bumped flash/PSRAM
+    bus.write32(DRAM_LOW, 1).unwrap();                  // also publishes the SRAM mapping
+    bus.write32(DBUS_LOW, 2).unwrap();
+    assert_eq!((bus.read32(DRAM_LOW).unwrap(), bus.read32(DBUS_LOW).unwrap()), (1, 2), "bytes land either way");
+    assert_eq!(bus.page_ver, before, "no decoded consumer, no bookkeeping");
+
+    // IRAM and DRAM are one SRAM: watching an IRAM page watches the DRAM alias of the same bytes.
+    let vidx = bus.code_page(IRAM_LOW);
+    bus.note_code_page(vidx);
+    let before = bus.page_ver.clone();
+    bus.write32(DRAM_LOW, 3).unwrap();
+    assert_ne!(bus.page_ver, before, "the published mapping was dropped when its block became code");
+    let before = bus.page_ver.clone();
+    bus.write32(DBUS_LOW, 4).unwrap();
+    assert_eq!(bus.page_ver, before, "an unrelated mapping still skips");
+
+    // An instruction can begin two bytes before a page, so the page before a code page, in the
+    // mapping before it, is watched as well.
+    let mut bus = SocBus::new(65536, 65536, [0; 6]);
+    let vidx = bus.code_page(IRAM_LOW + 0x1_0000);
+    bus.note_code_page(vidx);
+    let before = bus.page_ver.clone();
+    bus.write32(IRAM_LOW + 0xfffc, 5).unwrap();
+    assert_ne!(bus.page_ver, before, "the page before a code page is recorded");
+}
+
+/// EX110: a flash remap changes which bytes a cache-window pc names without any write, so it
+/// must keep bumping every flash and PSRAM page version whatever the code flags say.
+#[test]
+fn remap_still_invalidates_unwatched_flash_and_psram() {
+    let mut bus = SocBus::new(65536, 65536, [0; 6]);
+    bus.mmu[0] = MMU_SPIRAM;
+    bus.write32(DBUS_LOW, 7).unwrap();
+    let before = bus.page_ver.clone();
+    bus.invalidate_tlb();
+    assert_ne!(bus.page_ver, before, "a remap invalidates decoded code without a write");
 }
 
 #[test]
@@ -142,6 +189,9 @@ fn dma_run_copy_matches_the_word_loop() {
     let make = || {
         let mut bus = SocBus::new(4 << 16, 4 << 16, [0; 6]);
         bus.mmu[0] = MMU_SPIRAM; bus.mmu[1] = MMU_SPIRAM | 1; bus.mmu[2] = 0; bus.mmu[3] = MMU_SPIRAM | 1;   // page 2 is flash, page 3 aliases page 1
+        // EX110: watch part of the destination space, so comparing page versions still has teeth
+        // for the run copy and covers both the recorded and the skipped mapping.
+        for a in [DRAM_LOW, DBUS_LOW] { let v = bus.code_page(a); bus.note_code_page(v); }
         let mut seed = 0x9e37_79b9u32;
         for buf in [&mut bus.sram, &mut bus.psram, &mut bus.flash] { for b in buf.iter_mut() { seed = seed.wrapping_mul(1664525).wrapping_add(1013904223); *b = (seed >> 24) as u8; } }
         bus

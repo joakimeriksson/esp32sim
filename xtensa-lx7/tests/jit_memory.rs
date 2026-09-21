@@ -53,7 +53,11 @@ fn compiled_access(opcode: u8, op: Op) -> (Cpu, MemoryBus) {
     bus.tlb[tlb_index(DATA)] = TlbEntry {
         lo: DATA, hi: DATA + LEN, base: bus.data.mem.as_mut_ptr(),
         vbase: 1, writable: 1, off: 0, src: 0,
-    };
+        // EX110: decoded code depends on this mapping, so generated stores bump its versions.
+        code: 1,
+        span: 0,
+    }
+    .with_span();
     let mut cpu = Cpu::new(0);
     cpu.ps = 0;
     cpu.set_ar(4, DATA + 32);
@@ -102,6 +106,7 @@ fn access_crossing_mapping_limit_faults() {
         // Truncation preserves the allocation while moving the exclusive limit back one byte.
         bus.data.mem.truncate((LEN - 1) as usize);
         bus.tlb[tlb_index(DATA)].hi -= 1;
+        bus.tlb[tlb_index(DATA)] = bus.tlb[tlb_index(DATA)].with_span();
         assert_fault(&mut cpu, &mut bus, opcode, op, DATA + LEN - width);
     }
 }
