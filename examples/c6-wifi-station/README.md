@@ -59,24 +59,40 @@ idf.py -B build-trace -DSDKCONFIG=sdkconfig.trace \
 
 ## In the emulator
 
+Build with the default network (the emulator's access point) next to your own configuration:
+
 ```sh
-B=examples/c6-wifi-station/build
-target/release/esp32sim-c6 --boot rom --flash-mb 4 --board waveshare-c6-lcd147 --console usb \
-  --bootloader $B/bootloader/bootloader.bin --ptable $B/partition_table/partition-table.bin \
-  --app $B/c6_wifi_station.bin --elf $B/c6_wifi_station.elf --stub bb_init=0 --max-seconds 12 \
-  --tft-png /tmp/station.png
+idf.py -B build-emu -DSDKCONFIG=sdkconfig.emu '-DSDKCONFIG_DEFAULTS=sdkconfig.defaults' build
 ```
 
-Add `--stub bb_init=0`, as every C6 radio run does (the PHY's baseband calibration needs analog
-hardware). The WiFi library then initialises, scans all 14 channels and idles between steps; no
-frames are received yet, so the run ends the way the board does when the network is absent:
+and from the repository root:
+
+```sh
+B=examples/c6-wifi-station/build-emu
+target/release/esp32sim-c6 --boot rom --flash-mb 4 --board waveshare-c6-lcd147 --console usb \
+  --bootloader $B/bootloader/bootloader.bin --ptable $B/partition_table/partition-table.bin \
+  --app $B/c6_wifi_station.bin --elf $B/c6_wifi_station.elf --stub bb_init=0 \
+  --wifi ssid=esp32sim,psk=esp32sim-pass --max-seconds 14 --tft-png /tmp/station.png
+```
+
+`--stub bb_init=0` is what every C6 radio run needs (the PHY's baseband calibration wants analog
+hardware). The unmodified WiFi library then does what it does on the board:
 
     station: STARTED
-    station: SCAN found=0
+    station: SCAN found=1
+    station: SCAN 1 ssid="esp32sim" channel=6 rssi=-40 auth=WPA2 bssid=02:53:49:4d:00:01
     station: CONNECT attempt=1 ssid="esp32sim" ESP_OK
-    station: DISCONNECTED reason=201 NO_AP_FOUND
+    station: CONNECTED channel=6 bssid=02:53:49:4d:00:01
+    station: GOT_IP ip=10.0.2.15 mask=255.255.255.0 gw=10.0.2.2
+    station: PING seq=1 time=0 ms
+    station: PING done sent=5 received=5
 
-(The PNG is the panel's native portrait scan, so the landscape text is sideways in it.)
+`--debug wifi-frames` shows every 802.11 frame in both directions and the WPA2 handshake,
+`--debug net` the DHCP, ARP and ICMP behind it; `--wifi ssid=esp32sim` alone is an open network
+(build with an empty passphrase for that). Without `--wifi` there is no network and the run ends in
+`DISCONNECTED reason=201 NO_AP_FOUND`, as on the board. The PNG is the panel's native portrait
+scan, so the landscape text is sideways in it. `external_wifi_station_c6` in
+`cli/tests/goldens.rs` pins this run (`C6_WIFI_STATION_BUILD` names the build directory).
 
 ## Provenance
 

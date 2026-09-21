@@ -1,12 +1,16 @@
 # ESP32-C6 WiFi implementation plan
 
-Status (2026-09-21): the specimen runs on the board (joined a WPA2 network, five of five gateway
-pings) and, in the emulator, the unmodified WiFi library initialises, scans all 14 channels and
-reports `DISCONNECTED reason=201 NO_AP_FOUND` — what the board says when the network is absent.
-That took three handshakes in `esp32c6/src/wifi.rs` (baseband channel switch and IQ estimate, the
-MAC core's ready flag) and the existing `--stub bb_init=0`. Next is the MAC's receive path, so a
-virtual access point's beacons reach the scan: the RX descriptor ring, the event and clear
-registers and the interrupt source, found the same way — from what the library waits on.
+Status (2026-09-21): it runs. The specimen joins a real WPA2 network on the board (five of five
+gateway pings), and in the emulator the same unmodified image scans, finds the virtual access
+point, joins it through the WPA2 four-way handshake, takes a DHCP lease and gets five of five
+pings answered (`esp32sim-c6 --wifi ssid=esp32sim,psk=esp32sim-pass --stub bb_init=0`), with the
+same console lines and the same screen. What it took: three handshakes the library waits on
+(baseband channel switch and IQ estimate, the MAC core's ready flag), the MAC's events, RX ring
+and TX queues at the C6's offsets and with the C6's formats (below), AES through GDMA for the
+supplicant's key unwrap, and the access point, network and NAT moved out of the S3 crate into
+`esp-soc`. Not done: the PHY's baseband calibration is still the `bb_init` stub, the TSF and the
+power block are register RAM, there is no browser wiring, and nothing beyond one station on one
+open or WPA2 network has been tried.
 
 The C6 emulator currently models the IEEE 802.15.4 MAC in `esp32c6/src/radio.rs`. Its WiFi
 support is explicitly rejected by the CLI, and the C6 documentation says that WiFi 6 is not
@@ -32,15 +36,31 @@ interrupt is source 0 (`ETS_WIFI_MAC_INTR_SOURCE`), the power block's source 2.
 | RX next descriptor | `hal_mac_rx_read_rxdscrnext` | MAC+0x088 | 0x08C |
 | RX last descriptor | `hal_mac_rx_get_last_dscr` | MAC+0x08C (low 20 bits; the high 12 come from MAC+0xC70) | 0x090 |
 | RX ring reload | `hal_mac_rx_set_dscr_reload` | MAC+0x080 bit 0 | 0x084 bit 0 |
-| TX queue n start | `hal_mac_txq_enable` | MAC+0xD6C - 16n, bits 31:30 | 0xD08 - 8n |
-| TX queue state | `hal_mac_get_txq_state` | MAC+0xCB0 (bits 10:0 one type, 23:16 another) | 0xCA8 / 0xCB0 |
-| TX queue state, clear | `hal_mac_clr_txq_state` (ROM) | MAC+0xCAC | 0xCA4 / 0xCAC |
+| TX queue n start | `hal_mac_txq_enable` | MAC+0xD6C - 16n, bits 31:30; queues 0..10 | 0xD08 - 8n |
+| TX queue state | `hal_mac_get_txq_state` | MAC+0xCB0 (bits 10:0 and 23:16: errors), MAC+0xCB8 (completed) | 0xCA8 / 0xCB0 |
+| TX queue state, clear | `hal_mac_clr_txq_state` (ROM) | MAC+0xCAC (errors), MAC+0xCB4 (completed) | 0xCA4 / 0xCAC |
+| TX result word | `hal_mac_get_txq_pmd` | 0x600A54E8 - 116n, left zero: success | block 0x35 +0x320 - 76n |
 | power events, read / clear | `hal_pwr_interrupt_get_event` / `_clr_event` | PWR+0xB0 / +0xB4 | block 0x35 +0x118 / +0x11C |
 | TSF set | `hal_mac_tsf_set_time` | PWR+0x18 / +0x1C, PWR+0x14 bit 5 loads | block 0x35 +0x10 / +0x14, +0x0C bit 4 |
 
-Still to read before the receive path can be written: the RX descriptor layout (the S3's is
-`size:12 length:12 _:6 has_data:1 owner:1`, then the packet and next pointers), which event bits
-`wDev_ProcessFiq` treats as received data, the TSF latch, and the TX result word.
+What differs from the S3 beyond the offsets, each found by a wrong guess failing:
+
+- **Descriptors** are `size:14 length:14 _:2 has_data:1 owner:1`, two bits wider per field. The
+  library arms a 1700-byte buffer as `0x81A906A4` and re-arms it with the length set back to the
+  size. Writing a 12-bit length at bit 12 sets a size bit, the library then believes its buffers
+  are 5796 bytes, and the heap is corrupt a few frames later.
+- **`+0xC70`** is a hardware status register with the full address of the last descriptor filled;
+  the library never writes it and takes the high 12 bits of `hal_mac_rx_get_last_dscr` from it.
+- **The RX control header** is the one `wDev_ProcessRxSucData` reads, not the public
+  `esp_wifi_rxctrl_t`: 84 fixed bytes (RSSI in byte 0, the address-match bits in byte 3 bits 4 and
+  5, the end state in byte 8, the timestamp in bytes 12..15, the length of a channel-estimate
+  dump in bytes 33..34), that dump, then 8 bytes with the frame's length (14 bits, FCS included)
+  at +84 and the receive state at +88, then the frame. With no dump that is the 92 bytes the
+  library announces (`rxctrl:92`). The library writes the channel into byte 21 itself.
+- **A transmitted packet** is an 8-byte header, the frame's length in its first word, and the frame.
+- **Events**: bit 7 a transmission completed, bit 14 a frame was received, as on the S3.
+- **AES**: ESP-IDF's driver only uses the block through GDMA (peripheral 6) on this chip, and the
+  supplicant unwraps the group key with it, so `aes_hal_wait_done` needs the bus to run the chain.
 
 ## Target and scope
 

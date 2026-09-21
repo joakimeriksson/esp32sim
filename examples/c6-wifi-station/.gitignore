@@ -5,3 +5,5 @@ sdkconfig.old
 sdkconfig.trace
 sdkconfig.trace.old
 dependencies.lock
+sdkconfig.emu
+sdkconfig.emu.old

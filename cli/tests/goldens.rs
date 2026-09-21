@@ -215,3 +215,23 @@ fn external_energy_scan_c6() {
     expect_text("energy-scan-c6.console.txt", &r.stdout);
     expect_u64("energy-scan-c6.insns", r.insns);
 }
+
+/// The WiFi station on the ESP32-C6 (`examples/c6-wifi-station`, built with ESP-IDF 5.5.4;
+/// `C6_WIFI_STATION_BUILD` points at a build directory, the one with the emulator's default network):
+/// the unmodified WiFi library scans, finds the virtual access point, joins it through the WPA2
+/// four-way handshake, takes a DHCP lease and gets five of five gateway pings answered. The
+/// station's own lines are pinned — what the board prints against a real network, with this
+/// network's addresses — not the library's debug chatter, which differs between configurations.
+#[test] #[ignore = "set C6_WIFI_STATION_BUILD=examples/c6-wifi-station/build-emu (built for esp32c6); needs the ESP32-C6 mask ROM ELF"]
+fn external_wifi_station_c6() {
+    let b = std::env::var("C6_WIFI_STATION_BUILD").expect("C6_WIFI_STATION_BUILD=/path/to/c6-wifi-station/build is required for this test");
+    let rom = rom("esp32c6_rev0");
+    let r = run(BIN_C6, &["--rom", rom.to_str().unwrap(), "--boot", "rom", "--flash-mb", "4", "--board", "waveshare-c6-lcd147", "--console", "usb", "--no-dump",
+        "--bootloader", &format!("{b}/bootloader/bootloader.bin"), "--ptable", &format!("{b}/partition_table/partition-table.bin"),
+        "--app", &format!("{b}/c6_wifi_station.bin"), "--elf", &format!("{b}/c6_wifi_station.elf"), "--stub", "bb_init=0",
+        "--wifi", "ssid=esp32sim,psk=esp32sim-pass", "--net", "none", "--max-seconds", "14"]);
+    assert!(!r.stdout.contains("Guru Meditation") && !r.stdout.contains("assert failed"), "the app panicked:\n{}", r.stdout);
+    let station: String = r.stdout.lines().filter_map(|l| l.split_once("station: ").map(|(_, rest)| rest.trim_end_matches("\u{1b}[0m"))).map(|l| format!("{l}\n")).collect();
+    assert!(station.contains("GOT_IP ip=10.0.2.15") && station.contains("PING done sent=5 received=5"), "the station did not get through:\n{}\n{}", station, r.stderr);
+    expect_text("wifi-station-c6.station.txt", &station);
+}
