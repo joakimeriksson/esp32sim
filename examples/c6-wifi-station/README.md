@@ -18,7 +18,9 @@ Every step is one console line that starts with a fixed word (the values here ar
     station: STATUS state=connected rssi=-49 channel=6
     station: DISCONNECTED reason=201 NO_AP_FOUND
 
-A disconnect is retried after two seconds, forever. `STATUS` repeats every five seconds whatever
+`r` on the console restarts the chip (`RESTART requested on the console`): a software restart
+keeps the USB link up, so a listener that is already attached sees the run from its first line,
+which the reset button does not give it. A disconnect is retried after two seconds, forever. `STATUS` repeats every five seconds whatever
 the state (`connecting`, `associated_no_ip`, `connected`, `disconnected`), so the log is never
 silent: a network that associates but withholds DHCP shows as `associated_no_ip`.
 

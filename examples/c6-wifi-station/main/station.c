@@ -1,7 +1,8 @@
 // A WiFi station and nothing else: scan, join, take a lease, ping the gateway, then report the
 // signal. Every step is one console line starting with a fixed word (SCAN, CONNECT, CONNECTED,
 // DISCONNECTED, GOT_IP, PING, STATUS), so a run on the board and a run in the emulator can be
-// compared as text. The same steps go to the board's screen.
+// compared as text. The same steps go to the board's screen. `r` on the console restarts it.
+#include <stdio.h>
 #include <string.h>
 #include "sdkconfig.h"
 #include "freertos/FreeRTOS.h"
@@ -11,6 +12,7 @@
 #include "esp_log.h"
 #include "esp_mac.h"
 #include "esp_netif.h"
+#include "esp_system.h"
 #include "esp_wifi.h"
 #include "nvs_flash.h"
 #include "ping/ping_sock.h"
@@ -159,6 +161,23 @@ static void ping_gateway(void)
     if (err != ESP_OK) ESP_LOGE(TAG, "PING could not start: %s", esp_err_to_name(err));
 }
 
+// `r` on the console restarts the chip. A software restart keeps the USB-Serial/JTAG link up, so
+// a listener that is already attached sees the run from its first line, which a press of the
+// reset button (the port goes away and comes back) does not give it. The console is polled: with
+// no driver installed a read returns at once, with or without a byte.
+static void console_task(void *arg)
+{
+    for (;;) {
+        int c = fgetc(stdin);
+        if (c == EOF) { clearerr(stdin); vTaskDelay(pdMS_TO_TICKS(100)); continue; }
+        if (c == 'r' || c == 'R') {
+            ESP_LOGI(TAG, "RESTART requested on the console");
+            vTaskDelay(pdMS_TO_TICKS(50));                           // let the line out
+            esp_restart();
+        }
+    }
+}
+
 static void connect(void)
 {
     ++attempts;
@@ -177,6 +196,9 @@ void app_main(void)
     }
     ESP_ERROR_CHECK(err);
 
+    BaseType_t made = xTaskCreate(console_task, "console", 3072, NULL, 2, NULL);   // not inside the assert: that compiles away
+    assert(made == pdPASS);
+    (void)made;
     lcd_text_init();                                                 // the screen is up before the radio
     lcd_line(ROW_TITLE, LCD_CYAN, "C6 WIFI STATION");
     lcd_line(ROW_AP, LCD_WHITE, "AP %.17s", strlen(CONFIG_STATION_SSID) ? CONFIG_STATION_SSID : "(scan only)");
