@@ -672,6 +672,18 @@
     "deduplicated": "runs[].provenance moved to provenanceByArm after checking equality within each arm"
   },
   {
+    "file": "x4/final-pack32-default128-td.json",
+    "originalSha256": "2f1ad6e815a5f216dedb67e48ecdfe85ea0ba4355d81ef395c96c04080631bc8",
+    "curatedSha256": "6b1493eda9c34d6feb27713667446f68a32c398bd429832a5bc823c56cb1bc56",
+    "originalBytes": 20532,
+    "curatedBytes": 8504,
+    "omitted": [
+      "runs[].run",
+      "screeningOnly (when present)"
+    ],
+    "deduplicated": "runs[].provenance moved to provenanceByArm after checking equality within each arm"
+  },
+  {
     "file": "x4/probe-s1s2.json",
     "originalSha256": "18bfed71ac308a5565d49e206478a0a95e8924e744d6dc187e52016b4c1af1b6",
     "curatedSha256": "01cb9cf4182181eb2cf16ee09955b6055f536162bafc82001ad517447e654b48",

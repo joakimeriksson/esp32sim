@@ -60,6 +60,7 @@ Positive reductions mean less wall time. Each job compares with its round’s pl
 | x4 | everything-accx-k128-td | 3 | 7.60% | [Result](x4/everything-accx-k128-td.json) |
 | x4 | everything-k64 | 4 | 11.00% | [Result](x4/everything-k64.json) |
 | x4 | everything-k64-td | 3 | 7.78% | [Result](x4/everything-k64-td.json) |
+| x4 | final-pack32-default128-td | 3 | 8.25% | [Result](x4/final-pack32-default128-td.json) |
 | x4 | probe-s1s2 | 4 | 3.38% | [Result](x4/probe-s1s2.json) |
 | x4 | rounds-k1024 | 4 | 2.13% | [Result](x4/rounds-k1024.json) |
 | x4 | rounds-k128 | 4 | 2.25% | [Result](x4/rounds-k128.json) |

@@ -2,7 +2,7 @@
 
 The packed x4 integration reduces Pocket Tank browser wall time by 13.08% and 13.58% in two four-pair jobs against the same plain base. The shipping default enables up to 128 scheduling rounds on wasm32. Restoring the measured indexed loop after a Clippy rewrite makes all 1,356 production WASM function bodies match the measured packed build. [First job](x4/everything-accx-k128-pack32.json), [repeat](x4/everything-accx-k128-pack32-r2.json), [code comparison](codegen/default128-comparison.json).
 
-TinyDraw's battery improved by 7.60% in three pairs on the earlier **64-byte TLB layout** integration. That is not a measurement of the packed 32-byte layout. Its verdict pins 9,819,885,134 instructions. Pocket Tank pins 10,073,833,775 instructions per 30 guest seconds. [Battery result](x4/everything-accx-k128-td.json).
+The final packed build reduces TinyDraw battery wall time by **8.25%**, from median 29.11198 s to 26.71095 s in three pairs (paired reductions 6.67%, 8.50%, 7.69%). All six arms pass, retire the pinned 9,819,885,134 instructions and report zero JIT failures. Candidate SHA-256 is `9766e5164a94a318d63208b27078a4f2dab46a126bfec610fde3ba74c8645a5e`, built from shipping source `4080afdd` without a rounds override. Older layout measurements remain historical entries in the results table. [Final TinyDraw battery result](x4/final-pack32-default128-td.json).
 
 ## What is selected
 
@@ -17,9 +17,11 @@ Relevant implementation: [scheduler](../../../esp-soc/src/machine.rs), [block cl
 
 ## Measurements and limits
 
-[All 65 retained jobs](results.md) include positive and negative results. Each JSON preserves the original aggregate, every paired reduction, arm order, wall times, work totals, output hashes, workload verdicts, JIT failures, browser/V8 versions and asset/harness hashes. The aggregate reduction is the harness's ratio of median arm times; it is not necessarily the median of the per-pair reductions.
+[All 66 retained jobs](results.md) include positive and negative results. Each JSON preserves the original aggregate, every paired reduction, arm order, wall times, work totals, output hashes, workload verdicts, JIT failures, browser/V8 versions and asset/harness hashes. The aggregate reduction is the harness's ratio of median arm times; it is not necessarily the median of the per-pair reductions.
 
 The measurement host was an M3 Pro running Chrome 153.0.8010.53 / V8 15.3.76.13, as recorded in the arms. x4 base is `7828e683bec41b9fc47dbbc38391a3a794fc4956` (main `0042d053` plus EX180); x3 base is `5167baada039ba3014575f7c4bcfbcb56ba70240`. Candidates were compared against their plain round base. Subtracting two standalone reductions does not measure incremental benefit in a stack. x4 Pocket Tank jobs have four pairs, TinyDraw jobs three and controls two. Earlier x3 jobs retain their actual pair counts.
+
+Pocket Tank pins 10,073,833,775 instructions per 30 guest seconds. The final source passes 81,626 WASM differential cases, 492 native test executions and Clippy; every PR layer has its own differential, exact-output and Clippy checks. [Per-layer validation](validation.json).
 
 The x4 Pocket Tank A/A job reports −0.87% (paired reductions −1.19%, −0.55%); TinyDraw A/A reports +0.24% (+0.26%, +0.22%). The packed-versus-64-byte difference is small relative to this variation and was not measured by a direct candidate-versus-candidate job. Packing is retained for its smaller WASM entry footprint. [Pocket Tank control](x4/control-aa-1.json), [battery control](x4/control-aa-td.json).
 
@@ -40,7 +42,7 @@ node tools/check-evidence-privacy.mjs
 
 Use the [browser benchmark harness](../../../tools/browser-benchmark/README.md) with the frozen workload assets identified in each JSON, Pocket Tank at 30 guest seconds and TinyDraw in battery mode. Historical candidate source revisions are recorded per job; these identify preserved local experiment commits, not a promise that every rejected experiment branch is published. The six shipping PRs contain the selected source. Raw source revisions must be available to reproduce a rejected candidate exactly.
 
-`codegen/compare.mjs BEFORE.wasm AFTER.wasm` compares binary function bodies and sections. The recorded default build has SHA-256 `9766e5164a94a318d63208b27078a4f2dab46a126bfec610fde3ba74c8645a5e`; the measured packed artifact is `25f0b2ab1676853fc19817d2ec947e057ef8381d15969998e53037b9983f1fa9`. All function bodies and all other non-custom sections except data match. All 34 changed data bytes are diagnostic source-line numbers, identified by `codegen/restored-data-locations.json`. No timing rerun was performed for this source-only lint repair/default selection.
+`codegen/compare.mjs BEFORE.wasm AFTER.wasm` compares binary function bodies and sections. The recorded default build has SHA-256 `9766e5164a94a318d63208b27078a4f2dab46a126bfec610fde3ba74c8645a5e`; the measured packed artifact is `25f0b2ab1676853fc19817d2ec947e057ef8381d15969998e53037b9983f1fa9`. All function bodies and all other non-custom sections except data match. All 34 changed data bytes are diagnostic source-line numbers, identified by `codegen/restored-data-locations.json`. This code identity supports retaining the measured Pocket Tank timings. A fresh TinyDraw battery campaign measures the final shipping artifact directly.
 
 ## Evidence curation
 
