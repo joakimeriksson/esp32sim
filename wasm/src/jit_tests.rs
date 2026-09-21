@@ -140,6 +140,89 @@ fn sequential_emulators_reset_timing_state() -> u32 {
     1
 }
 
+/// EX177: a batch of whole rounds run while both cores are busy must leave exactly the state the
+/// per-round schedule leaves. Cover an interior device access, WAITI, a core-local timer
+/// interrupt, a script event, an architectural stop and a plain uncut batch, on either core and
+/// at the first, last and following instruction of a quantum.
+fn both_busy_rounds() -> u32 {
+    const NOP: [u8; 2] = [0x3d, 0xf0];
+    const SPIN: [u8; 3] = [0x06, 0xff, 0xff];        // j .
+    const BACK: [u8; 3] = [0x06, 0xfd, 0xff];        // j -12: back over four nop.n
+    const CODE: [u32; 2] = [BASE + 0x800, BASE + 0xc00];
+    const VECTORS: u32 = BASE + 0x2000;
+    let timer = xtensa_lx7::state::TIMER_INTERRUPT[0];
+    let mut cases = 0;
+    for jit in [false, true] {
+        for vq in [1u64, 1024] {
+            for kind in 0..6 {
+                for at in [1usize, 63, 64, 65] {
+                    for cut in 0..2usize {
+                        let (mut a, mut b) = (machine(jit), machine(jit));
+                        for m in [&mut a, &mut b] {
+                            m.vq_max = 1;
+                            // release core 1 through its ordinary reset path, then keep both busy
+                            m.bus.write32(CONTROL, 2).unwrap();
+                            m.max_cycles = m.bus.cycles + 64;
+                            assert!(matches!(m.run(u64::MAX), Stop::Halted));
+                            let peer: Vec<u8> = NOP.repeat(4).into_iter().chain(BACK).collect();
+                            let mut code: Vec<u8> = NOP.repeat(at);
+                            match kind {
+                                1 => code.extend([0x22, 0x23, 0x00]),      // l32i a2,a3,0: SYSTIMER
+                                2 => code.extend([0x00, 0x70, 0x00]),      // waiti 0
+                                5 => code.extend([0x00, 0x00, 0x00]),      // ill
+                                _ => {}
+                            }
+                            code.extend(SPIN);
+                            SocBus::load_bytes(&mut m.bus, VECTORS + xtensa_lx7::state::vec::KERNEL, &SPIN).unwrap();
+                            for i in 0..2 {
+                                SocBus::load_bytes(&mut m.bus, CODE[i], if i == cut { &code } else { &peer }).unwrap();
+                                let c = &mut m.cores[i];
+                                c.pc = CODE[i]; c.ps = 0; c.waiting = false;
+                                c.intenable = 0; c.interrupt = 0; c.vecbase = VECTORS;
+                                c.set_ar(3, 0x6002_3000);
+                            }
+                            if kind == 3 {
+                                let c = &mut m.cores[cut];
+                                c.ccompare[0] = c.ccount.wrapping_add(at as u32);
+                                c.intenable = 1 << timer;
+                            }
+                            if kind == 4 {
+                                m.script.log = false;
+                                m.script.events = vec![
+                                    (m.bus.cycles + at as u64, ScriptAction::Serial("event".into())),
+                                    (m.bus.cycles + 300, ScriptAction::Stop),
+                                ];
+                            }
+                            if kind == 5 { m.dbg.stop_after_exceptions = 1; }
+                            m.vq_max = vq;
+                            m.max_cycles = m.bus.cycles + 512;
+                        }
+                        b.bb_max = 16;
+                        let label = format!("jit={jit} vq={vq} kind={kind} at={at} cut={cut}");
+                        for m in [&mut a, &mut b] {
+                            let stop = m.run(u64::MAX);
+                            if kind == 5 { assert!(matches!(stop, Stop::Exceptions(1)), "{label}: {stop:?}"); }
+                            else { assert!(matches!(stop, Stop::Halted), "{label}: {stop:?}"); }
+                            assert_eq!(m.bus.vq_violations, 0, "{label}: undeferred device access");
+                        }
+                        assert!(b.bb_stats[0] > 0, "{label}: no batch ran");
+                        if kind == 1 { assert!(b.bb_stats[2] > 0, "{label}: no device-register cut"); }
+                        if kind == 2 { assert!(b.bb_stats[3] > 0, "{label}: no waiti cut"); }
+                        if kind == 3 { assert!(b.interrupts > 0, "{label}: timer never fired"); }
+                        if kind == 4 { assert_eq!(b.script.pos, 2, "{label}: script events never applied"); }
+                        same(&a, &b);
+                        assert_eq!(a.run_steps(), b.run_steps(), "{label}: scheduling budget");
+                        assert_eq!((a.insns(), a.exceptions, a.interrupts, &a.irq_hist),
+                                   (b.insns(), b.exceptions, b.interrupts, &b.irq_hist), "{label}");
+                        cases += 1;
+                    }
+                }
+            }
+        }
+    }
+    cases
+}
+
 fn architectural_stops() -> u32 {
     for jit in [false, true] {
         for busy in 0..2 {
@@ -218,7 +301,7 @@ pub fn run() -> u32 {
         }
         same(&a, &b);
     }
-    let cases = 3 + solo_core_one() + architectural_stops();
+    let cases = 3 + solo_core_one() + architectural_stops() + both_busy_rounds();
     #[cfg(feature = "cache-inline")]
     let cases = cases + sequential_emulators_reset_timing_state();
     cases
