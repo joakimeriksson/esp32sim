@@ -53,12 +53,12 @@ impl TlbEntry {
     /// Publish the endpoints to generated code. An entry that never passes through this keeps
     /// `span` 0, which no access can satisfy, so it simply takes the slow path.
     #[inline(always)]
-    pub fn with_span(self) -> TlbEntry {
+    #[cfg_attr(not(target_arch = "wasm32"), allow(unused_mut))]
+    pub fn with_span(mut self) -> TlbEntry {
         debug_assert!(self.hi >= self.lo);
-        Self {
-            #[cfg(target_arch = "wasm32")] span: self.hi.wrapping_sub(self.lo),
-            ..self
-        }
+        #[cfg(target_arch = "wasm32")]
+        { self.span = self.hi.wrapping_sub(self.lo); }
+        self
     }
 }
 // SAFETY: Sending this Copy value transfers only address bits. TlbEntry has no safe operation that
