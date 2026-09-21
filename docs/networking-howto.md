@@ -75,7 +75,7 @@ run to be reproducible and offline.
 - **Multicast and mDNS** do not cross the NAT: `something.local` will not resolve, and Home
   Assistant / ESP-IDF discovery protocols will not see anything. Use IP addresses.
 - **UDP reply peers** must match the destination IP and port of the outgoing datagram. The
-  [connected UDP relay](../esp32s3/src/nat.rs) does not support TFTP's server-selected transfer
+  [connected UDP relay](../esp-soc/src/nat.rs) does not support TFTP's server-selected transfer
   port or replies from a different address on a multi-homed server. Failed host sends drop
   the datagram without retrying and increment `udp_send_errors`,
   with details under `ESP_EMU_DEBUG_NET=1`. The 64-flow UDP table evicts its least recently

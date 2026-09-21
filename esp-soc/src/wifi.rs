@@ -119,9 +119,9 @@ impl VirtualAp {
     pub fn new(cfg: ApConfig, log: bool) -> Self {
         let mut wpa = Wpa::default();
         if let Some(psk) = &cfg.psk {
-            wpa.pmk.copy_from_slice(&crate::crypto::pbkdf2_sha1(psk.as_bytes(), cfg.ssid.as_bytes(), 4096, 32));
+            wpa.pmk.copy_from_slice(&esp_periph::crypto::pbkdf2_sha1(psk.as_bytes(), cfg.ssid.as_bytes(), 4096, 32));
             // deterministic nonces/GTK: the emulator must replay identically run to run
-            let seed = crate::crypto::sha1(&[&wpa.pmk[..], &cfg.bssid[..]].concat());
+            let seed = esp_periph::crypto::sha1(&[&wpa.pmk[..], &cfg.bssid[..]].concat());
             for i in 0..32 { wpa.anonce[i] = seed[i % 20] ^ (i as u8); }
             for i in 0..16 { wpa.gtk[i] = seed[(i + 3) % 20] ^ 0x5a; }
         }
@@ -249,7 +249,7 @@ impl VirtualAp {
         body.extend_from_slice(&(key_data.len() as u16).to_be_bytes());
         body.extend_from_slice(key_data);
         if let Some(kck) = mic_key {
-            let m = crate::crypto::hmac_sha1(kck, &body);
+            let m = esp_periph::crypto::hmac_sha1(kck, &body);
             body[mic_at..mic_at + 16].copy_from_slice(&m[..16]);
         }
         let sta = self.sta; let bssid = self.cfg.bssid;
@@ -282,7 +282,7 @@ impl VirtualAp {
             let mut data = Vec::with_capacity(76);
             data.extend_from_slice(&lo_mac); data.extend_from_slice(&hi_mac);
             data.extend_from_slice(&lo_n); data.extend_from_slice(&hi_n);
-            let ptk = crate::crypto::prf(&self.wpa.pmk, "Pairwise key expansion", &data, 384);
+            let ptk = esp_periph::crypto::prf(&self.wpa.pmk, "Pairwise key expansion", &data, 384);
             // self-check: recompute the station's own MIC over message 2. If this matches, the PMK,
             // the PTK derivation and the MIC scope are all right and any later failure is elsewhere.
             {
@@ -290,7 +290,7 @@ impl VirtualAp {
                 let mic_at = 81;
                 let mut recv = [0u8; 16]; recv.copy_from_slice(&probe[mic_at..mic_at + 16]);
                 for b in probe[mic_at..mic_at + 16].iter_mut() { *b = 0; }
-                let calc = crate::crypto::hmac_sha1(&ptk[0..16], &probe);
+                let calc = esp_periph::crypto::hmac_sha1(&ptk[0..16], &probe);
                 if self.log {
                     eprintln!("[wifi] WPA2 msg2: PTK derived, station MIC {} (recv {:02x?} calc {:02x?})",
                               if calc[..16] == recv { "VERIFIED" } else { "MISMATCH" }, &recv[..4], &calc[..4]);
@@ -304,7 +304,7 @@ impl VirtualAp {
             kd.extend_from_slice(&self.wpa.gtk);
             if kd.len() % 8 != 0 { kd.push(0xdd); while kd.len() % 8 != 0 { kd.push(0); } }   // pad: one 0xDD then zeros
             let mut kek = [0u8; 16]; kek.copy_from_slice(&ptk[16..32]);
-            let wrapped = crate::crypto::aes_key_wrap(&kek, &kd);
+            let wrapped = esp_periph::crypto::aes_key_wrap(&kek, &kd);
             self.wpa.replay += 1;
             let anonce = self.wpa.anonce;
             let m3 = self.eapol(0x13ca, anonce, &wrapped, Some(&ptk[..16]));
