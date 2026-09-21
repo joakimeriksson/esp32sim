@@ -9,8 +9,8 @@ same console lines and the same screen. What it took: three handshakes the libra
 and TX queues at the C6's offsets and with the C6's formats (below), AES through GDMA for the
 supplicant's key unwrap, and the access point, network and NAT moved out of the S3 crate into
 `esp-soc`. Not done: the PHY's baseband calibration is still the `bb_init` stub, the TSF and the
-power block are register RAM, there is no browser wiring, and nothing beyond one station on one
-open or WPA2 network has been tried.
+power block are register RAM, and nothing beyond one station on one open or WPA2 network has
+been tried. The browser build runs it too, from a local manifest (the example's README).
 
 The C6 emulator currently models the IEEE 802.15.4 MAC in `esp32c6/src/radio.rs`. Its WiFi
 support is explicitly rejected by the CLI, and the C6 documentation says that WiFi 6 is not

@@ -345,7 +345,8 @@ machine wants to see, as the Xtensa block interpreter always did.
   (`esp-soc/src/wifi.rs`). The MAC model is `wifi.rs`, the frames move in `bus.rs`;
   `docs/wifi-c6-plan.md` has the register map and what differs from the S3. One station, legacy
   rates, no power save, no TSF; the PHY calibration is the `bb_init` stub as for 802.15.4. The
-  specimen is `examples/c6-wifi-station`. Not wired into the browser build yet.
+  specimen is `examples/c6-wifi-station`. It runs in the browser build too (a manifest's `wifi`,
+  as on the S3, without NAT); the example's README has the local manifest for it.
 - **BLE, the LP core** — nothing of that radio or the second core is modelled. The
   802.15.4 MAC sends, receives, acknowledges and filters (above); enhanced ACKs and security are not there.
 - **Peripherals on demand**: GDMA, I2C, SPI2, LEDC, RMT, ADC, TWAI, PARL_IO. Each shows up as an

@@ -94,6 +94,42 @@ hardware). The unmodified WiFi library then does what it does on the board:
 scan, so the landscape text is sideways in it. `external_wifi_station_c6` in
 `cli/tests/goldens.rs` pins this run (`C6_WIFI_STATION_BUILD` names the build directory).
 
+## In the browser
+
+The WebAssembly build runs it too, on the page's Waveshare panel. The firmware is not committed,
+so this is a local manifest (`web/wasm/fw/` ignores everything but the public demos): copy the
+three parts of `build-emu` to `web/wasm/fw/local/` as `c6-wifi-bootloader.bin`,
+`c6-wifi-ptable.bin` and `c6-wifi_station.bin`, and write `web/wasm/fw/c6-wifi-station.json`:
+
+```json
+{
+ "board": "waveshare-c6-lcd147",
+ "flash_mb": 4,
+ "psram_mb": 0,
+ "wifi": "ssid=esp32sim,psk=esp32sim-pass",
+ "display_rotate": 270,
+ "stubs": [
+  "bb_init=0"
+ ],
+ "symbols": {
+  "bb_init": "0x<address of bb_init in your build>"
+ },
+ "files": {
+  "rom": "esp32c6_rev0_rom.elf",
+  "bootloader": "local/c6-wifi-bootloader.bin",
+  "ptable": "local/c6-wifi-ptable.bin",
+  "app": "local/c6-wifi_station.bin"
+ },
+ "seconds": 14,
+ "expect": "PING done sent=5 received=5"
+}
+```
+
+`riscv32-esp-elf-nm build-emu/c6_wifi_station.elf | grep ' bb_init$'` gives the address. Then
+`tools/wasm-build.sh`, `node tools/wasm-test.mjs c6-wifi-station` (it expects the five pings), and
+`python3 -m http.server -d web 8790` with `http://127.0.0.1:8790/run.html?wasm&fw=c6-wifi-station`.
+There is no NAT in the browser: the lease, the gateway and its pings are all there is.
+
 ## Provenance
 
 `Vernon_ST7789T/` is Espressif's ST7789T panel driver (Apache-2.0), as shipped in Waveshare's demo
