@@ -33,7 +33,7 @@
 
 static esp_lcd_panel_handle_t panel;
 static SemaphoreHandle_t lock, sent;
-static uint16_t *strip;          // CELL x PANEL_H pixels, in the panel's byte order
+static uint16_t *strip;          // CELL x PANEL_H pixels, RGB565
 static char shown[LCD_ROWS][LCD_COLS + 1];
 static uint16_t shown_colour[LCD_ROWS];
 
@@ -54,7 +54,7 @@ static void push(int x0, int width)
 static void draw_row(int row, uint16_t colour, const char *text)
 {
     size_t len = strlen(text);
-    uint16_t ink = (uint16_t)(colour >> 8 | colour << 8);           // RGB565, high byte first
+    uint16_t ink = colour;                                          // RGB565 as it is in memory: the driver's RAMCTRL makes the panel little-endian
     int top = MARGIN + row * CELL;                                  // across the landscape view
 #if CONFIG_STATION_LCD_FLIP
     int x0 = top;
@@ -95,8 +95,10 @@ void lcd_text_init(void)
                                                 .lcd_param_bits = 8, .spi_mode = 0,
                                                 .trans_queue_depth = 4, .on_color_trans_done = on_sent };
     ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)SPI2_HOST, &io_config, &io));
+    // BGR: this module's glass exchanges red and blue unless MADCTL's BGR bit is set (seen on the
+    // board: with it clear, green text was blue).
     esp_lcd_panel_dev_st7789t_config_t config = { .reset_gpio_num = PIN_RST,
-                                                  .rgb_endian = LCD_RGB_ENDIAN_RGB, .bits_per_pixel = 16 };
+                                                  .rgb_endian = LCD_RGB_ENDIAN_BGR, .bits_per_pixel = 16 };
     ESP_ERROR_CHECK(esp_lcd_new_panel_st7789t(io, &config, &panel));
     ESP_ERROR_CHECK(esp_lcd_panel_reset(panel));
     ESP_ERROR_CHECK(esp_lcd_panel_init(panel));

@@ -36,7 +36,7 @@ void LCD_Init(void)
 
     esp_lcd_panel_dev_st7789t_config_t panel_config = {
         .reset_gpio_num = EXAMPLE_PIN_NUM_LCD_RST,
-        .rgb_endian = LCD_RGB_ENDIAN_RGB,
+        .rgb_endian = LCD_RGB_ENDIAN_BGR,   // this module's glass exchanges red and blue unless BGR is set
         .bits_per_pixel = 16,
     };
     ESP_LOGI(TAG_LCD, "Install ST7789T panel driver");
