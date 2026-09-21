@@ -1,0 +1,8 @@
+{
+  "reason": "Apply the existing #107 host-activity sanitization in #93, where this capture first enters the stack and the privacy check starts.",
+  "sourceCommit": "d096dce46185cfdd247a0e879231f8a328a87529",
+  "path": "docs/evidence/pocket-throughput-2026-09-19/host-activity.txt",
+  "originalSha256": "b29a82063cec504b01fd21de9fc1287f708fc2eca9b7994c418bc93bb6ee09f9",
+  "sanitizedSha256": "f71e32d0a1d6a7bacf4e28edcd630226acf9c1ff76ca3d04300cf8d234220738",
+  "preserved": "Anonymous CPU samples and measurement-noise qualification; process identities and command lines removed."
+}
