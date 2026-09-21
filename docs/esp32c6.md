@@ -339,7 +339,9 @@ machine wants to see, as the Xtensa block interpreter always did.
 - **`--boot app`** maps the image through the unified MMU and jumps to it, but the system
   registers the bootloader would have set up are not preset; ROM boot is the tested path.
 - **Watchdogs.** The LP_WDT and the TIMG watchdogs are register RAM: they never fire.
-- **WiFi 6, BLE, the LP core** — nothing of those radios or the second core is modelled. The
+- **WiFi 6**: the library initialises and scans (`wifi.rs`: three handshakes, `docs/wifi-c6-plan.md`),
+  but no frame is received or sent yet, so a scan finds nothing and a join ends in `NO_AP_FOUND`.
+- **BLE, the LP core** — nothing of that radio or the second core is modelled. The
   802.15.4 MAC sends, receives, acknowledges and filters (above); enhanced ACKs and security are not there.
 - **Peripherals on demand**: GDMA, I2C, SPI2, LEDC, RMT, ADC, TWAI, PARL_IO. Each shows up as an
   unknown register with `--log-periph` the moment a firmware wants it. The registers hello_world

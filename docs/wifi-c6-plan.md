@@ -1,6 +1,12 @@
 # ESP32-C6 WiFi implementation plan
 
-Status: proposal based on the current tree (2026-09-21).
+Status (2026-09-21): the specimen runs on the board (joined a WPA2 network, five of five gateway
+pings) and, in the emulator, the unmodified WiFi library initialises, scans all 14 channels and
+reports `DISCONNECTED reason=201 NO_AP_FOUND` — what the board says when the network is absent.
+That took three handshakes in `esp32c6/src/wifi.rs` (baseband channel switch and IQ estimate, the
+MAC core's ready flag) and the existing `--stub bb_init=0`. Next is the MAC's receive path, so a
+virtual access point's beacons reach the scan: the RX descriptor ring, the event and clear
+registers and the interrupt source, found the same way — from what the library waits on.
 
 The C6 emulator currently models the IEEE 802.15.4 MAC in `esp32c6/src/radio.rs`. Its WiFi
 support is explicitly rejected by the CLI, and the C6 documentation says that WiFi 6 is not
@@ -33,9 +39,7 @@ unmodified `esp_wifi` support.
 
 Bring-up specimen: `examples/c6-wifi-station`. It scans, joins, takes a lease, pings the gateway
 and reports the signal, one fixed-word console line per step, with the same state on the board's
-screen as plain text (no LVGL) and a trace configuration without any display traffic. In the
-emulator it currently stops in the PHY's full calibration (`chgp_cal no done`, spinning in
-`txdc_cal_new`), after `esp_wifi_init` has succeeded: the first thing the C6 model has to answer.
+screen as plain text (no LVGL) and a trace configuration without any display traffic.
 
 Later demo: `examples/c6-radio-dashboard`, for the Waveshare C6-LCD-1.47.
 It provides WiFi scan, station status with gateway ping/RSSI history, and a separate 802.15.4

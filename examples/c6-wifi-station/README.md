@@ -63,17 +63,20 @@ idf.py -B build-trace -DSDKCONFIG=sdkconfig.trace \
 B=examples/c6-wifi-station/build
 target/release/esp32sim-c6 --boot rom --flash-mb 4 --board waveshare-c6-lcd147 --console usb \
   --bootloader $B/bootloader/bootloader.bin --ptable $B/partition_table/partition-table.bin \
-  --app $B/c6_wifi_station.bin --elf $B/c6_wifi_station.elf --max-seconds 6 --tft-png /tmp/station.png
+  --app $B/c6_wifi_station.bin --elf $B/c6_wifi_station.elf --stub bb_init=0 --max-seconds 12 \
+  --tft-png /tmp/station.png
 ```
 
-The C6 has no WiFi model yet. Today the screen comes up, `esp_wifi_init` succeeds, and
-`esp_wifi_start` stops in the PHY's full calibration:
+Add `--stub bb_init=0`, as every C6 radio run does (the PHY's baseband calibration needs analog
+hardware). The WiFi library then initialises, scans all 14 channels and idles between steps; no
+frames are received yet, so the run ends the way the board does when the network is absent:
 
-    phy_init: failed to load RF calibration data (0x1102), falling back to full calibration
-    phy: error: chgp_cal no done!!!
+    station: STARTED
+    station: SCAN found=0
+    station: CONNECT attempt=1 ssid="esp32sim" ESP_OK
+    station: DISCONNECTED reason=201 NO_AP_FOUND
 
-with the core spinning in `txdc_cal_new`. That is where the emulator work starts. (The PNG is the
-panel's native portrait scan, so the landscape text is sideways in it.)
+(The PNG is the panel's native portrait scan, so the landscape text is sideways in it.)
 
 ## Provenance
 

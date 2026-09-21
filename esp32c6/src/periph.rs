@@ -7,6 +7,7 @@
 //! RTC timer, store registers, watchdog), PCR, PMU and the RNG.
 
 use crate::radio::Ieee802154;
+use crate::wifi::{ModemBb, WifiMac};
 use emu_core::{ClockDomain, ClockTree};
 use esp_periph::{device_set, mmio, Device, DeviceSet, Dispatch, Misc, RegRam, WriteEffect, NO_SOURCE};
 use esp_periph::{Aes, Efuse, Gdma, Gpio, GpSpi, Rmt, Rsa, Sha, SpiMem, Systimer, TimerGroup, Uart, UartLayout, UsbSerialJtag};
@@ -370,6 +371,10 @@ pub struct Peripherals {
     pub gdma: GdmaC6,
     pub spi2: GpSpi,
     pub radio: Ieee802154,
+    /// the modem baseband block: the PHY library's channel-switch handshake (`wifi.rs`)
+    pub modem_bb: ModemBb,
+    /// the 802.11 MAC, as far as the WiFi library has asked for it (`wifi.rs`)
+    pub wifi_mac: WifiMac,
     pub intmtx: IntMatrix,
     pub intc: Intc,
     pub cache: Cache,
@@ -407,7 +412,9 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::Systimer, 10), 
     0x8a "RSA" (rsa) => [src::RSA];
     0x91 "GPIO" (gpio) => [src::GPIO];
     0x96 "PCR" (pcr) => [];
+    0xa0 "MODEM_BB" (modem_bb) => [];
     0xa3 "IEEE802154" (radio) => [src::ZB_MAC];
+    0xa4 "WIFI_MAC" (wifi_mac) => [];
     0xaf "I2C_ANA_MST" (ana_mst) delta -0x800 @ 0x800..=0xfff => [];
     // the LP address space: PMU at 0xb0000 is generic; the four LP blocks below are one device
     0xb0 "LP_CLKRST" (lpsys) delta -0x400 @ 0x400..=0x7ff => [];
@@ -441,7 +448,7 @@ impl Peripherals {
             spi0: SpiMemC6({ let mut s = SpiMem::new(false); s.has_psram = false; s }),
             spi1: SpiMemC6({ let mut s = SpiMem::new(true); s.has_psram = false; s }),   // no PSRAM on the C6
             sha: Sha::new(), aes: Aes::new(), rsa: Rsa::new(),
-            rmt: RmtC6::new(CPU_HZ), gdma: GdmaC6::new(), spi2: GpSpi::new(), radio: Ieee802154::new(),
+            rmt: RmtC6::new(CPU_HZ), gdma: GdmaC6::new(), spi2: GpSpi::new(), radio: Ieee802154::new(), modem_bb: ModemBb::new(), wifi_mac: WifiMac::new(),
             intmtx: IntMatrix::new(), intc: Intc::new(), cache: Cache::new(), lpsys: LpSys::new(), pcr: Pcr::new(), ana_mst: AnaMst::new(), assist_debug: AssistDebug::new(),
             rng: Rng::new(), cpu_sub: RegRam::new(),
             misc: Misc::new(), spi_exec: false, clock: Self::new_clock(),
@@ -458,7 +465,7 @@ impl Peripherals {
             0x17 => "SLC", 0x18 => "SLCHOST", 0x19 => "PVT_MONITOR", 0x80 => "GDMA", 0x81 => "SPI2", 0x88 => "AES",
             0x89 => "SHA", 0x8a => "RSA", 0x8b => "ECC_MULT", 0x8c => "DS", 0x8d => "HMAC", 0x90 => "IO_MUX",
             0x91 => "GPIO", 0x92 => "MEM_MONITOR", 0x93 => "PAU", 0x95 => "HP_SYSTEM", 0x96 => "PCR", 0x98 => "TEE",
-            0x99 => "HP_APM", 0x9f => "MISC", 0xa3 => "IEEE802154", 0xa9 => "MODEM_SYSCON", 0xaf => "I2C_ANA_MST", 0xb0 => "PMU/LP_CLKRST/EFUSE/LP_TIMER",
+            0x99 => "HP_APM", 0x9f => "MISC", 0xa0 => "MODEM_BB", 0xa3 => "IEEE802154", 0xa4 => "WIFI_MAC", 0xa9 => "MODEM_SYSCON", 0xaf => "I2C_ANA_MST", 0xb0 => "PMU/LP_CLKRST/EFUSE/LP_TIMER",
             0xb1 => "LP_AON/LP_UART/LP_I2C/LP_WDT", 0xb2 => "LP_IO/LP_I2C_ANA/LPPERI/LP_ANA_PERI",
             0xb3 => "LP_TEE/LP_APM/OTP_DEBUG", 0xc0 => "TRACE", 0xc2 => "ASSIST_DEBUG", 0xc5 => "INTPRI", 0xc8 => "CACHE",
             _ => "?",
