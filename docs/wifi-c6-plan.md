@@ -15,6 +15,33 @@ modelled. The S3 implementation in `esp32s3/src/wifi.rs`, `esp32s3/src/periph.rs
 must not be copied to the C6: the C6 has a different RISC-V SoC and a different WiFi 6 MAC/PHY
 integration.
 
+## The MAC register map, as read from the library
+
+The C6 library (`phy_version 343`, WiFi firmware `0947e8b`, ESP-IDF 5.5.4) reaches the hardware
+through small named functions, one register each, so the map can be read off their
+disassembly. It is the S3's MAC (`esp32s3::periph::WifiMac`) at shifted offsets: the same
+mechanisms, different addresses. MAC base `0x600A4000`, power/TSF block `0x600AD000`; the MAC's
+interrupt is source 0 (`ETS_WIFI_MAC_INTR_SOURCE`), the power block's source 2.
+
+| what | function | C6 | S3 |
+| --- | --- | --- | --- |
+| core ready | `hal_init` | MAC+0xDDC, bit 1 asks, bit 0 answers | 0xD14 |
+| interrupt events, read | `hal_mac_interrupt_get_event` | MAC+0xC48 | 0xC3C |
+| interrupt events, clear | `hal_mac_interrupt_clr_event` | MAC+0xC4C | 0xC40 |
+| RX ring base | `hal_mac_rx_set_base` | MAC+0x084 | 0x088 |
+| RX next descriptor | `hal_mac_rx_read_rxdscrnext` | MAC+0x088 | 0x08C |
+| RX last descriptor | `hal_mac_rx_get_last_dscr` | MAC+0x08C (low 20 bits; the high 12 come from MAC+0xC70) | 0x090 |
+| RX ring reload | `hal_mac_rx_set_dscr_reload` | MAC+0x080 bit 0 | 0x084 bit 0 |
+| TX queue n start | `hal_mac_txq_enable` | MAC+0xD6C - 16n, bits 31:30 | 0xD08 - 8n |
+| TX queue state | `hal_mac_get_txq_state` | MAC+0xCB0 (bits 10:0 one type, 23:16 another) | 0xCA8 / 0xCB0 |
+| TX queue state, clear | `hal_mac_clr_txq_state` (ROM) | MAC+0xCAC | 0xCA4 / 0xCAC |
+| power events, read / clear | `hal_pwr_interrupt_get_event` / `_clr_event` | PWR+0xB0 / +0xB4 | block 0x35 +0x118 / +0x11C |
+| TSF set | `hal_mac_tsf_set_time` | PWR+0x18 / +0x1C, PWR+0x14 bit 5 loads | block 0x35 +0x10 / +0x14, +0x0C bit 4 |
+
+Still to read before the receive path can be written: the RX descriptor layout (the S3's is
+`size:12 length:12 _:6 has_data:1 owner:1`, then the packet and next pointers), which event bits
+`wDev_ProcessFiq` treats as received data, the TSF latch, and the TX result word.
+
 ## Target and scope
 
 The target should be an unmodified C6 ESP-IDF station application that can:
