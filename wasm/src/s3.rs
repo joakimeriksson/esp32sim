@@ -14,7 +14,7 @@ const MAX_TIMING_PRICE: u32 = 1_000_000;
 pub unsafe extern "C" fn esp32sim_wifi(e: *mut Emu, spec: *const u8, len: usize) -> u32 {
     // SAFETY: The caller provides exclusive access to a live emulator.
     let e = unsafe { &mut *e };
-    let Some(m) = e.m.s3_mut() else { log("[emu] wifi: this chip has no modeled WiFi radio"); return 1; };
+    if e.m.s3_mut().is_none() && e.m.c6_mut().is_none() { log("[emu] wifi: this chip has no modeled WiFi radio"); return 1; }
     // SAFETY: The caller provides a readable setup string for this call.
     let spec = match std::str::from_utf8(unsafe { bytes(spec, len) }) {
         Ok(spec) => spec,
@@ -25,9 +25,14 @@ pub unsafe extern "C" fn esp32sim_wifi(e: *mut Emu, spec: *const u8, len: usize)
         Err(reason) => { log(&format!("[emu] wifi: {reason}")); return 1; }
     };
     log(&format!("[emu] virtual AP '{}' ({}), subnet 10.0.2.0/24, no NAT in the browser", cfg.ssid, if cfg.psk.is_some() { "WPA2-PSK" } else { "open" }));
-    m.bus.periph.wifi.ap = Some(esp32s3::wifi::VirtualAp::new(cfg, m.bus.debug.has("wifi-frames")));
-    m.bus.periph.wifi.net = Some(esp32s3::net::VirtualNet::new(m.bus.debug.has("net")));
-    m.bus.refresh_tick_budget();
+    if let Some(m) = e.m.s3_mut() {
+        m.bus.periph.wifi.ap = Some(esp32s3::wifi::VirtualAp::new(cfg, m.bus.debug.has("wifi-frames")));
+        m.bus.periph.wifi.net = Some(esp32s3::net::VirtualNet::new(m.bus.debug.has("net")));
+        m.bus.refresh_tick_budget();
+    } else if let Some(m) = e.m.c6_mut() {                       // the same access point and network, behind the C6's MAC
+        m.bus.periph.wifi_mac.ap = Some(esp32s3::wifi::VirtualAp::new(cfg, m.bus.debug.has("wifi-frames")));
+        m.bus.periph.wifi_mac.net = Some(esp32s3::net::VirtualNet::new(m.bus.debug.has("net")));
+    }
     0
 }
 

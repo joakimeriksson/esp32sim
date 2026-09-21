@@ -8,9 +8,9 @@ real hosts (Home Assistant, price APIs, a browser on the Mac), with no root priv
 the unmodified Espressif blob (docs/wifi-plan.md), and the Ethernet traffic that comes out of the
 MAC is handled by two layers in front of the host network:
 
-- `esp32s3/src/net.rs` — the emulated subnet 10.0.2.0/24 (station 10.0.2.15, gateway 10.0.2.2,
+- `esp-soc/src/net.rs` — the emulated subnet 10.0.2.0/24 (station 10.0.2.15, gateway 10.0.2.2,
   resolver 10.0.2.3): ARP, DHCP, ICMP echo, DNS and an SNTP server serving the host clock.
-- `esp32s3/src/nat.rs` — `--net nat` (the default): everything addressed past the gateway is
+- `esp-soc/src/nat.rs` — `--net nat` (the default): everything addressed past the gateway is
   terminated in the emulator and relayed over ordinary host sockets, which is how Contiki-NG's
   NAT64 does it. A guest SYN becomes a `TcpStream::connect` on a worker thread, guest payload is
   written to that socket, socket reads come back as segments the emulator sequences, acknowledges

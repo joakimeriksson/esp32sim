@@ -346,7 +346,15 @@ machine wants to see, as the Xtensa block interpreter always did.
 - **`--boot app`** maps the image through the unified MMU and jumps to it, but the system
   registers the bootloader would have set up are not preset; ROM boot is the tested path.
 - **Watchdogs.** The LP_WDT and the TIMG watchdogs are register RAM: they never fire.
-- **WiFi 6, BLE, the LP core** — nothing of those radios or the second core is modelled. The
+- **WiFi**: an unmodified ESP-IDF station scans, joins the virtual access point (open or WPA2-PSK),
+  takes a lease and talks to the virtual network or, with `--net nat`, the host's:
+  `--wifi ssid=esp32sim,psk=esp32sim-pass`, the S3's option and the S3's access point
+  (`esp-soc/src/wifi.rs`). The MAC model is `wifi.rs`, the frames move in `bus.rs`;
+  `docs/wifi-c6-plan.md` has the register map and what differs from the S3. One station, legacy
+  rates, no power save, no TSF; the PHY calibration is the `bb_init` stub as for 802.15.4. The
+  specimen is `examples/c6-wifi-station`. It runs in the browser build too (a manifest's `wifi`,
+  as on the S3, without NAT); the example's README has the local manifest for it.
+- **BLE, the LP core** — nothing of that radio or the second core is modelled. The
   802.15.4 MAC sends, receives, acknowledges and filters (above); enhanced ACKs and security are not there.
 - **Peripherals on demand**: GDMA, I2C, SPI2, LEDC, RMT, ADC, TWAI, PARL_IO. Each shows up as an
   unknown register with `--log-periph` the moment a firmware wants it. The registers hello_world

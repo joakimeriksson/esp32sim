@@ -1,0 +1,11 @@
+menu "Radio dashboard"
+config DASH_SSID
+    string "Station SSID (empty = scan only)"
+    default ""
+config DASH_PASSWORD
+    string "Station password (empty = open network)"
+    default ""
+config DASH_START_SPECTRUM
+    bool "Start in 802.15.4 spectrum mode"
+    default n
+endmenu

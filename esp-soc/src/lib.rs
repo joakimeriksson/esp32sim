@@ -13,12 +13,15 @@ pub mod image;
 pub mod json;
 pub mod load;
 pub mod machine;
+pub mod nat;
+pub mod net;
 pub mod observe;
 pub mod observers;
 pub mod picture;
 pub mod png;
 pub mod soc;
 pub mod web;
+pub mod wifi;
 
 pub use board::{Board, BoardModel, NoBoard};
 pub use debug::DebugFlags;

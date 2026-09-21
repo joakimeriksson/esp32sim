@@ -26,16 +26,16 @@ wifi station: got ip:10.0.2.15
 What is modelled:
 - PHY calibration loops satisfied with faked done-bits; scan, open-system auth, association.
 - The 802.11 MAC (TX queue registers, RX descriptor ring, interrupt events) — see below.
-- A **virtual AP** (`esp32s3/src/wifi.rs`): beacons, probe responses, auth/assoc, and the WPA2
+- A **virtual AP** (`esp-soc/src/wifi.rs`): beacons, probe responses, auth/assoc, and the WPA2
   four-way handshake (PMK from the passphrase, PTK derivation, MIC, GTK delivered AES-key-wrapped).
 - The **AES accelerator** (`Aes` in `periph.rs`, DMA and block mode) — the supplicant unwraps the
   group key with it, so without this peripheral WPA2 stops dead at message 3.
 - Crypto primitives (`esp32s3/src/crypto.rs`): SHA-1, HMAC-SHA1, PBKDF2, the 802.11 PRF, AES for
   every key length in both directions, AES key wrap — all checked against RFC/FIPS/802.11i vectors.
-- A **virtual network** (`esp32s3/src/net.rs`): DHCP, ARP, ICMP echo, a DNS responder and an SNTP
+- A **virtual network** (`esp-soc/src/net.rs`): DHCP, ARP, ICMP echo, a DNS responder and an SNTP
   server that hands out the host clock, so `esp_netif` reaches `IP_EVENT_STA_GOT_IP` and firmware
   waiting for time gets it.
-- A **user-mode NAT** (`esp32s3/src/nat.rs`, `--net nat`, on by default): TCP and UDP flows are
+- A **user-mode NAT** (`esp-soc/src/nat.rs`, `--net nat`, on by default): TCP and UDP flows are
   terminated in the emulator and relayed over ordinary host sockets, the way Contiki-NG's NAT64
   does it — no libslirp, no root, no tun device. Guest name lookups go to the host's own resolver.
 - The **RSA/MPI accelerator** (`Rsa` in `periph.rs`) and **SHA over GDMA including SHA-384/512**.

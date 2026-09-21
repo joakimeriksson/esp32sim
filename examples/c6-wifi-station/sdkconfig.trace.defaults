@@ -1,0 +1,6 @@
+# For register traces and emulator bring-up: no display traffic, and the WiFi and WPA
+# libraries say what they are doing.
+CONFIG_STATION_LCD=n
+CONFIG_LOG_DEFAULT_LEVEL_DEBUG=y
+CONFIG_LOG_MAXIMUM_LEVEL_DEBUG=y
+CONFIG_WPA_DEBUG_PRINT=y
