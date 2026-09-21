@@ -318,7 +318,8 @@ fn run<S: Soc>(mut m: Machine<S>, o: &Opts) {
     }
     let boot = prepare(&mut m, o);
     let t0 = std::time::Instant::now();
-    let stop = run_with_reboots(&mut m, o.max_insns, !o.no_reboot && boot == "rom");
+    m.web_restart = !o.no_reboot;
+    let stop = run_with_reboots(&mut m, o.max_insns, !o.no_reboot && boot == "rom", boot == "app");
     let dt = t0.elapsed().as_secs_f64();
     report(&mut m, o, stop, dt);
     if let Some(model) = approximate { eprintln!("[emu] approximate timing totals: {:?}", model.stats()); }
@@ -328,7 +329,11 @@ fn run<S: Soc>(mut m: Machine<S>, o: &Opts) {
     }
 }
 
-fn run_with_reboots<S: Soc>(m: &mut Machine<S>, mut remaining: u64, reboot: bool) -> Stop {
+/// Run, coming back up after a chip reset where that is possible: through the ROM when it booted
+/// the run (`reboot`), and for an app-mode run (`app`) when the reset was the page's Restart — the
+/// chip is reset and the app mapped and entered again, as at startup. A reset the firmware asked
+/// for still ends an app-mode run: there is no ROM to take it through.
+fn run_with_reboots<S: Soc>(m: &mut Machine<S>, mut remaining: u64, reboot: bool, app: bool) -> Stop {
     loop {
         let before = m.run_steps();
         let stop = m.run(remaining);
@@ -336,9 +341,16 @@ fn run_with_reboots<S: Soc>(m: &mut Machine<S>, mut remaining: u64, reboot: bool
         if let Stop::SwReset = stop {
             let cause = m.bus.reset_cause();
             eprintln!("[emu] chip reset at t={:.3}s: cause {:#x} ({})", m.seconds(), cause, esp_periph::reset_cause_name(cause));
-            if !reboot { return stop; }
+            let button = m.take_button_reset();
+            if !reboot && !(button && app) { return stop; }
             if remaining == 0 { return Stop::MaxInsns; }
             m.reboot();
+            if !reboot {
+                match m.boot_app(0x10000) {
+                    Ok(entry) => eprintln!("[emu] restart: app entry {:#010x} {}", entry, m.sym(entry)),
+                    Err(e) => { eprintln!("[emu] restart: {}", e); return stop; }
+                }
+            }
         } else { return stop; }
     }
 }

@@ -146,7 +146,7 @@ impl<S: Soc> Machine<S> {
                     }
                 }
                 // the page's Restart on a native run: the board's reset button
-                "reset" => { self.bus.request_reset(esp_periph::RST_POWERON); *self.bus.irq_dirty() = true; }
+                "reset" if self.web_restart => { self.button_reset = true; self.bus.request_reset(esp_periph::RST_POWERON); *self.bus.irq_dirty() = true; }
                 "touch" => { let x: u16 = field("x").and_then(|v| v.parse().ok()).unwrap_or(0); let y: u16 = field("y").and_then(|v| v.parse().ok()).unwrap_or(0);
                              let down = field("down").unwrap_or_default() == "1"; self.bus.touch_input(x, y, down); }
                 _ => {}
