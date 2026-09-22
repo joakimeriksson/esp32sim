@@ -3,8 +3,9 @@ use super::*;
 pub(super) fn integer_ops() -> u32 {
     use Op::*;
     let mut tests = 0;
-    let values = [0, 1, 0xffff_ffff, 0x8000_0000, 0x7fff_ffff, 0xa5a5_5a5a];
-    for op in [Abs, Sra, Src, Muluh, Mulsh] {
+    let values = [0, 1, 0xffff_ffff, 0x8000_0000, 0x7fff_ffff, 0xa5a5_5a5a, 0x0001_8000];
+    // coverage-s3: MUL16 sign/zero extension and all four mask-branch outcomes need operand pairs.
+    for op in [Abs, Sra, Src, Muluh, Mulsh, Mul16u, Mul16s, Bany, Bnone, Ball, Bnall] {
         // Production admission is separate from queue(), used by the differential harness.
         let mut admitted = [insn(Nop), insn(op), insn(Xor)];
         let mut cc = CodeCache::new(0).unwrap();
@@ -13,7 +14,7 @@ pub(super) fn integer_ops() -> u32 {
             let mut arithmetic = insn(op);
             arithmetic.insn.r = dest;
             arithmetic.max_ar = crate::exec::max_ar(&arithmetic.insn);
-            let pairs: Vec<(u32, u32)> = if matches!(op, Muluh | Mulsh) {
+            let pairs: Vec<(u32, u32)> = if matches!(op, Muluh | Mulsh | Mul16u | Mul16s | Bany | Bnone | Ball | Bnall) {
                 values.iter().flat_map(|&left| values.iter().map(move |&right| (left, right))).collect()
             } else {
                 // Distinct halves expose reversed SRC concatenation and extension errors.
@@ -67,6 +68,7 @@ pub(super) fn basic_ops() -> u32 {
         Sll, Srl, Extui, Sext, Ssr, Ssl, Ssa8l, Ssa8b, Ssai, Abs, Sra, Src, Muluh, Mulsh, Nsa, Min, Max, Minu, Maxu, Moveqz, Movnez,
         Movltz, Movgez, Nsau, J, Jx, Beqz, BeqzN, Bnez, BnezN, Bltz, Bgez, Beqi, Bnei, Blti, Bgei,
         Bltui, Bgeui, Beq, Bne, Blt, Bge, Bltu, Bgeu, Bbci, Bbsi, Bbc, Bbs,
+        Mul16u, Mul16s, Bany, Bnone, Ball, Bnall,
     ];
     let mut tests = 0;
     for op in ops {

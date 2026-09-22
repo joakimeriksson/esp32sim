@@ -429,6 +429,38 @@ pub(super) fn emit(
                 g.end();
             }
         }
+        Bany | Bnone | Ball | Bnall => {
+            // BALL/BNALL test ~AR[s] & AR[t]; BNONE/BALL branch when that mask is zero.
+            g.ar(s);
+            if matches!(i.op, Ball | Bnall) {
+                g.c(u32::MAX);
+                g.op(0x73);
+            }
+            g.ar(t);
+            g.op(0x71);
+            if matches!(i.op, Bnone | Ball) {
+                g.op(0x45);
+            }
+            g.begin_if();
+            g.leave(imm);
+            g.end();
+        }
+        Mul16u | Mul16s => {
+            for x in [s, t] {
+                g.ar(x);
+                if i.op == Mul16u {
+                    g.c(0xffff);
+                    g.op(0x71);
+                } else {
+                    g.c(16);
+                    g.op(0x74);
+                    g.c(16);
+                    g.op(0x75);
+                }
+            }
+            g.op(0x6c);
+            g.set_ar(r);
+        }
         Bbci | Bbsi | Bbc | Bbs => {
             g.ar(s);
             g.c(1);

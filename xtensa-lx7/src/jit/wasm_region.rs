@@ -83,6 +83,7 @@ fn conditional(op: crate::Op) -> bool {
         op,
         Beqz | BeqzN | Bnez | BnezN | Bltz | Bgez | Beqi | Bnei | Blti | Bgei | Bltui | Bgeui
             | Beq | Bne | Blt | Bge | Bltu | Bgeu | Bbci | Bbsi | Bbc | Bbs | Bf | Bt
+            | Bany | Bnone | Ball | Bnall
     )
 }
 
