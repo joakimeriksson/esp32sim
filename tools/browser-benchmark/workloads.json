@@ -162,5 +162,24 @@
         404
       ]
     ]
+  },
+  "fluidbox": {
+    "schema": "fluidbox-v1",
+    "assets": [
+      "rom",
+      "bootloader",
+      "ptable",
+      "app"
+    ],
+    "guestSeconds": 30,
+    "serialSource": "uart0",
+    "checks": [
+      {
+        "name": "sim_reports",
+        "pattern": "fluidbox: [0-9.]+ fps \\| [0-9.]+ steps/s",
+        "min": 10
+      }
+    ],
+    "expectedInstructions": 13247635412
   }
 }
