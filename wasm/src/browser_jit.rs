@@ -95,25 +95,7 @@ fn prepare_browser_jit(
         return None;
     }
 
-    let mut page_indices = Vec::new();
-    let last_byte = pc.wrapping_sub(1);
-    let page_size = 1u32 << xtensa_lx7::bus::VPAGE_SHIFT;
-    let mut page_address = start_pc;
-    loop {
-        let index = machine.bus.code_page(page_address);
-        if page_indices.last() != Some(&index) {
-            page_indices.push(index);
-        }
-        if page_address / page_size == last_byte / page_size {
-            break;
-        }
-        page_address = (page_address / page_size + 1) * page_size;
-    }
-    let versions = machine.bus.page_versions();
-    let code_pages = page_indices
-        .into_iter()
-        .map(|index| (index, versions.get(index as usize).copied().unwrap_or(0)))
-        .collect();
+    let code_pages = snapshot_code_pages(&mut machine.bus, start_pc, pc.wrapping_sub(1));
 
     let state_offset = u32::try_from(jit.state.as_ptr() as usize).ok()?;
     let dram_len = (esp32s3::bus::DRAM_HIGH - esp32s3::bus::DRAM_LOW) as usize;
@@ -283,4 +265,38 @@ pub unsafe extern "C" fn esp32sim_jit_module_len(e: *mut Emu) -> usize {
         return 0;
     };
     e.jit.modules[(ticket.module_id - 1) as usize].module.len()
+}
+
+/// Register every code dependency before reading any version.
+fn snapshot_code_pages(bus: &mut impl xtensa_lx7::Bus, start_pc: u32, last_byte: u32) -> Vec<(u32, u32)> {
+    let mut page_indices = Vec::new();
+    let page_size = 1u32 << xtensa_lx7::bus::VPAGE_SHIFT;
+    let mut page_address = start_pc;
+    loop {
+        let index = bus.code_page(page_address);
+        if page_indices.last() != Some(&index) {
+            bus.note_code_page(index);
+            page_indices.push(index);
+        }
+        if page_address / page_size == last_byte / page_size {
+            break;
+        }
+        page_address = (page_address / page_size + 1) * page_size;
+    }
+    let versions = bus.page_versions();
+    page_indices
+        .into_iter()
+        .map(|index| (index, versions.get(index as usize).copied().unwrap_or(0)))
+        .collect()
+
+}
+
+#[cfg(feature = "jit-tests")]
+pub(crate) fn code_page_watch_test() {
+    let mut bus = esp32s3::bus::SocBus::new(1024, 1024, [0; 6]);
+    let start = esp32s3::bus::IRAM_LOW + 0xfff0;
+    let pages = snapshot_code_pages(&mut bus, start, start + 31);
+    assert_eq!(pages.len(), 2);
+    for addr in [start, start + 16] { bus.write32(addr, 1).unwrap(); }
+    for (index, before) in pages { assert_ne!(bus.page_versions()[index as usize], before); }
 }

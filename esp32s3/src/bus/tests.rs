@@ -1173,6 +1173,7 @@ fn cpu_store_versions_cover_instruction_overlap() {
             let mut bus = SocBus::new(1024, 1024, [0; 6]);
             let addr = DRAM_LOW + 256 + off;
             let page = bus.code_page(addr) as usize;
+            bus.note_code_page(page as u32);
             let before = bus.page_versions().to_vec();
             match width {
                 1 => bus.write8(addr, 1).unwrap(),

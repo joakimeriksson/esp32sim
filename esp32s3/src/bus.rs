@@ -74,8 +74,6 @@ pub struct SocBus {
     page_ver: Vec<u32>,
     /// first `page_ver` index of each buffer, by `SRC_*`
     ver_base: [u32; 7],
-    /// EX110 census only: flash MMU remaps, each bumping every flash and PSRAM page version.
-    pub remaps: u64,
     /// EX110: one flag per 64 KiB block of the `page_ver` index space (256 pages, the span of one
     /// TLB entry): some decode cache, block or region has recorded the version of a page in it, or
     /// of a page next to it. Never cleared while the buffers stand. `TlbEntry.code` copies it, so a
@@ -141,7 +139,7 @@ impl SocBus {
             rtc_fast: vec![0; 8192], rtc_slow: vec![0; 8192], flash: vec![0xff; flash_size], psram: vec![0; psram_size],
             mmu: [MMU_INVALID; MMU_ENTRIES], periph: Peripherals::new(mac), board: Box::new(crate::board::Atech14::new()), cycles: 0, last_fault: None, spi2_dma_fault: None, irq_dirty: false, gpio_events: None, debug: Default::default(),
             spi2_timing: false, spi2_scheduled: None,
-            tlb: vec![TlbEntry::EMPTY; TLB_SIZE], page_ver: Vec::new(), ver_base: [0; 7], remaps: 0, code_blk: Vec::new(), tick_pending: 0, tick_budget: 0, defer_mmio: false, mmio_deferred: false, vq_violations: 0,
+            tlb: vec![TlbEntry::EMPTY; TLB_SIZE], page_ver: Vec::new(), ver_base: [0; 7], code_blk: Vec::new(), tick_pending: 0, tick_budget: 0, defer_mmio: false, mmio_deferred: false, vq_violations: 0,
             approximate_cache: None, approximate_cache_pending: 0, approximate_cache_fast_internal: false, approximate_cache_inline: false,
             approximate_cache_yield_miss: false,
             cache_resource: CacheResource::default(),
@@ -284,8 +282,8 @@ impl SocBus {
         let mut base = 0u32;
         for (i, n) in sizes.iter().enumerate() { self.ver_base[i] = base; base += ((n + VPAGE_MASK) >> VPAGE_SHIFT) as u32; }
         self.page_ver = vec![0; base as usize + 1];
-        // Buffer sizes are whole 64 KiB blocks, so a block never spans two buffers. Marks are kept
-        // across a resize: forgetting one could let a write to watched code skip its version bump.
+        // Small buffers can share a version block; marking it conservatively watches both.
+        // An entry covers at most 64 KiB, hence at most two blocks. Keep marks across a resize: forgetting one could let a write to watched code skip its version bump.
         self.code_blk.resize((self.page_ver.len() >> 8) + 2, 0);
         self.invalidate_tlb();
     }
@@ -300,11 +298,7 @@ impl SocBus {
     /// the flash and PSRAM page versions are bumped too: that is what invalidates decoded
     /// instructions and blocks that were built through the old mapping. Shared fetch tags
     /// are virtual, so remapping also makes the shared instruction cache cold.
-    /// EX110 census only: the first `page_ver` index of each `SRC_*` buffer.
-    pub fn ver_bases(&self) -> [u32; 7] { self.ver_base }
-
     pub fn invalidate_tlb(&mut self) {
-        self.remaps += 1;
         self.fetch_cache.reset();
         for e in self.tlb.iter_mut() { *e = TlbEntry::EMPTY; }
         let (a, b) = (self.ver_base[SRC_FLASH as usize] as usize, self.ver_base[SRC_DROM as usize] as usize);

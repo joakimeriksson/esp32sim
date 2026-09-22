@@ -216,6 +216,14 @@ pub(super) fn probe(g: &mut Gen, width: u32, store: bool) {
     }
 }
 
+/// x4 pack: `writable` and `code` are u16 fields.
+fn load16(g: &mut Gen, offset: usize) {
+    g.op(0x2f); // i32.load16_u
+    uleb(&mut g.bytes, 1);
+    uleb(&mut g.bytes, offset);
+}
+
+
 /// Match the interpreter's number of word writes, including version increments.
 ///
 /// EX110: a mapping whose `code` is zero has no decoded consumer for any page a version bump
@@ -231,13 +239,6 @@ pub(super) fn probe(g: &mut Gen, width: u32, store: bool) {
 /// `wasm_region.rs`; the decode cache records `pc + 3`, `exec.rs`), and `watch_code_page` marks
 /// the 64 KiB blocks containing the watched page and its neighboring pages, so watching `p - 1` alone
 /// already forces `code != 0` on any mapping covering `p`.
-/// x4 pack: `writable` and `code` are u16 fields.
-fn load16(g: &mut Gen, offset: usize) {
-    g.op(0x2f); // i32.load16_u
-    uleb(&mut g.bytes, 1);
-    uleb(&mut g.bytes, offset);
-}
-
 /// Clobbers TMP; it may finish pointing at the preceding version page.
 pub(super) fn record_store(g: &mut Gen, writes: u32) {
     g.get(TLB);

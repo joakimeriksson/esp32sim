@@ -44,7 +44,6 @@ pub fn tlb_index(addr: u32) -> usize { (((addr >> TLB_INDEX_SHIFT) ^ (addr >> TL
 /// on wasm32 with both `code` (EX110) and `span` (EX173); generated code loads them as u16.
 /// Native probes use `lo`/`hi`, so omit their unused span to keep native entries at 32 bytes too.
 #[repr(C)]
-#[cfg_attr(target_arch = "wasm32", repr(align(32)))]
 #[derive(Clone, Copy)]
 pub struct TlbEntry { pub lo: u32, pub hi: u32, pub base: *mut u8, pub vbase: u32, pub writable: u16, pub code: u16, pub off: u32, pub src: u32,
     #[cfg(target_arch = "wasm32")] pub span: u32,
@@ -59,6 +58,7 @@ impl TlbEntry {
     #[cfg_attr(not(target_arch = "wasm32"), allow(unused_mut))]
     pub fn with_span(mut self) -> TlbEntry {
         debug_assert!(self.hi >= self.lo);
+        debug_assert!(self.lo.is_multiple_of(16));
         #[cfg(target_arch = "wasm32")]
         { self.span = self.hi.wrapping_sub(self.lo); }
         self
@@ -72,6 +72,8 @@ unsafe impl Send for TlbEntry {}
 const _: () = assert!(std::mem::size_of::<TlbEntry>() == 32);
 #[cfg(target_pointer_width = "64")]
 const _: () = assert!(std::mem::align_of::<TlbEntry>() == std::mem::align_of::<usize>());
+#[cfg(target_arch = "wasm32")]
+const _: () = assert!(std::mem::size_of::<Option<TlbEntry>>() == 36);
 // SAFETY: Sharing this value exposes address bits but performs no dereference. Generated access
 // through `base` must separately uphold the documented lifetime and synchronization invariants.
 unsafe impl Sync for TlbEntry {}
