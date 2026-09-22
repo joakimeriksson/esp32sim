@@ -244,10 +244,17 @@ pub(super) fn region_edge(g: &mut Gen, target: u32, direct: bool) {
             g.ret_value(CODE_LEFT);
             g.end();
             if !direct || index != current + 1 || g.depth() != chunk_depth {
-                g.c(index as u32);
-                g.set(NEXT);
+                // EX181: chunk `index` starts after the end of the block at ctl index
+                // `loop_depth + n - 1 - index`, which is still open for any forward target,
+                // so a plain `br` reaches it without re-dispatching through the br_table.
+                let label = if index > current {
+                    index - current - 1 + g.depth() - chunk_depth
+                } else {
+                    g.c(index as u32);
+                    g.set(NEXT);
+                    g.depth() - loop_depth
+                };
                 g.op(0x0c);
-                let label = g.depth() - loop_depth;
                 uleb(&mut g.bytes, label);
             }
         }

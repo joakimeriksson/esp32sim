@@ -594,7 +594,55 @@ pub(super) fn regions() -> u32 {
         vec![(0, 2), (35, 1), (6, 3), (41, 2), (13, 6), (43, 1)]);
     assert_eq!(formed.pages, vec![(0, 0)]);
     assert!(emitter::region::form(&c, &mut ram, BASE + 38, &head, true).is_none(), "RSR head");
-    cases + 2 + prev_page_store()
+    cases + 2 + prev_page_store() + forward_edges()
+}
+
+/// EX181: a graph whose internal forward edges skip chunks, so the emitted `br` labels are
+/// not all zero: chunk 2's taken target is chunk 4 and its fallthrough is chunk 5. Two bits
+/// of a counter pick the path, so every edge runs; `j 0` keeps the backward edges on the
+/// dispatch table.
+fn forward_edges() -> u32 {
+    use Op::*;
+    let mut p = Vec::new();
+    p.extend(asm::addi_n(10, 10, 1));            // 0
+    p.extend(asm::and(11, 10, 12));              // 2  a11 = a10 & 1
+    p.extend(asm::bz(0, BASE + 5, 11, BASE + 23)); // 5  beqz a11, 23
+    p.extend(asm::and(11, 10, 13));              // 8  a11 = a10 & 2
+    p.extend(asm::bz(0, BASE + 11, 11, BASE + 32)); // 11 beqz a11, 32
+    p.extend(asm::addi_n(4, 4, 1));              // 14
+    p.extend(asm::j(BASE + 16, BASE + 46));      // 16
+    p.extend(asm::nop_n());                      // 19 (never executed)
+    p.extend(asm::nop_n());                      // 21
+    p.extend(asm::addi_n(5, 5, 1));              // 23
+    p.extend(asm::addi_n(5, 5, 1));              // 25
+    p.extend(asm::j(BASE + 27, BASE + 39));      // 27
+    p.extend(asm::nop_n());                      // 30
+    p.extend(asm::addi_n(6, 6, 1));              // 32
+    p.extend(asm::j(BASE + 34, BASE + 46));      // 34
+    p.extend(asm::nop_n());                      // 37
+    p.extend(asm::addi_n(7, 7, 1));              // 39
+    p.extend(asm::j(BASE + 41, BASE));           // 41
+    p.extend(asm::nop_n());                      // 44
+    p.extend(asm::and(9, 10, 12));               // 46
+    p.extend(asm::bz(0, BASE + 49, 9, BASE));    // 49 beqz a9, 0
+    p.extend(asm::addi_n(8, 8, 1));              // 52
+    p.extend(asm::j(BASE + 54, BASE));           // 54
+    let shape = [(0, AddiN, 0), (2, And, 0), (5, Beqz, 23), (8, And, 0), (11, Beqz, 32), (14, AddiN, 0), (16, J, 46),
+                 (23, AddiN, 0), (27, J, 39), (32, AddiN, 0), (34, J, 46), (39, AddiN, 0), (41, J, 0),
+                 (46, And, 0), (49, Beqz, 0), (52, AddiN, 0), (54, J, 0)];
+    {
+        let mut ram = Ram::new(true, false);
+        ram.ram.mem[..p.len()].copy_from_slice(&p);
+        let head: Vec<BlockInsn> = (0..3).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, straddle: false, off: 0 }) }).collect();
+        let formed = emitter::region::form(&cpu(0), &mut ram, BASE, &head, true).expect("forward-edge region");
+        // Breadth first from the head: taken target, then fallthrough.
+        assert_eq!(formed.chunks.iter().map(|c| c.pc - BASE).collect::<Vec<_>>(), vec![0, 23, 8, 39, 32, 14, 46, 52]);
+    }
+    let max = region_program("forward-edges", &p, &shape, &[], 3, 8, |c| {
+        c.set_ar(12, 1); c.set_ar(13, 2);
+    }, 1200);
+    assert!(max > 3, "forward-edge region never passed its head ({max})");
+    1
 }
 
 /// EX180: a region whose code lives entirely in page 0 stores into the first byte of page
