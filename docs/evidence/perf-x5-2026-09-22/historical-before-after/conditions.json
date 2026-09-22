@@ -1,0 +1,114 @@
+{
+  "observations": [
+    {
+      "at": "2026-09-22T13:39:42.112Z",
+      "phase": "historical campaign start",
+      "power": {
+        "source": "AC",
+        "percent": 100
+      },
+      "load": [
+        4.794921875,
+        13.11669921875,
+        14.5576171875
+      ],
+      "compilerProcessCounts": {
+        "rustc": 0,
+        "cargo": 0,
+        "rust-lld": 0,
+        "clang": 0
+      }
+    },
+    {
+      "at": "2026-09-22T13:42:48.435Z",
+      "phase": "user reported concurrent compilation",
+      "load": [
+        21.93310546875,
+        17.49755859375,
+        16.0126953125
+      ],
+      "compilerProcessCounts": {
+        "rustc": 0,
+        "cargo": 0,
+        "rust-lld": 0,
+        "clang": 0
+      },
+      "userReportedConcurrentCompilation": true
+    },
+    {
+      "at": "2026-09-22T13:49:33.286Z",
+      "phase": "earliest primary pair 2",
+      "power": {
+        "source": "AC",
+        "percent": 100
+      },
+      "load": [
+        11.21533203125,
+        11.19189453125,
+        13.13671875
+      ],
+      "compilerProcessCounts": {
+        "rustc": 0,
+        "cargo": 0,
+        "rust-lld": 0,
+        "clang": 0
+      }
+    },
+    {
+      "at": "2026-09-22T13:56:26.728Z",
+      "phase": "earliest primary pair 4",
+      "power": {
+        "source": "AC",
+        "percent": 100
+      },
+      "load": [
+        17.05126953125,
+        18.40380859375,
+        16.30322265625
+      ],
+      "compilerProcessCounts": {
+        "rustc": 0,
+        "cargo": 0,
+        "rust-lld": 0,
+        "clang": 0
+      }
+    },
+    {
+      "at": "2026-09-22T14:03:01.413Z",
+      "phase": "first JIT primary pair 1",
+      "power": {
+        "source": "AC",
+        "percent": 100
+      },
+      "load": [
+        12.2119140625,
+        15.953125,
+        16.01904296875
+      ],
+      "compilerProcessCounts": {
+        "rustc": 0,
+        "cargo": 0,
+        "rust-lld": 0,
+        "clang": 0
+      }
+    },
+    {
+      "at": "2026-09-22T14:12:38.046Z",
+      "phase": "historical campaign completed",
+      "power": {
+        "source": "AC",
+        "percent": 100
+      },
+      "load": [
+        5.81689453125,
+        11.5439453125,
+        14.17431640625
+      ]
+    }
+  ],
+  "limitations": [
+    "User reported concurrent compilation during the earliest warm-up. Zero matching compiler process counts do not contradict that report or prove idle conditions.",
+    "Background activity was uncontrolled and may have continued; no causal correction, exclusions or noise-floor subtraction.",
+    "Campaign used sequential fresh headless Chrome processes on an in-use Apple M1 Pro."
+  ]
+}

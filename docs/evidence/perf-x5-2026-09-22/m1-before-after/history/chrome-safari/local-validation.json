@@ -1,0 +1,33 @@
+{
+  "status": "passed",
+  "node": "v26.9.0",
+  "scope": "Local receipt validation, not a rerun of emulator tests or a claim of controlled machine conditions",
+  "commands": [
+    "node --test docs/evidence/perf-x5-2026-09-22/verify-results.test.mjs docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.test.mjs",
+    "node docs/evidence/perf-x5-2026-09-22/verify-results.mjs",
+    "node docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.mjs"
+  ],
+  "tests": {
+    "passed": 44,
+    "failed": 0,
+    "existingX5": 21,
+    "newM1": 23
+  },
+  "campaigns": [
+    {
+      "name": "M3 x5",
+      "jobs": 37,
+      "timedArms": 254
+    },
+    {
+      "name": "M1 before/after",
+      "jobs": 12,
+      "timedArms": 56
+    }
+  ],
+  "originalTestLog": {
+    "sha256": "886d0d8436419fb0a5813581ac5535553475d308647df1e4bb6e86f5a493413a",
+    "bytes": 2237
+  },
+  "redaction": "Original test log retained privately; public receipt omits local file paths and per-test durations."
+}

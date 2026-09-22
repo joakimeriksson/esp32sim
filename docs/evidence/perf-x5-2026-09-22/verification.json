@@ -1,0 +1,18 @@
+{
+  "status": "passed",
+  "jobs": 37,
+  "timedArms": 254,
+  "checks": [
+    "finite numeric timings and summaries",
+    "index metadata agreement",
+    "alternating pair order",
+    "exact-gated artifact hashes",
+    "A/A artifact identity",
+    "median and paired reductions",
+    "pinned instructions and frames",
+    "successful verdicts",
+    "equal console hashes",
+    "zero JIT failures",
+    "uninstrumented captures"
+  ]
+}

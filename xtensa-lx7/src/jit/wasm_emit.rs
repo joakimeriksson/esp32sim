@@ -13,7 +13,7 @@ mod policy;
 mod memory;
 #[path = "wasm_instruction.rs"]
 mod instruction;
-pub(super) use policy::{admitted, supported_insn, loop_safe, terminal_helper};
+pub(super) use policy::{admitted, supported_insn, loop_safe, terminal_helper, rsr_field};
 #[cfg(feature = "wasm-jit-tests")]
 pub(super) use policy::supported_opcode;
 use policy::coprocessors;
@@ -38,12 +38,17 @@ const CACHE_TAG: u8 = 33;
 const CACHE_SET: u8 = 34;
 #[cfg(feature = "wasm-cache-inline")]
 const CACHE_LINE: u8 = 35;
-/// Typed scratch locals declared after the i32 locals: a vector and a 64-bit integer
-/// (PIE lane sums and the 40-bit ACCX). `module` must declare them in this order.
+/// Typed scratch locals declared after the i32 locals: a vector and two 64-bit integers
+/// (PIE lane sums, the 40-bit ACCX scratch and EX178's held accumulator). `module` must
+/// declare them in this order.
 const V128: u8 = if cfg!(feature = "wasm-cache-inline") { 36 } else { 32 };
 const WIDE: u8 = V128 + 1;
+/// EX178: the 40-bit ACCX itself, held across a run of accumulates that cannot saturate.
+const ACC: u8 = WIDE + 1;
 /// EX156 guarded body: the first static index that must not run (entry + credit).
-const STOP: u8 = WIDE + 1;
+const STOP: u8 = ACC + 1;
+/// EX178 s1: the host pointer a coalesced run of PIE vector loads reads through.
+const HOSTP: u8 = STOP + 1;
 const PC: usize = offset_of!(Cpu, pc);
 const AR: usize = offset_of!(Cpu, ar);
 const WINDOWBASE: usize = offset_of!(Cpu, windowbase);
@@ -51,6 +56,7 @@ const LCOUNT: usize = offset_of!(Cpu, lcount);
 const LEND: usize = offset_of!(Cpu, lend);
 const LBEG: usize = offset_of!(Cpu, lbeg);
 const SAR: usize = offset_of!(Cpu, sar);
+const ACCX: usize = offset_of!(Cpu, accx);
 
 /// Structured control nesting the emitter is inside of. Each construct remembers the
 /// statically pending retirement count at its start; the code after its `end` resumes
@@ -88,16 +94,74 @@ struct Gen {
     /// repeated prefix, control depth just inside the repeat loop) when LEND is hinted.
     guarded: bool,
     guard_site: Option<(usize, usize)>,
+    /// EX178: this body is straight line from its head, so a run of PIE accumulates can
+    /// keep ACCX in a local. False for the guarded body (every index is an entry label)
+    /// and the checked body (a cut may land between two instructions of a run).
+    accx_ok: bool,
+    /// ACC holds the architectural ACCX; the copy in memory is stale until spilled.
+    accx_live: bool,
+    /// Largest magnitude the held accumulator can have reached since its `ee.zero.accx`.
+    accx_head: i64,
     #[cfg(feature = "wasm-jit-profile")]
     last_kind: ExitKind,
 }
 impl Gen {
+    /// Runtime reachability receipt; absent from production modules.
+    #[cfg(feature = "wasm-jit-tests")]
+    fn test_hit(&mut self, counter: &std::sync::atomic::AtomicU32) {
+        self.c(counter.as_ptr() as u32);
+        self.c(counter.as_ptr() as u32);
+        self.load(0);
+        self.c(1);
+        self.op(0x6a);
+        self.store(0);
+    }
     fn op(&mut self, op: u8) {
         self.bytes.push(op);
     }
     fn c(&mut self, v: u32) {
         self.op(0x41);
         sleb(&mut self.bytes, v as i32);
+    }
+    fn c64(&mut self, mut n: i64) {
+        self.op(0x42);
+        loop {
+            let b = (n as u8) & 127;
+            n >>= 7;
+            let done = (n == 0 && b & 64 == 0) || (n == -1 && b & 64 != 0);
+            self.bytes.push(b | if done { 0 } else { 128 });
+            if done {
+                break;
+            }
+        }
+    }
+    /// EX178: write a held ACCX back exactly as `pie::accx_set` does (the low word, then
+    /// bits 32..40). The local stays authoritative: paths that leave emit this and return,
+    /// while the emitter keeps writing the fall-through path after them.
+    fn accx_spill(&mut self) {
+        if !self.accx_live {
+            return;
+        }
+        self.get(0);
+        self.get(ACC);
+        self.op(0x3e); // i64.store32
+        uleb(&mut self.bytes, 2);
+        uleb(&mut self.bytes, ACCX);
+        self.get(0);
+        self.get(ACC);
+        self.c64(32);
+        self.op(0x87); // i64.shr_s
+        self.c64(0xff);
+        self.op(0x83); // i64.and
+        self.op(0x3e);
+        uleb(&mut self.bytes, 2);
+        uleb(&mut self.bytes, ACCX + 4);
+    }
+    /// Memory becomes authoritative again: before anything that may read ACCX, at a join
+    /// and at every chunk boundary, where another path could arrive with a stale local.
+    fn accx_flush(&mut self) {
+        self.accx_spill();
+        self.accx_live = false;
     }
     fn get(&mut self, n: u8) {
         self.bytes.extend([0x20, n]);
@@ -199,6 +263,7 @@ impl Gen {
         self.end();
     }
     fn spill(&mut self) {
+        self.accx_spill();
         for r in 0..16 {
             if self.written & (1 << r) != 0 {
                 self.ar_addr(r);
@@ -421,6 +486,7 @@ impl Gen {
         }
     }
     fn fallthrough(&mut self, next: u32, looping: bool) {
+        self.accx_flush();
         self.advance();
         self.flush();
         self.cpu(LEND);
@@ -712,9 +778,35 @@ fn emit_body(
     let mut pc = pc0;
     let mut window_changed = false;
     let extras = if super::PRICED.load(std::sync::atomic::Ordering::Relaxed) { crate::exec::static_extras(instructions.iter().map(|b| &b.insn)) } else { vec![0; instructions.len()] };
+    // EX178: only a body entered exclusively at its head may hold ACCX in a local.
+    g.accx_ok = whole && !g.guarded;
+    g.accx_live = false;
+    let mut skip = 0usize;
     for (index, bi) in instructions.iter().enumerate() {
         let next = pc.wrapping_add(bi.insn.len as u32);
+        if skip > 0 {
+            // Already emitted as part of a coalesced run.
+            skip -= 1;
+            pc = next;
+            continue;
+        }
+        // EX178 s1: one range probe for a whole straight-line run of post-increment
+        // vector loads. Only a body entered at its head, with no window rotation behind
+        // it and CP3 already proved, can contain a run no other path may land inside.
+        if whole && !g.guarded && !window_changed && cp & pie::CP3 != 0 {
+            if let Some(run) = pie::coalesce(&instructions[index..], fast) {
+                let end = index + run.len;
+                pie::emit_run(g, &instructions[index..end], pc, &extras[index..end], &run, end == instructions.len());
+                skip = run.len - 1;
+                pc = next;
+                continue;
+            }
+        }
         g.last_pc = pc;
+        // Anything outside the accumulate run may read ACCX, or reach a helper that does.
+        if !pie::accx_local_safe(&bi.insn, fast) {
+            g.accx_flush();
+        }
         #[cfg(feature = "wasm-jit-profile")]
         { g.last_kind = ExitKind::for_op(bi.insn.op); }
         if !whole {
@@ -745,6 +837,8 @@ fn emit_body(
             g.end();
         }
         if !whole || window_changed {
+            // The window helper runs with the CPU visible; do not leave ACCX in a local.
+            g.accx_flush();
             g.overflow(bi.max_ar, pc);
         }
         // Record only instructions reached after budget and pre-instruction guards.
@@ -838,10 +932,14 @@ fn emit_body(
                 g.c(0);
                 g.op(0x47);
                 g.op(0x71);
+                // Emitting the taken arm spills ACCX and clears its compile-time
+                // liveness. The untaken arm still holds that value in the local.
+                let accx_live = g.accx_live;
                 g.begin_if();
                 g.decrement_loop();
                 region_edge(g, lbeg, false);
                 g.end();
+                g.accx_live = accx_live;
             }
             region_edge(g, pc, true);
         }
@@ -903,7 +1001,7 @@ fn module(body: &[u8]) -> Vec<u8> {
     name(&mut exports, "run");
     exports.extend([0, 0]);
     section(&mut out, 7, &exports);
-    let mut func = vec![4, if cfg!(feature = "wasm-cache-inline") { 29 } else { 25 }, 0x7f, 1, 0x7b, 1, 0x7e, 1, 0x7f];   // i32 locals, then V128, WIDE and STOP
+    let mut func = vec![4, if cfg!(feature = "wasm-cache-inline") { 29 } else { 25 }, 0x7f, 1, 0x7b, 2, 0x7e, 2, 0x7f];   // i32 locals, then V128, WIDE, ACC, STOP and HOSTP
     func.extend(body);
     let mut code = vec![1];
     uleb(&mut code, func.len());

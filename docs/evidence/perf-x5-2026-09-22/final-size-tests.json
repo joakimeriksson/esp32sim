@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-22",
+  "revision": "2c62807023aa37d0321fd53b749e74fb55fd0544",
+  "command": "JOBS=4 CARGO_BUILD_JOBS=4 tools/wasm-jit-test.sh",
+  "nice_wrapper": false,
+  "environment": {
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "node": "v26.9.0",
+    "CARGO_PROFILE_RELEASE_DEBUG": "0",
+    "RUSTFLAGS": "-Cllvm-args=-inline-threshold=2000"
+  },
+  "exit_code": 0,
+  "status": "passed",
+  "differential_cases": 85842,
+  "compiled_modules_released": 88524,
+  "compiler_warning_lines": [],
+  "release_profile": "optimized (no debuginfo)",
+  "jit_test_artifact": {
+    "sha256": "103364b73e2d455d73db7a344966861cfe40c6947aa56e1db5f731fcf430fab9",
+    "bytes": 3754948,
+    "name_section_count": 1,
+    "debug_section_counts": {
+      ".debug_info": 0,
+      ".debug_abbrev": 0,
+      ".debug_line": 0,
+      ".debug_str": 0,
+      ".debug_ranges": 0,
+      ".debug_loc": 0
+    }
+  },
+  "raw_log": {
+    "path": "work/size-validation/final-size-jit.log",
+    "sha256": "f47f31830b25452104e8c53232b7a796a8ab9eb28c48de0b344fb76c28fa9a22",
+    "retention": "ignored local file; full compiler output excluded from committed receipt"
+  },
+  "limitations": [
+    "Validation artifact enables jit-tests; production artifact is separately preserved in work/size-validation.",
+    "Native workspace tests were not repeated because this follow-up only changes the shared Wasm build debug profile."
+  ],
+  "privacy": {
+    "curation": "Absolute workspace paths and full compiler output omitted; commands, source revision, counts and hashes retained."
+  }
+}

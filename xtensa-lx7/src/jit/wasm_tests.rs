@@ -4,7 +4,12 @@
 use super::*;
 use crate::bus::{tlb_index, TLB_ENTRIES};
 use crate::{Fault, FlatRam, Insn, Op, Trap};
+pub(super) static PS_INLINE_TAKEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+pub(super) static PS_REGION_TAKEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+pub(super) static RETW_INLINE_TAKEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 pub(super) static GUARDED_TAKEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+#[path = "wasm_tests/pie_accx.rs"]
+mod pie_accx;
 const BASE: u32 = 0x4037_0000;
 /// A small window above the fast mapping that only the slow bus path can reach.
 const SLOW: u32 = BASE + 0x1_0000;
@@ -14,9 +19,14 @@ struct Ram {
     tlb: Vec<TlbEntry>,
     fast: bool,
     readonly: bool,
+    /// EX110: does decoded code depend on this mapping? Cleared by `unwatch`, set again by
+    /// `note_code_page`, and honored by `wrote` exactly as the generated store honors
+    /// `TlbEntry.code`, so both paths must produce the same counters.
+    watched: bool,
     noted: u32,
     slow: [u8; 256],
     slow_writes: u32,
+    slow_reads: u32,
     defer_armed: bool,
     deferred: bool,
     #[cfg(feature = "wasm-cache-inline")]
@@ -36,19 +46,24 @@ impl Ram {
             hi: BASE + 65536,
             base: ram.mem.as_mut_ptr(),
             vbase: 0,
-            writable: (!readonly) as u32,
+            writable: (!readonly) as u16,
             off: 0,
             src: 0,
-        };
+            code: 1,
+            span: 0,
+        }
+        .with_span();
         Self {
             ram,
             versions: vec![0; 256],
             tlb,
             fast,
             readonly,
+            watched: true,
             noted: 0,
             slow: [0x5a; 256],
             slow_writes: 0,
+            slow_reads: 0,
             defer_armed: false,
             deferred: false,
             #[cfg(feature = "wasm-cache-inline")]
@@ -57,10 +72,24 @@ impl Ram {
             helper_accesses: 0,
         }
     }
+    /// The same write-version rule as the real S3 bus (`esp32s3/src/bus.rs` `bump`):
+    /// an instruction can begin up to three bytes before a page boundary, so a write
+    /// into the first three bytes of a page also changes instructions whose code page
+    /// is the previous one.
     fn wrote(&mut self, a: u32, n: u32) {
-        for p in (a - BASE) / 256..=(a - BASE + n - 1) / 256 {
+        if !self.watched { return }
+        let off = a - BASE;
+        for p in off / 256..=(off + n - 1) / 256 {
             self.versions[p as usize] += 1;
         }
+        if off & 255 < emu_core::bus::PREV_PAGE_BYTES && off >= 256 {
+            self.versions[(off / 256 - 1) as usize] += 1;
+        }
+    }
+    /// EX110: no decoded consumer depends on this mapping yet, so neither path records writes.
+    fn unwatch(&mut self) {
+        self.watched = false;
+        for e in self.tlb.iter_mut() { e.code = 0; }
     }
 }
 impl Bus for Ram {
@@ -72,6 +101,7 @@ impl Bus for Ram {
         self.ram.read16(a)
     }
     fn read32(&mut self, a: u32) -> Result<u32, Fault> {
+        self.slow_reads += 1;
         #[cfg(feature = "wasm-cache-inline")]
         if self.inline_cache.is_some() { self.helper_accesses += 1; }
         self.ram.read32(a)
@@ -125,6 +155,10 @@ impl Bus for Ram {
     }
     fn note_pc(&mut self, pc: u32) {
         self.noted = pc;
+    }
+    fn note_code_page(&mut self, _vidx: u32) {
+        self.watched = true;
+        for e in self.tlb.iter_mut() { if e.hi > e.lo { e.code = 1; } }
     }
     fn defer_armed(&self) -> bool { self.defer_armed }
     fn defer_access(&mut self, addr: u32) -> bool {
@@ -211,6 +245,11 @@ struct Case {
     readonly: bool,
     loop_end: bool,
     overflow: bool,
+    /// EX110: run with no decoded consumer for the mapping, so version bookkeeping is skipped.
+    unwatched: bool,
+    /// Bytes cut off the end of the mapping and of its backing memory, so the fast mapping's
+    /// length is not a multiple of the access width (EX173).
+    shrink: u32,
 }
 
 fn compare(block: &mut [BlockInsn], case: Case, configure: impl Fn(&mut Cpu)) {
@@ -221,11 +260,21 @@ fn compare(block: &mut [BlockInsn], case: Case, configure: impl Fn(&mut Cpu)) {
 }
 
 fn compare_hinted(block: &mut [BlockInsn], case: Case, configure: &impl Fn(&mut Cpu), hint: u32) -> bool {
-    let Case { seed, entry, budget, addr, fast, readonly, loop_end, overflow } = case;
+    let Case { seed, entry, budget, addr, fast, readonly, loop_end, overflow, unwatched: _, shrink } = case;
     let priced = PRICED.load(std::sync::atomic::Ordering::Relaxed);
     CONTEXT.with(|c| *c.borrow_mut() = format!("{:?} seed={seed} entry={entry} budget={budget} fast={fast} loop_end={loop_end} overflow={overflow} priced={priced}",
         block.iter().map(|b| b.insn.op).collect::<Vec<_>>()));
     let (mut ra, mut rb) = (Ram::new(fast, readonly), Ram::new(fast, readonly));
+    if case.unwatched { ra.unwatch(); rb.unwatch(); }
+    for r in [&mut ra, &mut rb] {
+        // `truncate` keeps the allocation, so the entry's host base stays valid: an access the
+        // probe wrongly admits reads or writes bytes the bus itself now refuses.
+        let len = r.ram.mem.len() - shrink as usize;
+        r.ram.mem.truncate(len);
+        let slot = tlb_index(BASE);
+        r.tlb[slot].hi -= shrink;
+        r.tlb[slot] = r.tlb[slot].with_span();
+    }
     for bi in block.iter_mut() {
         bi.straddle = priced && crate::exec::static_target(&bi.insn).is_some_and(|pc| crate::exec::straddles(&mut ra, pc));
     }
@@ -315,7 +364,7 @@ fn compare_hinted(block: &mut [BlockInsn], case: Case, configure: &impl Fn(&mut 
     assert_eq!(trap, b.jit_trap.take());
     same(&a, &b);
     assert_eq!(ra.ram.mem, rb.ram.mem);
-    assert_eq!(ra.versions, rb.versions);
+    assert_eq!(ra.versions, rb.versions, "page versions [{}]", CONTEXT.with(|c| c.borrow().clone()));
     if done > 0 {
         assert_eq!(ra.noted, rb.noted);
     }
@@ -346,16 +395,23 @@ pub fn run_tests() -> u32 {
     let mut tests = 0;
     #[cfg(feature = "wasm-cache-inline")]
     { tests += memory::inline_cache_hits(); }
+    // EX180 first: the cheapest proof that a fast store records the pages the bus records.
+    tests += memory::page_boundary_stores() + memory::straddling_instruction_rewrite();
     tests += arithmetic::basic_ops() + arithmetic::division()
-        + memory::loads_and_stores() + control::helper_continuation();
+        + memory::loads_and_stores() + memory::probe_boundaries() + control::helper_continuation();
+    tests += control::interpreted_bridges();
+    tests += control::bridge_classes();
+    scheduler::wrapper_bridge_guards();
     scheduler::scheduler();
     scheduler::wrapper_chain();
     tests += 1;
     scheduler::interior_alias();
     scheduler::interior_alias_deferred();
     scheduler::interior_alias_instruction_bytes();
-    tests += 3;
-    tests += memory::extension_deferral() + memory::flat_ram_bounds() + regions::regions();
+    scheduler::ps_terminal_chain();
+    tests += 4;
+    tests += memory::extension_deferral() + memory::flat_ram_bounds() + regions::regions() + pie_accx::run_tests() + pie_accx::held_and_coalesced();
+    tests += memory::code_page_flag();
     scheduler::retention();
     tests += 1;
     loops::hardware_loop_scheduler();
@@ -364,6 +420,6 @@ pub fn run_tests() -> u32 {
     tests += 1;
     tests + arithmetic::integer_ops() + float::floating_point() + float::floating_point_guard_proof() + float::fma_halfway_fallback()
         + loops::hardware_loops() + control::window_masks() + control::terminal_helpers()
-        + control::special_register_blocks() + control::whole_block_guards()
+        + control::special_register_blocks() + control::ps_terminals() + control::windowed_return() + control::whole_block_guards()
         + control::entry_and_shifts() + control::guarded_loop_sites() + control::pie_wide_shifts() + timing::priced_cases()
 }

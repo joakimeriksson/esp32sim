@@ -1,0 +1,432 @@
+{
+  "originals": [
+    {
+      "path": "control-pocket/1-baseline/result.json",
+      "bytes": 4330,
+      "sha256": "5f8e47dc5e79f29d08831285177c2892cd69c4f3e87b401af356c6345bf15221"
+    },
+    {
+      "path": "control-pocket/1-baseline/capture.json",
+      "bytes": 994,
+      "sha256": "134272d8a0acc14fd94dda40cc27026d00b97207883abbdf1c281752c73f153f"
+    },
+    {
+      "path": "control-pocket/1-baseline/events.json",
+      "bytes": 27082,
+      "sha256": "f6d936ff16161d1a2ad9716c8e5dcd60a4cba01444a5276f55d45d5d0ef58086"
+    },
+    {
+      "path": "control-pocket/1-candidate/result.json",
+      "bytes": 4332,
+      "sha256": "c239aba6d38b085ec6121017ab687f86d7016ca281cb7319d5bbe921adfb9cce"
+    },
+    {
+      "path": "control-pocket/1-candidate/capture.json",
+      "bytes": 1001,
+      "sha256": "90c463da2e3cb94ae4c8add1e89d2045af454970031924f4b1fafab1b487e93f"
+    },
+    {
+      "path": "control-pocket/1-candidate/events.json",
+      "bytes": 27089,
+      "sha256": "f9519eadb72631a47abb8f62ff61bf4a75a988866da8545f3443db183abc5e2a"
+    },
+    {
+      "path": "control-pocket/2-candidate/result.json",
+      "bytes": 4329,
+      "sha256": "8796a6f54d9f26e10dfa12654b4d144b8c9b2e27fdef8cd049a25fd9189ab824"
+    },
+    {
+      "path": "control-pocket/2-candidate/capture.json",
+      "bytes": 1000,
+      "sha256": "5c0222492ec01246c081561a3950960449786636d9dc942a19be151befaa3f51"
+    },
+    {
+      "path": "control-pocket/2-candidate/events.json",
+      "bytes": 27042,
+      "sha256": "2b67330f35c24415b99a768f5f005a1f38b404d72dbbb4ed97b4d1c47bb35e7a"
+    },
+    {
+      "path": "control-pocket/2-baseline/result.json",
+      "bytes": 4332,
+      "sha256": "4ca6da3587cc5570d57fb0d6c836b69124a6773424ede37c6c1822c3083b60c2"
+    },
+    {
+      "path": "control-pocket/2-baseline/capture.json",
+      "bytes": 1002,
+      "sha256": "330c8de60cf08c1075120bb2da94fd95e1a13e1f3e65f81bfddf01dbf0a818f8"
+    },
+    {
+      "path": "control-pocket/2-baseline/events.json",
+      "bytes": 27040,
+      "sha256": "1cf228e38e22c6d6e98c412136fe1e097895716fe3f05427c3d2dc5a41c7dfbb"
+    },
+    {
+      "path": "control-pocket/3-baseline/result.json",
+      "bytes": 4330,
+      "sha256": "eaa3b964a43c6644ea5d5f770ec28b98b45eb7a60cb477f1b7f1404c5c70a630"
+    },
+    {
+      "path": "control-pocket/3-baseline/capture.json",
+      "bytes": 998,
+      "sha256": "d50ef7ca9314b9927bd430a00bda2570edadcc86c9b5c561200cde70781c3874"
+    },
+    {
+      "path": "control-pocket/3-baseline/events.json",
+      "bytes": 27035,
+      "sha256": "20fff2d8cd1419b77f8e360e9cf1e8317bf5b122c0c16b86b9fb5f7615c3bc89"
+    },
+    {
+      "path": "control-pocket/3-candidate/result.json",
+      "bytes": 4331,
+      "sha256": "f38a312b9dc684434379235fa44566638b81843ac294215113c6b2a083326ef0"
+    },
+    {
+      "path": "control-pocket/3-candidate/capture.json",
+      "bytes": 992,
+      "sha256": "393cedb34557c2daa3d4ece6d29d556c7da8a4a04e4c17c23181280900595263"
+    },
+    {
+      "path": "control-pocket/3-candidate/events.json",
+      "bytes": 27060,
+      "sha256": "e67f7fa5432c92b039c7a49a94fa4ae0e3872ed88e4765ff1b637ef8ab1e2311"
+    },
+    {
+      "path": "control-tinydraw/1-baseline/result.json",
+      "bytes": 4701,
+      "sha256": "959be893a21174bba87a14d7b7cce9e4f380a9b9b7a53d685a6550b9a5c52d7f"
+    },
+    {
+      "path": "control-tinydraw/1-baseline/capture.json",
+      "bytes": 997,
+      "sha256": "a75bb74fa367846dc6360725445038d50d40a9576c4351ffb08cdf516d442218"
+    },
+    {
+      "path": "control-tinydraw/1-baseline/events.json",
+      "bytes": 105104,
+      "sha256": "c93f5f5d512d0dbbf4b1698cca4a7e78870de72547834a756de55e77c43734be"
+    },
+    {
+      "path": "control-tinydraw/1-candidate/result.json",
+      "bytes": 4700,
+      "sha256": "65b2f543c22483bc63afd1c24ec1b61764c6fad159606d427f2b17390152f9bd"
+    },
+    {
+      "path": "control-tinydraw/1-candidate/capture.json",
+      "bytes": 1002,
+      "sha256": "0f5ee93d3c691fe1c84fab84a20af5ef419dd2d9c0c70abeb0ca65460b7ffd53"
+    },
+    {
+      "path": "control-tinydraw/1-candidate/events.json",
+      "bytes": 105128,
+      "sha256": "7fda2af38b08e48a3ca3471c9a7b5e7f7c349c417d1258d9694c79fcb19c8f09"
+    },
+    {
+      "path": "control-tinydraw/2-candidate/result.json",
+      "bytes": 4702,
+      "sha256": "8b22b76bb4956197e8e67c76ae04586351db455f24953c7a28d54942741641b4"
+    },
+    {
+      "path": "control-tinydraw/2-candidate/capture.json",
+      "bytes": 1000,
+      "sha256": "5c264d0566e8e2f89726ea321aaa3779f0db62859c6f981021a06e13c6f771b0"
+    },
+    {
+      "path": "control-tinydraw/2-candidate/events.json",
+      "bytes": 105108,
+      "sha256": "c718fbbc013cae5a55217682bf87733e3d6000f176e9d59ee67281fa1ec04152"
+    },
+    {
+      "path": "control-tinydraw/2-baseline/result.json",
+      "bytes": 4701,
+      "sha256": "bc2d0067e769226949c3a9167a48d6f7a4b09bac3585eceebcbac26ecf00b58d"
+    },
+    {
+      "path": "control-tinydraw/2-baseline/capture.json",
+      "bytes": 1000,
+      "sha256": "4603e005616792dfd151f5cdc8485c91fbf2cf867e6e6f9363db57eeb419ae59"
+    },
+    {
+      "path": "control-tinydraw/2-baseline/events.json",
+      "bytes": 105040,
+      "sha256": "9b74bd02b8a16796cc08872925eb159446e49c4c620381e5942d34d115c0b041"
+    },
+    {
+      "path": "control-tinydraw/3-baseline/result.json",
+      "bytes": 4702,
+      "sha256": "16bd4612c0d3e5addf627611c509560918aa2e265ae4298a2f2d46a212279a9c"
+    },
+    {
+      "path": "control-tinydraw/3-baseline/capture.json",
+      "bytes": 1002,
+      "sha256": "1007d11387e40a7f1f91997f657cf094c500a81536b6a962d8923d8f6b743658"
+    },
+    {
+      "path": "control-tinydraw/3-baseline/events.json",
+      "bytes": 105145,
+      "sha256": "406dc79271bac31cafac91441ff761df8432b8c652337789852270c232b577b7"
+    },
+    {
+      "path": "control-tinydraw/3-candidate/result.json",
+      "bytes": 4699,
+      "sha256": "a6bd92d6cee956ed276df37e918cf5146ba58a8d6f2b6606358f0f97fd3c735c"
+    },
+    {
+      "path": "control-tinydraw/3-candidate/capture.json",
+      "bytes": 1004,
+      "sha256": "064525e347bafe1bf8c954b2296e9b311f3998ce2b7a872e7fe23a16b48e7976"
+    },
+    {
+      "path": "control-tinydraw/3-candidate/events.json",
+      "bytes": 105107,
+      "sha256": "ff278e261f41d134014ddf74616e9f30e1e7ca4768e92cd2008643a8020007be"
+    },
+    {
+      "path": "before-after-pocket/1-baseline/result.json",
+      "bytes": 4331,
+      "sha256": "110625837c6eb5a47f3df1d97820591f67e0481d279cf2581d7c223dd3511eb0"
+    },
+    {
+      "path": "before-after-pocket/1-baseline/capture.json",
+      "bytes": 999,
+      "sha256": "52a6080703ee5b2a5a976c48eadee085f3c3df79c471656b54deb08f2325e0f4"
+    },
+    {
+      "path": "before-after-pocket/1-baseline/events.json",
+      "bytes": 27072,
+      "sha256": "cbc86ebac6f1d67ad728ea9cd718418af3378eeea2b1c3549568a14259e3147f"
+    },
+    {
+      "path": "before-after-pocket/1-candidate/result.json",
+      "bytes": 4323,
+      "sha256": "673f3f20818f15288cceac986ec50347e5b771f76ed944933e8b5f19ebbaf784"
+    },
+    {
+      "path": "before-after-pocket/1-candidate/capture.json",
+      "bytes": 991,
+      "sha256": "569fd4793e1b02ff72ab96218935a231f7a845e1f26e45c0956627154884e632"
+    },
+    {
+      "path": "before-after-pocket/1-candidate/events.json",
+      "bytes": 25060,
+      "sha256": "262758ea3680707fe2bac27c5b5398a86f44cc3424e84d39281dbadb441f0b39"
+    },
+    {
+      "path": "before-after-pocket/2-candidate/result.json",
+      "bytes": 4331,
+      "sha256": "70a36f160f4c7ab6e237082866b08bdf2d6b431d2563b13cbb734a69d48b5b91"
+    },
+    {
+      "path": "before-after-pocket/2-candidate/capture.json",
+      "bytes": 999,
+      "sha256": "31791e09c8f54cfe96ba3e0b81edcc021d798d19a726df7d315e0e2b3af5b953"
+    },
+    {
+      "path": "before-after-pocket/2-candidate/events.json",
+      "bytes": 25715,
+      "sha256": "6b161f0f30f9f593950e29b3091909afa07fef2517d8b444a0ffe70b61101167"
+    },
+    {
+      "path": "before-after-pocket/2-baseline/result.json",
+      "bytes": 4330,
+      "sha256": "28a5ba7ef96e98b33f51fc068ae03752b6232ee89710ab6882fd9202b09f5165"
+    },
+    {
+      "path": "before-after-pocket/2-baseline/capture.json",
+      "bytes": 1007,
+      "sha256": "183d35484a58e3c29e35660c80cd5d0eff47d48f3f7b7ef6dd5f61347fb9f9dd"
+    },
+    {
+      "path": "before-after-pocket/2-baseline/events.json",
+      "bytes": 27081,
+      "sha256": "4e240d6ea6a9bc629d71d42090f47cd094ee9223bd35d57fe5c53d96cd8c883f"
+    },
+    {
+      "path": "before-after-pocket/3-baseline/result.json",
+      "bytes": 4332,
+      "sha256": "6b9a934608d7764e6810b443cb0717fdbc63082c5a0460c94d65905d01955a8e"
+    },
+    {
+      "path": "before-after-pocket/3-baseline/capture.json",
+      "bytes": 1006,
+      "sha256": "501e4b2b1ff063ea4729f7fe8d8c759fa1d5edab80463e1cc2d2df29a89e554c"
+    },
+    {
+      "path": "before-after-pocket/3-baseline/events.json",
+      "bytes": 27078,
+      "sha256": "fb794506091c4516a3d4ea4899c775ad41ccea8e555015fe98c41bebadd75ee3"
+    },
+    {
+      "path": "before-after-pocket/3-candidate/result.json",
+      "bytes": 4331,
+      "sha256": "cf84a89b3c105d8d7d015dc9ea8e9647adc8a3c181bc8704adb539cd80f47e8b"
+    },
+    {
+      "path": "before-after-pocket/3-candidate/capture.json",
+      "bytes": 1005,
+      "sha256": "c8a909bc8ac3069ed426e03eee75a10eab4ffbf438ff4cd3700288e94bd2009b"
+    },
+    {
+      "path": "before-after-pocket/3-candidate/events.json",
+      "bytes": 25032,
+      "sha256": "7582695f789c74c1d2a1873b95cac8dc858e8f31edeace24a2c42c46dc02dd51"
+    },
+    {
+      "path": "before-after-pocket/4-candidate/result.json",
+      "bytes": 4332,
+      "sha256": "9fc47e77c8fddfa2bc12f0c6e6d79845670beaca482bafb2cdb1414e62452d12"
+    },
+    {
+      "path": "before-after-pocket/4-candidate/capture.json",
+      "bytes": 1006,
+      "sha256": "c3553865d63d37f6194013e7db98dda1ac6596ea096636a04eee51e9e77ed86a"
+    },
+    {
+      "path": "before-after-pocket/4-candidate/events.json",
+      "bytes": 25066,
+      "sha256": "8a5d174029aba5636aafa84b505711c078490c8d9d1bf7a4a5087da149299eaf"
+    },
+    {
+      "path": "before-after-pocket/4-baseline/result.json",
+      "bytes": 4332,
+      "sha256": "0a65480e8af62d40632bc89f44eb8cb55c585770751c159c0004a1637f5da911"
+    },
+    {
+      "path": "before-after-pocket/4-baseline/capture.json",
+      "bytes": 1007,
+      "sha256": "67278da0388e9f5f5c87b90b14c9dbfd50b32daf35d2816c32206466ed2a0f38"
+    },
+    {
+      "path": "before-after-pocket/4-baseline/events.json",
+      "bytes": 27091,
+      "sha256": "3e78674e2bb9bfc85a1dabca958eaae2c11ff22d1a8f3f469173c6446451b81f"
+    },
+    {
+      "path": "before-after-tinydraw/1-baseline/result.json",
+      "bytes": 4701,
+      "sha256": "c4d1608aeb741b0384803f60bdb7721dd69a67a2ada9840c1c7a6ca3803a2ee9"
+    },
+    {
+      "path": "before-after-tinydraw/1-baseline/capture.json",
+      "bytes": 1006,
+      "sha256": "afb7d3c564e082432b458499a70364c418e4251991190c63257c2f3fc00e28cc"
+    },
+    {
+      "path": "before-after-tinydraw/1-baseline/events.json",
+      "bytes": 105110,
+      "sha256": "7ff4e325432c51310aff5b914d26fb2a14d96621bd4368fa633d502025247238"
+    },
+    {
+      "path": "before-after-tinydraw/1-candidate/result.json",
+      "bytes": 4701,
+      "sha256": "3c9b7e1e70304a84b16315de47f7c7b3cfc08f21bd32e259a07f48b8fbda5d93"
+    },
+    {
+      "path": "before-after-tinydraw/1-candidate/capture.json",
+      "bytes": 1007,
+      "sha256": "f4e26b90cc8344ee48076abe92689362aba65056d3fcb8d2f647e481814d89c6"
+    },
+    {
+      "path": "before-after-tinydraw/1-candidate/events.json",
+      "bytes": 103795,
+      "sha256": "57c88904ccc777b487f571233b21641adf008ee3a9f5128c12437ce288e00018"
+    },
+    {
+      "path": "before-after-tinydraw/2-candidate/result.json",
+      "bytes": 4702,
+      "sha256": "904eeb2e6949cdcd309b81a84f68afbd79f3496d9548a358e71f9772bbda7d10"
+    },
+    {
+      "path": "before-after-tinydraw/2-candidate/capture.json",
+      "bytes": 1010,
+      "sha256": "32607356af3d9a2d757c18a130617d7d31db987f4dac852acb62502d8c22c7b2"
+    },
+    {
+      "path": "before-after-tinydraw/2-candidate/events.json",
+      "bytes": 103790,
+      "sha256": "d83b251ef0b3a939fca6ab02ee570a3f62905ce8dac059f0413471627efe55a3"
+    },
+    {
+      "path": "before-after-tinydraw/2-baseline/result.json",
+      "bytes": 4700,
+      "sha256": "8ba36eaa5dff959f79aae521b4fe4a38a225184796f11ae7936252cac5ed6b5a"
+    },
+    {
+      "path": "before-after-tinydraw/2-baseline/capture.json",
+      "bytes": 1006,
+      "sha256": "4b05bdf94e93dbc06f2a94d63849e58a85eaef3a2641cb8bd53c6392944ecd7c"
+    },
+    {
+      "path": "before-after-tinydraw/2-baseline/events.json",
+      "bytes": 105067,
+      "sha256": "56a97bb5b398f278a539f75b4684fda0ad1a6d2bd9500849a5e3df155c56dcb2"
+    },
+    {
+      "path": "before-after-tinydraw/3-baseline/result.json",
+      "bytes": 4701,
+      "sha256": "7708f3e161188d222dd8d21031f458c13b48373a5e39df0333de5c41427cee90"
+    },
+    {
+      "path": "before-after-tinydraw/3-baseline/capture.json",
+      "bytes": 1003,
+      "sha256": "d19e25fa0bfaa3a7dd7ee48e64ddf39455972945ab62746d838ff78569b61089"
+    },
+    {
+      "path": "before-after-tinydraw/3-baseline/events.json",
+      "bytes": 105051,
+      "sha256": "7133d79bad4d0d5b87b97991ab7651e9f64d13c8967235553656b163444d3a75"
+    },
+    {
+      "path": "before-after-tinydraw/3-candidate/result.json",
+      "bytes": 4700,
+      "sha256": "ecd6b03dc981403eaeb40b298eabe34a37487108286f40d4f64c756a0cf2e322"
+    },
+    {
+      "path": "before-after-tinydraw/3-candidate/capture.json",
+      "bytes": 1004,
+      "sha256": "b593086a017c00888eb92b00aa42ee49f16ab2cfdb3b6d7a873531b612754ad8"
+    },
+    {
+      "path": "before-after-tinydraw/3-candidate/events.json",
+      "bytes": 103760,
+      "sha256": "7a51de3a73c231c708f06fe219ecb80e4aba785f91f7f6955f7325476aed6e5c"
+    },
+    {
+      "path": "before-after-tinydraw/4-candidate/result.json",
+      "bytes": 4700,
+      "sha256": "b3fa06fd48d8510a0ff507f4a4dbc3914894cb9c6e76325813016bc09a525d1b"
+    },
+    {
+      "path": "before-after-tinydraw/4-candidate/capture.json",
+      "bytes": 1005,
+      "sha256": "d6afe278323f60a1862c62f73117a4912157892884dbf45ab1f58b2e1bf30ac2"
+    },
+    {
+      "path": "before-after-tinydraw/4-candidate/events.json",
+      "bytes": 103753,
+      "sha256": "5f6d5f1f7bf98a71cc2da06ebb3efa38a6b8baa288ae8291244ab2843b0d5be4"
+    },
+    {
+      "path": "before-after-tinydraw/4-baseline/result.json",
+      "bytes": 4701,
+      "sha256": "fd9f145c90bc5e5c5ab293e503f874c35abc7f2d987cc5ad66a8d46e16d1be90"
+    },
+    {
+      "path": "before-after-tinydraw/4-baseline/capture.json",
+      "bytes": 1003,
+      "sha256": "e6d94c050eac8f6d1d533ebe8ac8952262eaf902e195bc21a7cf224d94b55ce1"
+    },
+    {
+      "path": "before-after-tinydraw/4-baseline/events.json",
+      "bytes": 105178,
+      "sha256": "fe4baea60a3d9405676f3ee3b4b512a017ac25624fc1849a7fddf83064d5f946"
+    }
+  ],
+  "redactions": [
+    "Omitted raw event streams and logs, Chrome profiles, private paths and browser session details.",
+    "Retained numeric samples, input hashes, console hashes, verdicts, work checks, aggregate loads and artifact identities."
+  ],
+  "limitations": [
+    "Browser frame-content hashes were not collected.",
+    "Raw captures remain in task scratch; no public raw-capture archive was created."
+  ]
+}

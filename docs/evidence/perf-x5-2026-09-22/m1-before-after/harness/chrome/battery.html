@@ -1,0 +1,6 @@
+<!doctype html><meta charset="utf-8"><title>TinyDraw CPU profile</title>
+<pre id="status">Ready for profiler</pre><button onclick="worker.postMessage({start:true});this.disabled=true">Run battery</button>
+<script>
+window.events=[];window.worker=new Worker('./battery-worker.mjs',{type:'module'});
+worker.onmessage=({data:e})=>{events.push(e);if(e.type==='progress'||e.type==='result'||e.type==='error')document.querySelector('#status').textContent=JSON.stringify(e,null,2);if(e.type==='result'||e.type==='error')window.result=e;};
+</script>

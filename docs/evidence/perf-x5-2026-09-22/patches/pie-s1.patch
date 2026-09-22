@@ -1,0 +1,262 @@
+diff --git a/xtensa-lx7/src/jit/wasm_emit.rs b/xtensa-lx7/src/jit/wasm_emit.rs
+index 2df7855c..02e36199 100644
+--- a/xtensa-lx7/src/jit/wasm_emit.rs
++++ b/xtensa-lx7/src/jit/wasm_emit.rs
+@@ -922,10 +922,14 @@ fn emit_body(
+                 g.c(0);
+                 g.op(0x47);
+                 g.op(0x71);
++                // EX184: the edge below spills a held ACCX on the backedge path only; the
++                // fall-through leaves this `if` with the accumulator still in its local.
++                let held = (g.accx_live, g.accx_head);
+                 g.begin_if();
+                 g.decrement_loop();
+                 region_edge(g, lbeg, false);
+                 g.end();
++                (g.accx_live, g.accx_head) = held;
+             }
+             region_edge(g, pc, true);
+         }
+diff --git a/xtensa-lx7/src/jit/wasm_pie.rs b/xtensa-lx7/src/jit/wasm_pie.rs
+index 5807486b..5ad31ea0 100644
+--- a/xtensa-lx7/src/jit/wasm_pie.rs
++++ b/xtensa-lx7/src/jit/wasm_pie.rs
+@@ -21,8 +21,8 @@ fn max_dot(w: u8) -> i64 {
+     (128 / w as i64) * (1i64 << (2 * w as u32 - 2))
+ }
+ 
+-/// EX178: instructions that may run while ACCX is held in a local. `ee.zero.accx` starts
+-/// the run and the accumulates extend it; the two `.ip` vector moves are admitted because
++/// EX178: instructions that may run while ACCX is held in a local. `ee.zero.accx` or the
++/// first accumulate (EX184) starts the run; the two `.ip` vector moves are admitted because
+ /// they never read the accumulator and their own miss path spills it. Everything else,
+ /// `rur.accx_0` above all, forces the memory copy first.
+ pub(super) fn accx_local_safe(i: &crate::Insn, fast: bool) -> bool {
+@@ -198,6 +198,34 @@ fn add_i32_lanes(g: &mut Gen) {
+     }
+ }
+ 
++/// Push the architectural ACCX, sign-extended from its low 40 bits exactly as `pie::accx_get`.
++/// The two words are contiguous, so one load takes both and the unused upper bits of
++/// `accx[1]` shift out.
++fn accx_get(g: &mut Gen) {
++    g.get(0);
++    g.op(0x29); // i64.load
++    uleb(&mut g.bytes, 2);
++    uleb(&mut g.bytes, ACCX);
++    g.c64(24);
++    g.op(0x86);
++    g.c64(24);
++    g.op(0x87); // i64.shr_s
++}
++
++/// Clamp the i64 on the stack to 40 signed bits: exactly `pie::sat(v, 40)`. `select` keeps
++/// its first operand when the condition holds.
++fn saturate(g: &mut Gen) {
++    for (bound, cmp) in [((1i64 << 39) - 1, 0x55u8), (-(1i64 << 39), 0x53u8)] { // i64.gt_s, i64.lt_s
++        g.set(WIDE);
++        g.c64(bound);
++        g.get(WIDE);
++        g.get(WIDE);
++        g.c64(bound);
++        g.op(cmp);
++        g.op(0x1b); // select
++    }
++}
++
+ /// ACCX += Σ x·y over the signed `w`-bit lanes of Q registers `x` and `y`, saturated to 40
+ /// bits: exactly `pie::exec_packed`. The products are widening vector multiplies over the low
+ /// and high halves. Signed-8 products sum in 32 bits (at most 16 * 128 * 128);
+@@ -207,13 +235,19 @@ fn accumulate(g: &mut Gen, w: u8, x: i32, y: i32) {
+     // the sum of the products added since, whose magnitudes `accx_head` bounds. While that
+     // bound stays inside [-2^39, 2^39-1] neither the 40-bit sign extension of the old value
+     // nor the two saturating selects can change anything, so the sum can live in a local.
+-    let step = max_dot(w);
+-    if g.accx_live && g.accx_head > ((1i64 << 39) - 1) - step {
+-        g.accx_flush();
++    // EX184: a run needs no reset to start. Load ACCX once instead, and saturate in the
++    // local from then on, which keeps it the canonical 40-bit value with no bound at all.
++    if g.accx_ok && !g.accx_live {
++        accx_get(g);
++        g.set(ACC);
++        g.accx_live = true;
++        g.accx_head = i64::MAX;
+     }
++    let step = max_dot(w);
+     let held = g.accx_live;
++    let saturates = held && g.accx_head > ((1i64 << 39) - 1) - step;
+     if held {
+-        g.accx_head += step;
++        g.accx_head = if saturates { i64::MAX } else { g.accx_head + step };
+     }
+     if w == 8 {
+         // i8·i8 fits i16; two products per i32 lane after the pairwise add, and the whole
+@@ -251,31 +285,15 @@ fn accumulate(g: &mut Gen, w: u8, x: i32, y: i32) {
+         }
+     }
+     if held {
++        if saturates {
++            saturate(g);
++        }
+         g.set(ACC);
+         return;
+     }
+-    // The two ACCX words are contiguous. Sign-extend their low 40 bits, ignoring
+-    // the unused upper bits of accx[1].
+-    g.get(0);
+-    g.op(0x29); // i64.load
+-    uleb(&mut g.bytes, 2);
+-    uleb(&mut g.bytes, ACCX);
+-    g.c64(24);
+-    g.op(0x86);
+-    g.c64(24);
+-    g.op(0x87); // i64.shr_s
++    accx_get(g);
+     g.op(0x7c); // i64.add
+-    // Saturate: min(v, 2^39-1), then max(v, -2^39). `select` keeps its first operand when
+-    // the condition holds.
+-    for (bound, cmp) in [((1i64 << 39) - 1, 0x55u8), (-(1i64 << 39), 0x53u8)] { // i64.gt_s, i64.lt_s
+-        g.set(WIDE);
+-        g.c64(bound);
+-        g.get(WIDE);
+-        g.get(WIDE);
+-        g.c64(bound);
+-        g.op(cmp);
+-        g.op(0x1b); // select
+-    }
++    saturate(g);
+     g.set(WIDE);
+     // Store the canonical 40-bit value, leaving accx[1]'s unused bits zero.
+     g.get(0);
+@@ -418,6 +436,9 @@ pub(super) fn emit_run(g: &mut Gen, bis: &[BlockInsn], pc0: u32, extras: &[u8],
+ /// succeed and before it overwrites Q register Qu, which may be one of its operands.
+ #[allow(clippy::too_many_arguments)]
+ fn vmem(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool, o: &Ops, store: bool, accumulate_first: Option<(u8, i32, i32)>) {
++    // EX184: the fallback below is reached with the ACCX state this instruction started
++    // from, because an accumulate emitted after the probe has not run on that path.
++    let entry_accx = (g.accx_live, g.accx_head);
+     let a = o.get(Role::As) as u8;
+     let imm = o.get(Role::Imm) as u32;
+     // The hardware ignores the low address bits.
+@@ -465,6 +486,9 @@ fn vmem(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool, o: &Ops, st
+     g.set_ar(a);
+     g.bytes.extend([0x0c, 1]);
+     g.end();
++    let taken_accx = (g.accx_live, g.accx_head);
++    (g.accx_live, g.accx_head) = entry_accx;
+     g.fallback(bi, pc, next, last, false);
++    (g.accx_live, g.accx_head) = taken_accx;
+     g.end();
+ }
+diff --git a/xtensa-lx7/src/jit/wasm_tests/pie_accx.rs b/xtensa-lx7/src/jit/wasm_tests/pie_accx.rs
+index 10cd0034..86b274c1 100644
+--- a/xtensa-lx7/src/jit/wasm_tests/pie_accx.rs
++++ b/xtensa-lx7/src/jit/wasm_tests/pie_accx.rs
+@@ -95,5 +95,106 @@ pub(super) fn run_tests() -> u32 {
+             }
+         }
+     }
+-    tests
++    tests + held_runs()
++}
++
++/// Decode `program` into a block ending in a NOP, as the block decoder would.
++fn block_of(program: &[Vec<u8>]) -> Vec<BlockInsn> {
++    let mut block = Vec::new();
++    let mut pc = BASE;
++    for encoded in program {
++        let mut bytes = [0; 4];
++        bytes[..encoded.len()].copy_from_slice(encoded);
++        let decoded = crate::decode::decode(pc, bytes);
++        assert_eq!(decoded.op, Op::Pie);
++        block.push(BlockInsn {
++            insn: decoded, max_ar: crate::exec::max_ar(&decoded), straddle: false, off: block.len() as u32,
++        });
++        pc = pc.wrapping_add(decoded.len as u32);
++    }
++    block.push(insn(Op::Nop));
++    block
++}
++
++/// EX184: a run of accumulates that no `ee.zero.accx` dominates. The emitter loads ACCX into
++/// its local at the first one and saturates there, so every cut position, both saturation
++/// edges and a first accumulate that never executes must leave exactly the architectural
++/// state the table executor leaves, unused `accx[1]` bits included.
++fn held_runs() -> u32 {
++    use crate::pie::Role::{As, Imm, Qu, Qx, Qy};
++    let mut block = block_of(&[
++        asm::pie("ee.vmulas.s8.accx", &[(Qx, 0), (Qy, 1)]),
++        asm::pie("ee.vmulas.s16.accx", &[(Qx, 0), (Qy, 1)]),
++        asm::pie("ee.vmulas.s8.accx.ld.ip", &[(Qx, 0), (Qy, 1), (Qu, 2), (As, 4), (Imm, 16)]),
++        asm::pie("ee.vmulas.s16.accx", &[(Qx, 2), (Qy, 1)]),
++    ]);
++    let mut cc = CodeCache::new(0).unwrap();
++    let code = compile(&mut cc, &mut block, BASE, true).expect("the accumulate run must compile");
++    for _ in 0..HOT { ready(&cc, code, 0); }
++    assert!(ready(&cc, code, 0));
++
++    let (high, low) = ((1i64 << 39) - 1, -(1i64 << 39));
++    let mut tests = 0;
++    for (name, initial) in [("high", high), ("low", low), ("near-high", high - 300_000), ("near-low", low + 300_000), ("zero", 0)] {
++        for (lanes, other) in [(0x80u8, 0x80u8), (0x80, 0x7f), (0x7f, 0x7f)] {
++            // Every budget: below the block length the checked body runs, which keeps ACCX
++            // in memory, and at the block length the whole body holds it in the local.
++            for budget in 1..=block.len() as u32 {
++                let context = format!("run {name} lanes={lanes:#x},{other:#x} budget={budget}");
++                CONTEXT.with(|c| *c.borrow_mut() = context.clone());
++                let (mut reference, mut actual) = (cpu(0), cpu(0));
++                for c in [&mut reference, &mut actual] {
++                    c.cpenable = 1 << 3;
++                    c.qr[0] = u128::from_le_bytes([lanes; 16]);
++                    c.qr[1] = u128::from_le_bytes([other; 16]);
++                    c.qr[2] = u128::from_le_bytes([lanes; 16]);
++                    c.accx = [initial as u32, ((initial >> 32) & 0xff) as u32 | 0xa5a5_a500];
++                    c.set_ar(4, BASE + 0x1000);
++                }
++                let (mut reference_ram, mut actual_ram) = (Ram::new(true, false), Ram::new(true, false));
++                let fm = actual_ram.fast_mem();
++                // SAFETY: code is ready, entry zero is valid and both helpers and mapping
++                // belong to the exclusively borrowed test bus.
++                let result = unsafe {
++                    run(&cc, code, &mut actual, &mut actual_ram, &Helpers::new::<Ram>(), budget, 0, fm)
++                };
++                assert_eq!(result & 0xffff, budget, "{context}");
++                assert!(actual.jit_trap.is_none(), "{context}");
++                for bi in block.iter().take(budget as usize) {
++                    let mut instruction = bi.insn;
++                    // Clear the packed marker: use the independent table executor.
++                    if instruction.op == Op::Pie { instruction.r = 0; }
++                    exec_insn(&mut reference, &mut reference_ram, &instruction).unwrap();
++                }
++                same(&reference, &actual);
++                tests += 1;
++            }
++        }
++    }
++
++    // A first accumulate whose slow access is deferred does not execute at all: the local
++    // has been loaded but not modified, so nothing may be written back over ACCX.
++    let mut block = block_of(&[
++        asm::pie("ee.vmulas.s8.accx.ld.ip", &[(Qx, 0), (Qy, 1), (Qu, 2), (As, 4), (Imm, 16)]),
++        asm::pie("ee.vmulas.s8.accx", &[(Qx, 0), (Qy, 1)]),
++    ]);
++    let code = compile(&mut cc, &mut block, BASE, true).expect("the deferred run must compile");
++    for _ in 0..HOT { ready(&cc, code, 0); }
++    let before = [0x1234_5678, 0xa5a5_a512];
++    let mut actual = cpu(0);
++    actual.cpenable = 1 << 3;
++    actual.accx = before;
++    actual.set_ar(4, SLOW);
++    let mut ram = Ram::new(true, false);
++    ram.defer_armed = true;
++    let fm = ram.fast_mem();
++    CONTEXT.with(|c| *c.borrow_mut() = "deferred first accumulate".into());
++    // SAFETY: as above.
++    let result = unsafe { run(&cc, code, &mut actual, &mut ram, &Helpers::new::<Ram>(), 3, 0, fm) };
++    // EX133's convention: the refused instruction is counted here and uncounted by the caller.
++    assert_eq!((result & 0xffff, (result >> 16) & 7), (1, crate::jit::CODE_TRAP), "deferred exit");
++    assert!(ram.deferred && actual.jit_trap.is_none());
++    assert_eq!(actual.accx, before, "deferred accumulate leaves ACCX alone");
++    assert_eq!(actual.pc, BASE);
++    tests + 1
+ }

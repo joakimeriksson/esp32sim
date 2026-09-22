@@ -1,0 +1,60 @@
+{
+  "method": "100 * (1 - median(candidate walls) / median(baseline walls)), recalculated after excluding both arms of pair 1.",
+  "limitation": "Post-hoc sensitivity, not a replacement estimate, formal confidence interval, established noise floor or proof of a cold-start cause. All raw observations remain retained.",
+  "jobs": [
+    {
+      "name": "control-aa-1",
+      "source": "runs/control-aa-1.json",
+      "pairs": 2,
+      "startedAt": "2026-09-22T00:11:42Z",
+      "allPairsPercent": 0.7527719256858578,
+      "omitFirstPairPercent": -0.06039027332849223,
+      "differencePercentagePoints": -0.81316219901435
+    },
+    {
+      "name": "control-aa-td",
+      "source": "runs/control-aa-td.json",
+      "pairs": 2,
+      "startedAt": "2026-09-22T00:13:34Z",
+      "allPairsPercent": 0.7012666205933771,
+      "omitFirstPairPercent": -0.2741840718152977,
+      "differencePercentagePoints": -0.9754506924086748
+    },
+    {
+      "name": "control-aa-final",
+      "source": "runs/control-aa-final.json",
+      "pairs": 2,
+      "startedAt": "2026-09-22T08:19:26Z",
+      "allPairsPercent": -0.3558243219746071,
+      "omitFirstPairPercent": -0.2047011986675562,
+      "differencePercentagePoints": 0.1511231233070509
+    },
+    {
+      "name": "control-aa-final-td",
+      "source": "runs/control-aa-final-td.json",
+      "pairs": 2,
+      "startedAt": "2026-09-22T08:21:18Z",
+      "allPairsPercent": -0.14618623630791028,
+      "omitFirstPairPercent": 0.04718680610704684,
+      "differencePercentagePoints": 0.19337304241495712
+    },
+    {
+      "name": "combined-size",
+      "source": "runs/combined-size.json",
+      "pairs": 4,
+      "startedAt": "2026-09-22T08:23:21Z",
+      "allPairsPercent": 4.058232994197031,
+      "omitFirstPairPercent": 3.991360295997115,
+      "differencePercentagePoints": -0.0668726981999157
+    },
+    {
+      "name": "combined-size-td",
+      "source": "runs/combined-size-td.json",
+      "pairs": 3,
+      "startedAt": "2026-09-22T08:26:52Z",
+      "allPairsPercent": 8.179757956182076,
+      "omitFirstPairPercent": 8.200130869009193,
+      "differencePercentagePoints": 0.020372912827117062
+    }
+  ]
+}

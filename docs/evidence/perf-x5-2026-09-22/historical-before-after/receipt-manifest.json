@@ -1,0 +1,187 @@
+[
+  {
+    "path": "conditions.json",
+    "sha256": "bfffb27277ccbd5cbe78de9a862f148f4c869fb95c366c7d18c962d0edf45031",
+    "bytes": 2617
+  },
+  {
+    "path": "control-current.json",
+    "sha256": "45f0f9bdbea1e2a6bd8eb7bcab3e50764be32eaddffed2b00278be29c4b2c41b",
+    "bytes": 33918
+  },
+  {
+    "path": "earliest-vs-current.json",
+    "sha256": "b6d8700bd21e76f3cf2269b3b0fd30e8ca4c6f5fa5ec791b4760918313672062",
+    "bytes": 76032
+  },
+  {
+    "path": "first-jit-vs-current.json",
+    "sha256": "6133a7a9ec32179624b17579115bd4a8aef502760abdb20e4c7de2d602725e6d",
+    "bytes": 75981
+  },
+  {
+    "path": "harness-provenance.json",
+    "sha256": "ebe0e76306f5c5ed4a88c77f0a6f5f0a7d8397967892692def11c88580c6bae1",
+    "bytes": 7907
+  },
+  {
+    "path": "harness/browser-harness/80c43cae-tinydraw-contract.json",
+    "sha256": "02efb6a0fbc3edc356190e025b2893479d800da58759b050a6f168fbaaa8d428",
+    "bytes": 2342
+  },
+  {
+    "path": "harness/browser-harness/a2db66cf-tinydraw-contract.json",
+    "sha256": "637d537c560442f09e9b01776ffc1e8c4062bf19ab3342b0ec16a92035497c89",
+    "bytes": 2479
+  },
+  {
+    "path": "harness/browser-harness/battery-worker.mjs",
+    "sha256": "ef39d40eacb07fa5b9a359937abd2a09d3fc3a47b5b26a95d29525c6a6e415ed",
+    "bytes": 1241
+  },
+  {
+    "path": "harness/browser-harness/battery.html",
+    "sha256": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+    "bytes": 540
+  },
+  {
+    "path": "harness/browser-harness/battery.mjs",
+    "sha256": "fb67887fcb06636db602f87dc803c246c2055334fb4452c515871a428a491aca",
+    "bytes": 5849
+  },
+  {
+    "path": "harness/browser-harness/capture-battery.mjs",
+    "sha256": "31faf6bc1e480e01cfcfcc7c84778d11c84d215c36b7fa58cea0eb95996982e8",
+    "bytes": 3013
+  },
+  {
+    "path": "harness/browser-harness/compare-runs.py",
+    "sha256": "ebcc9ac1cd01beadecba943ea70f4f189723b3e4ea3029a26fe5772b1848203e",
+    "bytes": 10617
+  },
+  {
+    "path": "harness/browser-harness/current-tinydraw-contract.json",
+    "sha256": "0647cfce29d6173fed61de186d938c349e68774672d8fa0fa0d4e1e45cf492c1",
+    "bytes": 2468
+  },
+  {
+    "path": "harness/browser-harness/historical-pairs.py",
+    "sha256": "6fd877f44166069b7630c4b9d08f6983c533fe3af16f654b39e1be01773e4c99",
+    "bytes": 8133
+  },
+  {
+    "path": "harness/browser-harness/run-pairs.py",
+    "sha256": "0a953d0d73b46cc1defdc774a4b53d86027a47623685ed3c1538d654132cf4d8",
+    "bytes": 13881
+  },
+  {
+    "path": "harness/browser-harness/serve.py",
+    "sha256": "a92c0b6146804c841a0dc0670c788fd0954bbeeadb2a8b84e846cbf805695b39",
+    "bytes": 4087
+  },
+  {
+    "path": "harness/browser-harness/verdict-schema.json",
+    "sha256": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+    "bytes": 858
+  },
+  {
+    "path": "harness/browser-harness/verdict.mjs",
+    "sha256": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+    "bytes": 1669
+  },
+  {
+    "path": "harness/browser-harness/workloads.json",
+    "sha256": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+    "bytes": 2977
+  },
+  {
+    "path": "harness/harness-v2/battery-node.mjs",
+    "sha256": "94f32d3d088acc42bc3eb7230aae04c22692e1342179475362033748c6d4a272",
+    "bytes": 6048
+  },
+  {
+    "path": "harness/harness-v2/experiments.mjs",
+    "sha256": "29c4b556b0c7e25a529a9c4b1c3b5132aee06bb4884de684ba6c78a10ac4716b",
+    "bytes": 3959
+  },
+  {
+    "path": "harness/harness-v2/final-frame.mjs",
+    "sha256": "c6a079312ed3c5c523442eb180a599815df8499a716c50a04ca9b5ef7e6418e0",
+    "bytes": 2182
+  },
+  {
+    "path": "harness/harness-v2/jit.mjs",
+    "sha256": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+    "bytes": 1793
+  },
+  {
+    "path": "harness/harness-v2/pilot.mjs",
+    "sha256": "cac2a200899efc397e1b202dce67a5d89da614889f99cc9776d9738e6303215e",
+    "bytes": 4237
+  },
+  {
+    "path": "harness/harness-v2/source-provenance.json",
+    "sha256": "49463712b9a9f196046a825bc294c485202a02bb39f428a2afcf5b8569020be0",
+    "bytes": 3118
+  },
+  {
+    "path": "harness/harness-v2/verdict-schema.json",
+    "sha256": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+    "bytes": 858
+  },
+  {
+    "path": "harness/harness-v2/verdict.mjs",
+    "sha256": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+    "bytes": 1669
+  },
+  {
+    "path": "harness/harness-v2/workloads.json",
+    "sha256": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+    "bytes": 2977
+  },
+  {
+    "path": "local-validation.json",
+    "sha256": "1ac85c946bde0a61fb89e9a120b5f4624cfb555727177e5654bf7bae1b21a960",
+    "bytes": 986
+  },
+  {
+    "path": "originals.json",
+    "sha256": "c907e753d2796ff0bc94d3f05ae3a3bce72267bf400428f0f0b8fde8c408c2d5",
+    "bytes": 16602
+  },
+  {
+    "path": "provenance.json",
+    "sha256": "03625701a9ce29376e0f27982a5dda1d1b5340c8bf8436faacc056fbf57e2b60",
+    "bytes": 7015
+  },
+  {
+    "path": "qualification.json",
+    "sha256": "9b0df9248245380b93f0c0bd4584dd4b53f192381504ad697930dde22bee4ef1",
+    "bytes": 20762
+  },
+  {
+    "path": "README.md",
+    "sha256": "8bd2971c3ab51dd3d2018120750d0153142233174cad15baf696d9cc0d2e506a",
+    "bytes": 4083
+  },
+  {
+    "path": "REPRODUCE.md",
+    "sha256": "2264c959299f1752149be59d6b984afb81637d4aaa85bf0d1b2c32ef380cd231",
+    "bytes": 2757
+  },
+  {
+    "path": "results.json",
+    "sha256": "5f764524f727a2bd2030c5dfac879eca700b3e158d600f048ba4f4afded12e8a",
+    "bytes": 418
+  },
+  {
+    "path": "verify.mjs",
+    "sha256": "e115ba734558d0038ead6dc413f490589ef050a924b9af2f270417645b81e100",
+    "bytes": 11783
+  },
+  {
+    "path": "verify.test.mjs",
+    "sha256": "6b6ba859b0510078b332585f5b6f8afb35e89ff4980dccb19f7e7620722f9f8a",
+    "bytes": 4818
+  }
+]

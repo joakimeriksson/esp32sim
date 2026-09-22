@@ -225,8 +225,11 @@ fn step_outcome_inner<B: Bus>(cpu: &mut Cpu, bus: &mut B) -> StepOutcome {
             }
         };
         let vidx = bus.code_page(pc);
-        let ver = bus.page_versions().get(vidx as usize).copied().unwrap_or(0);
         let vidx2 = if pc >> emu_core::bus::VPAGE_SHIFT == pc.wrapping_add(3) >> emu_core::bus::VPAGE_SHIFT { vidx } else { bus.code_page(pc.wrapping_add(3)) };
+        // EX110: watch both pages before reading the versions this entry will compare against.
+        bus.note_code_page(vidx);
+        if vidx2 != vidx { bus.note_code_page(vidx2); }
+        let ver = bus.page_versions().get(vidx as usize).copied().unwrap_or(0);
         let ver2 = bus.page_versions().get(vidx2 as usize).copied().unwrap_or(0);
         let i = decode(pc, bytes); let m = max_ar(&i);
         cpu.icache[idx] = crate::decode::CacheEntry { pc, ver, vidx, ver2, vidx2, bytes, insn: i, max_ar: m };

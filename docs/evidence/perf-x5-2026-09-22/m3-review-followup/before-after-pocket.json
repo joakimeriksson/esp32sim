@@ -1,0 +1,90 @@
+{
+  "name": "before-after-pocket",
+  "workload": "pocket-tank",
+  "pairs": 4,
+  "medianWallSeconds": {
+    "baseline": 28.694652500003578,
+    "candidate": 24.001432500004768
+  },
+  "wallReductionPercent": 16.355730392616618,
+  "pairWallReductionPercent": [
+    16.44935361334251,
+    15.997621176695665,
+    17.004957356020057,
+    16.833192655869766
+  ],
+  "runs": [
+    {
+      "pair": 1,
+      "arm": "baseline",
+      "wallSeconds": 28.725840000003576,
+      "instructions": 10073833775,
+      "frames": 737,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "receipt": "runs/before-after-pocket/1-baseline.json"
+    },
+    {
+      "pair": 1,
+      "arm": "candidate",
+      "wallSeconds": 24.000625,
+      "instructions": 10073833775,
+      "frames": 737,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "receipt": "runs/before-after-pocket/1-candidate.json"
+    },
+    {
+      "pair": 2,
+      "arm": "candidate",
+      "wallSeconds": 24.076115000009537,
+      "instructions": 10073833775,
+      "frames": 737,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "receipt": "runs/before-after-pocket/2-candidate.json"
+    },
+    {
+      "pair": 2,
+      "arm": "baseline",
+      "wallSeconds": 28.66122999998927,
+      "instructions": 10073833775,
+      "frames": 737,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "receipt": "runs/before-after-pocket/2-baseline.json"
+    },
+    {
+      "pair": 3,
+      "arm": "baseline",
+      "wallSeconds": 28.663465000003576,
+      "instructions": 10073833775,
+      "frames": 737,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "receipt": "runs/before-after-pocket/3-baseline.json"
+    },
+    {
+      "pair": 3,
+      "arm": "candidate",
+      "wallSeconds": 23.789254999995233,
+      "instructions": 10073833775,
+      "frames": 737,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "receipt": "runs/before-after-pocket/3-candidate.json"
+    },
+    {
+      "pair": 4,
+      "arm": "candidate",
+      "wallSeconds": 24.002240000009536,
+      "instructions": 10073833775,
+      "frames": 737,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "receipt": "runs/before-after-pocket/4-candidate.json"
+    },
+    {
+      "pair": 4,
+      "arm": "baseline",
+      "wallSeconds": 28.860359999984503,
+      "instructions": 10073833775,
+      "frames": 737,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "receipt": "runs/before-after-pocket/4-baseline.json"
+    }
+  ]
+}

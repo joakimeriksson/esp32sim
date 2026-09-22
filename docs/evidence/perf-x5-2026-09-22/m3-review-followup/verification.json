@@ -1,0 +1,13 @@
+{
+  "status": "passed",
+  "jobs": 4,
+  "arms": 28,
+  "checks": [
+    "order",
+    "pinned instructions and frames",
+    "console and input equality",
+    "artifact identity",
+    "verdict and JIT",
+    "medians and pair reductions"
+  ]
+}

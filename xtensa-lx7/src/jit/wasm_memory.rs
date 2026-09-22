@@ -1,12 +1,23 @@
 //! Shared scalar and PIE memory probes, version tracking and optional cache pricing.
 use super::*;
-use emu_core::bus::{TLB_ENTRIES, TLB_INDEX_SHIFT, TLB_XOR_SHIFT, VPAGE_SHIFT};
+use emu_core::bus::{PREV_PAGE_BYTES, TLB_ENTRIES, TLB_INDEX_SHIFT, TLB_XOR_SHIFT, VPAGE_SHIFT};
+
+const VPAGE_MASK: u32 = (1 << VPAGE_SHIFT) - 1;
+
+/// log2 of one entry's size: scaling the hash into a byte offset folds into its shifts.
+const ENTRY_SHIFT: u32 = size_of::<TlbEntry>().ilog2();
 
 const _: () = {
     assert!(TLB_ENTRIES.is_power_of_two());
     assert!(TLB_INDEX_SHIFT < 32 && TLB_XOR_SHIFT < 32);
     // Aligned 16-byte PIE accesses must fit one version page.
     assert!(VPAGE_SHIFT >= 4 && VPAGE_SHIFT < 32);
+    // The previous-page rule must not reach past one page.
+    assert!(PREV_PAGE_BYTES < 1 << VPAGE_SHIFT);
+    // EX173 s2: fold `index * size_of::<TlbEntry>()` into the hash's two shifts and its mask.
+    assert!(size_of::<TlbEntry>().is_power_of_two());
+    assert!(TLB_INDEX_SHIFT >= ENTRY_SHIFT && TLB_XOR_SHIFT >= ENTRY_SHIFT);
+    assert!((TLB_ENTRIES as u64 - 1) << ENTRY_SHIFT < i32::MAX as u64);
 };
 
 pub(super) fn emit(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
@@ -29,13 +40,13 @@ pub(super) fn emit(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) 
     // This block jumps to the slow instruction before making any memory changes.
     g.begin_block();
     g.begin_block();
-    g.get(5);
-    g.op(0x45);
-    g.bytes.extend([0x0d, 0]);
-    g.get(ADDR);
-    g.c(width - 1);
-    g.op(0x71);
-    g.bytes.extend([0x0d, 0]);
+    // A byte access is aligned by construction; `width - 1 == 0` made this test a constant.
+    if width > 1 {
+        g.get(ADDR);
+        g.c(width - 1);
+        g.op(0x71);
+        g.bytes.extend([0x0d, 0]);
+    }
     probe(g, width, store);
     #[cfg(feature = "wasm-cache-inline")]
     emit_cache_hit(g, store, 1);
@@ -163,52 +174,98 @@ fn region_store_check(g: &mut Gen) {
 /// branch to the enclosing slow-path block before any guest state is changed.
 /// On success TLB names the entry and REL is its byte offset.
 pub(super) fn probe(g: &mut Gen, width: u32, store: bool) {
+    // Entry address: (((ADDR >> INDEX) ^ (ADDR >> XOR)) & (ENTRIES - 1)) * size, with the
+    // scaling folded into both shifts and the mask (EX173 s2), so the multiply disappears.
     g.get(5);
     g.get(ADDR);
-    g.c(TLB_INDEX_SHIFT);
+    g.c(TLB_INDEX_SHIFT - ENTRY_SHIFT);
     g.op(0x76);
     g.get(ADDR);
-    g.c(TLB_XOR_SHIFT);
+    g.c(TLB_XOR_SHIFT - ENTRY_SHIFT);
     g.op(0x76);
     g.op(0x73);
-    g.c((TLB_ENTRIES - 1) as u32);
+    g.c((TLB_ENTRIES as u32 - 1) << ENTRY_SHIFT);
     g.op(0x71);
-    g.c(size_of::<TlbEntry>() as u32);
-    g.op(0x6c);
     g.op(0x6a);
     g.set(TLB);
+    // EX173 s2: for scalar/vector widths, one unsigned compare decides the whole access. REL = ADDR - lo is the offset
+    // within the entry and the access is inside it exactly when REL + width - 1 < span:
+    //  - ADDR below lo wraps REL to at least 2^32 - lo, and span <= 2^32 - lo, so it fails;
+    //  - an empty slot has span 0, which no offset can beat;
+    //  - REL + width - 1 cannot itself wrap, because alignment is already established and
+    //    every mapping starts 16-byte aligned, so REL is a multiple of width and at most
+    //    2^32 - width.
     g.get(ADDR);
     g.get(TLB);
     g.load(offset_of!(TlbEntry, lo));
-    g.op(0x49);
-    g.bytes.extend([0x0d, 0]);
-    g.get(TLB);
-    g.load(offset_of!(TlbEntry, hi));
-    g.get(ADDR);
     g.op(0x6b);
-    g.c(width);
-    g.op(0x49);
-    g.bytes.extend([0x0d, 0]);
-    g.get(ADDR);
-    g.get(TLB);
-    g.load(offset_of!(TlbEntry, hi));
-    g.op(0x4f);
-    g.bytes.extend([0x0d, 0]);
+    g.tee(REL);
+    if width > 16 {
+        // Coalesced runs are only 16-byte aligned, not aligned to their full width.
+        // Reject an offset outside the entry first, then compare the remaining length.
+        // Neither subtraction can wrap and no endpoint addition is needed.
+        g.get(TLB);
+        g.load(offset_of!(TlbEntry, span));
+        g.op(0x4f); // i32.ge_u
+        g.bytes.extend([0x0d, 0]);
+        g.get(TLB);
+        g.load(offset_of!(TlbEntry, span));
+        g.get(REL);
+        g.op(0x6b); // i32.sub
+        g.c(width);
+        g.op(0x49); // i32.lt_u
+        g.bytes.extend([0x0d, 0]);
+    } else {
+        if width > 1 {
+            g.c(width - 1);
+            g.op(0x6a);
+        }
+        g.get(TLB);
+        g.load(offset_of!(TlbEntry, span));
+        g.op(0x4f);
+        g.bytes.extend([0x0d, 0]);
+    }
     if store {
         g.get(TLB);
-        g.load(offset_of!(TlbEntry, writable));
+        load16(g, offset_of!(TlbEntry, writable));
         g.op(0x45);
         g.bytes.extend([0x0d, 0]);
     }
-    g.get(ADDR);
-    g.get(TLB);
-    g.load(offset_of!(TlbEntry, lo));
-    g.op(0x6b);
-    g.set(REL);
 }
 
+/// x4 pack: `writable` and `code` are u16 fields.
+fn load16(g: &mut Gen, offset: usize) {
+    g.op(0x2f); // i32.load16_u
+    uleb(&mut g.bytes, 1);
+    uleb(&mut g.bytes, offset);
+}
+
+
 /// Match the interpreter's number of word writes, including version increments.
+///
+/// EX110: a mapping whose `code` is zero has no decoded consumer for any page a version bump
+/// could reach (`TlbEntry.code`, `Bus::note_code_page`), so the whole bump and the region's own
+/// code-page test go. The interpreter's `write*_access` skips the same bump behind the same flag,
+/// so both paths still produce identical version counters. A page that gains code later is
+/// watched before its first decode reads bytes and version, so earlier skipped bumps are
+/// invisible: that decode already sees the written bytes.
+///
+/// EX180's previous-page bump lives inside the same gate, and that is sound: a consumer that
+/// depends on bytes in the written page `p` records page `p` as well (block entries record the
+/// page of their last byte, `block.rs`; regions record both ends of every instruction,
+/// `wasm_region.rs`; the decode cache records `pc + 3`, `exec.rs`), and `watch_code_page` marks
+/// the 64 KiB blocks containing the watched page and its neighboring pages, so watching `p - 1` alone
+/// already forces `code != 0` on any mapping covering `p`.
+/// Clobbers TMP; it may finish pointing at the preceding version page.
 pub(super) fn record_store(g: &mut Gen, writes: u32) {
+    g.get(TLB);
+    load16(g, offset_of!(TlbEntry, code));
+    g.begin_if();
+    record_bump(g, writes);
+    g.end();
+}
+
+fn record_bump(g: &mut Gen, writes: u32) {
     g.get(6);
     g.get(TLB);
     g.load(offset_of!(TlbEntry, vbase));
@@ -226,4 +283,30 @@ pub(super) fn record_store(g: &mut Gen, writes: u32) {
     g.op(0x6a);
     g.store(0);
     region_store_check(g);
+    // A write into the first bytes of a page also changes any instruction that began in
+    // the previous one, so the bus bumps that page once whatever the access width. Only
+    // the first of the interpreter's word writes can qualify, so this adds one, not
+    // `writes`. The `p > 0` guard is the pointer still being inside the version array.
+    g.get(REL);
+    g.c(VPAGE_MASK);
+    g.op(0x71);
+    g.c(PREV_PAGE_BYTES);
+    g.op(0x49);
+    g.begin_if();
+    g.get(TMP);
+    g.get(6);
+    g.op(0x4b);
+    g.begin_if();
+    g.get(TMP);
+    g.c(4);
+    g.op(0x6b);
+    g.tee(TMP);
+    g.get(TMP);
+    g.load(0);
+    g.c(1);
+    g.op(0x6a);
+    g.store(0);
+    region_store_check(g);
+    g.end();
+    g.end();
 }

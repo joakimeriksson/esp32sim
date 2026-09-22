@@ -1,0 +1,34 @@
+{
+  "status": "passed",
+  "node": "v26.9.0",
+  "scope": "Local receipt validation, not a rerun of emulator tests or a claim of controlled machine conditions",
+  "commands": [
+    "node --test docs/evidence/perf-x5-2026-09-22/verify-results.test.mjs docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.test.mjs",
+    "node docs/evidence/perf-x5-2026-09-22/verify-results.mjs",
+    "node docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.mjs"
+  ],
+  "tests": {
+    "passed": 53,
+    "failed": 0,
+    "existingX5": 21,
+    "threeBrowserM1": 32
+  },
+  "campaigns": [
+    {
+      "name": "M3 x5",
+      "jobs": 37,
+      "timedArms": 254
+    },
+    {
+      "name": "M1 before/after Chrome, Safari and Firefox",
+      "jobs": 18,
+      "timedArms": 84
+    }
+  ],
+  "originalTestLog": {
+    "sha256": "9f53e8ca0c0da2b80622c609b8a936118535787aea2d31299a88b428379b9602",
+    "bytes": 2793
+  },
+  "redaction": "Original test log retained privately; public receipt omits local file paths and per-test durations.",
+  "previousValidation": "history/chrome-safari/local-validation.json"
+}

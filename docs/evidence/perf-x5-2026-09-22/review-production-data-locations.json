@@ -1,0 +1,102 @@
+{
+  "beforeSha256": "1656179f3e9eebed72fd649b58c874922e7ea813a3dde699c5a96b8b50a5a245",
+  "afterSha256": "eb754176f3100563da93b5269a54af1b93ff611abcf09fbae5026fd110b8409a",
+  "changedBytes": 13,
+  "changedWords": 13,
+  "allDifferencesAreSourceLineRecords": true,
+  "dataSegmentLayoutUnchanged": true,
+  "filenamesPointersLengthsAndColumnsUnchanged": true,
+  "changes": [
+    {
+      "address": 1062820,
+      "filename": "xtensa-lx7/src/jit/wasm_region.rs",
+      "beforeLine": 178,
+      "afterLine": 184,
+      "column": 43
+    },
+    {
+      "address": 1084948,
+      "filename": "xtensa-lx7/src/jit/wasm_emit.rs",
+      "beforeLine": 303,
+      "afterLine": 313,
+      "column": 9
+    },
+    {
+      "address": 1100140,
+      "filename": "xtensa-lx7/src/jit/wasm_emit.rs",
+      "beforeLine": 789,
+      "afterLine": 799,
+      "column": 47
+    },
+    {
+      "address": 1100156,
+      "filename": "xtensa-lx7/src/jit/wasm_emit.rs",
+      "beforeLine": 787,
+      "afterLine": 797,
+      "column": 59
+    },
+    {
+      "address": 1100172,
+      "filename": "xtensa-lx7/src/jit/wasm_emit.rs",
+      "beforeLine": 859,
+      "afterLine": 869,
+      "column": 30
+    },
+    {
+      "address": 1100188,
+      "filename": "xtensa-lx7/src/jit/wasm_emit.rs",
+      "beforeLine": 912,
+      "afterLine": 922,
+      "column": 40
+    },
+    {
+      "address": 1100640,
+      "filename": "xtensa-lx7/src/jit/wasm_policy.rs",
+      "beforeLine": 245,
+      "afterLine": 246,
+      "column": 11
+    },
+    {
+      "address": 1100656,
+      "filename": "xtensa-lx7/src/jit/wasm_region.rs",
+      "beforeLine": 80,
+      "afterLine": 86,
+      "column": 42
+    },
+    {
+      "address": 1100672,
+      "filename": "xtensa-lx7/src/jit/wasm_region.rs",
+      "beforeLine": 213,
+      "afterLine": 219,
+      "column": 31
+    },
+    {
+      "address": 1100688,
+      "filename": "xtensa-lx7/src/jit/wasm_region.rs",
+      "beforeLine": 292,
+      "afterLine": 302,
+      "column": 22
+    },
+    {
+      "address": 1100704,
+      "filename": "xtensa-lx7/src/jit/wasm_region.rs",
+      "beforeLine": 292,
+      "afterLine": 302,
+      "column": 44
+    },
+    {
+      "address": 1100720,
+      "filename": "xtensa-lx7/src/jit/wasm_region.rs",
+      "beforeLine": 369,
+      "afterLine": 382,
+      "column": 39
+    },
+    {
+      "address": 1100736,
+      "filename": "xtensa-lx7/src/jit/wasm_region.rs",
+      "beforeLine": 384,
+      "afterLine": 397,
+      "column": 33
+    }
+  ]
+}

@@ -108,6 +108,15 @@ pub struct Machine<S: Soc> {
     pub vq_stats: [u64; 4],
     /// Backoff after runs cut short by frequent device-register accesses.
     vq_skip: u32, vq_penalty: u32,
+    /// EX177 both-busy round batching: most whole scheduling rounds the loop may run in one batch
+    /// while every enabled core is busy (1 = off). The per-core quanta, their order and their
+    /// budgets are unchanged, so the interleaving is the per-round schedule's; only the round
+    /// bookkeeping is hoisted out and folded, and the bound keeps every boundary it folds free of
+    /// work.
+    pub bb_max: u64,
+    /// EX177 counters: batches, whole rounds they covered, batches stopped at a device register,
+    /// at waiti, batches that ran the whole grant, granted rounds, batches the bound refused, reserved.
+    pub bb_stats: [u64; 8],
     run_steps: u64,
 }
 
@@ -118,12 +127,19 @@ const VQ_DEFAULT: u64 = match option_env!("ESP32SIM_VQ_BUILD") {
     Some(s) => { let b = s.as_bytes(); let (mut i, mut v) = (0, 0u64); while i < b.len() { v = v * 10 + (b[i] - b'0') as u64; i += 1; } v }
     None => if cfg!(target_arch = "wasm32") { 1024 } else { 1 },
 };
+/// EX177 default for `Machine::bb_max`; a build pins another with `ESP32SIM_BB_BUILD=<n>`.
+/// Enabled on wasm32; only a bus that honors deferral can batch rounds at all.
+const BB_DEFAULT: u64 = match option_env!("ESP32SIM_BB_BUILD") {
+    Some(s) => { let b = s.as_bytes(); let (mut i, mut v) = (0, 0u64); while i < b.len() { v = v * 10 + (b[i] - b'0') as u64; i += 1; } v }
+    None => if cfg!(target_arch = "wasm32") { 128 } else { 1 },
+};
 
 impl<S: Soc> Machine<S> {
     pub fn new(mac: [u8; 6], bus: S::Bus) -> Self {
         Machine {
             web_restart: false, button_reset: false, mac, reboots: 0, stubs: HashMap::new(), stub_bloom: 0, probe_bloom: 0, stub_hits: 0, fn_probes: HashMap::new(),
             cores: (0..S::CORES).map(|i| S::new_core_with_bus(i, &bus)).collect(), core_held: (0..S::CORES).map(|i| i > 0).collect(), quantum: QUANTUM, run_steps: 0, vq_stats: [0; 4], vq_skip: 0, vq_penalty: 0, vq_max: std::env::var("ESP32SIM_VQ").ok().and_then(|v| v.parse().ok()).unwrap_or(VQ_DEFAULT),
+            bb_max: std::env::var("ESP32SIM_BB").ok().and_then(|v| v.parse().ok()).unwrap_or(BB_DEFAULT).min(4096), bb_stats: [0; 8],
             bus, symbols: BTreeMap::new(),
             dbg: Debug { stop_on_unimplemented: true, stop_after_exceptions: u64::MAX },
             observers: Vec::new(), probes: Wants::NONE, prev_irq: vec![0; S::CORES],
@@ -503,6 +519,10 @@ impl<S: Soc> Machine<S> {
         let blocks = !self.probes.contains(Wants::INSN);
         let slow_path = self.probes.contains(Wants::NO_IDLE_SKIP);
         let can_defer = !APPROXIMATE && self.vq_max > 1 && self.bus.can_defer();
+        // EX177: round batching needs the same deferral guard, several cores and a loop whose
+        // boundaries do nothing a bound cannot see. Real-time pacing and observers keep it off.
+        let can_batch = !APPROXIMATE && self.bb_max > 1 && S::CORES > 1 && self.bus.can_defer()
+            && blocks && !slow_path && self.probes.0 == 0 && !self.rt.enabled;
         if self.web.is_some() { self.ws.push_interval = (S::CPU_HZ / self.bus.board_ref().display_push_hz().max(1)).max(1); }
         let trace = self.has_observer("trace");
         let mut n = 0u64;
@@ -545,6 +565,8 @@ impl<S: Soc> Machine<S> {
             // closed afterwards exactly as the per-quantum schedule would have closed them. A device
             // register access stops in front of its instruction and finishes its quantum the old way.
             let mut resume_at = 0u64;
+            // The core that owns `resume_at`, and the cores of this round a fast path already ran.
+            let (mut resume_core, mut skip_before) = (0usize, 0usize);
             // Find the sole busy core only when virtual quanta are eligible.
             let busy = if !APPROXIMATE && can_defer && blocks && !slow_path && self.probes.0 == 0 {
                 if self.vq_skip > 0 { self.vq_skip -= 1; usize::MAX }
@@ -587,6 +609,25 @@ impl<S: Soc> Machine<S> {
                     }
                     if pos > 0 && pos.is_multiple_of(self.quantum) { continue; }
                     resume_at = pos % self.quantum;
+                    resume_core = busy;
+                }
+            }
+            // EX177: every enabled core is busy, so the schedule of the next rounds is already
+            // decided: each core runs one whole quantum in index order. Run K of those rounds in
+            // one batch and close them in one fold, with the same per-core budgets and order.
+            if can_batch && busy == usize::MAX {
+                let (mut enabled, mut all_busy) = (0u32, true);
+                for i in 0..S::CORES { if on[i] { enabled += 1; all_busy &= !idle[i]; } }
+                if all_busy && enabled > 1 {
+                    let k = self.bb_quanta(max_insns - n, n);
+                    if k > 1 {
+                        self.bb_stats[0] += 1; self.bb_stats[5] += k;
+                        match self.bb_batch(k, &mut n, &on) {
+                            Err(stop) => return stop,
+                            Ok(None) => continue,
+                            Ok(Some((core, at))) => { skip_before = core; resume_core = core; resume_at = at; }
+                        }
+                    } else { self.bb_stats[6] += 1; }
                 }
             }
             let quantum = if APPROXIMATE {
@@ -605,15 +646,16 @@ impl<S: Soc> Machine<S> {
             };
             let elapsed = quantum * u64::from(cpi);
             let mut stalls = [0u64; 4];
-            let mut round_elapsed = 0;
+            // A fast path that already ran the head of this round charged its cycles to the round.
+            let mut round_elapsed = if skip_before == 0 { 0 } else { elapsed };
             for i in 0..S::CORES {
-                if !on[i] { continue; }
+                if !on[i] || i < skip_before { continue; }
                 if idle[i] && !slow_path {
                     self.cores[i].idle_advance(elapsed as u32);
                     if i == 0 { self.run_steps += quantum; }
                 } else if blocks {
-                    // Only the sole busy core can resume an incomplete virtual round.
-                    let budget = (quantum - resume_at) as u32;
+                    // Only the core that stopped inside the round carries its resume offset.
+                    let budget = (quantum - if i == resume_core { resume_at } else { 0 }) as u32;
                     let mut left = budget;
                     while left > 0 {
                         let (used, stop) = self.step_blocks(i, left);
@@ -709,6 +751,87 @@ impl<S: Soc> Machine<S> {
         if self.bus.cycles() >= self.max_cycles { self.drain_console(); return Some(Stop::Halted); }
         if *n & 0xffff < self.quantum { self.drain_console(); }
         None
+    }
+
+    /// EX177: how many whole rounds the busy cores may run in one batch. Every bound keeps the
+    /// boundaries the batch folds free of work: no device flush, script event, page push, console
+    /// drain, cycle or instruction limit may fall due before the last of them. `next_deadline` is
+    /// the bus's own bound on deferred device time, exactly as `vq_quanta` uses it.
+    fn bb_quanta(&self, insns_left: u64, n: u64) -> u64 {
+        let Some(deadline) = self.bus.next_deadline() else { return 1 };
+        let q = self.quantum;
+        let now = self.bus.cycles();
+        let mut k = self.bb_max.min(deadline.div_ceil(q)).min(insns_left.div_ceil(q))
+            .min(self.max_cycles.saturating_sub(now).div_ceil(q))
+            // the console is drained when the scheduling counter crosses a 64Ki boundary
+            .min((0x1_0000 - (n & 0xffff)).div_ceil(q));
+        if let Some((at, _)) = self.script.events.get(self.script.pos) { k = k.min(at.saturating_sub(now).div_ceil(q)); }
+        if self.web.is_some() { k = k.min(self.ws.push_interval.saturating_sub(now.wrapping_sub(self.ws.last_push_cycles)).div_ceil(q)); }
+        k.max(1)
+    }
+
+    /// EX177: run `k` whole rounds while every enabled core is busy. Each round dispatches the
+    /// cores in index order for exactly one quantum each — the per-round schedule's order, budgets
+    /// and instruction interleaving — and the rounds are then closed in one fold, which `bb_quanta`
+    /// has made equivalent to closing them one at a time. `bus.tick` only accumulates until its
+    /// own deadline, so the folded call flushes the same cycles at the same boundary.
+    ///
+    /// A device-register access stops the batch in front of its instruction, and a core that goes
+    /// to sleep stops it at the end of its round; the caller finishes an unfinished round the
+    /// ordinary way, after the fold has put device time where that round expects it.
+    /// `Ok(Some((core, consumed)))` is that unfinished round's cut position.
+    fn bb_batch(&mut self, k: u64, n: &mut u64, on: &[bool]) -> Result<Option<(usize, u64)>, Stop> {
+        let q = self.quantum;
+        let (mut done, mut sleep) = (0u64, false);
+        // (core, instructions of its quantum already run, a stop that ended the batch there)
+        let mut cut: Option<(usize, u64, Option<Stop>)> = None;
+        self.bus.set_defer(true);
+        'batch: while done < k {
+            // EX177: preserve the indexed form used by the measured artifact (see
+            // docs/evidence/perf-x4-2026-09-22/codegen/default128-comparison.json).
+            #[allow(clippy::needless_range_loop)]
+            for i in 0..S::CORES {
+                if !on[i] { continue; }
+                let mut left = q as u32;
+                while left > 0 {
+                    let (used, stop) = self.step_blocks(i, left);
+                    left -= used.min(left);
+                    if stop.is_some() { cut = Some((i, q - u64::from(left), stop)); break 'batch; }
+                    if self.bus.take_deferred() { self.bb_stats[2] += 1; cut = Some((i, q - u64::from(left), None)); break 'batch; }
+                    // Defensive for future buses: a reset is a deferred device-register write today, but
+                    // the ordinary path ends the round at that instruction, so end the batch too.
+                    if self.bus.sw_reset() { cut = Some((i, q - u64::from(left), Some(Stop::SwReset))); break 'batch; }
+                }
+                if i == 0 { *n += q; self.run_steps += q; }
+                sleep |= self.cores[i].waiting();
+            }
+            done += 1;
+            if sleep { self.bb_stats[3] += 1; break; }
+        }
+        self.bus.set_defer(false);
+        self.bb_stats[1] += done;
+        self.bb_stats[4] += u64::from(done == k);
+        let Some((core, at, stop)) = cut else {
+            if done > 0 {
+                self.after_round(done * q);
+                if self.bus.sw_reset() { self.drain_console(); return Err(Stop::SwReset); }
+                if self.bus.cycles() >= self.max_cycles { self.drain_console(); return Err(Stop::Halted); }
+                if *n & 0xffff < q { self.drain_console(); }
+            }
+            return Ok(None);
+        };
+        // A cut leaves `done < k`, so none of the folded boundaries can be the one the bound
+        // allowed work at: the fold only moves device time forward for the unfinished round.
+        if done > 0 { self.after_round(done * q); }
+        // Core 0's part of the unfinished round is its scheduling budget either way: the ordinary
+        // path charges only the budget it is given, and a stop charges what it ran.
+        if core == 0 { self.run_steps += at; }
+        match stop {
+            // the bus reset; charge the unfinished round's cycles as its own path would
+            Some(Stop::SwReset) => Err(self.finish_reset(if core > 0 { q } else { at })),
+            Some(s) => { self.drain_console(); Err(s) }
+            None => Ok(Some((core, at))),
+        }
     }
 
     /// Positive idle advance bounded by device work, enabled cores' wakeups and host actions.
@@ -849,11 +972,27 @@ impl<S: Soc> Machine<S> {
         let stopped = self.apply_script_events();
         // EX170: the cached interval filters the common not-yet-due round without the board call and
         // division; a due round re-derives it from the board before deciding, as before.
-        if self.web.is_some() && self.bus.cycles().wrapping_sub(self.ws.last_push_cycles) >= self.ws.push_interval {
-            self.ws.push_interval = (S::CPU_HZ / self.bus.board_ref().display_push_hz().max(1)).max(1);
-            if self.bus.cycles().wrapping_sub(self.ws.last_push_cycles) >= self.ws.push_interval { self.ws.last_push_cycles = self.bus.cycles(); self.web_push(); self.web_poll_input(); }
-        }
-        if self.rt.enabled && self.bus.cycles().wrapping_sub(self.rt.last_check) >= 1 << 16 {
+        // EX168 s4: the per-round test is two loads and a compare; the re-derivation, the push and the
+        // pacing clock live out of line.
+        if self.web.is_some() && self.bus.cycles().wrapping_sub(self.ws.last_push_cycles) >= self.ws.push_interval { self.web_push_due(); }
+        if self.rt.enabled && self.bus.cycles().wrapping_sub(self.rt.last_check) >= 1 << 16 { self.rt_pace(); }
+        stopped
+    }
+
+    /// EX168 s4: the due branch of the display push, out of line (EX170 semantics: re-derive the
+    /// interval from the board, then decide).
+    #[cold]
+    #[inline(never)]
+    fn web_push_due(&mut self) {
+        self.ws.push_interval = (S::CPU_HZ / self.bus.board_ref().display_push_hz().max(1)).max(1);
+        if self.bus.cycles().wrapping_sub(self.ws.last_push_cycles) >= self.ws.push_interval { self.ws.last_push_cycles = self.bus.cycles(); self.web_push(); self.web_poll_input(); }
+    }
+
+    /// EX168 s4: the real-time pacing clock, out of line.
+    #[cold]
+    #[inline(never)]
+    fn rt_pace(&mut self) {
+        {
             self.rt.last_check = self.bus.cycles();
             let start = *self.rt.wall_start.get_or_insert_with(std::time::Instant::now);
             let emulated = std::time::Duration::from_secs_f64(self.bus.cycles() as f64 / S::CPU_HZ as f64);
@@ -875,7 +1014,6 @@ impl<S: Soc> Machine<S> {
                 if wall > emulated + std::time::Duration::from_millis(500) { self.rt.resyncs += 1; self.rt.wall_start = Some(std::time::Instant::now() - emulated); }
             } else { self.rt.behind = 0.0; }
         }
-        stopped
     }
 
     /// One encoder detent as (pin, level) edges, 2 ms apart. Idle is (1,1); CW: CLK falls while

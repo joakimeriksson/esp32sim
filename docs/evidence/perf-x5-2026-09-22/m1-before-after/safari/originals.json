@@ -1,0 +1,455 @@
+{
+  "retention": "Original captures remain in private persistent task storage; hashes identify originals without publishing their paths or contents.",
+  "files": [
+    {
+      "path": "safari/warmup-pocket/summary.json",
+      "sha256": "c288b2e2a949ce6321bf860c03bb55c4d8c3b04cfb0f73b761facf4a7f76b227",
+      "bytes": 4478
+    },
+    {
+      "path": "safari/warmup-pocket/1-baseline/result.json",
+      "sha256": "f661c74ff93e449251da829acc1d3da731d2773c8d1bf992fe7e8793de152cd8",
+      "bytes": 2869
+    },
+    {
+      "path": "safari/warmup-pocket/1-baseline/capture.json",
+      "sha256": "8b112b328c83f02486d83fc34da1792d3ac046a66d2961fad1deaf1d969bfe68",
+      "bytes": 541
+    },
+    {
+      "path": "safari/warmup-pocket/1-baseline/events.json",
+      "sha256": "762a137e5c0bd9ec6642f5a15c3e97ac1c904ec9ac24ad229cf497273674d283",
+      "bytes": 39978
+    },
+    {
+      "path": "safari/warmup-pocket/1-candidate/result.json",
+      "sha256": "0866c9937e8d7aa1c669949571da661d9f105bd037711a4d948123617dc6b006",
+      "bytes": 2880
+    },
+    {
+      "path": "safari/warmup-pocket/1-candidate/capture.json",
+      "sha256": "747663f72ab4b41a6a4954be1e48d4bb708dfaa663220d654fe6851afe8cd8aa",
+      "bytes": 543
+    },
+    {
+      "path": "safari/warmup-pocket/1-candidate/events.json",
+      "sha256": "a1ec91c31a84b3286c85deb337cf07c97be258531eb2f5be9232d19b86c36723",
+      "bytes": 34322
+    },
+    {
+      "path": "safari/control-pocket/summary.json",
+      "sha256": "7292fc736373ffca4c4cfa3ad4158ed09ea7c94ac76c07494abaccd1ecdb4d22",
+      "bytes": 8742
+    },
+    {
+      "path": "safari/control-pocket/1-baseline/result.json",
+      "sha256": "19ee53063a42fc8ced0ff5b586536c73406afd86ea4af2fb9d012ed94c801049",
+      "bytes": 2868
+    },
+    {
+      "path": "safari/control-pocket/1-baseline/capture.json",
+      "sha256": "64c0562ea6107ced81e827ecf4b6083f4e07b99a5c57d482fc7c59147a6f53ff",
+      "bytes": 544
+    },
+    {
+      "path": "safari/control-pocket/1-baseline/events.json",
+      "sha256": "be9a7e13ed6d6f6c3472ade7a8584ce9dee7afb9f21e98f2e4274bfe660a75be",
+      "bytes": 39934
+    },
+    {
+      "path": "safari/control-pocket/1-candidate/result.json",
+      "sha256": "3857b89ce46a3bf7ce5e394b8bd7cc9e2a0bfebd462195b920e0168fd4525c3e",
+      "bytes": 2857
+    },
+    {
+      "path": "safari/control-pocket/1-candidate/capture.json",
+      "sha256": "78ca2606f8e44f1a23e4fd94ca38e81a60c02d6faf0fa50a8f0c7025016c274b",
+      "bytes": 546
+    },
+    {
+      "path": "safari/control-pocket/1-candidate/events.json",
+      "sha256": "e8f06dd7a454bf3b45cc0f05b161c09dd3d3b939f2e5004605ca8e76c4e920e4",
+      "bytes": 38865
+    },
+    {
+      "path": "safari/control-pocket/2-candidate/result.json",
+      "sha256": "b342753fbf68054b2c06efe48b493318b1c451fcfb0c0bdfc18958c148fe71a1",
+      "bytes": 2857
+    },
+    {
+      "path": "safari/control-pocket/2-candidate/capture.json",
+      "sha256": "74a14491f30f9b0b5443e55d537e69bcf0a0a67a9738777ef096de0b95aec241",
+      "bytes": 546
+    },
+    {
+      "path": "safari/control-pocket/2-candidate/events.json",
+      "sha256": "b7a1089f84bad1f200290657a0837727939ea3613d49d56410097050224ab4c7",
+      "bytes": 38974
+    },
+    {
+      "path": "safari/control-pocket/2-baseline/result.json",
+      "sha256": "ac38d73c14e000d426e3020ea0c0f2d00b5fbf003406fe46cdf76f79415bb64a",
+      "bytes": 2856
+    },
+    {
+      "path": "safari/control-pocket/2-baseline/capture.json",
+      "sha256": "6faa1adac1f4c6367516253eb5ad69d65cdf9a57fcd9ddbb724fe9589f5f3360",
+      "bytes": 547
+    },
+    {
+      "path": "safari/control-pocket/2-baseline/events.json",
+      "sha256": "7dfdbfb039f091bff68b742e2d01e25423ee8ad6b03e02a48ec44d9afb972134",
+      "bytes": 39095
+    },
+    {
+      "path": "safari/before-after-pocket/summary.json",
+      "sha256": "2b6f52e03eda6f136c47ddb3eb6b597303514a35466e11333e12002248d20b70",
+      "bytes": 17309
+    },
+    {
+      "path": "safari/before-after-pocket/1-baseline/result.json",
+      "sha256": "6932863210da13d50d1ac92b48f3a62cb7194cb249312ab29571b50bd981e3f8",
+      "bytes": 2858
+    },
+    {
+      "path": "safari/before-after-pocket/1-baseline/capture.json",
+      "sha256": "ef6b4aea9a5e668348fe6af2bd08289749c149a781c3695791214d7bedb238ab",
+      "bytes": 546
+    },
+    {
+      "path": "safari/before-after-pocket/1-baseline/events.json",
+      "sha256": "3756568d1d4625f406ee1ec9365a2a17c9e7f4b612e44465c41827bc24a1ae37",
+      "bytes": 39024
+    },
+    {
+      "path": "safari/before-after-pocket/1-candidate/result.json",
+      "sha256": "359159c1a6087b14a7240dca958b393bb3a1003cd3661b5320cd0548ae513b01",
+      "bytes": 2879
+    },
+    {
+      "path": "safari/before-after-pocket/1-candidate/capture.json",
+      "sha256": "2b9fef10146a008c8c279b8598926637993fec07c33577823c0d264265a2f07a",
+      "bytes": 543
+    },
+    {
+      "path": "safari/before-after-pocket/1-candidate/events.json",
+      "sha256": "3b02ddcedd3b483307b4cc174d57b623b0f63d1232c506a5bc4365bfe4a64671",
+      "bytes": 34509
+    },
+    {
+      "path": "safari/before-after-pocket/2-candidate/result.json",
+      "sha256": "da39a223c02cbc6a14ea5156e30eeb6f5f675f8d122932a46df44d289d1994c8",
+      "bytes": 2870
+    },
+    {
+      "path": "safari/before-after-pocket/2-candidate/capture.json",
+      "sha256": "1b4f1bee3b96da4bda8d0ac3b47ba246814d57febaec03d4447ddbc6d88f9206",
+      "bytes": 539
+    },
+    {
+      "path": "safari/before-after-pocket/2-candidate/events.json",
+      "sha256": "68de09acf7b543daa21704cc996d90d277e1af82d71ef41e750535578049316e",
+      "bytes": 33607
+    },
+    {
+      "path": "safari/before-after-pocket/2-baseline/result.json",
+      "sha256": "5c731c35ac24b00870ae3c0a6e141d15db889ec10571176642e02c9a38279bf2",
+      "bytes": 2869
+    },
+    {
+      "path": "safari/before-after-pocket/2-baseline/capture.json",
+      "sha256": "57169d6c1ef57550cc9278ccd378f415b5dc314c38ad171071bb90f3597dcb98",
+      "bytes": 542
+    },
+    {
+      "path": "safari/before-after-pocket/2-baseline/events.json",
+      "sha256": "b496b447d206cea57dcf5e233248f47a9d42b3c5aa9ecb10eba57072a95bbaf1",
+      "bytes": 39034
+    },
+    {
+      "path": "safari/before-after-pocket/3-baseline/result.json",
+      "sha256": "95479f314f83ebd6e3511ed86f136322d8acbd88bcea0adce969399e2d1e66c5",
+      "bytes": 2857
+    },
+    {
+      "path": "safari/before-after-pocket/3-baseline/capture.json",
+      "sha256": "3ba783acafa5365e45d45d1d8b171c0fe21c8ea303186fc847f286b5240e67a7",
+      "bytes": 550
+    },
+    {
+      "path": "safari/before-after-pocket/3-baseline/events.json",
+      "sha256": "efce771c1d8050ae85927016a1621833227170afad0f8c6740c21a5ab389acee",
+      "bytes": 38930
+    },
+    {
+      "path": "safari/before-after-pocket/3-candidate/result.json",
+      "sha256": "f9942378da42a25ec58afafff23c026ae2175446fdbedabeef528b4d1013bc0a",
+      "bytes": 2870
+    },
+    {
+      "path": "safari/before-after-pocket/3-candidate/capture.json",
+      "sha256": "da034693ae69a094e9b2fed62517fad194370e2b682bf66b7915dc9eb7d2adc1",
+      "bytes": 549
+    },
+    {
+      "path": "safari/before-after-pocket/3-candidate/events.json",
+      "sha256": "0293e3255be29a3329e8e18e3b7efe09a10cd7dd7ea5d64f18ce01e2c7d22570",
+      "bytes": 33559
+    },
+    {
+      "path": "safari/before-after-pocket/4-candidate/result.json",
+      "sha256": "483594747a929513c23179e60e00a0a63c9de0b86f5fa79b9608272fc187fab4",
+      "bytes": 2858
+    },
+    {
+      "path": "safari/before-after-pocket/4-candidate/capture.json",
+      "sha256": "e338c4a7ba017cb656db1663a814c3c65504e03e707e3fd5bce64f6a9c765788",
+      "bytes": 544
+    },
+    {
+      "path": "safari/before-after-pocket/4-candidate/events.json",
+      "sha256": "12dedb019c8caf245b46755511c2ef630d7449316f42f13b169ae31481022964",
+      "bytes": 33581
+    },
+    {
+      "path": "safari/before-after-pocket/4-baseline/result.json",
+      "sha256": "1f14fece9306f44aecd1e27827f6d18c2415e14b710a64517c913d054bca3c7a",
+      "bytes": 2857
+    },
+    {
+      "path": "safari/before-after-pocket/4-baseline/capture.json",
+      "sha256": "e5b7406d38c999dca78b5819044fefcdd99f84b420c04984b7477d15a919c341",
+      "bytes": 544
+    },
+    {
+      "path": "safari/before-after-pocket/4-baseline/events.json",
+      "sha256": "94fcbf46f9e4d8e2d230ed295596176a8a167b0134a2ccee43de57a78a8c19e6",
+      "bytes": 39093
+    },
+    {
+      "path": "safari/warmup-tinydraw/summary.json",
+      "sha256": "79fdb89f98bd52aa8e6b37823f94bebf144f6968a7c91f726be97a24dad71108",
+      "bytes": 4443
+    },
+    {
+      "path": "safari/warmup-tinydraw/1-baseline/result.json",
+      "sha256": "090c52b65c54774c8f29cb8af872316eda4affcaaae170f9c2e34c41c588d7fa",
+      "bytes": 3227
+    },
+    {
+      "path": "safari/warmup-tinydraw/1-baseline/capture.json",
+      "sha256": "7d1908e2baa064d23f56c0c79b5825029e1f9fcf01afcf6d798e124005ee02de",
+      "bytes": 549
+    },
+    {
+      "path": "safari/warmup-tinydraw/1-baseline/events.json",
+      "sha256": "2a21731c5ad1c7e63fb05dce15f9023f89f21ea6cabecbec4072e60979d6cd7d",
+      "bytes": 120406
+    },
+    {
+      "path": "safari/warmup-tinydraw/1-candidate/result.json",
+      "sha256": "b4dbc83ac19cadc16bcb342b365e8eb92119e6f93bb24a6dd1ce742f43d6848c",
+      "bytes": 3226
+    },
+    {
+      "path": "safari/warmup-tinydraw/1-candidate/capture.json",
+      "sha256": "78c264c1feeaf7f5c29c3300565dba8292e9b17137bc29367f0f37d552cb4316",
+      "bytes": 550
+    },
+    {
+      "path": "safari/warmup-tinydraw/1-candidate/events.json",
+      "sha256": "5477d4bb27ebec0d58322722f88dca1eabc08119ba1a023a32a0434cc84c7e1a",
+      "bytes": 118081
+    },
+    {
+      "path": "safari/control-tinydraw/summary.json",
+      "sha256": "4e3c347c23b7d9ffd54e25be9806da2041a6be441387e93784421e7d1c451ab8",
+      "bytes": 8723
+    },
+    {
+      "path": "safari/control-tinydraw/1-baseline/result.json",
+      "sha256": "cc2efabb01d6e6b7f414967d21d10374a8b87b37a21658187888f16d50a87917",
+      "bytes": 3250
+    },
+    {
+      "path": "safari/control-tinydraw/1-baseline/capture.json",
+      "sha256": "e3f374e8dd1e520dd22c83416202ebcd9aaded0dc87b7cc820840b7558499b53",
+      "bytes": 550
+    },
+    {
+      "path": "safari/control-tinydraw/1-baseline/events.json",
+      "sha256": "b60cd8e577a740f81ab2453570e4ebd039ece5dbd60c33973b09becd3dfabdf2",
+      "bytes": 119600
+    },
+    {
+      "path": "safari/control-tinydraw/1-candidate/result.json",
+      "sha256": "54dbf83ca5abd35a8a4a4acf030a69a9701d271874db90e771803c7caaad8ef7",
+      "bytes": 3228
+    },
+    {
+      "path": "safari/control-tinydraw/1-candidate/capture.json",
+      "sha256": "a75fa16ef35a9164d00c9909aed9c99423ea9238f8e094286b525f59c3b7ab07",
+      "bytes": 549
+    },
+    {
+      "path": "safari/control-tinydraw/1-candidate/events.json",
+      "sha256": "4edf6691eb005da6c90aaa9543dfed1a4f54c6e0e69c9b728107e9ea92812d6b",
+      "bytes": 120256
+    },
+    {
+      "path": "safari/control-tinydraw/2-candidate/result.json",
+      "sha256": "f0179fdd353e418b54689de0606f901860b9612430fda349a6487b0366b9c076",
+      "bytes": 3239
+    },
+    {
+      "path": "safari/control-tinydraw/2-candidate/capture.json",
+      "sha256": "adb1b2ce4ec0d0509ac34a8e61aad4f7266a9b758fa15d5518316cc6f6a4f583",
+      "bytes": 546
+    },
+    {
+      "path": "safari/control-tinydraw/2-candidate/events.json",
+      "sha256": "c1b6dfd75215dc073d9acf410c68968630ab52b2f8f83ad6a3394c4f02981c22",
+      "bytes": 121133
+    },
+    {
+      "path": "safari/control-tinydraw/2-baseline/result.json",
+      "sha256": "6bf76cfee6099c9ee40a74dd9902b7484aabe2d6ea9494d30e72fa312703ae6a",
+      "bytes": 3248
+    },
+    {
+      "path": "safari/control-tinydraw/2-baseline/capture.json",
+      "sha256": "d9cc30c4ee6eb252847ea348c397e4efd2177f460acdc89a92cf6696b8915127",
+      "bytes": 543
+    },
+    {
+      "path": "safari/control-tinydraw/2-baseline/events.json",
+      "sha256": "cf68b52346de2094240cb4e93f90f3b062676817df81f645643a6ebfc1e0c0aa",
+      "bytes": 121320
+    },
+    {
+      "path": "safari/before-after-tinydraw/summary.json",
+      "sha256": "d246f6f122a1fe519a9a539c48e50da27a410a67fedab6c9b454d9b16497ec19",
+      "bytes": 17273
+    },
+    {
+      "path": "safari/before-after-tinydraw/1-baseline/result.json",
+      "sha256": "d633798d5e13ce22f492580d7396d02c3de688affbdc79f2bda326962f6a90ac",
+      "bytes": 3227
+    },
+    {
+      "path": "safari/before-after-tinydraw/1-baseline/capture.json",
+      "sha256": "8f58511b9ff850ad261633d1d526b596fb26c3a6eba84905946835d573295d7d",
+      "bytes": 544
+    },
+    {
+      "path": "safari/before-after-tinydraw/1-baseline/events.json",
+      "sha256": "989023f159a6b949516e68665f82f71f670dc6df58d9e6b629d22a9e3c18d0e1",
+      "bytes": 122979
+    },
+    {
+      "path": "safari/before-after-tinydraw/1-candidate/result.json",
+      "sha256": "e77c156d5ad64437bced0eb6c0bb9189ba9052b8d18fe0d303c177e51eb888c4",
+      "bytes": 3250
+    },
+    {
+      "path": "safari/before-after-tinydraw/1-candidate/capture.json",
+      "sha256": "f60edb446c5b4c39e66fe2403045940ef19ec537306e98c54cff9c7c8dd5124b",
+      "bytes": 544
+    },
+    {
+      "path": "safari/before-after-tinydraw/1-candidate/events.json",
+      "sha256": "b00e8e93942eedb723c65caf1bdb9e8ea2b2370f1fd88be3b166ad6354ed9839",
+      "bytes": 117944
+    },
+    {
+      "path": "safari/before-after-tinydraw/2-candidate/result.json",
+      "sha256": "57ec9a76f09943ecdc6eb4aa450239c3a0839512605922875bd0b6f61d1f6340",
+      "bytes": 3227
+    },
+    {
+      "path": "safari/before-after-tinydraw/2-candidate/capture.json",
+      "sha256": "54ac5b6ceb7f181c61fe5b24fc0965aa8f21bcc8c8a350df389e13a82968380b",
+      "bytes": 544
+    },
+    {
+      "path": "safari/before-after-tinydraw/2-candidate/events.json",
+      "sha256": "16f31c842f7b5d3342bc2747abcb033b4a8b4fe4b51af135b3425e5851265170",
+      "bytes": 118434
+    },
+    {
+      "path": "safari/before-after-tinydraw/2-baseline/result.json",
+      "sha256": "6a08aaefeecc11fe3bbaa4f182d4a04bd64019af0fe1123206c5f8f53d0bc64d",
+      "bytes": 3240
+    },
+    {
+      "path": "safari/before-after-tinydraw/2-baseline/capture.json",
+      "sha256": "db4a978bd8183cc5d82758186931c43214e29102f993db1a9345dbb84ea07d94",
+      "bytes": 546
+    },
+    {
+      "path": "safari/before-after-tinydraw/2-baseline/events.json",
+      "sha256": "e189ac4440283bd6b10ccc2cbf56c89d6c8e90da107575d41ce66c5324867eae",
+      "bytes": 119923
+    },
+    {
+      "path": "safari/before-after-tinydraw/3-baseline/result.json",
+      "sha256": "3faf2ea715bd2dd598ad25225ee7ed407466d783f28ee0a131ac215416229848",
+      "bytes": 3228
+    },
+    {
+      "path": "safari/before-after-tinydraw/3-baseline/capture.json",
+      "sha256": "d682046005ac17b1d48c91db3aa668311156c686b495fac2e869a9af55fec2e2",
+      "bytes": 544
+    },
+    {
+      "path": "safari/before-after-tinydraw/3-baseline/events.json",
+      "sha256": "b758717848f60082bcaaad73266717fa759c56c311369889bac9789102e3a0f0",
+      "bytes": 120534
+    },
+    {
+      "path": "safari/before-after-tinydraw/3-candidate/result.json",
+      "sha256": "eb711e8577b060d804229a6d5640b2e482fd8472c42951acaf747378ef974e1f",
+      "bytes": 3237
+    },
+    {
+      "path": "safari/before-after-tinydraw/3-candidate/capture.json",
+      "sha256": "24ca704e6e927a62bbe3cf3fb523b73cb01b104ca45a271d3850ccb115643db8",
+      "bytes": 544
+    },
+    {
+      "path": "safari/before-after-tinydraw/3-candidate/events.json",
+      "sha256": "59ecfdd85886f59caf60b814b27936a260b651cb9c3f8798b18d4ab22a91bf09",
+      "bytes": 118237
+    },
+    {
+      "path": "safari/before-after-tinydraw/4-candidate/result.json",
+      "sha256": "a2a26c1f63b2d61c8aaf604b75508bdc54f02e4ba1b4b8245e65f2615148fd48",
+      "bytes": 3239
+    },
+    {
+      "path": "safari/before-after-tinydraw/4-candidate/capture.json",
+      "sha256": "c1f5abd9a5608687c9fd8f408e5f6dff57fb2f5d34d2c688c109ee0fad2e6115",
+      "bytes": 546
+    },
+    {
+      "path": "safari/before-after-tinydraw/4-candidate/events.json",
+      "sha256": "3f95e08c7ae74b75f4f232480d28150dd74afd08cca11c0f4b80f0e20adf6ecb",
+      "bytes": 118039
+    },
+    {
+      "path": "safari/before-after-tinydraw/4-baseline/result.json",
+      "sha256": "10fa075ce6b565f1424c9602523018dba7d20436b6fbbcd272ca8800805edc68",
+      "bytes": 3237
+    },
+    {
+      "path": "safari/before-after-tinydraw/4-baseline/capture.json",
+      "sha256": "e7e9a7c9ab84a601f5e168e2ee1d2a55a3371eb4494a988fc0d57e53ca0ffec5",
+      "bytes": 541
+    },
+    {
+      "path": "safari/before-after-tinydraw/4-baseline/events.json",
+      "sha256": "41a598e56ee9c6918b39e6b685b123881f8ddb427a13108dd31b8e465efff1f9",
+      "bytes": 120335
+    }
+  ]
+}

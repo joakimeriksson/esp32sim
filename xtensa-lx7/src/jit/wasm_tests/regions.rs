@@ -66,6 +66,31 @@ fn region_program_on(name: &str, program: &[u8], expected: &[(u32, Op, u32)], da
 pub(super) fn regions() -> u32 {
     use Op::*;
     let mut cases = 0;
+    // A PS-writing leaf exits the region so interrupt/window proofs are rebuilt.
+    // Count only region lowerings: hot standalone blocks cannot satisfy this check.
+    for (op, word) in [(Rsil, 0x006030u32), (Wsr, 0x130000 | (crate::state::sr::PS << 8) | 0x30),
+        (Xsr, 0x610000 | (crate::state::sr::PS << 8) | 0x30)] {
+        let mut p = asm::addi_n(2, 2, 1);
+        p.extend(asm::bz(1, BASE + 2, 2, BASE + 8));
+        p.extend(asm::j(BASE + 5, BASE + 11));
+        p.extend([word as u8, (word >> 8) as u8, (word >> 16) as u8]);
+        p.extend(asm::movi_n(2, 0));
+        p.extend(asm::j(BASE + 13, BASE));
+        for flags in [0, ps::WOE] {
+            let before = PS_REGION_TAKEN.load(std::sync::atomic::Ordering::Relaxed);
+            region_program("PS-terminal-leaf", &p,
+                &[(0, AddiN, 0), (2, Bnez, 8), (5, J, 11), (8, op, 0), (11, MoviN, 0), (13, J, 0)],
+                &[], 2, 8, |c| {
+                    c.ps = flags;
+                    c.windowstart = 1 << c.windowbase;
+                    c.set_ar(2, 0);
+                    c.set_ar(3, flags);
+                }, 600);
+            assert!(PS_REGION_TAKEN.load(std::sync::atomic::Ordering::Relaxed) > before,
+                "{op:?} PS={flags:x} must execute inline inside a region");
+            cases += 1;
+        }
+    }
     // Forty non-contiguous chunks exercise a large br_table and five version pages.
     // Enter every chunk with both short credit and hundreds of instructions of credit.
     let mut large = vec![0; 40 * 32];
@@ -270,11 +295,11 @@ pub(super) fn regions() -> u32 {
         let formed = emitter::region::form(&c, &mut ram, BASE, &head, true).expect("hwloop region");
         assert_eq!(formed.loops, vec![(BASE + 17, BASE + 7)]);
         assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(),
-            vec![(0, 3), (7, 2), (17, 1), (15, 1), (13, 2)]);
+            vec![(0, 3), (7, 2), (17, 1), (13, 2), (15, 1)]);
         cases += 1;
     }
     // Calls and returns end chunks and leave; a function entry heads a region whose
-    // window proof is redone after ENTRY; RETW.N runs through the terminal helper.
+    // window proof is redone after ENTRY; RETW.N uses its guarded inline path.
     let mut p = Vec::new();
     p.extend(asm::call8(BASE, BASE + 12));          // 0  call8 F
     p.extend(asm::addi_n(2, 2, 1));                 // 3  (return address)
@@ -304,7 +329,7 @@ pub(super) fn regions() -> u32 {
         let head: Vec<BlockInsn> = (0..4).scan(BASE + 12, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, straddle: false, off: 0 }) }).collect();
         let formed = emitter::region::form(&c, &mut ram, BASE + 12, &head, true).expect("entry region");
         assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(),
-            vec![(12, 4), (24, 2), (22, 1)]);
+            vec![(12, 4), (22, 1), (24, 2)]);
         assert!(emitter::region::form(&c, &mut ram, BASE, &head[..1], true).is_none(), "a lone call is not a region");
         cases += 1;
     }
@@ -479,6 +504,129 @@ pub(super) fn regions() -> u32 {
         assert!(!whole || max >= 20, "{label}: region retired at most {max} per call");
         cases += 1;
     }
+    // EX178: the reset and final accumulate share a chunk ending at LEND.
+    // The conditional backedge's spill must not suppress the fall-through spill.
+    let mut held = Vec::new();
+    held.extend(asm::movi_n(10, 3));
+    held.extend(asm::lp(9, BASE + 2, 10, BASE + 12));
+    held.extend(asm::pie("ee.zero.accx", &[]));
+    held.extend(asm::pie("ee.vmulas.s8.accx.ld.ip", &[(Qu, 0), (As, 8), (Imm, 16), (Qx, 0), (Qy, 0)]));
+    held.extend(asm::rur(11, 0));
+    held.extend(asm::mov_n(8, 12));
+    held.extend(asm::j(BASE + 17, BASE));
+    let expected = [(0, MoviN, 0), (2, Loopnez, 12), (5, Pie, 0), (8, Pie, 0), (12, Rur, 0), (15, MovN, 0), (17, J, 0)];
+    let max = region_program("held-accx-lend", &held, &expected, &mixed, 2, 5, |c| {
+        c.cpenable = 8;
+        c.set_ar(8, BASE + 0x1000); c.set_ar(12, BASE + 0x1000);
+    }, 600);
+    assert!(max > 2, "held ACCX loop never passed its head");
+    cases += 1;
+    // Enter the compiled body directly to exercise each false backedge predicate:
+    // exhausted LCOUNT and an unrelated active loop with a different LEND.
+    {
+        let mut ram = Ram::new(true, false);
+        ram.ram.mem[..held.len()].copy_from_slice(&held);
+        let head: Vec<BlockInsn> = (0..2).scan(BASE, |pc, _| {
+            let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap());
+            *pc += i.len as u32;
+            Some(BlockInsn { insn: i, max_ar: crate::exec::max_ar(&i), straddle: false, off: 0 })
+        }).collect();
+        let formed = emitter::region::form(&cpu(0), &mut ram, BASE, &head, true).expect("held ACCX region");
+        let entry = formed.chunks.iter().position(|c| c.pc == BASE + 5).expect("held ACCX body") as u32;
+        let (bytes, _) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, true);
+        let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
+        assert_ne!(slot, 0);
+        type Run = extern "C" fn(*mut Cpu, *mut Ram, *const Helpers, u32, u32, *const TlbEntry, *mut u32) -> u32;
+        let f: Run = unsafe { std::mem::transmute(slot as usize) };
+        for (lend, lcount) in [(BASE + 12, 0), (BASE + 100, 2)] {
+            let (mut a, mut b) = (cpu(3), cpu(3));
+            let (mut ra, mut rb) = (Ram::new(true, false), Ram::new(true, false));
+            for r in [&mut ra, &mut rb] {
+                r.ram.mem[..held.len()].copy_from_slice(&held);
+                r.ram.mem[0x1000..0x1100].copy_from_slice(&mixed);
+            }
+            for c in [&mut a, &mut b] {
+                c.pc = BASE + 5; c.ps = 0; c.cpenable = 8;
+                c.lbeg = BASE + 5; c.lend = lend; c.lcount = lcount;
+                c.accx = [123456, 0];
+                c.set_ar(8, BASE + 0x1000);
+            }
+            CONTEXT.with(|c| *c.borrow_mut() = format!("held ACCX exit lend {lend:x} lcount {lcount}"));
+            let fm = rb.fast_mem().unwrap();
+            let result = f(&mut b, &mut rb, &Helpers::new::<Ram>(), 2, entry, fm.tlb, fm.page_ver);
+            assert_eq!(result & 0xffff, 2, "held ACCX body must execute");
+            for _ in 0..2 {
+                let i = crate::decode::decode(a.pc, ra.fetch(a.pc).unwrap());
+                exec_insn(&mut a, &mut ra, &i).unwrap();
+            }
+            same(&a, &b);
+            assert_eq!(ra.ram.mem, rb.ram.mem);
+            cases += 1;
+        }
+        unsafe { host_jit_release(slot) };
+    }
+    // EX178: pocket-tank's q4 matmul group, the shape that lets the emitter hold ACCX in a
+    // local: `ee.zero.accx` dominating a straight-line run of accumulates in one chunk, a
+    // 128-bit store and an `ee.vld.128.ip` inside the run (neither reads the accumulator),
+    // the s16 accumulate with its larger per-step bound, and the `rur.accx_0` that ends the
+    // run by forcing the spill. Variants drive an exit from every position of the run: a
+    // load fault, a slow-window miss that re-executes in the interpreter, a read-only
+    // mapping, a store into the region's own code page (DIRTY), and CP3 disabled.
+    // `a7` counts iterations into lane 0 of Q0, an accumulate operand, so every pass
+    // produces a different ACCX: a run that wrongly kept the local across `rur.accx_0`,
+    // a chunk edge or a miss would read the previous pass's value and be caught.
+    // Twenty-seven NOPs put instruction 32 (the chunk length limit) in the middle of the
+    // run, so the region's internal edge cuts it and the held accumulator has to be
+    // written back on an edge that does not leave.
+    let mut q4 = Vec::new();
+    q4.extend(asm::addi_n(7, 7, 1));                                                                   // 0
+    for _ in 0..27 { q4.extend(asm::nop_n()); }                                                        // 2..56
+    q4.extend(asm::pie("ee.movi.32.q", &[(Qu, 0), (As, 7), (Sel, 0)]));                                // 56
+    q4.extend(asm::pie("ee.zero.accx", &[]));                                                          // 59
+    q4.extend(asm::pie("ee.vld.128.ip", &[(Qu, 4), (As, 8), (Imm, 16)]));                              // 62
+    q4.extend(asm::pie("ee.vmulas.s8.accx.ld.ip", &[(Qu, 5), (As, 8), (Imm, 16), (Qx, 0), (Qy, 4)]));  // 65
+    q4.extend(asm::pie("ee.vmulas.s8.accx.ld.ip", &[(Qu, 4), (As, 8), (Imm, 16), (Qx, 1), (Qy, 5)]));  // 69 chunk 1 head
+    q4.extend(asm::pie("ee.vld.128.ip", &[(Qu, 7), (As, 8), (Imm, 16)]));                              // 73
+    q4.extend(asm::pie("ee.vmulas.s8.accx.ld.ip", &[(Qu, 5), (As, 8), (Imm, 16), (Qx, 2), (Qy, 7)]));  // 76
+    q4.extend(asm::pie("ee.vmulas.s8.accx", &[(Qx, 2), (Qy, 4)]));                                     // 80
+    q4.extend(asm::pie("ee.vst.128.ip", &[(Qv, 3), (As, 10), (Imm, 16)]));                             // 83
+    q4.extend(asm::pie("ee.vmulas.s16.accx", &[(Qx, 0), (Qy, 4)]));                                    // 86
+    q4.extend(asm::rur(11, 0));                                                                        // 89 rur.accx_0 a11
+    q4.extend(asm::pie("ee.zero.accx", &[]));                                                          // 92
+    q4.extend(asm::pie("ee.vmulas.s16.accx.ld.ip", &[(Qu, 6), (As, 9), (Imm, 16), (Qx, 0), (Qy, 1)])); // 95
+    q4.extend(asm::rur(15, 1));                                                                        // 99 rur.accx_1 a15
+    q4.extend(asm::mov_n(8, 12));                                                                      // 102
+    q4.extend(asm::mov_n(9, 13));                                                                      // 104
+    q4.extend(asm::mov_n(10, 14));                                                                     // 106
+    q4.extend(asm::j(BASE + 108, BASE));                                                               // 108
+    let group = [(0, AddiN, 0), (56, Pie, 0), (59, Pie, 0), (62, Pie, 0), (65, Pie, 0), (69, Pie, 0), (73, Pie, 0),
+                 (76, Pie, 0), (80, Pie, 0), (83, Pie, 0), (86, Pie, 0), (89, Rur, 0), (92, Pie, 0), (95, Pie, 0),
+                 (99, Rur, 0), (102, MovN, 0), (108, J, 0)];
+    for (label, cp3, data, src, dst, readonly, turns, whole) in [
+        ("q4", 8, &mixed, BASE + 0x1000, BASE + 0x2000, false, 600, true),
+        ("q4-extreme", 8, &positive, BASE + 0x1000, BASE + 0x2000, false, 600, true),
+        ("q4-cp3-off", 0, &mixed, BASE + 0x1000, BASE + 0x2000, false, 40, false),
+        ("q4-readonly", 8, &mixed, BASE + 0x1000, BASE + 0x2000, true, 300, false),
+        // The coalesced range leaves the mapping: the shared probe fails and the
+        // per-access copy must fault on exactly the access that leaves it.
+        ("q4-off-end", 8, &mixed, BASE + 65536 - 48, BASE + 0x2000, false, 40, false),
+        ("q4-off-end2", 8, &mixed, BASE + 65536 - 64, BASE + 0x2000, false, 40, false),
+        // The base is not 16-aligned: every address is masked but the post-increments
+        // are not, so the coalesced copy must keep the low bits of the base register.
+        ("q4-unaligned", 8, &mixed, BASE + 0x1000 + 5, BASE + 0x2000, false, 300, false),
+        ("q4-slow", 8, &mixed, SLOW, BASE + 0x2000, false, 300, false),
+        // Past the 111-byte program but inside its version page: DIRTY, no rewritten code.
+        ("q4-self-modify", 8, &mixed, BASE + 0x1000, BASE + 128, false, 300, false),
+    ] {
+        let max = region_program_on(label, &q4, &group, data, 32, 69, readonly, |c| {
+            c.cpenable = cp3;
+            c.set_ar(7, 0x0100_0000);
+            c.set_ar(8, src); c.set_ar(9, src + 0x80); c.set_ar(10, dst);
+            c.set_ar(12, src); c.set_ar(13, src + 0x80); c.set_ar(14, dst);
+        }, turns);
+        assert!(!whole || max >= 40, "{label}: region retired at most {max} per call");
+        cases += 1;
+    }
     // EX155: the 4-bit weight unpack of pocket-tank's matmul: WUR/RUR SAR_BYTE, the byte shift
     // across two Q registers (every count 0..15, with and without QUP, destination aliasing either
     // source), 32-bit lane shifts for SAR 0..32, and saturating/min/max lane arithmetic.
@@ -529,8 +677,135 @@ pub(super) fn regions() -> u32 {
     let head: Vec<BlockInsn> = (0..2).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, straddle: false, off: 0 }) }).collect();
     let formed = emitter::region::form(&c, &mut ram, BASE, &head, true).expect("tile region");
     assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(),
-        vec![(0, 2), (35, 1), (6, 3), (41, 2), (13, 6), (43, 1)]);
+        vec![(0, 2), (6, 3), (35, 1), (13, 6), (41, 2), (43, 1)]);
     assert_eq!(formed.pages, vec![(0, 0)]);
     assert!(emitter::region::form(&c, &mut ram, BASE + 38, &head, true).is_none(), "RSR head");
-    cases + 2
+    cases + 2 + prev_page_store() + forward_edges() + self_loops()
+}
+
+/// EX181 s2: the two shapes whose backedge stays inside one chunk — a `bnez` back to the
+/// chunk head, and a hardware loop body that is exactly one chunk after the LEND split.
+/// Both are wrapped in a WASM loop, so their backedge is a `br` instead of a br_table hop;
+/// the harness cuts credit at every index and probes the head.
+fn self_loops() -> u32 {
+    use Op::*;
+    let mut p = Vec::new();
+    p.extend(asm::movi_n(3, 5));                 // 0
+    p.extend(asm::addi_n(2, 2, 1));              // 2  the self-looping chunk starts here
+    p.extend(asm::addi_n(3, 3, -1));             // 4
+    p.extend(asm::bz(1, BASE + 6, 3, BASE + 2)); // 6  bnez a3, 2
+    p.extend(asm::addi_n(6, 6, 1));              // 9
+    p.extend(asm::j(BASE + 11, BASE));           // 11
+    let shape = [(0, MoviN, 0), (2, AddiN, 0), (4, AddiN, 0), (6, Bnez, 2), (9, AddiN, 0), (11, J, 0)];
+    {
+        let mut ram = Ram::new(true, false);
+        ram.ram.mem[..p.len()].copy_from_slice(&p);
+        let head: Vec<BlockInsn> = (0..4).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, straddle: false, off: 0 }) }).collect();
+        let formed = emitter::region::form(&cpu(0), &mut ram, BASE, &head, true).expect("bnez self-loop region");
+        assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(), vec![(0, 4), (9, 2), (2, 3)]);
+    }
+    let before = emitter::region::SELF_LOOP_BRANCHES.load(std::sync::atomic::Ordering::Relaxed);
+    let max = region_program("bnez-self-loop", &p, &shape, &[], 4, 2, |_| {}, 900);
+    assert!(max > 4, "bnez self-loop region never passed its head ({max})");
+    assert!(emitter::region::SELF_LOOP_BRANCHES.load(std::sync::atomic::Ordering::Relaxed) > before, "bnez self-loop emitted no direct backedge");
+
+    let mut p = Vec::new();
+    p.extend(asm::lp(9, BASE, 3, BASE + 9));        // 0  loopnez a3, 9
+    p.extend(asm::addi_n(2, 2, 1));                 // 3  LBEG: the whole body is one chunk
+    p.extend(asm::addi_n(4, 4, 1));                 // 5
+    p.extend(asm::addi_n(5, 5, 1));                 // 7  ends exactly at LEND
+    p.extend(asm::addi_n(6, 6, 1));                 // 9  loop exit
+    p.extend(asm::j(BASE + 11, BASE));              // 11
+    let shape = [(0, Loopnez, 9), (3, AddiN, 0), (5, AddiN, 0), (7, AddiN, 0), (9, AddiN, 0), (11, J, 0)];
+    {
+        let mut ram = Ram::new(true, false);
+        ram.ram.mem[..p.len()].copy_from_slice(&p);
+        let head: Vec<BlockInsn> = (0..1).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, straddle: false, off: 0 }) }).collect();
+        let formed = emitter::region::form(&cpu(0), &mut ram, BASE, &head, true).expect("hardware self-loop region");
+        assert_eq!(formed.loops, vec![(BASE + 9, BASE + 3)]);
+        assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(), vec![(0, 1), (3, 3), (9, 2)]);
+    }
+    // a3 is never written, so the count is the same on every pass; 0 makes LOOPNEZ skip.
+    for count in [4, 1, 0] {
+        let before = emitter::region::SELF_LOOP_BRANCHES.load(std::sync::atomic::Ordering::Relaxed);
+        let max = region_program("hw-self-loop", &p, &shape, &[], 1, 3, move |c| { c.set_ar(3, count); }, 900);
+        assert!(max > 1, "hardware self-loop region never passed its head ({max})");
+        assert!(emitter::region::SELF_LOOP_BRANCHES.load(std::sync::atomic::Ordering::Relaxed) > before, "hardware self-loop emitted no direct backedge (count {count})");
+    }
+    2
+}
+
+/// EX181: a graph whose internal forward edges skip chunks, so the emitted `br` labels are
+/// not all zero: chunk 2's taken target is chunk 4 and its fallthrough is chunk 5. Two bits
+/// of a counter pick the path, so every edge runs; `j 0` keeps the backward edges on the
+/// dispatch table.
+fn forward_edges() -> u32 {
+    use Op::*;
+    let mut p = Vec::new();
+    p.extend(asm::addi_n(10, 10, 1));            // 0
+    p.extend(asm::and(11, 10, 12));              // 2  a11 = a10 & 1
+    p.extend(asm::bz(0, BASE + 5, 11, BASE + 23)); // 5  beqz a11, 23
+    p.extend(asm::and(11, 10, 13));              // 8  a11 = a10 & 2
+    p.extend(asm::bz(0, BASE + 11, 11, BASE + 32)); // 11 beqz a11, 32
+    p.extend(asm::addi_n(4, 4, 1));              // 14
+    p.extend(asm::j(BASE + 16, BASE + 46));      // 16
+    p.extend(asm::nop_n());                      // 19 (never executed)
+    p.extend(asm::nop_n());                      // 21
+    p.extend(asm::addi_n(5, 5, 1));              // 23
+    p.extend(asm::addi_n(5, 5, 1));              // 25
+    p.extend(asm::j(BASE + 27, BASE + 39));      // 27
+    p.extend(asm::nop_n());                      // 30
+    p.extend(asm::addi_n(6, 6, 1));              // 32
+    p.extend(asm::j(BASE + 34, BASE + 46));      // 34
+    p.extend(asm::nop_n());                      // 37
+    p.extend(asm::addi_n(7, 7, 1));              // 39
+    p.extend(asm::j(BASE + 41, BASE));           // 41
+    p.extend(asm::nop_n());                      // 44
+    p.extend(asm::and(9, 10, 12));               // 46
+    p.extend(asm::bz(0, BASE + 49, 9, BASE));    // 49 beqz a9, 0
+    p.extend(asm::addi_n(8, 8, 1));              // 52
+    p.extend(asm::j(BASE + 54, BASE));           // 54
+    let shape = [(0, AddiN, 0), (2, And, 0), (5, Beqz, 23), (8, And, 0), (11, Beqz, 32), (14, AddiN, 0), (16, J, 46),
+                 (23, AddiN, 0), (27, J, 39), (32, AddiN, 0), (34, J, 46), (39, AddiN, 0), (41, J, 0),
+                 (46, And, 0), (49, Beqz, 0), (52, AddiN, 0), (54, J, 0)];
+    {
+        let mut ram = Ram::new(true, false);
+        ram.ram.mem[..p.len()].copy_from_slice(&p);
+        let head: Vec<BlockInsn> = (0..3).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, straddle: false, off: 0 }) }).collect();
+        let formed = emitter::region::form(&cpu(0), &mut ram, BASE, &head, true).expect("forward-edge region");
+        // Breadth first from the head: fallthrough, then taken target (EX181 s3).
+        assert_eq!(formed.chunks.iter().map(|c| c.pc - BASE).collect::<Vec<_>>(), vec![0, 8, 23, 14, 32, 39, 46, 52]);
+    }
+    let before = emitter::region::FORWARD_BRANCHES.load(std::sync::atomic::Ordering::Relaxed);
+    let max = region_program("forward-edges", &p, &shape, &[], 3, 8, |c| {
+        c.set_ar(12, 1); c.set_ar(13, 2);
+    }, 1200);
+    assert!(max > 3, "forward-edge region never passed its head ({max})");
+    assert!(emitter::region::FORWARD_BRANCHES.load(std::sync::atomic::Ordering::Relaxed) > before, "forward-edge region emitted no direct forward branch");
+    1
+}
+
+/// EX180: a region whose code lives entirely in page 0 stores into page 1 at offset zero.
+/// The bumped page is outside the region's page range, so `region_store_check` does not
+/// see it, but the bus also bumps page 0 — a code page of this very region. Both engines
+/// must record the same pages and retire the same instructions.
+fn prev_page_store() -> u32 {
+    use Op::*;
+    let mut p = Vec::new();
+    for _ in 0..6 { p.extend(asm::addi_n(2, 2, 1)); }        // 0..12
+    p.extend(asm::s8i(3, 4, 0));                             // 12: into page 1, offset 0
+    p.extend(asm::j(BASE + 15, BASE + 18));                  // 15: edge to the next chunk
+    for _ in 0..4 { p.extend(asm::addi_n(5, 5, 1)); }         // 18..26
+    p.extend(asm::j(BASE + 26, BASE));                       // 26: back to the head
+    let shape = [(0, AddiN, 0), (12, S8i, 0), (15, J, 18), (18, AddiN, 0), (26, J, 0)];
+    let mut cases = 0;
+    for off in [0u32, 1, 2, 3] {
+        let max = region_program("prev-page-store", &p, &shape, &[], 8, 18, |c| {
+            c.set_ar(3, 0x5a);
+            c.set_ar(4, BASE + 0x100 + off);
+        }, 300);
+        assert!(max > 8, "prev-page-store: region never passed its head ({max})");
+        cases += 1;
+    }
+    cases
 }

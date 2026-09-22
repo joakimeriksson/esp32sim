@@ -12,6 +12,12 @@ use crate::decode::decode;
 use crate::exec::max_ar;
 use std::collections::HashMap;
 
+// Compile-time emission probes: absent from production and profile builds.
+#[cfg(feature = "wasm-jit-tests")]
+pub(in crate::jit) static FORWARD_BRANCHES: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+#[cfg(feature = "wasm-jit-tests")]
+pub(in crate::jit) static SELF_LOOP_BRANCHES: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
 pub(super) const MAX_CHUNKS: usize = 64;
 pub(super) const MAX_INSNS: usize = 512;
 pub(in crate::jit) const MAX_PAGES: usize = 8;
@@ -44,6 +50,8 @@ pub(super) struct RegionGen {
     pub loop_depth: usize,
     /// control depth at the top level of the current chunk's code
     pub chunk_depth: usize,
+    /// EX181 s2: the current chunk's code is wrapped in a WASM loop at `chunk_depth - 1`
+    pub self_loop: bool,
     /// last retired PC for each exit site, indexed by the tag in the result
     pub sites: Vec<ExitSite>,
     /// version-page index range covering every chunk (stores inside it set DIRTY)
@@ -81,7 +89,9 @@ fn successors(chunk: &Chunk) -> Vec<u32> {
         J => vec![last.insn.imm as u32],
         op if terminal(op) => vec![],
         Loopnez | Loopgtz => vec![next, last.insn.imm as u32],
-        op if conditional(op) => vec![last.insn.imm as u32, next],
+        // EX181 s3: fallthrough first favors placing the straight-line successor at
+        // `current + 1`, where its edge needs no branch.
+        op if conditional(op) => vec![next, last.insn.imm as u32],
         _ => vec![next],
     }
 }
@@ -190,6 +200,8 @@ pub(in crate::jit) fn form<B: Bus>(cpu: &Cpu, bus: &mut B, head: u32, block: &[B
         }
     }
     if pages.len() > MAX_PAGES { return None }
+    // EX110: watch every page before reading the versions the region will compare against.
+    for (i, _) in &pages { bus.note_code_page(*i); }
     let pv = bus.page_versions();
     for (i, v) in &mut pages { *v = pv.get(*i as usize).copied().unwrap_or(0); }
     Some(Formed { chunks, loops, bloom, lo, hi, pages })
@@ -200,9 +212,14 @@ pub(in crate::jit) fn form<B: Bus>(cpu: &Cpu, bus: &mut B, head: u32, block: &[B
 /// `direct` is the final edge of a chunk's code: only that one may fall into the
 /// next chunk's code without a branch.
 pub(super) fn region_edge(g: &mut Gen, target: u32, direct: bool) {
+    // EX178: the next chunk may also be reached from the dispatch table, so ACCX must be
+    // in memory on every edge, not only on the ones that leave.
+    g.accx_flush();
     g.flush();
     let r = g.region.as_ref().unwrap();
     let (current, loop_depth, chunk_depth) = (r.current, r.loop_depth, r.chunk_depth);
+    // Depth just inside every dispatch block, where the br_table sits.
+    let (blocks, self_loop) = (loop_depth + r.heads.len(), r.self_loop);
     match r.heads.get(&target).copied() {
         Some((index, len)) => {
             g.get(DONE);
@@ -233,10 +250,24 @@ pub(super) fn region_edge(g: &mut Gen, target: u32, direct: bool) {
             g.ret_value(CODE_LEFT);
             g.end();
             if !direct || index != current + 1 || g.depth() != chunk_depth {
-                g.c(index as u32);
-                g.set(NEXT);
+                // EX181: chunk `index` starts after the end of the block at ctl index
+                // `blocks - 1 - index`, which is still open for any forward target, and s2
+                // wraps a self-looping chunk in its own loop: both are a plain `br`, only a
+                // backward edge to another chunk re-dispatches through the br_table.
+                let label = if index > current {
+                    #[cfg(feature = "wasm-jit-tests")]
+                    FORWARD_BRANCHES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    g.depth() + index - blocks
+                } else if index == current && self_loop {
+                    #[cfg(feature = "wasm-jit-tests")]
+                    SELF_LOOP_BRANCHES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    g.depth() - chunk_depth
+                } else {
+                    g.c(index as u32);
+                    g.set(NEXT);
+                    g.depth() - loop_depth
+                };
                 g.op(0x0c);
-                let label = g.depth() - loop_depth;
                 uleb(&mut g.bytes, label);
             }
         }
@@ -272,14 +303,16 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
     let guard_max_ar = if entry_head { chunks[0].instructions[0].max_ar } else { max_ar };
     // Every instruction is emitted, so both coprocessor bits can be proved at entry.
     let cp = all().fold(0, |mask, bi| mask | policy::required_coprocessors(bi.insn.op));
-    let heads = chunks.iter().enumerate().map(|(i, c)| (c.pc, (i, c.instructions.len() as u32))).collect();
+    let heads: HashMap<_, _> = chunks.iter().enumerate().map(|(i, c)| (c.pc, (i, c.instructions.len() as u32))).collect();
+    // Forward labels use the head count; the dispatch nesting uses the chunk count.
+    assert_eq!(heads.len(), chunks.len(), "region chunk heads must be unique");
     let loops = formed_loops.iter().copied().collect();
     let mut g = Gen {
         loaded: registers,
         written,
         max_ar,
         dynamic: true,
-        region: Some(RegionGen { heads, current: 0, loop_depth: 0, chunk_depth: 0, sites: Vec::new(), page_lo, page_hi, loops }),
+        region: Some(RegionGen { heads, current: 0, loop_depth: 0, chunk_depth: 0, self_loop: false, sites: Vec::new(), page_lo, page_hi, loops }),
         ..Gen::default()
     };
     // The caller has checked the credit for the entry chunk; window and coprocessor
@@ -336,13 +369,25 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
     for (k, chunk) in chunks.iter().enumerate() {
         g.end();
         g.pending = 0;
+        // EX181 s2: a chunk that branches back to its own head (a conditional or J to it, or
+        // a hardware loop body that is exactly this chunk) keeps that edge inside the
+        // function as a WASM loop; every other arrival still comes through the br_table.
+        let self_loop = successors(chunk).contains(&chunk.pc)
+            || formed_loops.iter().any(|&(lend, lbeg)| lbeg == chunk.pc && lend == chunk_end(chunk));
+        if self_loop {
+            g.begin_loop();
+        }
         {
             let r = g.region.as_mut().unwrap();
             r.current = k;
             r.loop_depth = loop_depth;
             r.chunk_depth = g.ctl.len();
+            r.self_loop = self_loop;
         }
         emit_body(&mut g, chunk.pc, &chunk.instructions, fast, false, true, cp);
+        if self_loop {
+            g.end();
+        }
     }
     g.op(0x00); // every chunk leaves or branches; no fallthrough out of the last one
     g.end(); // dispatch loop

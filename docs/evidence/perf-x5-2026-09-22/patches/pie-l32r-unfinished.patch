@@ -1,0 +1,263 @@
+diff --git a/xtensa-lx7/src/jit/wasm.rs b/xtensa-lx7/src/jit/wasm.rs
+index 14b0abd6..236fefd9 100644
+--- a/xtensa-lx7/src/jit/wasm.rs
++++ b/xtensa-lx7/src/jit/wasm.rs
+@@ -657,7 +657,7 @@ unsafe fn run_inner<B: Bus>(
+             } else if b.region_tries.get() < REGION_TRIES {
+                 b.region_tries.set(b.region_tries.get() + 1);
+                 let formed = emitter::region::form(cpu, bus, b.pc, &b.instructions, b.fast).and_then(|f| {
+-                    let (bytes, sites) = emitter::region::generate(&f.chunks, &f.pages, &f.loops, b.fast);
++                    let (bytes, sites) = emitter::region::generate(&f.chunks, &f.pages, &f.loops, &f.literals, b.fast);
+                     // SAFETY: as for ready(): the host copies and installs the module.
+                     let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
+                     (slot != 0).then(|| Region {
+diff --git a/xtensa-lx7/src/jit/wasm_memory.rs b/xtensa-lx7/src/jit/wasm_memory.rs
+index c1f0c4ba..c2bb8b93 100644
+--- a/xtensa-lx7/src/jit/wasm_memory.rs
++++ b/xtensa-lx7/src/jit/wasm_memory.rs
+@@ -35,6 +35,13 @@ pub(super) fn emit(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool)
+         L16ui | L16si | S16i => 2,
+         _ => 4,
+     };
++    // EX185: inside a region the literal is a constant. `form` read it under the same page
++    // guard the decoded code lives by, so no probe can observe a difference.
++    if let Some(&v) = g.region.as_ref().filter(|_| i.op == L32r).and_then(|r| r.literals.get(&pc)) {
++        g.c(v);
++        g.set_ar(i.t);
++        return;
++    }
+     if i.op == L32r {
+         g.c(i.imm as u32);
+     } else {
+diff --git a/xtensa-lx7/src/jit/wasm_region.rs b/xtensa-lx7/src/jit/wasm_region.rs
+index 8abf8615..37701f19 100644
+--- a/xtensa-lx7/src/jit/wasm_region.rs
++++ b/xtensa-lx7/src/jit/wasm_region.rs
+@@ -34,6 +34,8 @@ pub(in crate::jit) struct Formed {
+     pub hi: u32,
+     /// Code pages and the versions the chunks were decoded from.
+     pub pages: Vec<(u32, u32)>,
++    /// EX185: L32R PC -> literal, read at formation under the same page guard.
++    pub literals: Vec<(u32, u32)>,
+ }
+ 
+ pub(super) struct RegionGen {
+@@ -51,6 +53,8 @@ pub(super) struct RegionGen {
+     pub page_hi: u32,
+     /// LEND -> LBEG for the region's own hardware loops
+     pub loops: HashMap<u32, u32>,
++    /// EX185: L32R PC -> the literal `form` read, emitted as a constant
++    pub literals: HashMap<u32, u32>,
+ }
+ 
+ /// Ends a chunk and leaves the region by itself: calls, returns and computed jumps.
+@@ -59,6 +63,13 @@ fn terminal(op: crate::Op) -> bool {
+     terminal_helper(op) || op == crate::Op::Jx
+ }
+ 
++/// EX185: everything that can set DIRTY without leaving the chunk: a store's version bump,
++/// and a helper that continues (only the terminal one, which ends the chunk anyway).
++fn may_store(i: &crate::Insn, fast: bool) -> bool {
++    use crate::Op::*;
++    matches!(i.op, S8i | S16i | S32i | S32iN | Ssi | Pie) || !supported_insn(i, fast)
++}
++
+ fn conditional(op: crate::Op) -> bool {
+     use crate::Op::*;
+     matches!(
+@@ -190,6 +201,33 @@ pub(in crate::jit) fn form<B: Bus>(cpu: &Cpu, bus: &mut B, head: u32, block: &[B
+         }
+     }
+     if pages.len() > MAX_PAGES { return None }
++    // EX185: L32R reads a literal that lives with the code. Read it here and let its page
++    // join the version set, so a write to it rejects the region at its next entry exactly as
++    // a rewritten code page does. Inside one entry the literal can only change through a
++    // store, which also sets DIRTY, so fold only up to the first one in each chunk: a chunk
++    // is never entered with DIRTY already set. Literals never cost a region: they are folded
++    // only while the page set has room.
++    let mut literals = Vec::new();
++    use std::sync::atomic::Ordering::Relaxed;
++    if fast && !super::PRICED.load(Relaxed) && !super::CACHE_PROBES.load(Relaxed) {
++        for c in &chunks {
++            let mut pc = c.pc;
++            for bi in c.instructions.iter().take_while(|bi| !may_store(&bi.insn, fast)) {
++                let mut bytes = [0u8; 4];
++                // `read_bulk` reads only plain memory inside one mapping: no peripheral, no
++                // fault, and exactly the bytes the interpreter's `read32` would return.
++                if bi.insn.op == crate::Op::L32r && bus.read_bulk(bi.insn.imm as u32, &mut bytes) {
++                    let p = bus.code_page(bi.insn.imm as u32);
++                    let known = pages.iter().any(|&(i, _)| i == p);
++                    if known || pages.len() < MAX_PAGES {
++                        if !known { pages.push((p, 0)); }
++                        literals.push((pc, u32::from_le_bytes(bytes)));
++                    }
++                }
++                pc = pc.wrapping_add(bi.insn.len as u32);
++            }
++        }
++    }
+     #[cfg(feature = "wasm-jit-profile")]
+     {
+         let (plo, phi) = (pages.iter().map(|p| p.0).min().unwrap_or(0), pages.iter().map(|p| p.0).max().unwrap_or(0));
+@@ -200,7 +238,7 @@ pub(in crate::jit) fn form<B: Bus>(cpu: &Cpu, bus: &mut B, head: u32, block: &[B
+     for (i, _) in &pages { bus.note_code_page(*i); }
+     let pv = bus.page_versions();
+     for (i, v) in &mut pages { *v = pv.get(*i as usize).copied().unwrap_or(0); }
+-    Some(Formed { chunks, loops, bloom, lo, hi, pages })
++    Some(Formed { chunks, loops, bloom, lo, hi, pages, literals })
+ }
+ 
+ /// Retire the current instruction and continue at `target`: inside the region when it is
+@@ -263,7 +301,7 @@ pub(super) fn region_edge(g: &mut Gen, target: u32, direct: bool) {
+     }
+ }
+ 
+-pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_loops: &[(u32, u32)], fast: bool) -> (Vec<u8>, Vec<ExitSite>) {
++pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_loops: &[(u32, u32)], literals: &[(u32, u32)], fast: bool) -> (Vec<u8>, Vec<ExitSite>) {
+     let page_lo = pages.iter().map(|p| p.0).min().unwrap_or(0);
+     let page_hi = pages.iter().map(|p| p.0).max().unwrap_or(0);
+     let all = || chunks.iter().flat_map(|c| c.instructions.iter());
+@@ -290,7 +328,7 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
+         written,
+         max_ar,
+         dynamic: true,
+-        region: Some(RegionGen { heads, current: 0, loop_depth: 0, chunk_depth: 0, sites: Vec::new(), page_lo, page_hi, loops }),
++        region: Some(RegionGen { heads, current: 0, loop_depth: 0, chunk_depth: 0, sites: Vec::new(), page_lo, page_hi, loops, literals: literals.iter().copied().collect() }),
+         ..Gen::default()
+     };
+     // The caller has checked the credit for the entry chunk; window and coprocessor
+diff --git a/xtensa-lx7/src/jit/wasm_tests.rs b/xtensa-lx7/src/jit/wasm_tests.rs
+index a9bee9b4..65cef28c 100644
+--- a/xtensa-lx7/src/jit/wasm_tests.rs
++++ b/xtensa-lx7/src/jit/wasm_tests.rs
+@@ -154,6 +154,17 @@ impl Bus for Ram {
+         self.watched = true;
+         for e in self.tlb.iter_mut() { if e.hi > e.lo { e.code = 1; } }
+     }
++    /// Like the S3 bus: one piece of plain mapped memory only. The slow window declines, as a
++    /// peripheral does, and so does a range that leaves the mapping, where the caller must
++    /// fault at the exact word instead.
++    fn read_bulk(&mut self, a: u32, out: &mut [u8]) -> bool {
++        if (SLOW..SLOW + 256).contains(&a) { return false }
++        let Some(off) = a.checked_sub(BASE) else { return false };
++        match self.ram.mem.get(off as usize..off as usize + out.len()) {
++            Some(bytes) => { out.copy_from_slice(bytes); true }
++            None => false,
++        }
++    }
+     fn defer_armed(&self) -> bool { self.defer_armed }
+     fn defer_access(&mut self, addr: u32) -> bool {
+         if self.defer_armed && (SLOW..SLOW + 256).contains(&addr) {
+diff --git a/xtensa-lx7/src/jit/wasm_tests/asm.rs b/xtensa-lx7/src/jit/wasm_tests/asm.rs
+index 9436aceb..839a4785 100644
+--- a/xtensa-lx7/src/jit/wasm_tests/asm.rs
++++ b/xtensa-lx7/src/jit/wasm_tests/asm.rs
+@@ -6,6 +6,11 @@ pub fn bcc(r: u32, pc: u32, s: u32, t: u32, target: u32) -> Vec<u8> { rri8(7, r,
+ /// beqz=0 bnez=1 bltz=2 bgez=3
+ pub fn bz(m: u32, pc: u32, s: u32, target: u32) -> Vec<u8> { w24(0x6 | 0x10 | (m << 6) | (s << 8) | ((target.wrapping_sub(pc + 4) & 0xfff) << 12)) }
+ pub fn l8ui(t: u32, s: u32, imm: u32) -> Vec<u8> { rri8(2, 0, s, t, imm) }
++pub fn s32i(t: u32, s: u32, imm: u32) -> Vec<u8> { rri8(2, 6, s, t, imm / 4) }
++/// The literal must be 4-aligned and below `pc`, within 256 KiB of it.
++pub fn l32r(t: u32, pc: u32, literal: u32) -> Vec<u8> {
++    w24(1 | (t << 4) | (((literal.wrapping_sub(pc.wrapping_add(3) & !3) >> 2) & 0xffff) << 8))
++}
+ pub fn l16ui(t: u32, s: u32, imm: u32) -> Vec<u8> { rri8(2, 1, s, t, imm / 2) }
+ pub fn s8i(t: u32, s: u32, imm: u32) -> Vec<u8> { rri8(2, 4, s, t, imm) }
+ pub fn xor(r: u32, s: u32, t: u32) -> Vec<u8> { w24((t << 4) | (s << 8) | (r << 12) | (3 << 20)) }
+diff --git a/xtensa-lx7/src/jit/wasm_tests/regions.rs b/xtensa-lx7/src/jit/wasm_tests/regions.rs
+index ffe90102..e95dd13e 100644
+--- a/xtensa-lx7/src/jit/wasm_tests/regions.rs
++++ b/xtensa-lx7/src/jit/wasm_tests/regions.rs
+@@ -89,7 +89,7 @@ pub(super) fn regions() -> u32 {
+         assert_eq!(formed.chunks.len(), 40);
+         assert_eq!(formed.chunks.iter().map(|c| c.instructions.len()).sum::<usize>(), 320);
+         assert_eq!(formed.pages.len(), 5);
+-        let (bytes, sites) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, true);
++        let (bytes, sites) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, &formed.literals, true);
+         let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
+         assert_ne!(slot, 0, "large region module with {} exit sites", sites.len());
+         type Run = extern "C" fn(*mut Cpu, *mut Ram, *const Helpers, u32, u32, *const TlbEntry, *mut u32) -> u32;
+@@ -179,7 +179,7 @@ pub(super) fn regions() -> u32 {
+         let head: Vec<BlockInsn> = (0..6).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, straddle: false, off: 0 }) }).collect();
+         let formed = emitter::region::form(&c, &mut ram, BASE, &head, true).expect("memmove region");
+         assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(), vec![(0, 6), (17, 1)]);
+-        let (bytes, sites) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, true);
++        let (bytes, sites) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, &formed.literals, true);
+         let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
+         assert!(slot != 0, "memmove region module must compile ({} bytes, {} sites)", bytes.len(), sites.len());
+         unsafe { host_jit_release(slot) };
+@@ -341,7 +341,7 @@ pub(super) fn regions() -> u32 {
+         let head: Vec<BlockInsn> = (0..4).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: crate::exec::max_ar(&i), straddle: false, off: 0 }) }).collect();
+         let formed = emitter::region::form(&c0, &mut ram, BASE, &head, true).expect("entry-interior region");
+         let interior = formed.chunks.iter().position(|c| c.pc == BASE + 3).expect("interior chunk") as u32;
+-        let (bytes, _) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, true);
++        let (bytes, _) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, &formed.literals, true);
+         let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
+         assert!(slot != 0);
+         type Run = extern "C" fn(*mut Cpu, *mut Ram, *const Helpers, u32, u32, *const TlbEntry, *mut u32) -> u32;
+@@ -594,7 +594,64 @@ pub(super) fn regions() -> u32 {
+         vec![(0, 2), (35, 1), (6, 3), (41, 2), (13, 6), (43, 1)]);
+     assert_eq!(formed.pages, vec![(0, 0)]);
+     assert!(emitter::region::form(&c, &mut ram, BASE + 38, &head, true).is_none(), "RSR head");
+-    cases + 2 + prev_page_store()
++    cases + 2 + prev_page_store() + literal_folding()
++}
++
++/// EX185: L32R literals folded into constants inside a region. One literal sits on the
++/// reading chunk's own code page and two on pages the region records only because of them;
++/// a store through a6 lands in a literal page in some variants, which must take the region
++/// out at the next literal rather than read the stale copy, and outside every recorded page
++/// in others, where the constants stand. A literal `read_bulk` declines keeps its probe.
++fn literal_folding() -> u32 {
++    use Op::*;
++    let body = |literal: u32| {
++        let at = |n: u32| BASE + 0x3a0 + n;
++        let mut b = Vec::new();
++        b.extend(asm::l32r(3, at(0), BASE + 0x380));
++        b.extend(asm::l32r(4, at(3), literal));
++        b.extend(asm::l32r(5, at(6), BASE + 0x200));
++        b.extend(asm::addi_n(8, 8, 1));
++        b.extend(asm::s32i(8, 6, 0));
++        // The same literal again, after the store that may have rewritten it.
++        b.extend(asm::l32r(7, at(14), BASE + 0x200));
++        b.extend(asm::j(at(17), BASE));
++        b
++    };
++    let program = |literal: u32| {
++        let mut p = vec![0u8; 0x400];
++        let head = asm::j(BASE, BASE + 0x3a0);
++        p[..head.len()].copy_from_slice(&head);
++        p[0x100..0x104].copy_from_slice(&0x1234_5678u32.to_le_bytes());
++        p[0x200..0x204].copy_from_slice(&0x0fed_cba9u32.to_le_bytes());
++        p[0x380..0x384].copy_from_slice(&0x0055_aa33u32.to_le_bytes());
++        let b = body(literal);
++        p[0x3a0..0x3a0 + b.len()].copy_from_slice(&b);
++        p
++    };
++    let shape = [(0, J, 0x3a0), (0x3a0, L32r, 0x380), (0x3a6, L32r, 0x200), (0x3a9, AddiN, 0),
++                 (0x3ab, S32i, 0), (0x3ae, L32r, 0x200), (0x3b1, J, 0)];
++    let mut cases = 0;
++    let mapped = program(BASE + 0x100);
++    for (label, store, turns) in [
++        // Outside every page the region recorded: the folded constants stand.
++        ("literal-data-store", BASE + 0x1000, 300),
++        // Into the pages the region recorded only for its literals, and into its own code.
++        ("literal-store-page1", BASE + 0x100, 300),
++        ("literal-store-page2", BASE + 0x200, 300),
++        ("literal-store-code", BASE + 0x380, 300),
++        // The store itself leaves through the helper, before any literal can go stale.
++        ("literal-store-slow", SLOW, 300),
++    ] {
++        let max = region_program(label, &mapped, &shape, &[], 1, 0x3a0, |c| c.set_ar(6, store), turns);
++        assert!(max > 1, "{label}: region never passed its head ({max})");
++        cases += 1;
++    }
++    // Below the mapping: `read_bulk` declines exactly as it does for a peripheral, the probe
++    // stays and the fault lands on this instruction.
++    let unmapped = program(BASE - 0x40);
++    let shape = [(0, J, 0x3a0), (0x3a0, L32r, 0x380), (0x3a9, AddiN, 0), (0x3ab, S32i, 0)];
++    region_program("literal-unmapped", &unmapped, &shape, &[], 1, 0x3a0, |c| c.set_ar(6, BASE + 0x1000), 40);
++    cases + 1
+ }
+ 
+ /// EX180: a region whose code lives entirely in page 0 stores into the first byte of page

@@ -1,0 +1,71 @@
+{
+  "name": "control-tinydraw",
+  "workload": "tinydraw",
+  "pairs": 3,
+  "medianWallSeconds": {
+    "baseline": 29.393780000001193,
+    "candidate": 29.37342000001669
+  },
+  "wallReductionPercent": 0.06926635493802458,
+  "pairWallReductionPercent": [
+    0.1928206299548374,
+    -0.15718408135310113,
+    0.06926635493802458
+  ],
+  "runs": [
+    {
+      "pair": 1,
+      "arm": "baseline",
+      "wallSeconds": 29.584489999979734,
+      "instructions": 9819885134,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "receipt": "runs/control-tinydraw/1-baseline.json"
+    },
+    {
+      "pair": 1,
+      "arm": "candidate",
+      "wallSeconds": 29.52744499999285,
+      "instructions": 9819885134,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "receipt": "runs/control-tinydraw/1-candidate.json"
+    },
+    {
+      "pair": 2,
+      "arm": "candidate",
+      "wallSeconds": 29.311049999982117,
+      "instructions": 9819885134,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "receipt": "runs/control-tinydraw/2-candidate.json"
+    },
+    {
+      "pair": 2,
+      "arm": "baseline",
+      "wallSeconds": 29.265049999982118,
+      "instructions": 9819885134,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "receipt": "runs/control-tinydraw/2-baseline.json"
+    },
+    {
+      "pair": 3,
+      "arm": "baseline",
+      "wallSeconds": 29.393780000001193,
+      "instructions": 9819885134,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "receipt": "runs/control-tinydraw/3-baseline.json"
+    },
+    {
+      "pair": 3,
+      "arm": "candidate",
+      "wallSeconds": 29.37342000001669,
+      "instructions": 9819885134,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "receipt": "runs/control-tinydraw/3-candidate.json"
+    }
+  ]
+}

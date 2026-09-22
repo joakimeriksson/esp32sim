@@ -412,6 +412,7 @@ mod tests {
     /// The same memory without a bulk read, so the packed path takes its per-word fallback.
     struct NoBulk(FlatRam);
     impl Bus for NoBulk {
+        fn note_code_page(&mut self, vidx: u32) { self.0.note_code_page(vidx); }
         fn read8(&mut self, a: u32) -> Result<u8, Fault> { self.0.read8(a) }
         fn read16(&mut self, a: u32) -> Result<u16, Fault> { self.0.read16(a) }
         fn read32(&mut self, a: u32) -> Result<u32, Fault> { self.0.read32(a) }
@@ -599,6 +600,7 @@ mod timing_tests {
     use super::*;
     struct Ram { inner: emu_core::FlatRam, penalty: u32 }
     impl Bus for Ram {
+        fn note_code_page(&mut self, vidx: u32) { self.inner.note_code_page(vidx); }
         fn read8(&mut self, a: u32) -> Result<u8, crate::Fault> { self.inner.read8(a) }
         fn read16(&mut self, a: u32) -> Result<u16, crate::Fault> { self.inner.read16(a) }
         fn read32(&mut self, a: u32) -> Result<u32, crate::Fault> { self.inner.read32(a) }

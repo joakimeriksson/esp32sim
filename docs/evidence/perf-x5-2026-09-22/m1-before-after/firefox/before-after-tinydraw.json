@@ -1,0 +1,435 @@
+{
+  "name": "before-after-tinydraw",
+  "browserFamily": "firefox",
+  "workload": "tinydraw",
+  "role": "primary comparison",
+  "pairs": 4,
+  "baselineSourceRevision": "7828e683bec41b9fc47dbbc38391a3a794fc4956",
+  "candidateSourceRevision": "0ccb83372b5aaa04e29b355c5aee246e05fc635f",
+  "baselineWasmSha256": "37c13458edfeb392838004e164734292cb9f5d39b487b7f6cd6e9ebc04027d39",
+  "candidateWasmSha256": "eb754176f3100563da93b5269a54af1b93ff611abcf09fbae5026fd110b8409a",
+  "isolation": "Ordinary visible page; fresh page and worker per arm; browser process and caches may persist",
+  "captureTransport": "Firefox ordinary browser page",
+  "interpretation": "Observed comparison on an in-use machine. Compilation overlapped part of Chrome; concurrent work was not controlled or quantified. No clean causal estimate of the artifact change.",
+  "medianWallSeconds": {
+    "baseline": 71.06506000000002,
+    "candidate": 64.46268
+  },
+  "wallReductionPercent": 9.290613418183291,
+  "pairsWallReductionPercent": [
+    6.8401153173590306,
+    11.436543811041167,
+    9.447215689857213,
+    6.845818984529906
+  ],
+  "sharedSourceSha256": {
+    "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+    "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+    "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+    "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+    "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+    "harness/battery-worker.mjs": "4856f3531a83b8f81bd5118e07060a183c2b904b900f4b8b2b51e187230a3b81",
+    "harness/battery.mjs": "9b8f26a9fb949c81514fd6bc28bf57ba467090b1d435fc577f530eff4e051b62",
+    "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+    "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+    "harness/workloads.json": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+    "web/wasm/experiments.mjs": "29c4b556b0c7e25a529a9c4b1c3b5132aee06bb4884de684ba6c78a10ac4716b",
+    "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+    "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+    "web/wasm/worker.js": "7ee25b3bb9036587685bafc92f7951f892ea63e0202e3cceac84201d8eca7e89"
+  },
+  "runs": [
+    {
+      "pair": 1,
+      "arm": "baseline",
+      "captureMode": "timing",
+      "captureTransport": "Firefox ordinary browser page",
+      "pageWasHidden": false,
+      "wallSeconds": 67.7088,
+      "guestSeconds": 47.750049575,
+      "instructions": 9819885134,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "wasmSha256": "37c13458edfeb392838004e164734292cb9f5d39b487b7f6cd6e9ebc04027d39",
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "instrumented": false,
+      "verdictValidation": {
+        "schema": "tinydraw-gate1-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": null,
+      "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+      "jit": {
+        "compiled": 10802,
+        "failed": 0,
+        "released": 3254,
+        "compileMs": 3218.3999999998236,
+        "bytes": 112629067,
+        "liveBytes": 76221805,
+        "peakBytes": 76221805,
+        "peakModules": 7548,
+        "instructions": 9637431524
+      },
+      "browser": "Firefox/156.0",
+      "v8": null,
+      "engine": "SpiderMonkey",
+      "loadBefore": [
+        5.8173828125,
+        6.67041015625,
+        9.421875
+      ],
+      "loadAfter": [
+        5.7568359375,
+        6.43359375,
+        9.1103515625
+      ]
+    },
+    {
+      "pair": 1,
+      "arm": "candidate",
+      "captureMode": "timing",
+      "captureTransport": "Firefox ordinary browser page",
+      "pageWasHidden": false,
+      "wallSeconds": 63.07744,
+      "guestSeconds": 47.750049575,
+      "instructions": 9819885134,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "wasmSha256": "eb754176f3100563da93b5269a54af1b93ff611abcf09fbae5026fd110b8409a",
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "instrumented": false,
+      "verdictValidation": {
+        "schema": "tinydraw-gate1-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": null,
+      "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+      "jit": {
+        "compiled": 10797,
+        "failed": 0,
+        "released": 3259,
+        "compileMs": 3343.81999999992,
+        "bytes": 110349616,
+        "liveBytes": 74808962,
+        "peakBytes": 74808962,
+        "peakModules": 7538,
+        "instructions": 9637501306
+      },
+      "browser": "Firefox/156.0",
+      "v8": null,
+      "engine": "SpiderMonkey",
+      "loadBefore": [
+        5.7568359375,
+        6.43359375,
+        9.1103515625
+      ],
+      "loadAfter": [
+        5.2919921875,
+        6.23046875,
+        8.85400390625
+      ]
+    },
+    {
+      "pair": 2,
+      "arm": "candidate",
+      "captureMode": "timing",
+      "captureTransport": "Firefox ordinary browser page",
+      "pageWasHidden": false,
+      "wallSeconds": 63.90406,
+      "guestSeconds": 47.750049575,
+      "instructions": 9819885134,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "wasmSha256": "eb754176f3100563da93b5269a54af1b93ff611abcf09fbae5026fd110b8409a",
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "instrumented": false,
+      "verdictValidation": {
+        "schema": "tinydraw-gate1-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": null,
+      "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+      "jit": {
+        "compiled": 10797,
+        "failed": 0,
+        "released": 3259,
+        "compileMs": 3259.7599999999406,
+        "bytes": 110349616,
+        "liveBytes": 74808962,
+        "peakBytes": 74808962,
+        "peakModules": 7538,
+        "instructions": 9637501306
+      },
+      "browser": "Firefox/156.0",
+      "v8": null,
+      "engine": "SpiderMonkey",
+      "loadBefore": [
+        5.2919921875,
+        6.23046875,
+        8.85400390625
+      ],
+      "loadAfter": [
+        6.56396484375,
+        6.40185546875,
+        8.7216796875
+      ]
+    },
+    {
+      "pair": 2,
+      "arm": "baseline",
+      "captureMode": "timing",
+      "captureTransport": "Firefox ordinary browser page",
+      "pageWasHidden": false,
+      "wallSeconds": 72.15624000000001,
+      "guestSeconds": 47.750049575,
+      "instructions": 9819885134,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "wasmSha256": "37c13458edfeb392838004e164734292cb9f5d39b487b7f6cd6e9ebc04027d39",
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "instrumented": false,
+      "verdictValidation": {
+        "schema": "tinydraw-gate1-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": null,
+      "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+      "jit": {
+        "compiled": 10802,
+        "failed": 0,
+        "released": 3254,
+        "compileMs": 3408.180000000192,
+        "bytes": 112629067,
+        "liveBytes": 76221805,
+        "peakBytes": 76221805,
+        "peakModules": 7548,
+        "instructions": 9637431524
+      },
+      "browser": "Firefox/156.0",
+      "v8": null,
+      "engine": "SpiderMonkey",
+      "loadBefore": [
+        6.56396484375,
+        6.40185546875,
+        8.7216796875
+      ],
+      "loadAfter": [
+        6.10498046875,
+        6.3466796875,
+        8.5185546875
+      ]
+    },
+    {
+      "pair": 3,
+      "arm": "baseline",
+      "captureMode": "timing",
+      "captureTransport": "Firefox ordinary browser page",
+      "pageWasHidden": false,
+      "wallSeconds": 71.80486,
+      "guestSeconds": 47.750049575,
+      "instructions": 9819885134,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "wasmSha256": "37c13458edfeb392838004e164734292cb9f5d39b487b7f6cd6e9ebc04027d39",
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "instrumented": false,
+      "verdictValidation": {
+        "schema": "tinydraw-gate1-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": null,
+      "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+      "jit": {
+        "compiled": 10802,
+        "failed": 0,
+        "released": 3254,
+        "compileMs": 3460.539999999508,
+        "bytes": 112629067,
+        "liveBytes": 76221805,
+        "peakBytes": 76221805,
+        "peakModules": 7548,
+        "instructions": 9637431524
+      },
+      "browser": "Firefox/156.0",
+      "v8": null,
+      "engine": "SpiderMonkey",
+      "loadBefore": [
+        6.10498046875,
+        6.3466796875,
+        8.5185546875
+      ],
+      "loadAfter": [
+        6.70703125,
+        6.5693359375,
+        8.4228515625
+      ]
+    },
+    {
+      "pair": 3,
+      "arm": "candidate",
+      "captureMode": "timing",
+      "captureTransport": "Firefox ordinary browser page",
+      "pageWasHidden": false,
+      "wallSeconds": 65.0213,
+      "guestSeconds": 47.750049575,
+      "instructions": 9819885134,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "wasmSha256": "eb754176f3100563da93b5269a54af1b93ff611abcf09fbae5026fd110b8409a",
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "instrumented": false,
+      "verdictValidation": {
+        "schema": "tinydraw-gate1-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": null,
+      "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+      "jit": {
+        "compiled": 10797,
+        "failed": 0,
+        "released": 3259,
+        "compileMs": 3377.440000000146,
+        "bytes": 110349616,
+        "liveBytes": 74808962,
+        "peakBytes": 74808962,
+        "peakModules": 7538,
+        "instructions": 9637501306
+      },
+      "browser": "Firefox/156.0",
+      "v8": null,
+      "engine": "SpiderMonkey",
+      "loadBefore": [
+        6.70703125,
+        6.5693359375,
+        8.4228515625
+      ],
+      "loadAfter": [
+        12.93994140625,
+        7.78662109375,
+        8.70703125
+      ]
+    },
+    {
+      "pair": 4,
+      "arm": "candidate",
+      "captureMode": "timing",
+      "captureTransport": "Firefox ordinary browser page",
+      "pageWasHidden": false,
+      "wallSeconds": 65.51092,
+      "guestSeconds": 47.750049575,
+      "instructions": 9819885134,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "wasmSha256": "eb754176f3100563da93b5269a54af1b93ff611abcf09fbae5026fd110b8409a",
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "instrumented": false,
+      "verdictValidation": {
+        "schema": "tinydraw-gate1-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": null,
+      "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+      "jit": {
+        "compiled": 10797,
+        "failed": 0,
+        "released": 3259,
+        "compileMs": 3389.6599999997925,
+        "bytes": 110349616,
+        "liveBytes": 74808962,
+        "peakBytes": 74808962,
+        "peakModules": 7538,
+        "instructions": 9637501306
+      },
+      "browser": "Firefox/156.0",
+      "v8": null,
+      "engine": "SpiderMonkey",
+      "loadBefore": [
+        12.93994140625,
+        7.78662109375,
+        8.70703125
+      ],
+      "loadAfter": [
+        10.16845703125,
+        8.00634765625,
+        8.7236328125
+      ]
+    },
+    {
+      "pair": 4,
+      "arm": "baseline",
+      "captureMode": "timing",
+      "captureTransport": "Firefox ordinary browser page",
+      "pageWasHidden": false,
+      "wallSeconds": 70.32526000000001,
+      "guestSeconds": 47.750049575,
+      "instructions": 9819885134,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "wasmSha256": "37c13458edfeb392838004e164734292cb9f5d39b487b7f6cd6e9ebc04027d39",
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "instrumented": false,
+      "verdictValidation": {
+        "schema": "tinydraw-gate1-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": null,
+      "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+      "jit": {
+        "compiled": 10802,
+        "failed": 0,
+        "released": 3254,
+        "compileMs": 3442.340000000029,
+        "bytes": 112629067,
+        "liveBytes": 76221805,
+        "peakBytes": 76221805,
+        "peakModules": 7548,
+        "instructions": 9637431524
+      },
+      "browser": "Firefox/156.0",
+      "v8": null,
+      "engine": "SpiderMonkey",
+      "loadBefore": [
+        10.16845703125,
+        8.00634765625,
+        8.7236328125
+      ],
+      "loadAfter": [
+        6.853515625,
+        7.4013671875,
+        8.43408203125
+      ]
+    }
+  ]
+}

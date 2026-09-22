@@ -1,0 +1,107 @@
+{
+  "kind": "Additive Firefox campaign",
+  "preservedCampaign": {
+    "jobs": 12,
+    "timedArms": 56,
+    "files": [
+      {
+        "path": "chrome/warmup-pocket.json",
+        "sha256": "74abf7e0a5dce06010c8c88e2d5b70d321ef15c25cd338177b8672deaa714a40",
+        "bytes": 6705
+      },
+      {
+        "path": "chrome/control-pocket.json",
+        "sha256": "092b7d4094afb60810acb45af1a8d686845642960c1d67fb79ec0629aa863500",
+        "bytes": 9777
+      },
+      {
+        "path": "chrome/before-after-pocket.json",
+        "sha256": "c6707a06c4cc182e1fea4007fbf1b884a191ffc86c75a3ce7b1714f60ff98bbf",
+        "bytes": 15921
+      },
+      {
+        "path": "chrome/warmup-tinydraw.json",
+        "sha256": "1ca7a089b3eecc61d7a105e00a02ea0e48cc15658f5a69022f00a81cc1d5a8e3",
+        "bytes": 7433
+      },
+      {
+        "path": "chrome/control-tinydraw.json",
+        "sha256": "f18c75a5a0950e508d5fb04e4ca21ea7c82028167ef1ee94ed804caac35a7900",
+        "bytes": 11225
+      },
+      {
+        "path": "chrome/before-after-tinydraw.json",
+        "sha256": "b308433526b7435d5ecb442574bbbf475011b0a64ee4ffc6caea4156695a59ee",
+        "bytes": 18824
+      },
+      {
+        "path": "safari/warmup-pocket.json",
+        "sha256": "23b91bd86098c4465f0b4c827ac4f569880eec161977963c5189ae456faf0de8",
+        "bytes": 5506
+      },
+      {
+        "path": "safari/control-pocket.json",
+        "sha256": "c0b24b942862b1c2e02b8c8b943ff1d48f7bc92c49a7cc8c84f3196c80e8684f",
+        "bytes": 8603
+      },
+      {
+        "path": "safari/before-after-pocket.json",
+        "sha256": "32dd0c7f54916fcda8f363c54e139987ff84cfa8d6e3fc751c6bc0437f03233d",
+        "bytes": 14847
+      },
+      {
+        "path": "safari/warmup-tinydraw.json",
+        "sha256": "5123f184b27cbcb38922878f7b337e855f29181456fa9bedf66836978a523ab9",
+        "bytes": 6208
+      },
+      {
+        "path": "safari/control-tinydraw.json",
+        "sha256": "b2f5f757ff2cace33218da236c6655a3ef74a6636d6230bdb5df2b6c999d6e2f",
+        "bytes": 10033
+      },
+      {
+        "path": "safari/before-after-tinydraw.json",
+        "sha256": "0d930da536d2d9c425db24800d8efa8be90e3a8177527223957fce324a51a863",
+        "bytes": 17697
+      }
+    ]
+  },
+  "addedCampaign": {
+    "browser": "firefox",
+    "jobs": 6,
+    "timedArms": 28
+  },
+  "previousMetadata": [
+    {
+      "path": "results.json",
+      "sha256": "fb972e69f87c6f8e61d9856561ed7da3845f72e52af4dd02eff71ceee1f47b0b",
+      "bytes": 8542
+    },
+    {
+      "path": "conditions.json",
+      "sha256": "64930f39923df1fc15d56db1a6fcde12f17737018052c22d379eef2440ac6461",
+      "bytes": 5862
+    },
+    {
+      "path": "provenance.json",
+      "sha256": "6ca590e5eb9104891bba8592f43027edc55432e0b2088b94e23e38b11cffa765",
+      "bytes": 5372
+    },
+    {
+      "path": "verification.json",
+      "sha256": "d68634f903e94babece31ba76de7794b597aa50deed09cefe9946fbc4f3a808e",
+      "bytes": 771
+    },
+    {
+      "path": "receipt-manifest.json",
+      "sha256": "4646818b9609312b2bc78be7d1035353bf0b944abb977a0abc17c65bc8ed14d2",
+      "bytes": 8692
+    },
+    {
+      "path": "local-validation.json",
+      "sha256": "117f2bd8738ce48b90da66fa29e73accb08314acb5f961563fb19c0d0ba41d03",
+      "bytes": 978
+    }
+  ],
+  "limitation": "Chrome/Safari raw sample files are byte-preserved. Prior metadata snapshots are under history/chrome-safari; new aggregate metadata adds Firefox without replacing the earlier results."
+}

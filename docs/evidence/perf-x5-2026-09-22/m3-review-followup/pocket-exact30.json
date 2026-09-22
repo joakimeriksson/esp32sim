@@ -1,0 +1,82 @@
+{
+  "workload": "pocket-tank",
+  "guestSeconds": 30,
+  "scope": "Correctness only; Node wall time is not a benchmark.",
+  "node": "v24.16.0",
+  "baseline": {
+    "sourceRevision": "7828e683bec41b9fc47dbbc38391a3a794fc4956",
+    "wasmSha256": "37c13458edfeb392838004e164734292cb9f5d39b487b7f6cd6e9ebc04027d39",
+    "wasmBytes": 2047249
+  },
+  "candidate": {
+    "sourceRevision": "7c54ce3400e8ee92b5dccfb1f423223c4020e0ea",
+    "wasmSha256": "3bc68c660738cbf63449d5ab00b72cedd54efb8a0ac89a3a387bf0b5172af84c",
+    "wasmBytes": 2089268
+  },
+  "reproduction": "TREE=<source-tree> FW_DIR=<directory-containing-portable-manifest-and-assets> BASE_WASM=<baseline.wasm> SECS=30 node docs/evidence/perf-x5-2026-09-22/exact.mjs <candidate.wasm>",
+  "manifest": {
+    "board": "waveshare-amoled18-v2",
+    "flash_mb": 16,
+    "psram_mb": 8,
+    "files": {
+      "rom": "assets/pocket-rom.elf",
+      "bootloader": "assets/pocket-bootloader.bin",
+      "ptable": "assets/pocket-ptable.bin",
+      "app": "assets/pocket-app.bin"
+    },
+    "flash_at": {
+      "0x290000": "assets/pocket-model.bin"
+    },
+    "expect": "tok/s",
+    "seconds": 30,
+    "display_rotate": 90,
+    "line_hint": "a director command, e.g. feed 6 or shadow (help lists them)"
+  },
+  "manifestSha256": "92190e584e53cb82f2ff6cff7ecae6dbbae5dd83c2958bc9b10d5f20563d214e",
+  "inputs": {
+    "assets/pocket-rom.elf": {
+      "bytes": 949552,
+      "sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd"
+    },
+    "assets/pocket-bootloader.bin": {
+      "bytes": 22464,
+      "sha256": "9556d59f3a10f6b04fa6d75f3142a66034339afafffbd4bbc3d9a127eaa73859"
+    },
+    "assets/pocket-ptable.bin": {
+      "bytes": 3072,
+      "sha256": "7af5b28608c91167e00778b7f20622f3b47849efebeb3e64117162d73f3e0508"
+    },
+    "assets/pocket-app.bin": {
+      "bytes": 470096,
+      "sha256": "443dd24aed14a509e6df597eb3a02635cc07e0fbee6f04db85a62f4d4dadb113"
+    },
+    "assets/pocket-model.bin": {
+      "bytes": 7557640,
+      "sha256": "b200bf87c78dc85c4d727f68941ac0b83cced9827037cc169cd2122d71002c2a"
+    }
+  },
+  "contract": {
+    "referenceAndCandidateInsns": "10073833775",
+    "referenceAndCandidateConsoleSha256": "b9d9966e5d9d73984203c11846eb7f8c86507cb53ffe133c4e7e92dff66319d7",
+    "referenceAndCandidateFrames": 737,
+    "referenceAndCandidateFramesSha256": "71a5ccdbf9dccbb35775c0d1ce90a2fad3f46370b901c39e4f3d58798537ca7d",
+    "referencePanics": 0,
+    "candidatePanics": 0,
+    "referenceJitFailures": 0,
+    "candidateJitFailures": 0,
+    "exact": true,
+    "referenceReporting": "Reference full hashes and zero counters are established by matchesReference returning true; the original log prints only abbreviated reference hashes."
+  },
+  "timingObservationNotBenchmark": {
+    "candidateNodeWallSeconds": 35.197
+  },
+  "log": {
+    "originalSha256": "39ba6a93aad0c1ca6200dd30ca881b2f7030745956eff4590e71778e9a66e9f2",
+    "sanitizedSha256": "2919c5d380c5b0ff785fd873a52617e54cda95d52a3d89c97b6d2850cf1c424f",
+    "sanitizedFile": "pocket-exact30-sanitized.log",
+    "redaction": "Replace absolute candidate artifact path with relative path; no values removed."
+  },
+  "runnerSha256": "b4f697f4270a782a17c44ae308df6fb1827044a8b40ec0a5394a5213096004b1",
+  "contractSha256": "1a1cb9e949b687d7cf64adfa7574fa46bf2b5a1a1148b5442392117887c16ce0",
+  "jitHostSha256": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294"
+}

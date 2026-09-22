@@ -1,0 +1,154 @@
+{
+  "artifacts": {
+    "before": {
+      "sourceRevision": "7828e683bec41b9fc47dbbc38391a3a794fc4956",
+      "wasmSha256": "37c13458edfeb392838004e164734292cb9f5d39b487b7f6cd6e9ebc04027d39",
+      "bytes": 2047249,
+      "buildFeatures": [],
+      "RUSTFLAGS": "-Cllvm-args=-inline-threshold=2000",
+      "CARGO_PROFILE_RELEASE_DEBUG": "0",
+      "CARGO_PROFILE_RELEASE_STRIP": "debuginfo",
+      "rustc": "1.98.1",
+      "target": "wasm32-unknown-unknown",
+      "wasmOpt": false,
+      "original": {
+        "path": "artifacts/before/build.json",
+        "sha256": "66fd076d32e649c678e7b2966fc2528b1276eb16826578740d6f923fb6319a41",
+        "bytes": 409
+      }
+    },
+    "after": {
+      "sourceRevision": "0ccb83372b5aaa04e29b355c5aee246e05fc635f",
+      "wasmSha256": "eb754176f3100563da93b5269a54af1b93ff611abcf09fbae5026fd110b8409a",
+      "bytes": 2088105,
+      "buildFeatures": [],
+      "RUSTFLAGS": "-Cllvm-args=-inline-threshold=2000",
+      "CARGO_PROFILE_RELEASE_DEBUG": "0",
+      "CARGO_PROFILE_RELEASE_STRIP": "debuginfo",
+      "rustc": "1.98.1",
+      "target": "wasm32-unknown-unknown",
+      "wasmOpt": false,
+      "original": {
+        "path": "artifacts/after/build.json",
+        "sha256": "4edf44dbd49a469d4eb4dde8f8136164adfdad090df92765371a27034991df95",
+        "bytes": 409
+      }
+    }
+  },
+  "environment": {
+    "cpu": "Apple M1 Pro",
+    "powerAtStart": "battery",
+    "batteryPercentAtStart": 37,
+    "lowPowerMode": 0,
+    "platform": "macOS arm64",
+    "compiler": "rustc1.98.1",
+    "harnessSourceRevision": "1743b2853649f6e94793ccaaa500e7c2f7572869",
+    "harnessChange": "Preserve dedicated Chrome profiles instead of deleting scratch evidence; timing logic unchanged",
+    "harnessOriginalSha256": "e7760e696f7dca2e0a7aacf37a27545e834331d35dfce85bdfa405ca02d3c156",
+    "harnessRetainedSha256": "49880738b68561744e158aaaf7fb470a0a3745dfd96bb17dbd48bd1f730ab651"
+  },
+  "assets": [
+    {
+      "workload": "pocket-tank",
+      "assets": {
+        "rom": {
+          "bytes": 949552,
+          "sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+          "matchesX4": true,
+          "matchesX5": true
+        },
+        "bootloader": {
+          "bytes": 22464,
+          "sha256": "9556d59f3a10f6b04fa6d75f3142a66034339afafffbd4bbc3d9a127eaa73859",
+          "matchesX4": true,
+          "matchesX5": true
+        },
+        "ptable": {
+          "bytes": 3072,
+          "sha256": "7af5b28608c91167e00778b7f20622f3b47849efebeb3e64117162d73f3e0508",
+          "matchesX4": true,
+          "matchesX5": true
+        },
+        "app": {
+          "bytes": 470096,
+          "sha256": "443dd24aed14a509e6df597eb3a02635cc07e0fbee6f04db85a62f4d4dadb113",
+          "matchesX4": true,
+          "matchesX5": true
+        },
+        "model": {
+          "bytes": 7557640,
+          "sha256": "b200bf87c78dc85c4d727f68941ac0b83cced9827037cc169cd2122d71002c2a",
+          "matchesX4": true,
+          "matchesX5": true
+        }
+      }
+    },
+    {
+      "workload": "tinydraw",
+      "assets": {
+        "rom": {
+          "bytes": 949552,
+          "sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+          "matchesX4": true,
+          "matchesX5": true
+        },
+        "bootloader": {
+          "bytes": 22496,
+          "sha256": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+          "matchesX4": true,
+          "matchesX5": true
+        },
+        "ptable": {
+          "bytes": 3072,
+          "sha256": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+          "matchesX4": true,
+          "matchesX5": true
+        },
+        "app": {
+          "bytes": 726752,
+          "sha256": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+          "matchesX4": true,
+          "matchesX5": true
+        },
+        "elf": {
+          "bytes": 15019752,
+          "sha256": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+          "matchesX4": true,
+          "matchesX5": true
+        }
+      }
+    }
+  ],
+  "privateOriginals": [
+    {
+      "path": "environment.json",
+      "sha256": "d5b12bcfb67e60f141bb790b1ff3176724eb5940662315e9730fc7ff72620df0",
+      "bytes": 624
+    },
+    {
+      "path": "assets-verification.json",
+      "sha256": "4b4153c495fa973ffcf8f9d1828b7cca8d1dfdfcf7a35e89c8eae09cea323c6d",
+      "bytes": 5851
+    },
+    {
+      "path": "assets-pocket.json",
+      "sha256": "62bbfbb97113fa4f6734516452f166824fac2bff4a3001e7bb6ce7e37512b3c6",
+      "bytes": 471
+    },
+    {
+      "path": "assets-tinydraw.json",
+      "sha256": "62375677c48ba2ae759654cb0afdd44d9162594d85d7a322f12ab04a835bc101",
+      "bytes": 944
+    }
+  ],
+  "redactions": [
+    "Retain original SHA256/byte counts while omitting local paths, realpaths, browser command lines, user-agent strings, WebDriver capabilities, debugger/session identifiers and logs.",
+    "Retain all wall-time samples, pair order, instructions, frame counts, verdicts, console hashes, JIT counters and aggregate load.",
+    "Serial event content is read only to recompute its SHA256 and validate workload completion; raw events and profiles are not published."
+  ],
+  "curationScript": {
+    "path": "curate.mjs",
+    "sha256": "6941dd5c3277ae615b37d6292321516712ee513faefefea66688f2a396248553",
+    "bytes": 27350
+  }
+}

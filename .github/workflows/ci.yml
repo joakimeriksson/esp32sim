@@ -14,6 +14,14 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Evidence privacy patterns
         run: node tools/check-evidence-privacy.mjs
+      - name: Retained x5 receipt contracts
+        run: |
+          node --test docs/evidence/perf-x5-2026-09-22/verify-results.test.mjs
+          node docs/evidence/perf-x5-2026-09-22/verify-results.mjs
+          node --test docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.test.mjs
+          node docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.mjs
+          node --test docs/evidence/perf-x5-2026-09-22/historical-before-after/verify.test.mjs
+          node docs/evidence/perf-x5-2026-09-22/historical-before-after/verify.mjs
       - name: Fetch the ESP32-S3, ESP32-C3 and ESP32-C6 mask ROM ELFs
         env:
           GH_TOKEN: ${{ github.token }}
@@ -29,12 +37,16 @@ jobs:
         run: cargo build --release --workspace
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Clippy (WASM JIT and differential tests)
+        run: cargo clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings
       - name: Test (hermetic + golden outputs)
         run: ESP32SIM_ROM_DIR=$PWD/roms cargo test --release --workspace -- --include-ignored --skip external_
       - name: Virtual-quantum scheduler (native opt-in)
         run: ESP32SIM_VQ_NATIVE=1 cargo test --release -p esp32s3 --test machine --test virtual_stops
       - name: Build the wasm module
         run: tools/wasm-build.sh
+      - name: Production WASM sections (no DWARF, profile names retained)
+        run: node tools/check-wasm-sections.mjs web/wasm/esp32sim.wasm
       - name: Test the wasm module (the real build, under Node, through the page's manifests)
         run: ESP32SIM_ROM_DIR=$PWD/roms node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel
       - name: Timing configuration ABI (real wasm exports)
@@ -46,6 +58,7 @@ jobs:
           node --test tools/touch-input-test.mjs
       - name: Browser benchmark verdict, configuration and receipt tests
         run: |
+          node --test tools/wasm-build-policy.test.mjs
           node --test tools/browser-benchmark/*.test.mjs
           python3 -m unittest discover -s tools/browser-benchmark -p 'test_*.py'
       - name: Differential tests for generated WASM blocks

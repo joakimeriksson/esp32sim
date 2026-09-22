@@ -1,0 +1,30 @@
+{
+  "wasm": "review-production.wasm",
+  "secs": 30,
+  "framesSha256": "71a5ccdbf9dccbb35775c0d1ce90a2fad3f46370b901c39e4f3d58798537ca7d",
+  "insns": "10073833775",
+  "consoleSha256": "b9d9966e5d9d73984203c11846eb7f8c86507cb53ffe133c4e7e92dff66319d7",
+  "frames": 737,
+  "panics": 0,
+  "jitFailures": 0,
+  "refInsns": "10073833775",
+  "refSha": "b9d9966e",
+  "refFrames": 737,
+  "refFramesSha": "71a5ccdb",
+  "EXACT": true,
+  "candidateSha256": "eb754176f3100563da93b5269a54af1b93ff611abcf09fbae5026fd110b8409a",
+  "baselineSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+  "command": "SECS=30 TREE=<candidate-tree> FW_DIR=<firmware-dir> BASE_WASM=<x5-base.wasm> node exact.mjs <review-production.wasm>",
+  "harnessSha256": "b4f697f4270a782a17c44ae308df6fb1827044a8b40ec0a5394a5213096004b1",
+  "contractSha256": "1a1cb9e949b687d7cf64adfa7574fa46bf2b5a1a1148b5442392117887c16ce0",
+  "privacy": "Candidate path normalized; Node wall time excluded because this is a correctness check, not a timing measurement.",
+  "inputSha256": {
+    "pocket-tank.json": "af3a571b4cba0e65a1259171bc8e7906f1e421f0ea7f2f4832056e926ef1e101",
+    "esp32s3_rev0_rom.elf": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+    "public/pocket-tank-bootloader.bin": "9556d59f3a10f6b04fa6d75f3142a66034339afafffbd4bbc3d9a127eaa73859",
+    "public/pocket-tank-ptable.bin": "7af5b28608c91167e00778b7f20622f3b47849efebeb3e64117162d73f3e0508",
+    "public/pocket-tank.bin": "443dd24aed14a509e6df597eb3a02635cc07e0fbee6f04db85a62f4d4dadb113",
+    "local/model_q4.bin": "b200bf87c78dc85c4d727f68941ac0b83cced9827037cc169cd2122d71002c2a"
+  },
+  "jitHostSha256": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294"
+}

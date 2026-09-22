@@ -14,5 +14,5 @@ DYLD_FALLBACK_LIBRARY_PATH="$(dirname "$(dirname "$RUSTC")")/lib${DYLD_FALLBACK_
 "$CARGO" build --release --target wasm32-unknown-unknown -p esp32sim-wasm
 cp target/wasm32-unknown-unknown/release/esp32sim_wasm.wasm web/wasm/esp32sim.wasm
 # Keep the measured artifact by default; Binaryen is a separate experiment.
-if [ "${WASM_OPT:-0}" = 1 ]; then wasm-opt -O3 -o web/wasm/esp32sim.wasm web/wasm/esp32sim.wasm; fi
+if [ "${WASM_OPT:-0}" = 1 ]; then wasm-opt -O3 -g -o web/wasm/esp32sim.wasm web/wasm/esp32sim.wasm; fi
 ls -la web/wasm/esp32sim.wasm

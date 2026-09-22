@@ -1,0 +1,218 @@
+diff --git a/xtensa-lx7/src/jit/wasm_memory.rs b/xtensa-lx7/src/jit/wasm_memory.rs
+index ea5a4651..830bc2f0 100644
+--- a/xtensa-lx7/src/jit/wasm_memory.rs
++++ b/xtensa-lx7/src/jit/wasm_memory.rs
+@@ -2,11 +2,21 @@
+ use super::*;
+ use emu_core::bus::{TLB_ENTRIES, TLB_INDEX_SHIFT, TLB_XOR_SHIFT, VPAGE_SHIFT};
+ 
++const VPAGE_MASK: u32 = (1 << VPAGE_SHIFT) - 1;
++/// An instruction can begin up to three bytes before a page boundary and still keep bytes
++/// in it, because PIE encodings are four bytes long (`pie::decode`). A write into the first
++/// three bytes of a page therefore also changes instructions whose code page is the
++/// previous one, and the bus bumps that page as well (`esp32s3/src/bus.rs` `bump` and
++/// `note_written`, `esp32s3/src/bus/dma.rs` for the DMA run copy).
++const PREV_PAGE_BYTES: u32 = 3;
++
+ const _: () = {
+     assert!(TLB_ENTRIES.is_power_of_two());
+     assert!(TLB_INDEX_SHIFT < 32 && TLB_XOR_SHIFT < 32);
+     // Aligned 16-byte PIE accesses must fit one version page.
+     assert!(VPAGE_SHIFT >= 4 && VPAGE_SHIFT < 32);
++    // The previous-page rule must not reach past one page.
++    assert!(PREV_PAGE_BYTES < 1 << VPAGE_SHIFT);
+ };
+ 
+ pub(super) fn emit(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
+@@ -226,4 +236,30 @@ pub(super) fn record_store(g: &mut Gen, writes: u32) {
+     g.op(0x6a);
+     g.store(0);
+     region_store_check(g);
++    // A write into the first bytes of a page also changes any instruction that began in
++    // the previous one, so the bus bumps that page once whatever the access width. Only
++    // the first of the interpreter's word writes can qualify, so this adds one, not
++    // `writes`. The `p > 0` guard is the pointer still being inside the version array.
++    g.get(REL);
++    g.c(VPAGE_MASK);
++    g.op(0x71);
++    g.c(PREV_PAGE_BYTES);
++    g.op(0x49);
++    g.begin_if();
++    g.get(TMP);
++    g.get(6);
++    g.op(0x4b);
++    g.begin_if();
++    g.get(TMP);
++    g.c(4);
++    g.op(0x6b);
++    g.tee(TMP);
++    g.get(TMP);
++    g.load(0);
++    g.c(1);
++    g.op(0x6a);
++    g.store(0);
++    region_store_check(g);
++    g.end();
++    g.end();
+ }
+diff --git a/xtensa-lx7/src/jit/wasm_tests.rs b/xtensa-lx7/src/jit/wasm_tests.rs
+index 64bd025f..61bb9bf6 100644
+--- a/xtensa-lx7/src/jit/wasm_tests.rs
++++ b/xtensa-lx7/src/jit/wasm_tests.rs
+@@ -57,10 +57,18 @@ impl Ram {
+             helper_accesses: 0,
+         }
+     }
++    /// The same write-version rule as the real S3 bus (`esp32s3/src/bus.rs` `bump`):
++    /// an instruction can begin up to three bytes before a page boundary, so a write
++    /// into the first three bytes of a page also changes instructions whose code page
++    /// is the previous one.
+     fn wrote(&mut self, a: u32, n: u32) {
+-        for p in (a - BASE) / 256..=(a - BASE + n - 1) / 256 {
++        let off = a - BASE;
++        for p in off / 256..=(off + n - 1) / 256 {
+             self.versions[p as usize] += 1;
+         }
++        if off & 255 < 3 && off >= 256 {
++            self.versions[(off / 256 - 1) as usize] += 1;
++        }
+     }
+ }
+ impl Bus for Ram {
+@@ -315,7 +323,7 @@ fn compare_hinted(block: &mut [BlockInsn], case: Case, configure: &impl Fn(&mut
+     assert_eq!(trap, b.jit_trap.take());
+     same(&a, &b);
+     assert_eq!(ra.ram.mem, rb.ram.mem);
+-    assert_eq!(ra.versions, rb.versions);
++    assert_eq!(ra.versions, rb.versions, "page versions [{}]", CONTEXT.with(|c| c.borrow().clone()));
+     if done > 0 {
+         assert_eq!(ra.noted, rb.noted);
+     }
+@@ -346,6 +354,8 @@ pub fn run_tests() -> u32 {
+     let mut tests = 0;
+     #[cfg(feature = "wasm-cache-inline")]
+     { tests += memory::inline_cache_hits(); }
++    // EX180 first: the cheapest proof that a fast store records the pages the bus records.
++    tests += memory::page_boundary_stores() + memory::straddling_instruction_rewrite();
+     tests += arithmetic::basic_ops() + arithmetic::division()
+         + memory::loads_and_stores() + control::helper_continuation();
+     scheduler::scheduler();
+diff --git a/xtensa-lx7/src/jit/wasm_tests/memory.rs b/xtensa-lx7/src/jit/wasm_tests/memory.rs
+index 3dbc6b4e..aa5d8c0a 100644
+--- a/xtensa-lx7/src/jit/wasm_tests/memory.rs
++++ b/xtensa-lx7/src/jit/wasm_tests/memory.rs
+@@ -117,6 +117,78 @@ pub(super) fn flat_ram_bounds() -> u32 {
+     8
+ }
+ 
++/// EX180: an Xtensa instruction can begin up to three bytes before a page boundary (PIE
++/// admits 4-byte encodings, `pie::decode`), so a store into the first three bytes of a
++/// version page also changes instructions whose code page is the previous one. The bus
++/// bumps that page too (`esp32s3/src/bus.rs` `bump`) and the aarch64 JIT leaves its fast
++/// path for those offsets (`jit/mod.rs`, S8i..S32ri). Every store width and page offset a
++/// generated fast store can reach must record exactly the same pages as the interpreter.
++pub(super) fn page_boundary_stores() -> u32 {
++    use Op::*;
++    let mut tests = 0;
++    for (op, width) in [(S8i, 1u32), (S16i, 2), (S32i, 4), (S32iN, 4)] {
++        // Page 0 exercises the bus's `p > 0` guard: nothing precedes the first page.
++        for page in [0u32, 1, 17] {
++            for off in [0u32, 1, 2, 3, 252, 253, 254, 255] {
++                if off % width != 0 { continue; }               // the fast path is aligned only
++                let addr = BASE + page * 256 + off;
++                for fast in [false, true] {
++                    let mut block = [insn(Add), insn(op), insn(Xor)];
++                    compare(&mut block, Case { seed: 21, budget: 3, addr: Some(addr), fast, ..Case::default() }, |_| {});
++                    tests += 1;
++                }
++            }
++        }
++    }
++    tests
++}
++
++/// EX180, the consequence: a 3-byte ADDI at page offset 254 keeps its immediate byte in
++/// the next page. A hot block on a third page rewrites that byte through a generated fast
++/// store, so the decoded block holding the ADDI must be thrown away every time and both
++/// engines must agree on the architectural result and on the recorded pages.
++pub(super) fn straddling_instruction_rewrite() -> u32 {
++    // +0x0fe addi a3,a3,imm8   bytes 0x0fe,0x0ff and the immediate at 0x100 (page 1)
++    // +0x101 j +0x200
++    // +0x200 s8i a5,a4,0       a4 = BASE + 0x100: rewrites that immediate
++    // +0x203 addi.n a5,a5,1    a different immediate every iteration
++    // +0x205 addi.n a2,a2,1
++    // +0x207 j +0x0fe          this block stays in page 2, so it stays hot and compiled
++    let (mut ra, mut rb) = (Ram::new(true, false), Ram::new(true, false));
++    for ram in [&mut ra, &mut rb] {
++        let m = &mut ram.ram.mem;
++        m[0x0fe..0x101].copy_from_slice(&asm::rri8(2, 0xc, 3, 3, 1));
++        m[0x101..0x104].copy_from_slice(&asm::j(BASE + 0x101, BASE + 0x200));
++        m[0x200..0x203].copy_from_slice(&asm::s8i(5, 4, 0));
++        m[0x203..0x205].copy_from_slice(&asm::addi_n(5, 5, 1));
++        m[0x205..0x207].copy_from_slice(&asm::addi_n(2, 2, 1));
++        m[0x207..0x20a].copy_from_slice(&asm::j(BASE + 0x207, BASE + 0x0fe));
++    }
++    assert_eq!(crate::decode::decode(BASE + 0x0fe, ra.fetch(BASE + 0x0fe).unwrap()).op, Op::Addi);
++    let (mut a, mut b) = (cpu(5), cpu(5));
++    for c in [&mut a, &mut b] {
++        c.pc = BASE + 0x200;
++        c.ps = 0;
++        c.set_ar(2, 0);
++        c.set_ar(3, 0);
++        c.set_ar(4, BASE + 0x100);
++        c.set_ar(5, 1);
++    }
++    CONTEXT.with(|c| *c.borrow_mut() = String::from("straddling instruction rewrite"));
++    for turn in 0..300 {
++        let budget = 1 + turn % 9;
++        let (done, trap) = crate::block::run_block(&mut b, &mut rb, budget);
++        assert!(trap.is_none());
++        for _ in 0..done { crate::step(&mut a, &mut ra).unwrap(); }
++        same(&a, &b);
++        assert_eq!(ra.ram.mem, rb.ram.mem, "memory after turn {turn}");
++        assert_eq!(ra.versions, rb.versions, "page versions after turn {turn}");
++    }
++    assert!(b.blocks.jit_instructions > 100, "the rewriting block never ran compiled");
++    assert!(a.get_ar(3) > 100, "the straddling ADDI never accumulated");
++    1
++}
++
+ pub(super) fn loads_and_stores() -> u32 {
+     use Op::*;
+     let mut tests = 0;
+diff --git a/xtensa-lx7/src/jit/wasm_tests/regions.rs b/xtensa-lx7/src/jit/wasm_tests/regions.rs
+index d754eeb6..b26ef1f5 100644
+--- a/xtensa-lx7/src/jit/wasm_tests/regions.rs
++++ b/xtensa-lx7/src/jit/wasm_tests/regions.rs
+@@ -532,5 +532,30 @@ pub(super) fn regions() -> u32 {
+         vec![(0, 2), (35, 1), (6, 3), (41, 2), (13, 6), (43, 1)]);
+     assert_eq!(formed.pages, vec![(0, 0)]);
+     assert!(emitter::region::form(&c, &mut ram, BASE + 38, &head, true).is_none(), "RSR head");
+-    cases + 2
++    cases + 2 + prev_page_store()
++}
++
++/// EX180: a region whose code lives entirely in page 0 stores into the first byte of page
++/// 1. The bumped page is outside the region's page range, so `region_store_check` does not
++/// see it, but the bus also bumps page 0 — a code page of this very region. Both engines
++/// must record the same pages and retire the same instructions.
++fn prev_page_store() -> u32 {
++    use Op::*;
++    let mut p = Vec::new();
++    for _ in 0..6 { p.extend(asm::addi_n(2, 2, 1)); }        // 0..12
++    p.extend(asm::s8i(3, 4, 0));                             // 12: into page 1, offset 0
++    p.extend(asm::j(BASE + 15, BASE + 18));                  // 15: edge to the next chunk
++    for _ in 0..4 { p.extend(asm::addi_n(5, 5, 1)); }         // 18..26
++    p.extend(asm::j(BASE + 26, BASE));                       // 26: back to the head
++    let shape = [(0, AddiN, 0), (12, S8i, 0), (15, J, 18), (18, AddiN, 0), (26, J, 0)];
++    let mut cases = 0;
++    for off in [0u32, 1, 2, 3] {
++        let max = region_program("prev-page-store", &p, &shape, &[], 8, 18, |c| {
++            c.set_ar(3, 0x5a);
++            c.set_ar(4, BASE + 0x100 + off);
++        }, 300);
++        assert!(max > 8, "prev-page-store: region never passed its head ({max})");
++        cases += 1;
++    }
++    cases
+ }

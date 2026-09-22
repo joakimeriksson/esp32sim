@@ -61,6 +61,49 @@ pub(super) fn special_register_blocks() -> u32 {
     tests
 }
 
+/// helpers-s1: the compiled RSIL / WSR PS / XSR PS terminals. Sweeps the PS write mask, the old
+/// value returned in AR[t], and a hardware loop whose end is the terminal's own fall-through, so
+/// the backedge has to come out of generated code instead of the helper's `exec_insn`.
+pub(super) fn ps_terminals() -> u32 {
+    use Op::*;
+    let mut tests = 0;
+    for op in [Rsil, Wsr, Xsr] {
+        for (ps0, value) in [(0u32, 0u32), (0x1f, 9), (ps::WOE | 3, 0x0007_ff3f), (0x1f, 0xffff_ffff), (ps::WOE, ps::WOE | 15)] {
+            for &level in if op == Rsil { &[0, 3, 15][..] } else { &[0][..] } {
+                let mut block = [insn(Add), insn(MovN), insn(op)];
+                block[2].insn.imm = if op == Rsil { level } else { crate::state::sr::PS as i32 };
+                assert!(emitter::supported_insn(&block[2].insn, false), "{op:?} must be admitted");
+                for lend in [0, BASE + 6, BASE + 9] {
+                    for entry in 0..3 {
+                        for budget in [1, 3] {
+                            let configure = |c: &mut Cpu| {
+                                c.ps = ps0;
+                                c.windowstart = 1 << c.windowbase;
+                                c.set_ar(4, value);
+                                c.set_ar(5, value);
+                                c.lbeg = BASE;
+                                c.lend = lend;
+                                c.lcount = 2 * u32::from(lend != 0);
+                            };
+                            let case = Case { seed: 15, entry, budget, ..Case::default() };
+                            for hint in [lend, 0] {
+                                let before = PS_INLINE_TAKEN.load(std::sync::atomic::Ordering::Relaxed);
+                                compare_hinted(&mut block, case, &configure, hint);
+                                if entry == 2 {
+                                    assert!(PS_INLINE_TAKEN.load(std::sync::atomic::Ordering::Relaxed) > before,
+                                        "{op:?} PS={ps0:x} hint={hint:x} must execute inline");
+                                }
+                            }
+                            tests += 2;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    tests
+}
+
 pub(super) fn terminal_helpers() -> u32 {
     use Op::*;
     let mut tests = 0;
@@ -93,6 +136,57 @@ pub(super) fn terminal_helpers() -> u32 {
                                         c.set_ar(4, ret);
                                     });
                                 tests += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    tests
+}
+
+/// helpers-s2: the guarded inline RETW / RETW.N. Sweeps every call increment against a window
+/// where only the returned-into frame is live, plus WOE clear, A0 without an increment and the
+/// underflow, and a hardware loop ending on the return, which a taken transfer must not take.
+pub(super) fn windowed_return() -> u32 {
+    use Op::*;
+    let mut tests = 0;
+    for op in [Retw, RetwN] {
+        let mut block = [insn(Add), insn(MovN), insn(op)];
+        // Dirty A0 before the return reads it: the spill must use the pre-rotation window.
+        block[1].insn.t = 0;
+        block[1].max_ar = crate::exec::max_ar(&block[1].insn);
+        assert!(emitter::supported_insn(&block[2].insn, false), "{op:?} must be admitted");
+        for wb in [0, 7, 15] {
+            for flags in [0, ps::WOE, ps::WOE | ps::EXCM] {
+                for inc in 0..4u32 {
+                    for windows in [0, 0xffff, 1 << ((wb + 16 - inc) % 16)] {
+                        for lend in [0, BASE + 9] {
+                            for entry in 0..3 {
+                                for budget in [1, 3] {
+                                    let configure = |c: &mut Cpu| {
+                                        c.ps = flags;
+                                        c.windowbase = wb;
+                                        c.windowstart = windows;
+                                        let ret = (inc << 30) | ((BASE + 0x400) & 0x3fff_ffff);
+                                        c.set_ar(0, ret);
+                                        c.set_ar(4, ret);
+                                        c.lbeg = BASE;
+                                        c.lend = lend;
+                                        c.lcount = 2 * u32::from(lend != 0);
+                                    };
+                                    let case = Case { seed: wb, entry, budget, ..Case::default() };
+                                    let before = RETW_INLINE_TAKEN.load(std::sync::atomic::Ordering::Relaxed);
+                                    compare_hinted(&mut block, case, &configure, lend);
+                                    if entry == 2 {
+                                        let inline = flags & ps::WOE != 0 && inc != 0
+                                            && windows & (1 << ((wb + 16 - inc) % 16)) != 0;
+                                        assert_eq!(RETW_INLINE_TAKEN.load(std::sync::atomic::Ordering::Relaxed) > before, inline,
+                                            "{op:?} flags={flags:x} inc={inc} windows={windows:x}: inline guard outcome");
+                                    }
+                                    tests += 1;
+                                }
                             }
                         }
                     }
@@ -310,4 +404,74 @@ pub(super) fn pie_wide_shifts() -> u32 {
         }
     }
     tests
+}
+
+/// Exercise admission and the bridge itself, so falling back cannot hide missing coverage.
+pub(super) fn interpreted_bridges() -> u32 {
+    use Op::*;
+    let mut cases = 0;
+    for op in [Entry, Loop, Loopnez, Loopgtz, Ret, RetN, Retw, RetwN, Rsr, Add, Quos] {
+        for trap in [false, true] {
+            let mut ops = [insn(Mul16u), insn(op), insn(Add)];
+            for b in &mut ops { b.insn.r = 1; b.insn.s = 2; b.insn.t = 3; }
+            if op == Rsr { ops[1].insn.imm = crate::state::sr::PS as i32; }
+            if op == Entry { ops[1].insn.s = 1; ops[1].insn.imm = 16; }
+            if trap && op == Add { ops[1].insn.r = 8; }
+            for b in &mut ops { b.max_ar = crate::exec::max_ar(&b.insn); }
+            let mut a = cpu(0);
+            a.ps = ps::WOE | (1 << ps::CALLINC_SHIFT);
+            a.windowstart = if trap && op == Add { 1 | (1 << 2) } else { 0xffff };
+            // No overflow in the ordinary cases; RETW underflow is selected independently.
+            if op != Add || !trap { a.windowstart = if matches!(op, Retw | RetwN) && trap { 1 } else { 1 | (1 << 15) }; }
+            a.set_ar(0, (1 << 30) | ((BASE + 0x100) & 0x3fff_ffff));
+            a.set_ar(1, BASE + 0x200);
+            a.set_ar(2, 3);
+            a.set_ar(3, if trap && op == Quos { 0 } else { 2 });
+            let mut b = a.clone();
+            let (mut ra, mut rb) = (Ram::new(false, false), Ram::new(false, false));
+            b.blocks.install_test_bridge(BASE, &ops);
+            let (start, n) = b.blocks.bridge_target(BASE, rb.page_versions(), 3).unwrap();
+            let result = crate::block::bridge(&mut b, &mut rb, start, n);
+            a.blocks.install_test_bridge(BASE, &ops);
+            a.blocks.jit_enabled = false;
+            a.blocks.observed = true; // one decoded block, without continuation
+            let (iterations, trap_ref) = crate::block::run_block(&mut a, &mut ra, 3);
+            let done = result & 0xffff;
+            let exit = result >> 16;
+            let pre = exit == CODE_TRAP_PRE;
+            assert_eq!(exit, if trap_ref.is_none() { CODE_END } else if pre { CODE_TRAP_PRE } else { CODE_TRAP });
+            assert_eq!(iterations, done + u32::from(pre), "bridge {op:?} trap={trap}");
+            assert_eq!(b.jit_trap, trap_ref);
+            assert_eq!(b.blocks.bridged, done);
+            b.insn_count += done as u64;
+            b.advance_ccount(done * b.approximate_cpi);
+            same(&a, &b);
+            assert_eq!(ra.noted, rb.noted);
+            if op == Add { assert_eq!(result, if trap { 1 | CODE_TRAP_PRE << 16 } else { 3 | CODE_END << 16 }); }
+            if op == Quos && trap { assert_eq!(result, 2 | CODE_TRAP << 16); }
+            if matches!(op, Retw | RetwN) && trap { assert_eq!(result, 2 | CODE_TRAP << 16); }
+            cases += 1;
+        }
+    }
+    cases
+}
+
+pub(super) fn bridge_classes() -> u32 {
+    use Op::*;
+    // Every currently supported word_access opcode, including indexed floating
+    // accesses and atomic/synchronized forms, plus dispatcher-visible controls.
+    let memory = [L32i, L32iN, L32ai, S32i, S32iN, S32ri, S32nb, L32e,
+        S32e, S32c1i, Lsi, Lsip, Ssi, Ssip, Lsx, Lsxp, Ssx, Ssxp, L32r];
+    let c = cpu(0);
+    for op in memory {
+        let i = insn(op).insn;
+        assert!(crate::exec::word_access(&c, &i).is_some(), "{op:?}");
+        let class = crate::block::bridge_class(&i);
+        assert!(class == 0 || class == 3, "{op:?}: {class}");
+        assert!(class == 0 || class > crate::block::BRIDGE_CLASS, "memory admitted: {op:?}");
+    }
+    for op in [Wsr, Xsr, Rsil] {
+        assert_eq!(crate::block::bridge_class(&insn(op).insn), 0, "{op:?}");
+    }
+    22
 }

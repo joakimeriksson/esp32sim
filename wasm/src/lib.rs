@@ -399,6 +399,8 @@ pub unsafe extern "C" fn esp32sim_set_approximate_jit_timing(e: *mut Emu, cpi: u
 
 #[cfg(all(target_arch = "wasm32", feature = "jit-tests"))]
 mod jit_tests;
+#[cfg(all(target_arch = "wasm32", feature = "jit-tests"))]
+mod jit_memory_tests;
 
 /// EX170: sweeps the compiled MADD.S/MSUB.S sequence against the fused helper's arithmetic.
 /// Returns mismatches (must be 0); logs the halfway-class count.
@@ -416,5 +418,5 @@ pub extern "C" fn esp32sim_test_fma_sweep(seed: f64, n: u32) -> u32 {
 #[no_mangle]
 pub extern "C" fn esp32sim_test_block_jit() -> u32 {
     std::panic::set_hook(Box::new(|info| log(&format!("[jit test] {info}"))));
-    xtensa_lx7::jit::tests::run_tests() + jit_tests::run()
+    xtensa_lx7::jit::tests::run_tests() + jit_tests::run() + jit_memory_tests::run()
 }

@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Final integrated validation after the x5 adversarial review fixes.",
+  "sourceRevision": "9e930d5889cc1c20647005cb50d2a11321c494a6",
+  "status": "passed",
+  "environment": {
+    "platform": "Darwin arm64",
+    "rustc": "1.98.1 (48a229cea 2026-09-01)",
+    "cargo": "1.98.1 (797e8a9bc 2026-08-05)",
+    "node": "v26.9.0",
+    "cargoBuildJobs": 4
+  },
+  "wasmPolicy": {
+    "source": "tools/wasm-rustflags.sh",
+    "RUSTFLAGS": "-Cllvm-args=-inline-threshold=2000",
+    "CARGO_PROFILE_RELEASE_DEBUG": "0",
+    "CARGO_PROFILE_RELEASE_STRIP": "debuginfo"
+  },
+  "checks": [
+    {
+      "name": "integrated-differential",
+      "command": "tools/wasm-jit-test.sh",
+      "exitCode": 0,
+      "summary": {
+        "cases": 86028,
+        "compiledModulesReleased": 88722
+      },
+      "rawLog": {
+        "sha256": "953c771490abd2b3bba886db9e901fee4549ef447c5ff8fb33042b5dca6051c0",
+        "bytes": 573,
+        "retention": "Retained in private persistent task storage; not committed."
+      }
+    },
+    {
+      "name": "integrated-wasm-clippy",
+      "command": ". ./tools/wasm-rustflags.sh\nRUSTC=\"$(rustup which rustc)\"; export RUSTC\nDYLD_FALLBACK_LIBRARY_PATH=\"$(dirname \"$(dirname \"$RUSTC\")\")/lib${DYLD_FALLBACK_LIBRARY_PATH:+:$DYLD_FALLBACK_LIBRARY_PATH}\"; export DYLD_FALLBACK_LIBRARY_PATH\n\"$(rustup which cargo)\" clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+      "exitCode": 0,
+      "summary": {
+        "warningsDenied": true
+      },
+      "rawLog": {
+        "sha256": "c89d2c60663e8131358e19edeb23a634e6300dd740c9ca638ec06634458e440b",
+        "bytes": 836,
+        "retention": "Retained in private persistent task storage; not committed."
+      }
+    },
+    {
+      "name": "integrated-native",
+      "command": "cargo test --workspace --release",
+      "exitCode": 0,
+      "summary": {
+        "passed": 446,
+        "failed": 0,
+        "ignored": 22,
+        "measured": 0,
+        "filteredOut": 0,
+        "suiteSummaries": 59
+      },
+      "rawLog": {
+        "sha256": "1c29331369a235f269c8889e73a172d9bf3fa1245d93066599ab9d4ae3e826d8",
+        "bytes": 44299,
+        "retention": "Retained in private persistent task storage; not committed."
+      }
+    }
+  ],
+  "limitations": [
+    "These are correctness and lint checks, not browser performance measurements.",
+    "Native workspace tests use the default test selection; ignored tests were not run.",
+    "Compiler-policy variables apply to the WASM checks. Native tests use the workspace release profile without sourcing that shell policy.",
+    "Private raw logs contain local build paths and are not independently accessible from this repository. Commands, tool versions, result counts and original log hashes are retained here."
+  ],
+  "privacy": {
+    "curation": "Compact summary generated from test outputs. Local build paths and other raw log text were omitted; counts and original raw-log hashes were preserved.",
+    "manualReview": "No personal paths, hostnames, login names, process inventories or session identifiers included."
+  }
+}

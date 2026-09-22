@@ -1,0 +1,222 @@
+{
+  "contention": [
+    {
+      "at": "2026-09-22T10:37:47.538Z",
+      "userReportedConcurrentCompilation": true,
+      "continuedAtUserRequest": true,
+      "compilerProcessCounts": {
+        "rustc": 2,
+        "cargo": 1,
+        "rust-lld": 0,
+        "clang": 0
+      },
+      "load": [
+        23.35400390625,
+        10.74072265625,
+        10.83056640625
+      ]
+    },
+    {
+      "at": "2026-09-22T10:40:04.648Z",
+      "compilerProcessCounts": {
+        "rustc": 2,
+        "cargo": 1,
+        "rust-lld": 0,
+        "clang": 0
+      },
+      "load": [
+        17.38818359375,
+        12.6376953125,
+        11.56689453125
+      ]
+    },
+    {
+      "at": "2026-09-22T10:45:02.093Z",
+      "compilerProcessCounts": {
+        "rustc": 0,
+        "cargo": 0,
+        "rust-lld": 0,
+        "clang": 0
+      },
+      "load": [
+        9.46337890625,
+        18.33935546875,
+        15.30908203125
+      ]
+    },
+    {
+      "at": "2026-09-22T11:46:36.303Z",
+      "phase": "Safari restart 1",
+      "compilerProcessCounts": {
+        "rustc": 0,
+        "cargo": 0,
+        "rust-lld": 0,
+        "clang": 0
+      },
+      "load": [
+        42.00634765625,
+        35.09375,
+        27.8515625
+      ]
+    },
+    {
+      "at": "2026-09-22T11:56:48.050Z",
+      "phase": "Safari restart 1",
+      "compilerProcessCounts": {
+        "rustc": 0,
+        "cargo": 0,
+        "rust-lld": 0,
+        "clang": 0
+      },
+      "load": [
+        22.5888671875,
+        36.73876953125,
+        33.4150390625
+      ]
+    },
+    {
+      "at": "2026-09-22T11:57:10.483Z",
+      "phase": "Safari restart 1",
+      "aggregateCpuPercent": {
+        "user": 42.47,
+        "system": 20.85,
+        "idle": 36.66
+      }
+    },
+    {
+      "at": "2026-09-22T12:09:20.178Z",
+      "phase": "Safari restart 1",
+      "compilerProcessCounts": {
+        "rustc": 0,
+        "cargo": 0,
+        "rust-lld": 0,
+        "clang": 0
+      },
+      "load": [
+        15.7890625,
+        32.14013671875,
+        32.51513671875
+      ]
+    }
+  ],
+  "power": [
+    {
+      "at": "2026-09-22T10:34:50.203Z",
+      "source": "battery",
+      "percent": 29
+    },
+    {
+      "at": "2026-09-22T10:40:04.664Z",
+      "source": "battery",
+      "percent": 24
+    },
+    {
+      "at": "2026-09-22T10:48:26.489Z",
+      "source": "battery",
+      "percent": 16
+    },
+    {
+      "at": "2026-09-22T11:46:36.188Z",
+      "phase": "Safari restart 1",
+      "source": "AC",
+      "percent": 28
+    },
+    {
+      "at": "2026-09-22T12:09:20.062Z",
+      "phase": "Safari restart 1",
+      "source": "AC",
+      "percent": 57
+    }
+  ],
+  "originals": [
+    {
+      "path": "contention.jsonl",
+      "sha256": "e32d181ae17340633b8745a353acd0df1c30160b73231dbc07343a4da610fbdb",
+      "bytes": 1214
+    },
+    {
+      "path": "power.jsonl",
+      "sha256": "1946f90eaa4ef4000ac5e89544b44055bf8c16d73974355e9e65d8f592b5989a",
+      "bytes": 374
+    },
+    {
+      "path": "attempt-metadata.json",
+      "sha256": "adb43fb58027fdef5496920e4d690ad8765f2705af5b741a3106c8a65461f44c",
+      "bytes": 2155
+    }
+  ],
+  "limitations": [
+    "Compiler process counts are partial aggregate observations, not total CPU utilization or a process inventory.",
+    "Timestamps locate observations but do not establish which arm absorbed contention or permit a causal correction.",
+    "All measurements are retained; no observations are discarded or numerically adjusted for contention."
+  ],
+  "powerInterpretation": "Chrome started on battery; the first interrupted Safari attempt also started on battery. The selected Safari restart began on AC power at 28%. These are snapshots, not continuous power or thermal monitoring. No browser-engine-only comparison is established.",
+  "attempts": [
+    {
+      "browser": "Safari",
+      "label": "Initial ordinary-page attempt",
+      "status": "interrupted",
+      "reason": "User interruption before completing the campaign; restarted from the beginning.",
+      "includedInPrimaryComparison": false,
+      "completedJobs": 1,
+      "completedArms": 2,
+      "completedWarmup": {
+        "name": "warmup-pocket",
+        "pairs": 1,
+        "medianWallSeconds": {
+          "baseline": 49.806960000000004,
+          "candidate": 37.0458
+        },
+        "wallReductionPercent": 25.621238477513998,
+        "pairsWallReductionPercent": [
+          25.621238477513998
+        ],
+        "runs": [
+          {
+            "pair": 1,
+            "arm": "baseline",
+            "wallSeconds": 49.806960000000004,
+            "instructions": 10073833775,
+            "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+            "passed": true,
+            "jitFailed": 0
+          },
+          {
+            "pair": 1,
+            "arm": "candidate",
+            "wallSeconds": 37.0458,
+            "instructions": 10073833775,
+            "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+            "passed": true,
+            "jitFailed": 0
+          }
+        ]
+      },
+      "originalSummary": {
+        "path": "safari-interrupted/warmup-pocket/summary.json",
+        "sha256": "33977bb79b604f40728bfe3a0f9da1014dc6ecb8aa40450c460f3c518e4e0755",
+        "bytes": 4458
+      }
+    },
+    {
+      "browser": "Safari",
+      "label": "Ordinary-page restart 1",
+      "status": "completed",
+      "includedInPrimaryComparison": true,
+      "requiredJobs": 6,
+      "requiredArms": 28,
+      "startingPower": "AC",
+      "startingBatteryPercent": 28,
+      "completedJobs": 6,
+      "completedArms": 28
+    },
+    {
+      "browser": "Safari",
+      "label": "WebDriver attempt",
+      "status": "unavailable before any timing arm",
+      "reason": "Remote Automation disabled; no permission setting changed.",
+      "includedInPrimaryComparison": false,
+      "completedArms": 0
+    }
+  ]
+}

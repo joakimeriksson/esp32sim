@@ -1,0 +1,236 @@
+{
+  "experiment": "EX094",
+  "relatedExperiments": [
+    "EX120",
+    "EX181",
+    "EX183"
+  ],
+  "scope": "Direct pre-x4 versus reviewed post-x5 artifacts on the local M1 Pro; aggregate runtime comparison, not isolated x5 or per-feature speedup.",
+  "jobs": 12,
+  "timedArms": 56,
+  "browsers": [
+    {
+      "browser": "chrome",
+      "jobs": 6,
+      "arms": 28,
+      "isolation": "Fresh headless Chrome process and dedicated profile per arm; background throttling disabled.",
+      "captureTransport": "Chrome DevTools headless capture",
+      "results": [
+        {
+          "name": "warmup-pocket",
+          "workload": "pocket-tank",
+          "role": "retained warm-up; excluded from headline",
+          "pairs": 1,
+          "wallReductionPercent": 15.233839096287582,
+          "pairsWallReductionPercent": [
+            15.233839096287582
+          ],
+          "medianWallSeconds": {
+            "baseline": 38.49003500000387,
+            "candidate": 32.62652499999851
+          },
+          "receipt": "chrome/warmup-pocket.json"
+        },
+        {
+          "name": "control-pocket",
+          "workload": "pocket-tank",
+          "role": "A/A control",
+          "pairs": 2,
+          "wallReductionPercent": 2.816613413677238,
+          "pairsWallReductionPercent": [
+            1.957914002947303,
+            3.676664989597911
+          ],
+          "medianWallSeconds": {
+            "baseline": 38.23181749999523,
+            "candidate": 37.15497499999776
+          },
+          "receipt": "chrome/control-pocket.json"
+        },
+        {
+          "name": "before-after-pocket",
+          "workload": "pocket-tank",
+          "role": "primary comparison",
+          "pairs": 4,
+          "wallReductionPercent": 15.493157275150772,
+          "pairsWallReductionPercent": [
+            14.35649220301446,
+            14.510941303378445,
+            16.43238540717451,
+            16.399565451269748
+          ],
+          "medianWallSeconds": {
+            "baseline": 39.93566249999776,
+            "candidate": 33.7483674999997
+          },
+          "receipt": "chrome/before-after-pocket.json"
+        },
+        {
+          "name": "warmup-tinydraw",
+          "workload": "tinydraw",
+          "role": "retained warm-up; excluded from headline",
+          "pairs": 1,
+          "wallReductionPercent": 13.457918713246176,
+          "pairsWallReductionPercent": [
+            13.457918713246176
+          ],
+          "medianWallSeconds": {
+            "baseline": 41.739515000000594,
+            "candidate": 36.12224499999732
+          },
+          "receipt": "chrome/warmup-tinydraw.json"
+        },
+        {
+          "name": "control-tinydraw",
+          "workload": "tinydraw",
+          "role": "A/A control",
+          "pairs": 2,
+          "wallReductionPercent": -1.1332218554598539,
+          "pairsWallReductionPercent": [
+            0.24519811669259095,
+            -2.489909888660846
+          ],
+          "medianWallSeconds": {
+            "baseline": 41.10382249999792,
+            "candidate": 41.569619999997315
+          },
+          "receipt": "chrome/control-tinydraw.json"
+        },
+        {
+          "name": "before-after-tinydraw",
+          "workload": "tinydraw",
+          "role": "primary comparison",
+          "pairs": 4,
+          "wallReductionPercent": 14.38614696029461,
+          "pairsWallReductionPercent": [
+            15.225733579708113,
+            11.734361071005406,
+            15.443853861693867,
+            11.468724911067607
+          ],
+          "medianWallSeconds": {
+            "baseline": 39.10188749999925,
+            "candidate": 33.47663250000029
+          },
+          "receipt": "chrome/before-after-tinydraw.json"
+        }
+      ]
+    },
+    {
+      "browser": "safari",
+      "jobs": 6,
+      "arms": 28,
+      "isolation": "Ordinary visible page; fresh page and worker per arm; browser process and caches may persist",
+      "captureTransport": "Safari ordinary browser page",
+      "results": [
+        {
+          "name": "warmup-pocket",
+          "workload": "pocket-tank",
+          "role": "retained warm-up; excluded from headline",
+          "pairs": 1,
+          "wallReductionPercent": 24.99664655531366,
+          "pairsWallReductionPercent": [
+            24.99664655531366
+          ],
+          "medianWallSeconds": {
+            "baseline": 57.25456,
+            "candidate": 42.942840000000004
+          },
+          "receipt": "safari/warmup-pocket.json"
+        },
+        {
+          "name": "control-pocket",
+          "workload": "pocket-tank",
+          "role": "A/A control",
+          "pairs": 2,
+          "wallReductionPercent": 1.8509672395476073,
+          "pairsWallReductionPercent": [
+            2.120841073106805,
+            1.576171884760047
+          ],
+          "medianWallSeconds": {
+            "baseline": 56.54286999999999,
+            "candidate": 55.49628
+          },
+          "receipt": "safari/control-pocket.json"
+        },
+        {
+          "name": "before-after-pocket",
+          "workload": "pocket-tank",
+          "role": "primary comparison",
+          "pairs": 4,
+          "wallReductionPercent": 24.082935386326653,
+          "pairsWallReductionPercent": [
+            21.89750802928343,
+            24.819579778027034,
+            23.83056176356597,
+            24.333491441482437
+          ],
+          "medianWallSeconds": {
+            "baseline": 55.415670000000006,
+            "candidate": 42.06995
+          },
+          "receipt": "safari/before-after-pocket.json"
+        },
+        {
+          "name": "warmup-tinydraw",
+          "workload": "tinydraw",
+          "role": "retained warm-up; excluded from headline",
+          "pairs": 1,
+          "wallReductionPercent": 13.92497495004591,
+          "pairsWallReductionPercent": [
+            13.92497495004591
+          ],
+          "medianWallSeconds": {
+            "baseline": 51.43722,
+            "candidate": 44.2746
+          },
+          "receipt": "safari/warmup-tinydraw.json"
+        },
+        {
+          "name": "control-tinydraw",
+          "workload": "tinydraw",
+          "role": "A/A control",
+          "pairs": 2,
+          "wallReductionPercent": 0.8594459726735226,
+          "pairsWallReductionPercent": [
+            -1.3347346050055275,
+            2.9551480397397967
+          ],
+          "medianWallSeconds": {
+            "baseline": 52.62809,
+            "candidate": 52.17578
+          },
+          "receipt": "safari/control-tinydraw.json"
+        },
+        {
+          "name": "before-after-tinydraw",
+          "workload": "tinydraw",
+          "role": "primary comparison",
+          "pairs": 4,
+          "wallReductionPercent": 11.61558598948792,
+          "pairsWallReductionPercent": [
+            18.419929547160805,
+            6.513533595491483,
+            12.657119758798551,
+            12.800413913016717
+          ],
+          "medianWallSeconds": {
+            "baseline": 51.68719,
+            "candidate": 45.68342
+          },
+          "receipt": "safari/before-after-tinydraw.json"
+        }
+      ]
+    }
+  ],
+  "method": "100 * (1 - median(candidate wallSeconds) / median(baseline wallSeconds)); within each job alternate baseline/candidate then candidate/baseline. Warm-up jobs retained separately and excluded from primary estimates.",
+  "limitations": [
+    "Small sequential nonrandomized campaign; no formal confidence interval or established noise floor.",
+    "Chrome uses fresh headless processes; the completed Safari campaign uses ordinary visible pages with fresh workers and possible browser process/cache reuse. Browser numbers are not an isolated engine comparison.",
+    "Browser receipts establish pinned retired work, frame counts and console output. They do not contain frame-content hashes.",
+    "Baseline and candidate use the same inline threshold and no-DWARF build policy. This comparison does not measure download/startup or isolate individual x4/x5 changes.",
+    "Compilation was user-reported and observed during part of Chrome and was allowed to continue. Later compiler-count snapshots were zero, but concurrent work was not controlled or quantified. Safari is not assumed to have experienced the same interference. These observed timings on an in-use machine are not a clean causal estimate. Conditions are retained in conditions.json.",
+    "Power snapshots and aggregate load/compiler counts do not establish sustained power, thermal state, total machine utilization or the interference affecting a particular arm."
+  ]
+}

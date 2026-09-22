@@ -1,0 +1,115 @@
+{
+  "browser": "Firefox",
+  "captureTransport": "Firefox ordinary browser page",
+  "engine": "SpiderMonkey",
+  "isolation": "Ordinary visible page; fresh page and worker per arm; browser process and caches may persist",
+  "files": [
+    {
+      "original": {
+        "path": "firefox-harness/battery-worker.mjs",
+        "sha256": "4856f3531a83b8f81bd5118e07060a183c2b904b900f4b8b2b51e187230a3b81",
+        "bytes": 1142
+      },
+      "retained": {
+        "path": "harness/firefox/battery-worker.mjs",
+        "sha256": "4856f3531a83b8f81bd5118e07060a183c2b904b900f4b8b2b51e187230a3b81",
+        "bytes": 1142
+      },
+      "changes": "None; selected restarted-campaign source retained byte-for-byte."
+    },
+    {
+      "original": {
+        "path": "firefox-harness/battery.mjs",
+        "sha256": "9b8f26a9fb949c81514fd6bc28bf57ba467090b1d435fc577f530eff4e051b62",
+        "bytes": 5018
+      },
+      "retained": {
+        "path": "harness/firefox/battery.mjs",
+        "sha256": "9b8f26a9fb949c81514fd6bc28bf57ba467090b1d435fc577f530eff4e051b62",
+        "bytes": 5018
+      },
+      "changes": "None; selected restarted-campaign source retained byte-for-byte."
+    },
+    {
+      "original": {
+        "path": "firefox-harness/compare-runs.py",
+        "sha256": "e256af685f8f982922229f06b23ad23c6a5b8de99dcacd80ccaf68c1957da793",
+        "bytes": 10624
+      },
+      "retained": {
+        "path": "harness/firefox/compare-runs.py",
+        "sha256": "e256af685f8f982922229f06b23ad23c6a5b8de99dcacd80ccaf68c1957da793",
+        "bytes": 10624
+      },
+      "changes": "None; selected restarted-campaign source retained byte-for-byte."
+    },
+    {
+      "original": {
+        "path": "firefox-harness/run-pairs.py",
+        "sha256": "49880738b68561744e158aaaf7fb470a0a3745dfd96bb17dbd48bd1f730ab651",
+        "bytes": 14268
+      },
+      "retained": {
+        "path": "harness/firefox/run-pairs.py",
+        "sha256": "49880738b68561744e158aaaf7fb470a0a3745dfd96bb17dbd48bd1f730ab651",
+        "bytes": 14268
+      },
+      "changes": "None; selected restarted-campaign source retained byte-for-byte."
+    },
+    {
+      "original": {
+        "path": "firefox-harness/server.py",
+        "sha256": "3c6d7143f79de4f6b7c724cc6ff8a08cb4095b711a837e5b64dfdb107bb23920",
+        "bytes": 13879
+      },
+      "retained": {
+        "path": "harness/firefox/server.py",
+        "sha256": "3c6d7143f79de4f6b7c724cc6ff8a08cb4095b711a837e5b64dfdb107bb23920",
+        "bytes": 13879
+      },
+      "changes": "None; selected restarted-campaign source retained byte-for-byte."
+    },
+    {
+      "original": {
+        "path": "firefox-harness/verdict-schema.json",
+        "sha256": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+        "bytes": 858
+      },
+      "retained": {
+        "path": "harness/firefox/verdict-schema.json",
+        "sha256": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+        "bytes": 858
+      },
+      "changes": "None; selected restarted-campaign source retained byte-for-byte."
+    },
+    {
+      "original": {
+        "path": "firefox-harness/verdict.mjs",
+        "sha256": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+        "bytes": 1669
+      },
+      "retained": {
+        "path": "harness/firefox/verdict.mjs",
+        "sha256": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+        "bytes": 1669
+      },
+      "changes": "None; selected restarted-campaign source retained byte-for-byte."
+    },
+    {
+      "original": {
+        "path": "firefox-harness/workloads.json",
+        "sha256": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+        "bytes": 2977
+      },
+      "retained": {
+        "path": "harness/firefox/workloads.json",
+        "sha256": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+        "bytes": 2977
+      },
+      "changes": "None; selected restarted-campaign source retained byte-for-byte."
+    }
+  ],
+  "comparison": "Browser metadata checks differ from the Safari adapter. Artifacts, firmware inputs, pairing, work/output checks and browser workload logic use the same campaign contract.",
+  "attemptHistory": "conditions.json records the excluded first adapter attempt; its leftover Safari metadata check was corrected before the selected campaign restarted.",
+  "privacy": "Only reusable source files and source hashes retained here. No logs, token URLs, browser-profile directories or raw event captures are copied."
+}

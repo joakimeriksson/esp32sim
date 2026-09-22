@@ -1,0 +1,9 @@
+{
+  "status": "passed",
+  "checks": [
+    "Identical artifact reports zero changes",
+    "Final merged artifact reports 98 isolated line changes",
+    "Valid WASM with a changed source filename is rejected"
+  ],
+  "scope": "Location classifier; section and body equality checked separately"
+}

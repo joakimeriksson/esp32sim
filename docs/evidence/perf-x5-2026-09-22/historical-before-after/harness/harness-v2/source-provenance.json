@@ -1,0 +1,59 @@
+{
+  "purpose": "Private historical compatibility pilot, not a timing comparator",
+  "files": [
+    {
+      "source": "tools/browser-benchmark/battery.mjs",
+      "retained": "battery-node.mjs",
+      "originalSha256": "9b8f26a9fb949c81514fd6bc28bf57ba467090b1d435fc577f530eff4e051b62",
+      "retainedSha256": "94f32d3d088acc42bc3eb7230aae04c22692e1342179475362033748c6d4a272"
+    },
+    {
+      "source": "tools/browser-benchmark/verdict.mjs",
+      "retained": "verdict.mjs",
+      "originalSha256": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+      "retainedSha256": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c"
+    },
+    {
+      "source": "tools/browser-benchmark/verdict-schema.json",
+      "retained": "verdict-schema.json",
+      "originalSha256": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+      "retainedSha256": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810"
+    },
+    {
+      "source": "tools/browser-benchmark/workloads.json",
+      "retained": "workloads.json",
+      "originalSha256": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+      "retainedSha256": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c"
+    },
+    {
+      "source": "web/wasm/jit.mjs",
+      "retained": "jit.mjs",
+      "originalSha256": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+      "retainedSha256": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294"
+    },
+    {
+      "source": "web/wasm/experiments.mjs",
+      "retained": "experiments.mjs",
+      "originalSha256": "29c4b556b0c7e25a529a9c4b1c3b5132aee06bb4884de684ba6c78a10ac4716b",
+      "retainedSha256": "29c4b556b0c7e25a529a9c4b1c3b5132aee06bb4884de684ba6c78a10ac4716b"
+    }
+  ],
+  "changes": [
+    "Node local module imports and file-based verdict schema",
+    "Explicit current-jit mode requires both JIT exports; historical-interpreter requires both absent and records null missing instruction counter",
+    "Optional binary output emission for pilot frame hashing only; no timed browser measurement",
+    "Optional wall time cap without changing guest work or slice size"
+  ],
+  "adapter": {
+    "file": "pilot.mjs",
+    "sha256": "cac2a200899efc397e1b202dce67a5d89da614889f99cc9776d9738e6303215e"
+  },
+  "browserCompatibilityReason": "Historical first-board builds predate esp32sim_set_jit and esp32sim_block_jit_insns. Browser adaptation must use the same explicit capability modes as this pilot: absence is accepted only for labeled historical interpreter execution; modern production JIT absence remains fatal. Missing counters must remain null, not invented zeros. Node file loading and binary-frame hashing are pilot-only and should not be included in browser timing.",
+  "previousVersion": "harness-v1 unchanged; v2 adds final published LCD decoding",
+  "finalFrameHelper": {
+    "file": "final-frame.mjs",
+    "sha256": "c6a079312ed3c5c523442eb180a599815df8499a716c50a04ca9b5ef7e6418e0",
+    "decoderReference": "web/run.html:224-235",
+    "dispatchReference": "web/run.html:307"
+  }
+}

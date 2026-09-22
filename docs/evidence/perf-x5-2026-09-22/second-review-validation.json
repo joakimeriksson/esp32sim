@@ -1,0 +1,116 @@
+{
+  "date": "2026-09-22",
+  "productionSource": "7c54ce34",
+  "finalTestSource": "9386e651",
+  "integratedLineage": "a839b7b08dce9c6ed5ce37bbc77d6023e0e499cd",
+  "productionArtifact": {
+    "sha256": "3bc68c660738cbf63449d5ab00b72cedd54efb8a0ac89a3a387bf0b5172af84c",
+    "bytes": 2089268,
+    "policy": "inline-threshold=2000, debug=0, strip=debuginfo, no diagnostic features",
+    "dwarfAbsent": true,
+    "nameRetained": true,
+    "timingAbi": "passed"
+  },
+  "checks": [
+    {
+      "name": "native",
+      "command": "ESP32SIM_ROM_DIR=<roms> cargo test --release --workspace -- --include-ignored --skip external_",
+      "status": "passed",
+      "passed": 459,
+      "rawLogSha256": "54a49adb265fe9a1c105e76f3aa2f5bb3d4a02a9635d36ddc2dbc6bbc58ee12b"
+    },
+    {
+      "name": "native-clippy",
+      "command": "cargo clippy --workspace --all-targets -- -D warnings",
+      "status": "passed",
+      "rawLogSha256": "cb63d380497ebaf90583685bb4c939ee8eae5d188722877979db1b986a81d6db"
+    },
+    {
+      "name": "native-build",
+      "command": "cargo build --release --workspace",
+      "status": "passed",
+      "rawLogSha256": "9b026839d3b8f7c55be56bca629d9fff92c7264db98502714ba507733461f924"
+    },
+    {
+      "name": "native-vq",
+      "command": "ESP32SIM_VQ_NATIVE=1 cargo test --release -p esp32s3 --test machine --test virtual_stops",
+      "status": "passed",
+      "passed": 38,
+      "rawLogSha256": "9d222d4f57c6fb8d2dbbb582957d05512e68da97bff6ebef773d56dde99a7e96"
+    },
+    {
+      "name": "wasm-differential",
+      "command": "bash tools/wasm-jit-test.sh",
+      "status": "passed",
+      "passed": 86116,
+      "rawLogSha256": "2ab05b5e3a3835de4f5eaf81780c05eeb1739c68b22433a88fd1be74dfd19555"
+    },
+    {
+      "name": "wasm-clippy",
+      "command": "cargo clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+      "status": "passed",
+      "rawLogSha256": "38f4f8ccb53acbd8b1fcf2399a97eefaae049067de7beeecae5d40c38155efba"
+    },
+    {
+      "name": "wasm-profile-build",
+      "command": ". ./tools/wasm-rustflags.sh; cargo build --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-profile,cpu-profile",
+      "status": "passed",
+      "rawLogSha256": "2a75e0bcb2748627b619d29b5d6f02f1751628c91eb630c7759817097e2598c4"
+    },
+    {
+      "name": "production-smoke",
+      "command": "ESP32SIM_ROM_DIR=<roms> ESP32SIM_WASM=<candidate> node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+      "status": "passed",
+      "passed": 8,
+      "rawLogSha256": "167d6aac29541b94eec0309d5bc1eb28f532e5d83051ab78ba0652b6e5ca7ab0"
+    },
+    {
+      "name": "benchmark-node",
+      "command": "node --test tools/browser-benchmark/*.test.mjs tools/wasm-build-policy.test.mjs",
+      "status": "passed",
+      "passed": 16,
+      "rawLogSha256": "8015dacb8b96949329061a1a3937ae9a2302af672ad25905165ef14b02a03819"
+    },
+    {
+      "name": "benchmark-python",
+      "command": "uv run --offline --no-project --python <venv>/bin/python python -m unittest discover -s tools/browser-benchmark -p 'test_*.py'",
+      "status": "passed",
+      "passed": 15,
+      "rawLogSha256": "96f7f6227f23e62c7c914ca35d689c134fd39236ee49e6c561f82d2ca04c01b2"
+    },
+    {
+      "name": "receipt-verifiers",
+      "command": "node --test docs/evidence/perf-x5-2026-09-22/{verify-results,m1-before-after/verify,historical-before-after/verify}.test.mjs",
+      "status": "passed",
+      "passed": 83,
+      "rawLogSha256": "4cd672cb3d03b912837476144969cfd34b829e2cf143c0b990bbc5a71c74d371"
+    },
+    {
+      "name": "worker-pacing",
+      "command": "node tools/worker-pacing-test.mjs",
+      "status": "passed",
+      "rawLogSha256": "ded10fe732d98444387f9022735721223e3051bb9d12c70f0699a8525ef20158"
+    },
+    {
+      "name": "worker-channel",
+      "command": "node tools/worker-channel-test.mjs",
+      "status": "passed",
+      "rawLogSha256": "774b844d0ec012aaa1117a2aa06ad1f342fae1d6864b4339e6d3d81af28178d3"
+    },
+    {
+      "name": "touch-input",
+      "command": "node --test tools/touch-input-test.mjs",
+      "status": "passed",
+      "passed": 8,
+      "rawLogSha256": "700d71ffc5265bf50787feb9fa9621930687d0e3dc2b1ca4d51bdfd30614593b"
+    }
+  ],
+  "compiledModulesReleased": 88775,
+  "romRelease": "https://github.com/espressif/esp-rom-elfs/releases/tag/20260528",
+  "limitations": [
+    "Native tests exclude external_ assembler tests; the changed AArch64 fixture instruction was independently assembled in the memory receipt.",
+    "Production source 7c54ce34 precedes the final bridge fixture isolation and test-only cache accessor; these do not change production behavior. Subsequent integration changes only documentation.",
+    "Raw local logs remain outside Git. Their hashes preserve identity; no private paths, host inventories or connection details are published.",
+    "These checks establish emulator consistency, not equivalence to physical silicon. Historical benchmark receipts retain their original source and artifact identities."
+  ]
+}

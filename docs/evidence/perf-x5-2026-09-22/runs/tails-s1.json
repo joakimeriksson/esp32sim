@@ -1,0 +1,537 @@
+{
+  "name": "tails-s1",
+  "workload": "pocket-tank",
+  "sourceRevision": "d93694e3853ad1709301e80b7d65de7687e5d7ce",
+  "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+  "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+  "candidateWasmSha256": "634a74eab8cc16bbdb72b6e3c0e23f1fbe644dee1c3c6eb6377dad76d2526d3b",
+  "pairs": 4,
+  "medianWallSeconds": {
+    "baseline": 24.814085000008347,
+    "candidate": 31.846554999999704
+  },
+  "wallReductionPercent": -28.34063798842066,
+  "pairsWallReductionPercent": [
+    -27.69792825387185,
+    -29.195036277634312,
+    -28.57546771039159,
+    -28.106204738783937
+  ],
+  "browser": "Chrome/153.0.8010.53",
+  "v8": "15.3.76.13",
+  "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+  "startedAt": "2026-09-22T00:45:56Z",
+  "runs": [
+    {
+      "pair": 1,
+      "arm": "baseline",
+      "wallSeconds": 24.90170000000298,
+      "guestSeconds": 30.000000229166666,
+      "instructions": 10073833775,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "frames": 737,
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "verdictValidation": {
+        "schema": "pocket-tank-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": [
+        {
+          "name": "model_decisions",
+          "min": 10,
+          "count": 13
+        },
+        {
+          "name": "render_reports",
+          "min": 2,
+          "count": 2
+        }
+      ],
+      "verdict": null,
+      "instrumented": false,
+      "jit": {
+        "compiled": 5168,
+        "failed": 0,
+        "released": 1429,
+        "compileMs": 286.24999979138374,
+        "bytes": 48770076,
+        "liveBytes": 35189223,
+        "peakBytes": 41027052,
+        "peakModules": 4364,
+        "instructions": 10015966469
+      },
+      "loadBefore": [
+        2.67529296875,
+        2.79638671875,
+        2.9365234375
+      ],
+      "loadAfter": [
+        2.59912109375,
+        2.77880859375,
+        2.9248046875
+      ]
+    },
+    {
+      "pair": 1,
+      "arm": "candidate",
+      "wallSeconds": 31.798954999998212,
+      "guestSeconds": 30.000000229166666,
+      "instructions": 10073833775,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "frames": 737,
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "verdictValidation": {
+        "schema": "pocket-tank-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": [
+        {
+          "name": "model_decisions",
+          "min": 10,
+          "count": 13
+        },
+        {
+          "name": "render_reports",
+          "min": 2,
+          "count": 2
+        }
+      ],
+      "verdict": null,
+      "instrumented": false,
+      "jit": {
+        "compiled": 7831,
+        "failed": 0,
+        "released": 2831,
+        "compileMs": 816.1249998360872,
+        "bytes": 201289731,
+        "liveBytes": 121453756,
+        "peakBytes": 122260658,
+        "peakModules": 5271,
+        "instructions": 10015115667
+      },
+      "loadBefore": [
+        2.59912109375,
+        2.77880859375,
+        2.9248046875
+      ],
+      "loadAfter": [
+        3.84375,
+        3.14404296875,
+        3.05615234375
+      ]
+    },
+    {
+      "pair": 2,
+      "arm": "candidate",
+      "wallSeconds": 31.92159999999404,
+      "guestSeconds": 30.000000229166666,
+      "instructions": 10073833775,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "frames": 737,
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "verdictValidation": {
+        "schema": "pocket-tank-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": [
+        {
+          "name": "model_decisions",
+          "min": 10,
+          "count": 13
+        },
+        {
+          "name": "render_reports",
+          "min": 2,
+          "count": 2
+        }
+      ],
+      "verdict": null,
+      "instrumented": false,
+      "jit": {
+        "compiled": 7831,
+        "failed": 0,
+        "released": 2831,
+        "compileMs": 844.4650003314018,
+        "bytes": 201289731,
+        "liveBytes": 121453756,
+        "peakBytes": 122260658,
+        "peakModules": 5271,
+        "instructions": 10015115667
+      },
+      "loadBefore": [
+        3.84375,
+        3.14404296875,
+        3.05615234375
+      ],
+      "loadAfter": [
+        3.1728515625,
+        3.0615234375,
+        3.02978515625
+      ]
+    },
+    {
+      "pair": 2,
+      "arm": "baseline",
+      "wallSeconds": 24.708069999992848,
+      "guestSeconds": 30.000000229166666,
+      "instructions": 10073833775,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "frames": 737,
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "verdictValidation": {
+        "schema": "pocket-tank-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": [
+        {
+          "name": "model_decisions",
+          "min": 10,
+          "count": 13
+        },
+        {
+          "name": "render_reports",
+          "min": 2,
+          "count": 2
+        }
+      ],
+      "verdict": null,
+      "instrumented": false,
+      "jit": {
+        "compiled": 5168,
+        "failed": 0,
+        "released": 1429,
+        "compileMs": 276.3349996507168,
+        "bytes": 48770076,
+        "liveBytes": 35189223,
+        "peakBytes": 41027052,
+        "peakModules": 4364,
+        "instructions": 10015966469
+      },
+      "loadBefore": [
+        3.1728515625,
+        3.0615234375,
+        3.02978515625
+      ],
+      "loadAfter": [
+        3.18017578125,
+        3.095703125,
+        3.04443359375
+      ]
+    },
+    {
+      "pair": 3,
+      "arm": "baseline",
+      "wallSeconds": 24.79312000000477,
+      "guestSeconds": 30.000000229166666,
+      "instructions": 10073833775,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "frames": 737,
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "verdictValidation": {
+        "schema": "pocket-tank-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": [
+        {
+          "name": "model_decisions",
+          "min": 10,
+          "count": 13
+        },
+        {
+          "name": "render_reports",
+          "min": 2,
+          "count": 2
+        }
+      ],
+      "verdict": null,
+      "instrumented": false,
+      "jit": {
+        "compiled": 5168,
+        "failed": 0,
+        "released": 1429,
+        "compileMs": 281.18499962985516,
+        "bytes": 48770076,
+        "liveBytes": 35189223,
+        "peakBytes": 41027052,
+        "peakModules": 4364,
+        "instructions": 10015966469
+      },
+      "loadBefore": [
+        3.18017578125,
+        3.095703125,
+        3.04443359375
+      ],
+      "loadAfter": [
+        2.84375,
+        3.02197265625,
+        3.0185546875
+      ]
+    },
+    {
+      "pair": 3,
+      "arm": "candidate",
+      "wallSeconds": 31.87787000000477,
+      "guestSeconds": 30.000000229166666,
+      "instructions": 10073833775,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "frames": 737,
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "verdictValidation": {
+        "schema": "pocket-tank-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": [
+        {
+          "name": "model_decisions",
+          "min": 10,
+          "count": 13
+        },
+        {
+          "name": "render_reports",
+          "min": 2,
+          "count": 2
+        }
+      ],
+      "verdict": null,
+      "instrumented": false,
+      "jit": {
+        "compiled": 7831,
+        "failed": 0,
+        "released": 2831,
+        "compileMs": 866.1799999028444,
+        "bytes": 201289731,
+        "liveBytes": 121453756,
+        "peakBytes": 122260658,
+        "peakModules": 5271,
+        "instructions": 10015115667
+      },
+      "loadBefore": [
+        2.84375,
+        3.02197265625,
+        3.0185546875
+      ],
+      "loadAfter": [
+        3.75634765625,
+        3.29931640625,
+        3.12353515625
+      ]
+    },
+    {
+      "pair": 4,
+      "arm": "candidate",
+      "wallSeconds": 31.815239999994635,
+      "guestSeconds": 30.000000229166666,
+      "instructions": 10073833775,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "frames": 737,
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "verdictValidation": {
+        "schema": "pocket-tank-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": [
+        {
+          "name": "model_decisions",
+          "min": 10,
+          "count": 13
+        },
+        {
+          "name": "render_reports",
+          "min": 2,
+          "count": 2
+        }
+      ],
+      "verdict": null,
+      "instrumented": false,
+      "jit": {
+        "compiled": 7831,
+        "failed": 0,
+        "released": 2831,
+        "compileMs": 832.9650001227856,
+        "bytes": 201289731,
+        "liveBytes": 121453756,
+        "peakBytes": 122260658,
+        "peakModules": 5271,
+        "instructions": 10015115667
+      },
+      "loadBefore": [
+        3.75634765625,
+        3.29931640625,
+        3.12353515625
+      ],
+      "loadAfter": [
+        3.4560546875,
+        3.291015625,
+        3.1279296875
+      ]
+    },
+    {
+      "pair": 4,
+      "arm": "baseline",
+      "wallSeconds": 24.835050000011922,
+      "guestSeconds": 30.000000229166666,
+      "instructions": 10073833775,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "frames": 737,
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "verdictValidation": {
+        "schema": "pocket-tank-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": [
+        {
+          "name": "model_decisions",
+          "min": 10,
+          "count": 13
+        },
+        {
+          "name": "render_reports",
+          "min": 2,
+          "count": 2
+        }
+      ],
+      "verdict": null,
+      "instrumented": false,
+      "jit": {
+        "compiled": 5168,
+        "failed": 0,
+        "released": 1429,
+        "compileMs": 282.00000020861626,
+        "bytes": 48770076,
+        "liveBytes": 35189223,
+        "peakBytes": 41027052,
+        "peakModules": 4364,
+        "instructions": 10015966469
+      },
+      "loadBefore": [
+        3.4560546875,
+        3.291015625,
+        3.1279296875
+      ],
+      "loadAfter": [
+        2.91357421875,
+        3.1845703125,
+        3.09375
+      ]
+    }
+  ],
+  "originalReceipts": [
+    {
+      "path": "runs/tails-s1/summary.json",
+      "sha256": "d181502f148f67314a10d9b5065b7d10ae305329a20828db6278d184c845b7e7",
+      "bytes": 27244
+    },
+    {
+      "path": "runs/tails-s1/1-baseline/result.json",
+      "sha256": "22bba695780c0449409695fa4feb5adcaa048d37cae283c659e367c8699db9a1",
+      "bytes": 4331
+    },
+    {
+      "path": "runs/tails-s1/1-baseline/capture.json",
+      "sha256": "5233bc4c216ab0694dd914e669c9a0b2025e7bee9b4f37610aeaeb76156c387e",
+      "bytes": 971
+    },
+    {
+      "path": "runs/tails-s1/1-candidate/result.json",
+      "sha256": "35118ad823cfe54bcb01e3b05be0ee4fd5dc714547f13ca49cfabaf90560440f",
+      "bytes": 4334
+    },
+    {
+      "path": "runs/tails-s1/1-candidate/capture.json",
+      "sha256": "30e63e4ea92a28dc2099665fd9b0e370b2ea5c47cd7476dec3c3aa69ba6c0e42",
+      "bytes": 967
+    },
+    {
+      "path": "runs/tails-s1/2-candidate/result.json",
+      "sha256": "f7ac73f26737a5af1fda16d3fe972b396eb7a150d0537c3f62b4f407e8de1bba",
+      "bytes": 4333
+    },
+    {
+      "path": "runs/tails-s1/2-candidate/capture.json",
+      "sha256": "c51847435a0d76597a41b0f2c4da44cb7f3ecc407c23c123e529dd5cecd7866c",
+      "bytes": 966
+    },
+    {
+      "path": "runs/tails-s1/2-baseline/result.json",
+      "sha256": "9113f48fda38152e878e845827e7d0f9a271469afbb5c6fe9c5f9912ee27c3a2",
+      "bytes": 4331
+    },
+    {
+      "path": "runs/tails-s1/2-baseline/capture.json",
+      "sha256": "7dccd08e3b6d3a93054e884b385afa4c6c32a8f345a8b5112f91b3d88f6d960f",
+      "bytes": 969
+    },
+    {
+      "path": "runs/tails-s1/3-baseline/result.json",
+      "sha256": "ff14b0bbf21ea12fada8dcbc4cbdeab2475557582f13b86024d570416c5adc57",
+      "bytes": 4330
+    },
+    {
+      "path": "runs/tails-s1/3-baseline/capture.json",
+      "sha256": "3d8d9d48e9bcac5eaeb8e52159ef674e488fb11155d71b10129eebcdf7b98762",
+      "bytes": 964
+    },
+    {
+      "path": "runs/tails-s1/3-candidate/result.json",
+      "sha256": "19e2b2eb786e0985bd3bd23fb0f1483e2451c1e01bf34615b43f88db42417181",
+      "bytes": 4333
+    },
+    {
+      "path": "runs/tails-s1/3-candidate/capture.json",
+      "sha256": "2687d438fb8874ed4dc649cf5ef33f24d8252721a34317f01edb407cab1e82e9",
+      "bytes": 967
+    },
+    {
+      "path": "runs/tails-s1/4-candidate/result.json",
+      "sha256": "c542047ce0cd8b4d0296314a1846908a81e4aceafe448f22c9cc2da4e3e7a014",
+      "bytes": 4334
+    },
+    {
+      "path": "runs/tails-s1/4-candidate/capture.json",
+      "sha256": "c3d5922311c538cf103fb356d4a5242d206d523746e55e9a15061abcf50dbacc",
+      "bytes": 970
+    },
+    {
+      "path": "runs/tails-s1/4-baseline/result.json",
+      "sha256": "1ee8a93eb10b9c039edc8665bf9b6df5950734fa9ff158e39a98a569997df3c8",
+      "bytes": 4332
+    },
+    {
+      "path": "runs/tails-s1/4-baseline/capture.json",
+      "sha256": "f123f0dfe85fc862249ab4d06daf02ac65853ffddf1608fe08c1768d535be881",
+      "bytes": 962
+    }
+  ]
+}
