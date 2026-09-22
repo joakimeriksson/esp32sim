@@ -1,14 +1,8 @@
 //! Shared scalar and PIE memory probes, version tracking and optional cache pricing.
 use super::*;
-use emu_core::bus::{TLB_ENTRIES, TLB_INDEX_SHIFT, TLB_XOR_SHIFT, VPAGE_SHIFT};
+use emu_core::bus::{PREV_PAGE_BYTES, TLB_ENTRIES, TLB_INDEX_SHIFT, TLB_XOR_SHIFT, VPAGE_SHIFT};
 
 const VPAGE_MASK: u32 = (1 << VPAGE_SHIFT) - 1;
-/// An instruction can begin up to three bytes before a page boundary and still keep bytes
-/// in it, because PIE encodings are four bytes long (`pie::decode`). A write into the first
-/// three bytes of a page therefore also changes instructions whose code page is the
-/// previous one, and the bus bumps that page as well (`esp32s3/src/bus.rs` `bump` and
-/// `note_written`, `esp32s3/src/bus/dma.rs` for the DMA run copy).
-const PREV_PAGE_BYTES: u32 = 3;
 
 /// log2 of one entry's size: scaling the hash into a byte offset folds into its shifts.
 const ENTRY_SHIFT: u32 = size_of::<TlbEntry>().ilog2();
@@ -244,6 +238,7 @@ fn load16(g: &mut Gen, offset: usize) {
     uleb(&mut g.bytes, offset);
 }
 
+/// Clobbers TMP; it may finish pointing at the preceding version page.
 pub(super) fn record_store(g: &mut Gen, writes: u32) {
     g.get(TLB);
     load16(g, offset_of!(TlbEntry, code));

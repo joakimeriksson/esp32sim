@@ -311,3 +311,55 @@ pub(super) fn pie_wide_shifts() -> u32 {
     }
     tests
 }
+
+/// Exercise admission and the bridge itself, so falling back cannot hide missing coverage.
+pub(super) fn interpreted_bridges() -> u32 {
+    use Op::*;
+    let mut cases = 0;
+    for op in [Entry, Loop, Loopnez, Loopgtz, Ret, RetN, Retw, RetwN, Rsr, Add, Quos] {
+        for trap in [false, true] {
+            let mut ops = [insn(Mul16u), insn(op), insn(Add)];
+            for b in &mut ops { b.insn.r = 1; b.insn.s = 2; b.insn.t = 3; }
+            if op == Rsr { ops[1].insn.imm = crate::state::sr::PS as i32; }
+            if op == Entry { ops[1].insn.s = 1; ops[1].insn.imm = 16; }
+            if trap && op == Add { ops[1].insn.r = 8; }
+            for b in &mut ops { b.max_ar = crate::exec::max_ar(&b.insn); }
+            let mut a = cpu(0);
+            a.ps = ps::WOE | (1 << ps::CALLINC_SHIFT);
+            a.windowstart = if trap && op == Add { 1 | (1 << 2) } else { 0xffff };
+            // No overflow in the ordinary cases; RETW underflow is selected independently.
+            if op != Add || !trap { a.windowstart = if matches!(op, Retw | RetwN) && trap { 1 } else { 1 | (1 << 15) }; }
+            a.set_ar(0, (1 << 30) | ((BASE + 0x100) & 0x3fff_ffff));
+            a.set_ar(1, BASE + 0x200);
+            a.set_ar(2, 3);
+            a.set_ar(3, if trap && op == Quos { 0 } else { 2 });
+            let mut b = a.clone();
+            let (mut ra, mut rb) = (Ram::new(false, false), Ram::new(false, false));
+            b.blocks.install_test_bridge(BASE, &ops);
+            let (start, n) = b.blocks.bridge_target(BASE, rb.page_versions(), 3).unwrap();
+            let result = crate::block::bridge(&mut b, &mut rb, start, n);
+            let mut done = 0;
+            let mut exit = CODE_END;
+            let mut trap_ref = None;
+            for bi in &ops {
+                if let Some(t) = a.check_overflow(bi.max_ar) { trap_ref = Some(t); exit = CODE_TRAP_PRE; break; }
+                let at = a.pc;
+                ra.note_pc(at);
+                let r = exec_insn(&mut a, &mut ra, &bi.insn);
+                done += 1;
+                if let Err(t) = r { trap_ref = Some(t); exit = CODE_TRAP; break; }
+                if a.pc != at.wrapping_add(bi.insn.len as u32) { break; }
+            }
+            assert_eq!(result, done | exit << 16, "bridge {op:?} trap={trap}");
+            assert_eq!(b.jit_trap, trap_ref);
+            assert_eq!(b.blocks.bridged, done);
+            same(&a, &b);
+            assert_eq!(ra.noted, rb.noted);
+            if op == Add { assert_eq!(result, if trap { 1 | CODE_TRAP_PRE << 16 } else { 3 | CODE_END << 16 }); }
+            if op == Quos && trap { assert_eq!(result, 2 | CODE_TRAP << 16); }
+            if matches!(op, Retw | RetwN) && trap { assert_eq!(result, 2 | CODE_TRAP << 16); }
+            cases += 1;
+        }
+    }
+    cases
+}

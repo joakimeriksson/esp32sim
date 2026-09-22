@@ -16,6 +16,8 @@ pub enum Fault {
 /// because generated code indexes both directly.
 pub const TLB_ENTRIES: usize = 512;
 pub const VPAGE_SHIFT: u32 = 8;
+/// A four-byte instruction can overlap the next page by at most three bytes.
+pub const PREV_PAGE_BYTES: u32 = 3;
 /// Address hash shared by the bus and generated memory-access probes.
 pub const TLB_INDEX_SHIFT: u32 = 16;
 pub const TLB_XOR_SHIFT: u32 = 24;

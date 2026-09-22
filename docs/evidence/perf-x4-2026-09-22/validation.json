@@ -1,0 +1,346 @@
+{
+  "conditions": "Production builds use inline-threshold=4000, no wasm-opt and no BB build override. Differential builds enable jit-tests. Local ROM-dependent native paths are unexercised. Each layer has its own differential, exact6 and workspace Clippy check. The final layer has the full workspace native suite; the memory layer additionally has targeted native tests.",
+  "notes": [
+    "The memory assembler check initially found an outdated fixture after adding a reference instruction. Regenerating it with Clang and rerunning the fixture test passed. The fixture update does not alter production WASM source.",
+    "The first memory bus test filter selected zero tests; native-bus-verified.log uses memory_origin_regressions and records the actual cases.",
+    "Evidence/documentation commits after a tested source revision do not change its compiled source."
+  ],
+  "layers": [
+    {
+      "branch": "codex/x4-prevpage",
+      "sourceRevision": "c6b4b08eb173a9fad7bf37724f872510aa81b63d",
+      "branchRevision": "c6b4b08eb173a9fad7bf37724f872510aa81b63d",
+      "artifactBuildRevision": "c6b4b08eb173a9fad7bf37724f872510aa81b63d",
+      "artifactSha256": "15c56e1b8ac04befc90a9d1e4be7dd01a3158fc62a5809e8923ee6e8b473f74d",
+      "differential": {
+        "cases": 79732,
+        "releasedModules": 82385
+      },
+      "exact6": {
+        "secs": 6,
+        "framesSha256": "9c85ddc853245b7ef6c5ef196ea98ebe9cfa402a06c2ca7116861cf3d269505b",
+        "insns": "2034559010",
+        "consoleSha256": "343da8a53d4e80c690f6de73ac6e085eeb4241058873dc1a622d19a91e440fdf",
+        "frames": 137,
+        "panics": 0,
+        "jitFailures": 0,
+        "refInsns": "2034559010",
+        "refSha": "343da8a5",
+        "refFrames": 137,
+        "refFramesSha": "9c85ddc8",
+        "EXACT": true
+      },
+      "native": {
+        "native.log": {
+          "passed": 452,
+          "failed": 0,
+          "ignored": 0
+        },
+        "native-vq.log": {
+          "passed": 36,
+          "failed": 0,
+          "ignored": 0
+        }
+      },
+      "clippy": "passed: cargo clippy --workspace --all-targets -- -D warnings",
+      "logHashes": {
+        "build.log": "304e49f8490f0db6a24d4e1f728e4e832b33b3206844f60a39e1ff1238a35df0",
+        "clippy.log": "255c7027425fd6fcce86aa95e85cafdfbbc252e21d34c6ef443745f99c947883",
+        "differential.log": "04a8cba3872ec7b172e9bffbe0caad5028850afa1196c82193857e32886d453b",
+        "exact6.log": "abceece845737ba28d0d2366fd97691e3ec9a4c49467ae0630f271b7618d0b14",
+        "native-vq.log": "823914fc2a4d7f3550b7db18e4a3991ec86206701a98f2343a4df3d31a7abb06",
+        "native.log": "1d79033b45bd9d72349ddc19867132f5c40a4568850f1dbfbfa877e201251c3f"
+      }
+    },
+    {
+      "branch": "codex/x4-dispatch",
+      "sourceRevision": "fbd30db6f1b6c16231c6b939794cfa69f218612a",
+      "branchRevision": "fbd30db6f1b6c16231c6b939794cfa69f218612a",
+      "artifactBuildRevision": "fbd30db6f1b6c16231c6b939794cfa69f218612a",
+      "artifactSha256": "7391298123e8fec606ad5a5000cce168ac62ad6809c5e9a62f4d5c125a31b63a",
+      "differential": {
+        "cases": 79732,
+        "releasedModules": 82385
+      },
+      "exact6": {
+        "secs": 6,
+        "framesSha256": "9c85ddc853245b7ef6c5ef196ea98ebe9cfa402a06c2ca7116861cf3d269505b",
+        "insns": "2034559010",
+        "consoleSha256": "343da8a53d4e80c690f6de73ac6e085eeb4241058873dc1a622d19a91e440fdf",
+        "frames": 137,
+        "panics": 0,
+        "jitFailures": 0,
+        "refInsns": "2034559010",
+        "refSha": "343da8a5",
+        "refFrames": 137,
+        "refFramesSha": "9c85ddc8",
+        "EXACT": true
+      },
+      "native": {
+        "native.log": {
+          "passed": 452,
+          "failed": 0,
+          "ignored": 0
+        },
+        "native-vq.log": {
+          "passed": 36,
+          "failed": 0,
+          "ignored": 0
+        }
+      },
+      "clippy": "passed: cargo clippy --workspace --all-targets -- -D warnings",
+      "logHashes": {
+        "build.log": "b4fc4241eda0d93124de6882de39706eb26348bff593f91870256ed3c99d3a87",
+        "clippy.log": "da9e963cf6a425b4d7850a9bb6287b761d2f0e347051c368622c6de11f1cd3eb",
+        "differential.log": "f93903741814714406d914f21fa1285b28f35ba61ff685fe5a35a0fa120e8242",
+        "exact6.log": "ca86ef07523200fe12b6b876b325456e424f678257b5ae633da15f6f2f8f480e",
+        "native-vq.log": "34d5a12f75271a1929fd71b1ec9e40c3574e6259281071156ef1eacc47554c2f",
+        "native.log": "c7c1c8baa84943dadedadd5b777b6f0fae7b0c9422a6740cbebc4011ebd51fb8"
+      }
+    },
+    {
+      "branch": "codex/x4-inchain",
+      "sourceRevision": "28ea993b02982b429718f7911e6dfda7d8fb056f",
+      "branchRevision": "28ea993b02982b429718f7911e6dfda7d8fb056f",
+      "artifactBuildRevision": "28ea993b02982b429718f7911e6dfda7d8fb056f",
+      "artifactSha256": "d0ba91762c9bd7963cdc0cbb6988d9b1a08018e59fa505c43a704c146cc2430b",
+      "differential": {
+        "cases": 79732,
+        "releasedModules": 82396
+      },
+      "exact6": {
+        "secs": 6,
+        "framesSha256": "9c85ddc853245b7ef6c5ef196ea98ebe9cfa402a06c2ca7116861cf3d269505b",
+        "insns": "2034559010",
+        "consoleSha256": "343da8a53d4e80c690f6de73ac6e085eeb4241058873dc1a622d19a91e440fdf",
+        "frames": 137,
+        "panics": 0,
+        "jitFailures": 0,
+        "refInsns": "2034559010",
+        "refSha": "343da8a5",
+        "refFrames": 137,
+        "refFramesSha": "9c85ddc8",
+        "EXACT": true
+      },
+      "native": {
+        "native.log": {
+          "passed": 452,
+          "failed": 0,
+          "ignored": 0
+        },
+        "native-vq.log": {
+          "passed": 36,
+          "failed": 0,
+          "ignored": 0
+        }
+      },
+      "clippy": "passed: cargo clippy --workspace --all-targets -- -D warnings",
+      "logHashes": {
+        "build.log": "03836816a4768d9110f5fa025315a9c142af004a5892637906f65ee8372030f5",
+        "clippy.log": "a7ef56657114cc31fb17a54b1fefe9b076f7bedb640a804ee996113f5d5921d6",
+        "differential.log": "72237968dca6332be4f6a0a957dcbec259c5ca967fd36c4a09295ce7a3908b6b",
+        "exact6.log": "8af8e9eb14e7fe7a09d51fc69a0948343ced4b3dadb1e855f16b8c00a1e7d332",
+        "native-vq.log": "a97fa85c04ba2b8be8969e895c621a081dbd0675e0bddcde6333c006658e0067",
+        "native.log": "1627210bcbc4b11b92993d6b3d57c4d56327584d1e0024517634364cd8f5f921"
+      }
+    },
+    {
+      "branch": "codex/x4-memory",
+      "sourceRevision": "14ef496124cb0441b7fa06890d57ca0d2b23302d",
+      "branchRevision": "14ef496124cb0441b7fa06890d57ca0d2b23302d",
+      "artifactBuildRevision": "7acd03204ee92850216830f8008f2d6634acf376",
+      "artifactSha256": "2d781df74f06944f1a12d947fbb20e649016199f9ded78c08429b7d7987d22fe",
+      "differential": {
+        "cases": 81249,
+        "releasedModules": 83911
+      },
+      "exact6": {
+        "secs": 6,
+        "framesSha256": "9c85ddc853245b7ef6c5ef196ea98ebe9cfa402a06c2ca7116861cf3d269505b",
+        "insns": "2034559010",
+        "consoleSha256": "343da8a53d4e80c690f6de73ac6e085eeb4241058873dc1a622d19a91e440fdf",
+        "frames": 137,
+        "panics": 0,
+        "jitFailures": 0,
+        "refInsns": "2034559010",
+        "refSha": "343da8a5",
+        "refFrames": 137,
+        "refFramesSha": "9c85ddc8",
+        "EXACT": true
+      },
+      "native": {
+        "native-assembler-verified.log": {
+          "passed": 3,
+          "failed": 0,
+          "ignored": 1
+        },
+        "assembler-fixture-update.log": {
+          "passed": 1,
+          "failed": 0,
+          "ignored": 0
+        },
+        "native-memory.log": {
+          "passed": 4,
+          "failed": 0,
+          "ignored": 0
+        },
+        "native-bus-verified.log": {
+          "passed": 10,
+          "failed": 0,
+          "ignored": 0
+        }
+      },
+      "clippy": "passed: cargo clippy --workspace --all-targets -- -D warnings",
+      "logHashes": {
+        "assembler-fixture-update.log": "e7561dbaead7b4157ecf5878ef88d6bde7d1365fc561ae68950b61b8f3db3b90",
+        "build.log": "9ac6e4555948d7362726dd4442d693ef657b8e343169475c7c26806a320446d7",
+        "clippy.log": "2c4e39f0645faeea6088a740bd59b0ea1215a6c40d9b22e59d4b8ea66e23f6a4",
+        "differential.log": "bc43422000b1d4c43e07fac288e577d75503b112b01f32af0c0c36fc807606a9",
+        "exact6.log": "2b4bafbc58f7a52f3d7bab873e7571417eac5b83cbc86f64c8b48e8657f0608a",
+        "native-assembler-verified.log": "ccd5482d03c5f622df4b7c88e2714626483906e21bc855c9fceed0080a60f739",
+        "native-assembler.log": "b2465e6e3346a2c29c285bc1479f9d5f6eaa08227269ac332616961ab2a77db9",
+        "native-bus-verified.log": "c11429dc6774c13a1571d2e4282c5cf16c703845a64105efb9bc1a527bcc3fda",
+        "native-bus.log": "1fe2cc56cb953a9471a472ddba6936d68d2e98bc77c6ca19c2688c53dd866f46",
+        "native-memory.log": "c783900c917caeac117ec02793b865d1b14a891f3862316f626532c507b6f100"
+      }
+    },
+    {
+      "branch": "codex/x4-pie",
+      "sourceRevision": "23d976d3bf8a209c693f60df0bf3375ad9075ecc",
+      "branchRevision": "23d976d3bf8a209c693f60df0bf3375ad9075ecc",
+      "artifactBuildRevision": "23d976d3bf8a209c693f60df0bf3375ad9075ecc",
+      "artifactSha256": "b459ffd0066750114632e89c0f7324f076caae212a4ab8894bf6c8305b2660ab",
+      "differential": {
+        "cases": 81434,
+        "releasedModules": 83938
+      },
+      "exact6": {
+        "secs": 6,
+        "framesSha256": "9c85ddc853245b7ef6c5ef196ea98ebe9cfa402a06c2ca7116861cf3d269505b",
+        "insns": "2034559010",
+        "consoleSha256": "343da8a53d4e80c690f6de73ac6e085eeb4241058873dc1a622d19a91e440fdf",
+        "frames": 137,
+        "panics": 0,
+        "jitFailures": 0,
+        "refInsns": "2034559010",
+        "refSha": "343da8a5",
+        "refFrames": 137,
+        "refFramesSha": "9c85ddc8",
+        "EXACT": true
+      },
+      "native": {},
+      "clippy": "passed: cargo clippy --workspace --all-targets -- -D warnings",
+      "logHashes": {
+        "build.log": "f79a6f1396877d64d4e7fc20be8863f89af83a6175cfb351488f7aa5311026c1",
+        "clippy.log": "a41051563a4cb5fc1b1bcdd9aa0ba28ca80f7736d629d90cc138218756e8e3a9",
+        "differential.log": "f5d2f9d1ea9d31ad9d0447345cdde2f76826f0913e1abc171ee30a4b0d7aaefd",
+        "exact6.log": "b15285ed9b2dfee688187ea7be9d7e48bc0f52ef735e9c09fe9fadb9eb8c0a43"
+      }
+    },
+    {
+      "branch": "codex/x4-rounds",
+      "sourceRevision": "c649229e974b62a7426b90dc45d614abde33577e",
+      "branchRevision": "4080afddb779effd8d24c277277d5b827f2804de",
+      "artifactBuildRevision": "4080afddb779effd8d24c277277d5b827f2804de",
+      "artifactSha256": "9766e5164a94a318d63208b27078a4f2dab46a126bfec610fde3ba74c8645a5e",
+      "differential": {
+        "cases": 81626,
+        "releasedModules": 84290
+      },
+      "exact6": {
+        "secs": 6,
+        "framesSha256": "9c85ddc853245b7ef6c5ef196ea98ebe9cfa402a06c2ca7116861cf3d269505b",
+        "insns": "2034559010",
+        "consoleSha256": "343da8a53d4e80c690f6de73ac6e085eeb4241058873dc1a622d19a91e440fdf",
+        "frames": 137,
+        "panics": 0,
+        "jitFailures": 0,
+        "refInsns": "2034559010",
+        "refSha": "343da8a5",
+        "refFrames": 137,
+        "refFramesSha": "9c85ddc8",
+        "EXACT": true
+      },
+      "native": {
+        "native.log": {
+          "passed": 455,
+          "failed": 0,
+          "ignored": 0
+        },
+        "native-vq.log": {
+          "passed": 37,
+          "failed": 0,
+          "ignored": 0
+        }
+      },
+      "clippy": "passed: cargo clippy --workspace --all-targets -- -D warnings",
+      "logHashes": {
+        "build.log": "3368d2fb4b5864ebb36bbc395b23b3b06674b50244e02644b34b1735490b9294",
+        "clippy.log": "7a6c99d30ec1497b6d7da296ebc4f06d29288c1855a34ed7e1e07a173f7ab34b",
+        "differential.log": "038ee96fa3297ad36bd5a966d404f1f94acb74a6c0837deaf69a2aa1f7cf119f",
+        "exact30-remote.log": "5bfea3b0bde3c054def1b1e1bf8c300af65eb57fbec9659d61c8870855b41ffd",
+        "exact6.log": "3bc522de1fb40f28e1100491aca321dc82f5967d464d44079e6ddbd37739e02e",
+        "native-vq.log": "5b15f0ad3cb2e206ae3a56817b2f523285bed5dadf02247d6658e8030fdf4891",
+        "native.log": "c400ee6d7ae8caae4b195ca29ea3fbdf406cb600cb914f185270ee63d63bc00c"
+      }
+    }
+  ],
+  "finalExact30": {
+    "secs": 30,
+    "framesSha256": "71a5ccdbf9dccbb35775c0d1ce90a2fad3f46370b901c39e4f3d58798537ca7d",
+    "insns": "10073833775",
+    "consoleSha256": "b9d9966e5d9d73984203c11846eb7f8c86507cb53ffe133c4e7e92dff66319d7",
+    "frames": 737,
+    "panics": 0,
+    "jitFailures": 0,
+    "refInsns": "10073833775",
+    "refSha": "b9d9966e",
+    "refFrames": 737,
+    "refFramesSha": "71a5ccdb",
+    "EXACT": true
+  },
+  "benchmarkHarnessTests": {
+    "passed": 12,
+    "command": "uv run --offline --no-project --python <venv>/bin/python python -m unittest discover -s tools/browser-benchmark -p 'test_*.py'"
+  },
+  "privacyCheck": "node tools/check-evidence-privacy.mjs passed; manual review excluded local paths, host identities and raw captures",
+  "nativeFollowup": {
+    "sourceRevision": "3d81936a8d453b9930b2f4cc7fec414799824081",
+    "workspaceSources": {
+      "files": 201,
+      "sourceSha256": "060be87916fa0ec26403f88cbfba55ab2abd18ae703d9af8aa0fcdddaf74cfbb"
+    },
+    "wasm": {
+      "artifactSha256": "df1941163acd52e1873079c55e47500808ed7bce94bb8ae83f52fe51f0c36ac9",
+      "functions": 1356,
+      "changedBodies": 0,
+      "comparison": "codegen/native-fix-comparison.json",
+      "interpretation": "All production function bodies match the measured shipping WASM. Existing differential and browser results apply to unchanged emitted instructions; this is not a fresh browser timing."
+    },
+    "native": {
+      "workspaceTests": {
+        "passed": 455,
+        "scope": "After direct native decoder return/inlining, before final WASM-only bridge metadata exclusion",
+        "command": "cargo test --release --workspace -- --include-ignored --skip external_"
+      },
+      "finalXtensaTests": {
+        "passed": 51,
+        "command": "cargo test --release -p xtensa-lx7"
+      },
+      "finalClippy": "cargo clippy --workspace --all-targets -- -D warnings passed",
+      "limitation": "Local ROM-dependent paths are not exercised; CI supplies ROMs."
+    },
+    "logHashes": {
+      "complete-workspace.log": "76186d01bcbc03c74c5354546774d1e5cf9f54daca9a7a9e5aba018f18f43dcf",
+      "shipping-xtensa-tests.log": "b4b853a1b89799a4afa7a19efdb4eed9fc4a8e583d6494afb07f17f7723fa8d9",
+      "shipping-clippy.log": "8a625d7681b30600bb9351a5949442a7a36d70b0c86f24b7e86a1b3766bf467e"
+    }
+  },
+  "profilingBuildRepair": {
+    "sourceRevision": "396a828e9142ead23a4a3e9ea428965656c97bb4",
+    "change": "Remove six orphaned calls to the absent experimental census counter, all guarded by wasm-jit-profile. Default production paths are unchanged from measured source 3d81936a.",
+    "command": ". ./tools/wasm-rustflags.sh; cargo build --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-profile,cpu-profile",
+    "result": "passed",
+    "logSha256": "11ffc55b6ff78b4209bf09e0645cb58b99c0bed46964e8e971f3a0787aaf41ab"
+  }
+}
