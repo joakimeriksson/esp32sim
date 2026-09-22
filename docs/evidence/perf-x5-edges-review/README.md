@@ -1,6 +1,6 @@
 # Direct region edge validation (EX181)
 
-The review fixes pin the presence of direct forward branches and both explicit and hardware-loop backedges. Test-only emitter counters are sampled around each existing differential program, so reverting to the semantically correct dispatcher path fails the corresponding assertion. Builds without the `wasm-jit-tests` feature omit these counters. Debug and differential-test builds also assert that chunk heads are unique, the invariant that makes the head count match the dispatch-block nesting. The hardware-loop encoding check now includes offset 5.
+The review fixes pin the presence of direct forward branches and both explicit and hardware-loop backedges. Test-only emitter counters are sampled around each existing differential program, so reverting to the semantically correct dispatcher path fails the corresponding assertion. Builds without the `wasm-jit-tests` feature omit these counters. All builds, including production release builds, assert that chunk heads are unique, the invariant that makes the head count match the dispatch-block nesting. The hardware-loop encoding check now includes offset 5.
 
 EX167 used a shared jump cache and cross-module `return_call_indirect`; EX181 emits intra-function `br` edges inside one region. EX112's successor-ordering portion is first tested independently here. No new performance experiment was run for these review fixes.
 
