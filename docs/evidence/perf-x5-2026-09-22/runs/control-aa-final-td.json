@@ -1,0 +1,239 @@
+{
+  "name": "control-aa-final-td",
+  "workload": "tinydraw",
+  "sourceRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+  "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+  "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+  "candidateWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+  "pairs": 2,
+  "medianWallSeconds": {
+    "baseline": 27.163980000004173,
+    "candidate": 27.203689999997614
+  },
+  "wallReductionPercent": -0.14618623630791028,
+  "pairsWallReductionPercent": [
+    -0.3400785031725251,
+    0.04718680610704684
+  ],
+  "browser": "Chrome/153.0.8010.53",
+  "v8": "15.3.76.13",
+  "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+  "startedAt": "2026-09-22T08:21:18Z",
+  "runs": [
+    {
+      "pair": 1,
+      "arm": "baseline",
+      "wallSeconds": 27.127560000002383,
+      "guestSeconds": 47.750049575,
+      "instructions": 9819885134,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "frames": 428,
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "verdictValidation": {
+        "schema": "tinydraw-gate1-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": null,
+      "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+      "instrumented": false,
+      "jit": {
+        "compiled": 10797,
+        "failed": 0,
+        "released": 3264,
+        "compileMs": 568.9300018846989,
+        "bytes": 109215066,
+        "liveBytes": 73814993,
+        "peakBytes": 73814993,
+        "peakModules": 7533,
+        "instructions": 9637400566
+      },
+      "loadBefore": [
+        2.38525390625,
+        2.27099609375,
+        2.07666015625
+      ],
+      "loadAfter": [
+        2.52001953125,
+        2.30859375,
+        2.0966796875
+      ]
+    },
+    {
+      "pair": 1,
+      "arm": "candidate",
+      "wallSeconds": 27.219814999997617,
+      "guestSeconds": 47.750049575,
+      "instructions": 9819885134,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "frames": 428,
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "verdictValidation": {
+        "schema": "tinydraw-gate1-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": null,
+      "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+      "instrumented": false,
+      "jit": {
+        "compiled": 10797,
+        "failed": 0,
+        "released": 3264,
+        "compileMs": 572.0150026679039,
+        "bytes": 109215066,
+        "liveBytes": 73814993,
+        "peakBytes": 73814993,
+        "peakModules": 7533,
+        "instructions": 9637400566
+      },
+      "loadBefore": [
+        2.52001953125,
+        2.30859375,
+        2.0966796875
+      ],
+      "loadAfter": [
+        2.13720703125,
+        2.23095703125,
+        2.07470703125
+      ]
+    },
+    {
+      "pair": 2,
+      "arm": "candidate",
+      "wallSeconds": 27.187564999997615,
+      "guestSeconds": 47.750049575,
+      "instructions": 9819885134,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "frames": 428,
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "verdictValidation": {
+        "schema": "tinydraw-gate1-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": null,
+      "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+      "instrumented": false,
+      "jit": {
+        "compiled": 10797,
+        "failed": 0,
+        "released": 3264,
+        "compileMs": 567.0899991393089,
+        "bytes": 109215066,
+        "liveBytes": 73814993,
+        "peakBytes": 73814993,
+        "peakModules": 7533,
+        "instructions": 9637400566
+      },
+      "loadBefore": [
+        2.13720703125,
+        2.23095703125,
+        2.07470703125
+      ],
+      "loadAfter": [
+        2.02294921875,
+        2.20458984375,
+        2.0703125
+      ]
+    },
+    {
+      "pair": 2,
+      "arm": "baseline",
+      "wallSeconds": 27.20040000000596,
+      "guestSeconds": 47.750049575,
+      "instructions": 9819885134,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "frames": 428,
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "verdictValidation": {
+        "schema": "tinydraw-gate1-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": null,
+      "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+      "instrumented": false,
+      "jit": {
+        "compiled": 10797,
+        "failed": 0,
+        "released": 3264,
+        "compileMs": 572.7950005829334,
+        "bytes": 109215066,
+        "liveBytes": 73814993,
+        "peakBytes": 73814993,
+        "peakModules": 7533,
+        "instructions": 9637400566
+      },
+      "loadBefore": [
+        2.02294921875,
+        2.20458984375,
+        2.0703125
+      ],
+      "loadAfter": [
+        1.751953125,
+        2.1201171875,
+        2.0439453125
+      ]
+    }
+  ],
+  "originalReceipts": [
+    {
+      "path": "runs/control-aa-final-td/summary.json",
+      "sha256": "a0ba60dddb7fb2d2a93046cb176453cc6ceaf2679f33c66800782b258f7eafa8",
+      "bytes": 13743
+    },
+    {
+      "path": "runs/control-aa-final-td/1-baseline/result.json",
+      "sha256": "eea1e6845db2e298b00220637129dad31bccc8b37a25655e5660903d9338f54c",
+      "bytes": 4701
+    },
+    {
+      "path": "runs/control-aa-final-td/1-baseline/capture.json",
+      "sha256": "4596aa0d8f7073115df6e177571c5210766c9cb879ba705a0aad02803cb0feb9",
+      "bytes": 980
+    },
+    {
+      "path": "runs/control-aa-final-td/1-candidate/result.json",
+      "sha256": "2cb25c2e95078259297bd3afec82aa63329b6414bdfa723ff74bce8d9266e928",
+      "bytes": 4701
+    },
+    {
+      "path": "runs/control-aa-final-td/1-candidate/capture.json",
+      "sha256": "69ba7faf87fdc374927d824660453fe563592c11933eb0f6af87cc6ca4689d58",
+      "bytes": 981
+    },
+    {
+      "path": "runs/control-aa-final-td/2-candidate/result.json",
+      "sha256": "f8bdd52b020e196ebcc87afb526be1dbaf943e8ecfcf83cc63c62c8286cc795e",
+      "bytes": 4701
+    },
+    {
+      "path": "runs/control-aa-final-td/2-candidate/capture.json",
+      "sha256": "ff79191ff9b6c594dd07800ca72bc93ec12dfed4fc8472058e9e21ec6ddfa77d",
+      "bytes": 981
+    },
+    {
+      "path": "runs/control-aa-final-td/2-baseline/result.json",
+      "sha256": "f89d6326b4a8d5648243279aa7b0c0b63f46f36c1d60fc6ba74915885732d68b",
+      "bytes": 4700
+    },
+    {
+      "path": "runs/control-aa-final-td/2-baseline/capture.json",
+      "sha256": "1da504f7e2b8b86135bb4316e93865dbbf3b9340e497135e359e24935c2a9f50",
+      "bytes": 976
+    }
+  ]
+}

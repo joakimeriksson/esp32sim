@@ -1,0 +1,537 @@
+{
+  "name": "host-s3",
+  "workload": "pocket-tank",
+  "sourceRevision": "064144984eac8ab9655e9417e3f29382b82827d0",
+  "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+  "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+  "candidateWasmSha256": "c9c713c6c5d8569efda9e2cae39a44c22e6f7798dc71ef8fba0f6078b58a03f3",
+  "pairs": 4,
+  "medianWallSeconds": {
+    "baseline": 24.992942500002684,
+    "candidate": 24.85422500000149
+  },
+  "wallReductionPercent": 0.5550266840376183,
+  "pairsWallReductionPercent": [
+    0.7194732722717312,
+    0.20272235168897756,
+    1.0253707879421148,
+    -0.29082165094849177
+  ],
+  "browser": "Chrome/153.0.8010.53",
+  "v8": "15.3.76.13",
+  "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+  "startedAt": "2026-09-22T01:19:18Z",
+  "runs": [
+    {
+      "pair": 1,
+      "arm": "baseline",
+      "wallSeconds": 25.055829999998213,
+      "guestSeconds": 30.000000229166666,
+      "instructions": 10073833775,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "frames": 737,
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "verdictValidation": {
+        "schema": "pocket-tank-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": [
+        {
+          "name": "model_decisions",
+          "min": 10,
+          "count": 13
+        },
+        {
+          "name": "render_reports",
+          "min": 2,
+          "count": 2
+        }
+      ],
+      "verdict": null,
+      "instrumented": false,
+      "jit": {
+        "compiled": 5168,
+        "failed": 0,
+        "released": 1429,
+        "compileMs": 283.47000010311604,
+        "bytes": 48770076,
+        "liveBytes": 35189223,
+        "peakBytes": 41027052,
+        "peakModules": 4364,
+        "instructions": 10015966469
+      },
+      "loadBefore": [
+        2.38818359375,
+        2.45458984375,
+        2.6435546875
+      ],
+      "loadAfter": [
+        2.15625,
+        2.4052734375,
+        2.61962890625
+      ]
+    },
+    {
+      "pair": 1,
+      "arm": "candidate",
+      "wallSeconds": 24.875560000002384,
+      "guestSeconds": 30.000000229166666,
+      "instructions": 10073833775,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "frames": 737,
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "verdictValidation": {
+        "schema": "pocket-tank-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": [
+        {
+          "name": "model_decisions",
+          "min": 10,
+          "count": 13
+        },
+        {
+          "name": "render_reports",
+          "min": 2,
+          "count": 2
+        }
+      ],
+      "verdict": null,
+      "instrumented": false,
+      "jit": {
+        "compiled": 5168,
+        "failed": 0,
+        "released": 1429,
+        "compileMs": 281.76000010967255,
+        "bytes": 48770076,
+        "liveBytes": 35189223,
+        "peakBytes": 41027052,
+        "peakModules": 4364,
+        "instructions": 10015966469
+      },
+      "loadBefore": [
+        2.15625,
+        2.4052734375,
+        2.61962890625
+      ],
+      "loadAfter": [
+        2.00048828125,
+        2.3544921875,
+        2.59423828125
+      ]
+    },
+    {
+      "pair": 2,
+      "arm": "candidate",
+      "wallSeconds": 24.91457000000775,
+      "guestSeconds": 30.000000229166666,
+      "instructions": 10073833775,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "frames": 737,
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "verdictValidation": {
+        "schema": "pocket-tank-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": [
+        {
+          "name": "model_decisions",
+          "min": 10,
+          "count": 13
+        },
+        {
+          "name": "render_reports",
+          "min": 2,
+          "count": 2
+        }
+      ],
+      "verdict": null,
+      "instrumented": false,
+      "jit": {
+        "compiled": 5168,
+        "failed": 0,
+        "released": 1429,
+        "compileMs": 275.19000013172626,
+        "bytes": 48770076,
+        "liveBytes": 35189223,
+        "peakBytes": 41027052,
+        "peakModules": 4364,
+        "instructions": 10015966469
+      },
+      "loadBefore": [
+        2.00048828125,
+        2.3544921875,
+        2.59423828125
+      ],
+      "loadAfter": [
+        2.0751953125,
+        2.3349609375,
+        2.57763671875
+      ]
+    },
+    {
+      "pair": 2,
+      "arm": "baseline",
+      "wallSeconds": 24.96518000000715,
+      "guestSeconds": 30.000000229166666,
+      "instructions": 10073833775,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "frames": 737,
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "verdictValidation": {
+        "schema": "pocket-tank-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": [
+        {
+          "name": "model_decisions",
+          "min": 10,
+          "count": 13
+        },
+        {
+          "name": "render_reports",
+          "min": 2,
+          "count": 2
+        }
+      ],
+      "verdict": null,
+      "instrumented": false,
+      "jit": {
+        "compiled": 5168,
+        "failed": 0,
+        "released": 1429,
+        "compileMs": 278.7649999111891,
+        "bytes": 48770076,
+        "liveBytes": 35189223,
+        "peakBytes": 41027052,
+        "peakModules": 4364,
+        "instructions": 10015966469
+      },
+      "loadBefore": [
+        2.0751953125,
+        2.3349609375,
+        2.57763671875
+      ],
+      "loadAfter": [
+        2.69140625,
+        2.498046875,
+        2.630859375
+      ]
+    },
+    {
+      "pair": 3,
+      "arm": "baseline",
+      "wallSeconds": 25.020704999998213,
+      "guestSeconds": 30.000000229166666,
+      "instructions": 10073833775,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "frames": 737,
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "verdictValidation": {
+        "schema": "pocket-tank-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": [
+        {
+          "name": "model_decisions",
+          "min": 10,
+          "count": 13
+        },
+        {
+          "name": "render_reports",
+          "min": 2,
+          "count": 2
+        }
+      ],
+      "verdict": null,
+      "instrumented": false,
+      "jit": {
+        "compiled": 5168,
+        "failed": 0,
+        "released": 1429,
+        "compileMs": 279.4650001525879,
+        "bytes": 48770076,
+        "liveBytes": 35189223,
+        "peakBytes": 41027052,
+        "peakModules": 4364,
+        "instructions": 10015966469
+      },
+      "loadBefore": [
+        2.69140625,
+        2.498046875,
+        2.630859375
+      ],
+      "loadAfter": [
+        2.2548828125,
+        2.4091796875,
+        2.59375
+      ]
+    },
+    {
+      "pair": 3,
+      "arm": "candidate",
+      "wallSeconds": 24.76414999999106,
+      "guestSeconds": 30.000000229166666,
+      "instructions": 10073833775,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "frames": 737,
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "verdictValidation": {
+        "schema": "pocket-tank-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": [
+        {
+          "name": "model_decisions",
+          "min": 10,
+          "count": 13
+        },
+        {
+          "name": "render_reports",
+          "min": 2,
+          "count": 2
+        }
+      ],
+      "verdict": null,
+      "instrumented": false,
+      "jit": {
+        "compiled": 5168,
+        "failed": 0,
+        "released": 1429,
+        "compileMs": 273.82500030100346,
+        "bytes": 48770076,
+        "liveBytes": 35189223,
+        "peakBytes": 41027052,
+        "peakModules": 4364,
+        "instructions": 10015966469
+      },
+      "loadBefore": [
+        2.2548828125,
+        2.4091796875,
+        2.59375
+      ],
+      "loadAfter": [
+        2.4169921875,
+        2.43310546875,
+        2.59375
+      ]
+    },
+    {
+      "pair": 4,
+      "arm": "candidate",
+      "wallSeconds": 24.832890000000596,
+      "guestSeconds": 30.000000229166666,
+      "instructions": 10073833775,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "frames": 737,
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "verdictValidation": {
+        "schema": "pocket-tank-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": [
+        {
+          "name": "model_decisions",
+          "min": 10,
+          "count": 13
+        },
+        {
+          "name": "render_reports",
+          "min": 2,
+          "count": 2
+        }
+      ],
+      "verdict": null,
+      "instrumented": false,
+      "jit": {
+        "compiled": 5168,
+        "failed": 0,
+        "released": 1429,
+        "compileMs": 276.3499996215105,
+        "bytes": 48770076,
+        "liveBytes": 35189223,
+        "peakBytes": 41027052,
+        "peakModules": 4364,
+        "instructions": 10015966469
+      },
+      "loadBefore": [
+        2.4169921875,
+        2.43310546875,
+        2.59375
+      ],
+      "loadAfter": [
+        2.1416015625,
+        2.365234375,
+        2.56396484375
+      ]
+    },
+    {
+      "pair": 4,
+      "arm": "baseline",
+      "wallSeconds": 24.760879999995232,
+      "guestSeconds": 30.000000229166666,
+      "instructions": 10073833775,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "frames": 737,
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "verdictValidation": {
+        "schema": "pocket-tank-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": [
+        {
+          "name": "model_decisions",
+          "min": 10,
+          "count": 13
+        },
+        {
+          "name": "render_reports",
+          "min": 2,
+          "count": 2
+        }
+      ],
+      "verdict": null,
+      "instrumented": false,
+      "jit": {
+        "compiled": 5168,
+        "failed": 0,
+        "released": 1429,
+        "compileMs": 275.77500092983246,
+        "bytes": 48770076,
+        "liveBytes": 35189223,
+        "peakBytes": 41027052,
+        "peakModules": 4364,
+        "instructions": 10015966469
+      },
+      "loadBefore": [
+        2.1416015625,
+        2.365234375,
+        2.56396484375
+      ],
+      "loadAfter": [
+        2.02490234375,
+        2.3134765625,
+        2.53759765625
+      ]
+    }
+  ],
+  "originalReceipts": [
+    {
+      "path": "runs/host-s3/summary.json",
+      "sha256": "392a151038753e04111d5307c08a92572c36cb1f13e31e9100ac0022bd362422",
+      "bytes": 27230
+    },
+    {
+      "path": "runs/host-s3/1-baseline/result.json",
+      "sha256": "2d04877cccf59745609df5da6c21f4d63ec8214892892cceb8ca02619f4c1188",
+      "bytes": 4332
+    },
+    {
+      "path": "runs/host-s3/1-baseline/capture.json",
+      "sha256": "d4cb664930d70979284b53329293e4e8963835cc4e51eec3e61e76d38899d452",
+      "bytes": 964
+    },
+    {
+      "path": "runs/host-s3/1-candidate/result.json",
+      "sha256": "0cda5db1ecf93135ff4593945ddc7b0e609ed46d2d927de6a51fbed1c0a91b61",
+      "bytes": 4332
+    },
+    {
+      "path": "runs/host-s3/1-candidate/capture.json",
+      "sha256": "e81a5f8265b0304b0d24c986c81f4bb4f3076b3309d2fbacc8610bbb78223269",
+      "bytes": 965
+    },
+    {
+      "path": "runs/host-s3/2-candidate/result.json",
+      "sha256": "0c929e9558e986b3a7f6304c058478e6a2523ae129da39b08f55caaffb1bdd5f",
+      "bytes": 4331
+    },
+    {
+      "path": "runs/host-s3/2-candidate/capture.json",
+      "sha256": "70d664804a3c236bfc63acf1eaa99944f47473a6db78d035aa2f2bdd0e223634",
+      "bytes": 970
+    },
+    {
+      "path": "runs/host-s3/2-baseline/result.json",
+      "sha256": "cf70b305191dc078153e51f2dd6ccec15f4b0d38d55e62f1b4b5228a85d96580",
+      "bytes": 4329
+    },
+    {
+      "path": "runs/host-s3/2-baseline/capture.json",
+      "sha256": "b3840ace63e0042aec0ebad25c489d2ffd7d557c74a943948195ba0627cc7150",
+      "bytes": 963
+    },
+    {
+      "path": "runs/host-s3/3-baseline/result.json",
+      "sha256": "4eccea2a873fed42c2dbf6ebe591b74800bbd869287fedfd510c1c414a832443",
+      "bytes": 4331
+    },
+    {
+      "path": "runs/host-s3/3-baseline/capture.json",
+      "sha256": "1436f32a6a21414999816b5c34ef36a73492f426612aee098f384b2a7c794ba3",
+      "bytes": 957
+    },
+    {
+      "path": "runs/host-s3/3-candidate/result.json",
+      "sha256": "de6e65e84b82d57dfb9ed8f4e18315f518471e47359dcee73acdd920c1c1e70c",
+      "bytes": 4331
+    },
+    {
+      "path": "runs/host-s3/3-candidate/capture.json",
+      "sha256": "4cd62c32f60bbbc9d993ae8f691e40fc0715b4fbbdba8d5ee0eec4c024ce17a9",
+      "bytes": 958
+    },
+    {
+      "path": "runs/host-s3/4-candidate/result.json",
+      "sha256": "6756a949eb17d7829666b4682814f24828d3b0fdb08909a100ad8095f35080af",
+      "bytes": 4331
+    },
+    {
+      "path": "runs/host-s3/4-candidate/capture.json",
+      "sha256": "c8f5e12c03aae1df82b081dced8743ea5cbcdf9423ff89b2ad98be99154ae82f",
+      "bytes": 963
+    },
+    {
+      "path": "runs/host-s3/4-baseline/result.json",
+      "sha256": "177d6af3e4794f30f482780bfa2b8ae488c551009e71402f0e24d030703ebe2a",
+      "bytes": 4332
+    },
+    {
+      "path": "runs/host-s3/4-baseline/capture.json",
+      "sha256": "c96b745b6a65d4e5e7e6c91d95d7da15675d77f47fea7ba7e44fedd75c9f2fd6",
+      "bytes": 968
+    }
+  ]
+}

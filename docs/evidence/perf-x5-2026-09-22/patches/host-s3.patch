@@ -1,0 +1,70 @@
+diff --git a/tools/wasm-rustflags.sh b/tools/wasm-rustflags.sh
+index 32be37de..d52319e5 100644
+--- a/tools/wasm-rustflags.sh
++++ b/tools/wasm-rustflags.sh
+@@ -4,3 +4,5 @@
+ # -inline-threshold is an internal LLVM option. New stable LLVM versions may
+ # reject it; fail the build loudly rather than silently change the artifact.
+ RUSTFLAGS="${RUSTFLAGS--Cllvm-args=-inline-threshold=2000}"; export RUSTFLAGS
++# EX120: DWARF is 10 MB of wire bytes V8 never executes; drop it, keep the `name` section for profiles.
++CARGO_PROFILE_RELEASE_DEBUG="${CARGO_PROFILE_RELEASE_DEBUG-0}"; export CARGO_PROFILE_RELEASE_DEBUG
+diff --git a/xtensa-lx7/src/jit/wasm.rs b/xtensa-lx7/src/jit/wasm.rs
+index 14b0abd6..45b36a2b 100644
+--- a/xtensa-lx7/src/jit/wasm.rs
++++ b/xtensa-lx7/src/jit/wasm.rs
+@@ -458,22 +458,25 @@ extern "C" fn h_overflow(cpu: *mut Cpu, max_ar: u32, pc: u32) -> u32 {
+ /// A loop may repeat only across an ordinary instruction boundary with no observer.
+ /// The decoder already cuts at interior observers; the loop head needs its own check.
+ #[inline(always)]
+-pub fn loop_len(cc: &CodeCache, code: u32, cpu: &Cpu) -> Option<usize> {
++pub(super) fn loop_len(b: &Block, cpu: &Cpu) -> Option<usize> {
+     // EX168 s3: the two tests that refuse nearly every call stay in the caller; the out-of-line
+     // call returned its Option through stack memory.
+-    if cpu.lcount == 0 || cpu.lbeg != cc.blocks[code as usize].pc { return None; }
+-    loop_len_at_head(cc, code, cpu)
++    if cpu.lcount == 0 || cpu.lbeg != b.pc { return None; }
++    loop_len_at_head(b, cpu)
+ }
+ #[inline(never)]
+-fn loop_len_at_head(cc: &CodeCache, code: u32, cpu: &Cpu) -> Option<usize> {
+-    let b = &cc.blocks[code as usize];
++fn loop_len_at_head(b: &Block, cpu: &Cpu) -> Option<usize> {
+     if cpu.blocks.observed
+         || cpu.boundary_bloom & emu_core::core::pc_bit(b.pc) != 0 {
+         return None;
+     }
+-    b.instructions.iter().zip(&b.pcs).take(b.loop_prefix)
+-        .position(|(i, pc)| pc.wrapping_add(i.insn.len as u32) == cpu.lend)
+-        .map(|n| n + 1)
++    // EX181: `pcs[k + 1]` is `pcs[k] + len(k)` by construction (`queue`), so the instruction that
++    // ends at LEND can be found in the PC array alone, without loading any decoded instruction.
++    let n = b.pcs.len();
++    let m = b.loop_prefix.min(n);
++    if let Some(k) = b.pcs[1..(m + 1).min(n)].iter().position(|&pc| pc == cpu.lend) { return Some(k + 1); }
++    let last = b.instructions[n - 1].insn.len as u32;
++    (m == n && b.pcs[n - 1].wrapping_add(last) == cpu.lend).then_some(n)
+ }
+ 
+ /// Execute a published block against the exclusively borrowed machine state.
+@@ -789,7 +792,7 @@ unsafe fn run_block_body<B: Bus>(cc: &CodeCache, code: u32, cpu: &mut Cpu, bus:
+     // SAFETY: host_jit_compile installs exactly this signature in the shared WASM table.
+     let f: Run<B> = unsafe { std::mem::transmute(cc.blocks[code as usize].slot.get() as usize) };
+     let b = &cc.blocks[code as usize];
+-    let looping = loop_len(cc, code, cpu);
++    let looping = loop_len(b, cpu);
+     let initial_lcount = cpu.lcount;
+     let result = if looping.is_some() {
+         let mut guarded = *h;
+diff --git a/xtensa-lx7/src/jit/wasm_tests.rs b/xtensa-lx7/src/jit/wasm_tests.rs
+index a9bee9b4..f30cfe83 100644
+--- a/xtensa-lx7/src/jit/wasm_tests.rs
++++ b/xtensa-lx7/src/jit/wasm_tests.rs
+@@ -322,7 +322,7 @@ fn compare_hinted(block: &mut [BlockInsn], case: Case, configure: &impl Fn(&mut
+     let mut count = 0;
+     let mut trap = None;
+     let mut pre = false;
+-    let repeat = loop_len(&cc, code, &a).is_some();
++    let repeat = loop_len(&cc.blocks[code as usize], &a).is_some();
+     for _ in 0..budget {
+         let index = a.pc.wrapping_sub(BASE) / 3;
+         let Some(instruction) = block.get(index as usize) else { break; };

@@ -1,0 +1,245 @@
+diff --git a/emu-core/src/bus.rs b/emu-core/src/bus.rs
+index a17589b6..d656d39b 100644
+--- a/emu-core/src/bus.rs
++++ b/emu-core/src/bus.rs
+@@ -31,35 +31,45 @@ pub fn tlb_index(addr: u32) -> usize { (((addr >> TLB_INDEX_SHIFT) ^ (addr >> TL
+ /// nor on the pages `bump` would move with them, so a write through it needs no version
+ /// bookkeeping at all. A bus that cannot prove that must publish a nonzero `code`, and a bus that
+ /// does must answer `note_code_page` by clearing entries it has already published.
+-/// The 32-byte alignment keeps `size_of` a power of two on both 32-bit and 64-bit hosts, which
+-/// the native JIT's shifted entry indexing requires (jit/mod.rs `TLB_ENTRY_SHIFT`).
++/// Both backends keep 32-byte entries. Native retains its natural pointer alignment so
++/// returning an optional entry does not acquire extra padding and stack alignment.
+ ///
+-/// `span` is `hi - lo` for a live mapping and 0 for an empty slot (EX173). It lets generated code
++/// On wasm32, `span` is `hi - lo` for a live mapping and 0 for an empty slot (EX173). It lets generated code
+ /// decide a whole access with one unsigned compare against `addr - lo`, because an address below
+ /// `lo` wraps the subtraction above any possible span and an empty slot rejects every offset.
+ /// Always derive it with [`TlbEntry::with_span`] from the final endpoints.
+ /// x4 pack: `writable` and `code` are 16-bit flags sharing one word, so the entry stays 32 bytes
+ /// on wasm32 with both `code` (EX110) and `span` (EX173); generated code loads them as u16.
+-#[repr(C, align(32))]
++/// Native probes use `lo`/`hi`, so omit their unused span to keep native entries at 32 bytes too.
++#[repr(C)]
++#[cfg_attr(target_arch = "wasm32", repr(align(32)))]
+ #[derive(Clone, Copy)]
+-pub struct TlbEntry { pub lo: u32, pub hi: u32, pub base: *mut u8, pub vbase: u32, pub writable: u16, pub code: u16, pub off: u32, pub src: u32, pub span: u32 }
++pub struct TlbEntry { pub lo: u32, pub hi: u32, pub base: *mut u8, pub vbase: u32, pub writable: u16, pub code: u16, pub off: u32, pub src: u32,
++    #[cfg(target_arch = "wasm32")] pub span: u32,
++}
+ impl TlbEntry {
+-    pub const EMPTY: TlbEntry = TlbEntry { lo: 1, hi: 0, base: std::ptr::null_mut(), vbase: 0, writable: 0, off: 0, src: 0, code: 1, span: 0 };
++    pub const EMPTY: TlbEntry = TlbEntry { lo: 1, hi: 0, base: std::ptr::null_mut(), vbase: 0, writable: 0, off: 0, src: 0, code: 1,
++        #[cfg(target_arch = "wasm32")] span: 0,
++    };
+     /// Publish the endpoints to generated code. An entry that never passes through this keeps
+     /// `span` 0, which no access can satisfy, so it simply takes the slow path.
+     #[inline(always)]
++    #[cfg_attr(not(target_arch = "wasm32"), allow(unused_mut))]
+     pub fn with_span(mut self) -> TlbEntry {
+         debug_assert!(self.hi >= self.lo);
+-        self.span = self.hi.wrapping_sub(self.lo);
++        #[cfg(target_arch = "wasm32")]
++        { self.span = self.hi.wrapping_sub(self.lo); }
+         self
+     }
+ }
+ // SAFETY: Sending this Copy value transfers only address bits. TlbEntry has no safe operation that
+ // dereferences `base`; generated access must separately uphold the documented owner invariants.
+ unsafe impl Send for TlbEntry {}
+-// x4 pack: generated WASM indexes the table by this size.
+-#[cfg(target_pointer_width = "32")]
++// Both JIT backends must retain the compact entry footprint.
++#[cfg(any(target_arch = "wasm32", target_pointer_width = "64"))]
+ const _: () = assert!(std::mem::size_of::<TlbEntry>() == 32);
++#[cfg(target_pointer_width = "64")]
++const _: () = assert!(std::mem::align_of::<TlbEntry>() == std::mem::align_of::<usize>());
+ // SAFETY: Sharing this value exposes address bits but performs no dereference. Generated access
+ // through `base` must separately uphold the documented lifetime and synchronization invariants.
+ unsafe impl Sync for TlbEntry {}
+diff --git a/esp32s3/src/bus.rs b/esp32s3/src/bus.rs
+index 471366a8..41d879fb 100644
+--- a/esp32s3/src/bus.rs
++++ b/esp32s3/src/bus.rs
+@@ -334,7 +334,7 @@ impl SocBus {
+         let page = addr & !0xffff;
+         let region = |lo: u32, hi: u32, src: u8, w: bool| -> TlbEntry {
+             let lo_ = page.max(lo); let hi_ = (page + 0x10000).min(hi);
+-            TlbEntry { lo: lo_, hi: hi_, base: std::ptr::null_mut(), off: lo_ - lo, vbase: 0, src: src as u32, writable: w as u16, code: 1, span: 0 }
++            TlbEntry { lo: lo_, hi: hi_, base: std::ptr::null_mut(), off: lo_ - lo, vbase: 0, src: src as u32, writable: w as u16, code: 1, #[cfg(target_arch = "wasm32")] span: 0 }
+         };
+         let mut e = match addr {
+             DRAM_LOW..=0x3FCF_FFFF => { let mut e = region(DRAM_LOW, 0x3FD0_0000, SRC_SRAM, true); e.off += 0x8000; e }
+@@ -350,7 +350,7 @@ impl SocBus {
+                 let off = (entry & 0x3fff) as usize * PAGE as usize;
+                 let (src, w) = if entry & MMU_SPIRAM != 0 { (SRC_PSRAM, true) } else { (SRC_FLASH, false) };
+                 if off + PAGE as usize > self.buf(src).len() { return None; }
+-                TlbEntry { lo: page, hi: page + 0x10000, base: std::ptr::null_mut(), off: off as u32, vbase: 0, src: src as u32, writable: w as u16, code: 1, span: 0 }
++                TlbEntry { lo: page, hi: page + 0x10000, base: std::ptr::null_mut(), off: off as u32, vbase: 0, src: src as u32, writable: w as u16, code: 1, #[cfg(target_arch = "wasm32")] span: 0 }
+             }
+             _ => return None,
+         };
+diff --git a/xtensa-lx7/src/block.rs b/xtensa-lx7/src/block.rs
+index 84db63dd..032933d5 100644
+--- a/xtensa-lx7/src/block.rs
++++ b/xtensa-lx7/src/block.rs
+@@ -40,9 +40,9 @@ pub struct BlockInsn { pub insn: Insn, pub max_ar: u8, /// EX141: a static trans
+ #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+ #[derive(Clone, Copy)]
+ struct Entry { pc: u32, start: u32, n: u16, /// EX168 s6: the first instruction needs no exact block-boundary state (fits the padding)
+- chain: bool, /** EX171 bridge class of a block without code (0: never) */ bridge: u8, vidx: [u32; 2], ver: [u32; 2], code: u32 }
++ chain: bool, /** EX171 bridge class of a block without code (0: never) */ #[cfg(target_arch = "wasm32")] bridge: u8, vidx: [u32; 2], ver: [u32; 2], code: u32 }
+ const _: () = assert!(std::mem::size_of::<Entry>() == 32);
+-impl Entry { const EMPTY: Entry = Entry { pc: 1, start: 0, n: 0, chain: false, bridge: 0, vidx: [0; 2], ver: [0; 2], code: crate::jit::NONE }; }
++impl Entry { const EMPTY: Entry = Entry { pc: 1, start: 0, n: 0, chain: false, #[cfg(target_arch = "wasm32")] bridge: 0, vidx: [0; 2], ver: [0; 2], code: crate::jit::NONE }; }
+ 
+ #[cfg(not(target_arch = "wasm32"))] const ENTRIES: usize = 1 << 17;
+ #[cfg(target_arch = "wasm32")] const ENTRIES: usize = 1 << 15;
+@@ -304,8 +304,6 @@ fn build<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc0: u32) -> Result<(u32, u32, u16)
+     if vidx1 != vidx0 { bus.note_code_page(vidx1); }
+     let pv = bus.page_versions();
+     let ver = [pv.get(vidx0 as usize).copied().unwrap_or(0), pv.get(vidx1 as usize).copied().unwrap_or(0)];
+-    #[cfg(feature = "wasm-jit-profile")]
+-    { crate::census::note_code_page(vidx0, 1); crate::census::note_code_page(vidx1, 1); }
+     let ei = BlockCache::index(pc0);
+     let mut code = crate::jit::NONE;
+     let fast = bus.fast_mem().is_some();
+@@ -318,9 +316,7 @@ fn build<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc0: u32) -> Result<(u32, u32, u16)
+     // EX171: a block the emitter refused may still be interpretable inside a wrapper chain.
+     #[cfg(target_arch = "wasm32")]
+     let bridge = if code == crate::jit::NONE { bridge_block_class(&cpu.blocks.arena[start as usize..start as usize + n as usize]) } else { 0 };
+-    #[cfg(not(target_arch = "wasm32"))]
+-    let bridge = 0;
+-    cpu.blocks.entries[ei] = Entry { pc: pc0, start, n, chain, bridge, vidx: [vidx0, vidx1], ver, code };
++    cpu.blocks.entries[ei] = Entry { pc: pc0, start, n, chain, #[cfg(target_arch = "wasm32")] bridge, vidx: [vidx0, vidx1], ver, code };
+     cpu.blocks.builds += 1;
+     Ok((ei as u32, start, n))
+ }
+@@ -459,6 +455,15 @@ pub(crate) fn step_extra<B: Bus>(cpu: &mut Cpu, bus: &mut B, i: &Insn) -> u32 {
+     cpu.blocks.extras[k as usize] as u32
+ }
+ 
++// Only WASM can continue into another block here. Keep the native return path direct.
++#[cfg(not(target_arch = "wasm32"))]
++use self::run_decoded_once as run_decoded;
++#[cfg(not(target_arch = "wasm32"))]
++type DecodedResult = (u32, Option<Trap>);
++#[cfg(target_arch = "wasm32")]
++type DecodedResult = (u32, Option<Trap>, Option<(u32, u32, u32)>);
++
++#[cfg(target_arch = "wasm32")]
+ fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, mut budget: u32, mut ei: u32, mut k: u32, mut end: u32) -> (u32, Option<Trap>) {
+     let mut total = 0;
+     loop {
+@@ -470,9 +475,9 @@ fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, mut budget: u32, mut ei: u32,
+     }
+ }
+ 
+-/// One block (or wrapper chain). The third value is EX171's next block to continue with.
++/// One block (or WASM wrapper chain). WASM also returns the next block to continue with.
+ #[inline(always)]
+-fn run_decoded_once<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k: u32, end: u32) -> (u32, Option<Trap>, Option<(u32, u32, u32)>) {
++fn run_decoded_once<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k: u32, end: u32) -> DecodedResult {
+     // never run past a CCOMPARE match: the timer interrupt must land on the same instruction
+     #[cfg(not(target_arch = "wasm32"))]
+     let mut limit = (end - k).min(budget);
+@@ -558,7 +563,10 @@ fn run_decoded_once<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mu
+             }
+             _ => (done, None),
+         };
++        #[cfg(target_arch = "wasm32")]
+         return (done, trap, None);
++        #[cfg(not(target_arch = "wasm32"))]
++        return (done, trap);
+     }
+ 
+     #[cfg(target_arch = "wasm32")]
+@@ -623,7 +631,10 @@ fn run_decoded_once<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mu
+             return (done, None, Some((nei as u32, next.start, next.start + next.n as u32)));
+         }
+     }
+-    (done + pre as u32, trap, None)
++    #[cfg(target_arch = "wasm32")]
++    { (done + pre as u32, trap, None) }
++    #[cfg(not(target_arch = "wasm32"))]
++    { (done + pre as u32, trap) }
+ }
+ 
+ #[cfg(any(test, feature = "wasm-jit-tests"))]
+diff --git a/xtensa-lx7/src/exec.rs b/xtensa-lx7/src/exec.rs
+index ed0d0f1a..2c9c93ab 100644
+--- a/xtensa-lx7/src/exec.rs
++++ b/xtensa-lx7/src/exec.rs
+@@ -232,8 +232,6 @@ fn step_outcome_inner<B: Bus>(cpu: &mut Cpu, bus: &mut B) -> StepOutcome {
+         let ver = bus.page_versions().get(vidx as usize).copied().unwrap_or(0);
+         let ver2 = bus.page_versions().get(vidx2 as usize).copied().unwrap_or(0);
+         let i = decode(pc, bytes); let m = max_ar(&i);
+-        #[cfg(feature = "wasm-jit-profile")]
+-        { crate::census::note_code_page(vidx, 1); crate::census::note_code_page(vidx2, 1); }
+         cpu.icache[idx] = crate::decode::CacheEntry { pc, ver, vidx, ver2, vidx2, bytes, insn: i, max_ar: m };
+         (i, m, bytes)
+     };
+diff --git a/xtensa-lx7/src/jit/mod.rs b/xtensa-lx7/src/jit/mod.rs
+index e8ddacd9..580b6600 100644
+--- a/xtensa-lx7/src/jit/mod.rs
++++ b/xtensa-lx7/src/jit/mod.rs
+@@ -224,7 +224,6 @@ mod native {
+     const TLB_BASE: u32 = std::mem::offset_of!(TlbEntry, base) as u32;
+     const TLB_VBASE: u32 = std::mem::offset_of!(TlbEntry, vbase) as u32;
+     const TLB_WRITABLE: u32 = std::mem::offset_of!(TlbEntry, writable) as u32;
+-    const TLB_CODE: u32 = std::mem::offset_of!(TlbEntry, code) as u32;
+     // Generated instructions require power-of-two indexing and encodable shifts/offsets.
+     const _: () = {
+         assert!(TLB_ENTRIES.is_power_of_two() && TLB_INDEX_BITS > 0 && TLB_INDEX_BITS < 32);
+@@ -235,7 +234,6 @@ mod native {
+         assert!(TLB_BASE.is_multiple_of(8) && TLB_BASE < 32768);
+         assert!(TLB_VBASE.is_multiple_of(4) && TLB_VBASE < 16384);
+         assert!(TLB_WRITABLE.is_multiple_of(2) && TLB_WRITABLE < 8192);
+-        assert!(TLB_CODE.is_multiple_of(2) && TLB_CODE < 8192);
+     };
+ 
+     const CPU: Reg = 19; const BUS: Reg = 20; const AR: Reg = 21; const WB4: Reg = 22; const LEFT: Reg = 23;
+@@ -459,12 +457,10 @@ mod native {
+                         // and not its first three bytes (an instruction may straddle into it)
+                         g.a.and_mask(13, 10, VPAGE_SHIFT, 0); g.a.sub_imm(13, 13, 3); g.a.cmp_imm(13, (1 << VPAGE_SHIFT) - 3 - size); g.a.b_cond(Cond::Hi, slow);
+                         match i.op { S8i => g.a.strb_u(2, 12, 10), S16i => g.a.strh_u(2, 12, 10), _ => g.a.str_u(2, 12, 10) }
+-                        // EX110: no decoded consumer depends on any page this mapping could bump.
+-                        let nobump = g.a.label();
+-                        g.a.ldrh(11, 9, TLB_CODE); g.a.cbz(11, nobump);
++                        // Retain unconditional native version bumps; watched-code gating is
++                        // used by the WASM backend.
+                         g.a.ldr(11, 9, TLB_VBASE); g.a.add_lsr(11, 11, 10, VPAGE_SHIFT);
+                         g.a.ldr_idx(13, PVER, 11); g.a.add_imm(13, 13, 1); g.a.str_idx(13, PVER, 11);
+-                        g.a.bind(nobump);
+                         g.a.movz(12, 0, 0);
+                         g.a.b(done);
+                     } else { g.a.b(slow); }
+diff --git a/xtensa-lx7/src/jit/wasm_region.rs b/xtensa-lx7/src/jit/wasm_region.rs
+index f0de005d..1d16ab39 100644
+--- a/xtensa-lx7/src/jit/wasm_region.rs
++++ b/xtensa-lx7/src/jit/wasm_region.rs
+@@ -194,12 +194,6 @@ pub(in crate::jit) fn form<B: Bus>(cpu: &Cpu, bus: &mut B, head: u32, block: &[B
+         }
+     }
+     if pages.len() > MAX_PAGES { return None }
+-    #[cfg(feature = "wasm-jit-profile")]
+-    {
+-        let (plo, phi) = (pages.iter().map(|p| p.0).min().unwrap_or(0), pages.iter().map(|p| p.0).max().unwrap_or(0));
+-        for (i, _) in &pages { crate::census::note_code_page(*i, 1 | 4); }
+-        for p in plo..=phi { crate::census::note_code_page(p, 2); }
+-    }
+     // EX110: watch every page before reading the versions the region will compare against.
+     for (i, _) in &pages { bus.note_code_page(*i); }
+     let pv = bus.page_versions();
+diff --git a/xtensa-lx7/tests/jit_memory.rs b/xtensa-lx7/tests/jit_memory.rs
+index 5a1789b2..86b40406 100644
+--- a/xtensa-lx7/tests/jit_memory.rs
++++ b/xtensa-lx7/tests/jit_memory.rs
+@@ -55,7 +55,6 @@ fn compiled_access(opcode: u8, op: Op) -> (Cpu, MemoryBus) {
+         vbase: 1, writable: 1, off: 0, src: 0,
+         // EX110: decoded code depends on this mapping, so generated stores bump its versions.
+         code: 1,
+-        span: 0,
+     }
+     .with_span();
+     let mut cpu = Cpu::new(0);

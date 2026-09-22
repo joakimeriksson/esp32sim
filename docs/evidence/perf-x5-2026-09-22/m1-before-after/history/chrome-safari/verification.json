@@ -1,0 +1,26 @@
+{
+  "status": "passed",
+  "jobs": 12,
+  "timedArms": 56,
+  "checks": [
+    "All expected jobs and arm counts",
+    "Frozen artifact hashes and source/build policy",
+    "Numeric positive times, exact summary agreement and pair order",
+    "Recomputed ratio-of-medians and per-pair reductions",
+    "Pinned instructions/frames, strict successful completion and JIT status",
+    "Console SHA256 recomputed from serial events, consistent within each job",
+    "Workload verdicts/checks and captured asset hash agreement",
+    "No instrumented timing captures",
+    "Compact outputs omit paths/session/process inventories"
+  ],
+  "originalsByBrowser": [
+    {
+      "browser": "chrome",
+      "files": 90
+    },
+    {
+      "browser": "safari",
+      "files": 90
+    }
+  ]
+}

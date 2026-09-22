@@ -1,0 +1,281 @@
+{
+  "name": "control-pocket",
+  "browserFamily": "firefox",
+  "workload": "pocket-tank",
+  "role": "A/A control",
+  "pairs": 2,
+  "baselineSourceRevision": "7828e683bec41b9fc47dbbc38391a3a794fc4956",
+  "candidateSourceRevision": "7828e683bec41b9fc47dbbc38391a3a794fc4956",
+  "baselineWasmSha256": "37c13458edfeb392838004e164734292cb9f5d39b487b7f6cd6e9ebc04027d39",
+  "candidateWasmSha256": "37c13458edfeb392838004e164734292cb9f5d39b487b7f6cd6e9ebc04027d39",
+  "isolation": "Ordinary visible page; fresh page and worker per arm; browser process and caches may persist",
+  "captureTransport": "Firefox ordinary browser page",
+  "interpretation": "Observed comparison on an in-use machine. Compilation overlapped part of Chrome; concurrent work was not controlled or quantified. No clean causal estimate of the artifact change.",
+  "medianWallSeconds": {
+    "baseline": 67.50341,
+    "candidate": 67.85831
+  },
+  "wallReductionPercent": -0.5257512176051637,
+  "pairsWallReductionPercent": [
+    -0.3614275616148799,
+    -0.6891400904869505
+  ],
+  "sharedSourceSha256": {
+    "asset/app": "443dd24aed14a509e6df597eb3a02635cc07e0fbee6f04db85a62f4d4dadb113",
+    "asset/bootloader": "9556d59f3a10f6b04fa6d75f3142a66034339afafffbd4bbc3d9a127eaa73859",
+    "asset/model": "b200bf87c78dc85c4d727f68941ac0b83cced9827037cc169cd2122d71002c2a",
+    "asset/ptable": "7af5b28608c91167e00778b7f20622f3b47849efebeb3e64117162d73f3e0508",
+    "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+    "harness/battery-worker.mjs": "4856f3531a83b8f81bd5118e07060a183c2b904b900f4b8b2b51e187230a3b81",
+    "harness/battery.mjs": "9b8f26a9fb949c81514fd6bc28bf57ba467090b1d435fc577f530eff4e051b62",
+    "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+    "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+    "harness/workloads.json": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+    "web/wasm/experiments.mjs": "29c4b556b0c7e25a529a9c4b1c3b5132aee06bb4884de684ba6c78a10ac4716b",
+    "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+    "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+    "web/wasm/worker.js": "7ee25b3bb9036587685bafc92f7951f892ea63e0202e3cceac84201d8eca7e89"
+  },
+  "runs": [
+    {
+      "pair": 1,
+      "arm": "baseline",
+      "captureMode": "timing",
+      "captureTransport": "Firefox ordinary browser page",
+      "pageWasHidden": false,
+      "wallSeconds": 67.31086,
+      "guestSeconds": 30.000000229166666,
+      "instructions": 10073833775,
+      "frames": 737,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "wasmSha256": "37c13458edfeb392838004e164734292cb9f5d39b487b7f6cd6e9ebc04027d39",
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "instrumented": false,
+      "verdictValidation": {
+        "schema": "pocket-tank-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": [
+        {
+          "name": "model_decisions",
+          "min": 10,
+          "count": 13
+        },
+        {
+          "name": "render_reports",
+          "min": 2,
+          "count": 2
+        }
+      ],
+      "verdict": null,
+      "jit": {
+        "compiled": 5160,
+        "failed": 0,
+        "released": 1427,
+        "compileMs": 1192.9800000000446,
+        "bytes": 50256087,
+        "liveBytes": 36198403,
+        "peakBytes": 42221994,
+        "peakModules": 4344,
+        "instructions": 10015925218
+      },
+      "browser": "Firefox/156.0",
+      "v8": null,
+      "engine": "SpiderMonkey",
+      "loadBefore": [
+        8.0595703125,
+        10.6845703125,
+        16.45263671875
+      ],
+      "loadAfter": [
+        6.44482421875,
+        9.76220703125,
+        15.68408203125
+      ]
+    },
+    {
+      "pair": 1,
+      "arm": "candidate",
+      "captureMode": "timing",
+      "captureTransport": "Firefox ordinary browser page",
+      "pageWasHidden": false,
+      "wallSeconds": 67.55414,
+      "guestSeconds": 30.000000229166666,
+      "instructions": 10073833775,
+      "frames": 737,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "wasmSha256": "37c13458edfeb392838004e164734292cb9f5d39b487b7f6cd6e9ebc04027d39",
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "instrumented": false,
+      "verdictValidation": {
+        "schema": "pocket-tank-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": [
+        {
+          "name": "model_decisions",
+          "min": 10,
+          "count": 13
+        },
+        {
+          "name": "render_reports",
+          "min": 2,
+          "count": 2
+        }
+      ],
+      "verdict": null,
+      "jit": {
+        "compiled": 5160,
+        "failed": 0,
+        "released": 1427,
+        "compileMs": 1169.800000000068,
+        "bytes": 50256087,
+        "liveBytes": 36198403,
+        "peakBytes": 42221994,
+        "peakModules": 4344,
+        "instructions": 10015925218
+      },
+      "browser": "Firefox/156.0",
+      "v8": null,
+      "engine": "SpiderMonkey",
+      "loadBefore": [
+        6.44482421875,
+        9.76220703125,
+        15.68408203125
+      ],
+      "loadAfter": [
+        7.296875,
+        9.17138671875,
+        14.982421875
+      ]
+    },
+    {
+      "pair": 2,
+      "arm": "candidate",
+      "captureMode": "timing",
+      "captureTransport": "Firefox ordinary browser page",
+      "pageWasHidden": false,
+      "wallSeconds": 68.16248,
+      "guestSeconds": 30.000000229166666,
+      "instructions": 10073833775,
+      "frames": 737,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "wasmSha256": "37c13458edfeb392838004e164734292cb9f5d39b487b7f6cd6e9ebc04027d39",
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "instrumented": false,
+      "verdictValidation": {
+        "schema": "pocket-tank-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": [
+        {
+          "name": "model_decisions",
+          "min": 10,
+          "count": 13
+        },
+        {
+          "name": "render_reports",
+          "min": 2,
+          "count": 2
+        }
+      ],
+      "verdict": null,
+      "jit": {
+        "compiled": 5160,
+        "failed": 0,
+        "released": 1427,
+        "compileMs": 1265.719999999995,
+        "bytes": 50256087,
+        "liveBytes": 36198403,
+        "peakBytes": 42221994,
+        "peakModules": 4344,
+        "instructions": 10015925218
+      },
+      "browser": "Firefox/156.0",
+      "v8": null,
+      "engine": "SpiderMonkey",
+      "loadBefore": [
+        7.296875,
+        9.17138671875,
+        14.982421875
+      ],
+      "loadAfter": [
+        6.49658203125,
+        8.6318359375,
+        14.35498046875
+      ]
+    },
+    {
+      "pair": 2,
+      "arm": "baseline",
+      "captureMode": "timing",
+      "captureTransport": "Firefox ordinary browser page",
+      "pageWasHidden": false,
+      "wallSeconds": 67.69595999999999,
+      "guestSeconds": 30.000000229166666,
+      "instructions": 10073833775,
+      "frames": 737,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "wasmSha256": "37c13458edfeb392838004e164734292cb9f5d39b487b7f6cd6e9ebc04027d39",
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "instrumented": false,
+      "verdictValidation": {
+        "schema": "pocket-tank-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": [
+        {
+          "name": "model_decisions",
+          "min": 10,
+          "count": 13
+        },
+        {
+          "name": "render_reports",
+          "min": 2,
+          "count": 2
+        }
+      ],
+      "verdict": null,
+      "jit": {
+        "compiled": 5160,
+        "failed": 0,
+        "released": 1427,
+        "compileMs": 1188.0799999999583,
+        "bytes": 50256087,
+        "liveBytes": 36198403,
+        "peakBytes": 42221994,
+        "peakModules": 4344,
+        "instructions": 10015925218
+      },
+      "browser": "Firefox/156.0",
+      "v8": null,
+      "engine": "SpiderMonkey",
+      "loadBefore": [
+        6.49658203125,
+        8.6318359375,
+        14.35498046875
+      ],
+      "loadAfter": [
+        12.5166015625,
+        9.5087890625,
+        14.203125
+      ]
+    }
+  ]
+}

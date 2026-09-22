@@ -1,0 +1,93 @@
+diff --git a/esp-soc/src/machine.rs b/esp-soc/src/machine.rs
+index df1b749f..29bc8cff 100644
+--- a/esp-soc/src/machine.rs
++++ b/esp-soc/src/machine.rs
+@@ -338,7 +338,7 @@ impl<S: Soc> Machine<S> {
+ 
+     // ------------------------------------------------------------------ interrupts
+     /// After a device change: re-derive the lines and present them to every core.
+-    #[inline]
++    #[inline(never)]
+     fn refresh_irq(&mut self) {
+         if !*self.bus.irq_dirty() { return; }
+         *self.bus.irq_dirty() = false;
+@@ -390,7 +390,7 @@ impl<S: Soc> Machine<S> {
+     /// callbacks here makes BLOCK observers compose with observers that force single-stepping.
+     /// `pc` is the dispatch-start address, including for trap and Simcall reporting;
+     /// the WASM wrapper may have chained through later blocks before it returns.
+-    #[cfg_attr(target_arch = "wasm32", inline)]
++    #[cfg_attr(target_arch = "wasm32", inline(never))]
+     #[cfg_attr(not(target_arch = "wasm32"), inline(always))]
+     fn observe_execution(&mut self, core: usize, pc: u32, used: u32, trap: Option<Trap>) -> Option<Stop> {
+         if self.probes.contains(Wants::BLOCK | Wants::TRAP | Wants::TRAP_PC) {
+diff --git a/esp32s3/src/bus.rs b/esp32s3/src/bus.rs
+index 471366a8..79d0d7bc 100644
+--- a/esp32s3/src/bus.rs
++++ b/esp32s3/src/bus.rs
+@@ -683,8 +683,9 @@ impl Bus for SocBus {
+     #[inline(always)]
+     fn page_versions(&self) -> &[u32] { &self.page_ver }
+     fn note_code_page(&mut self, vidx: u32) { self.watch_code_page(vidx); }
+-    #[inline(always)]
++    #[inline(never)]
+     fn note_pc(&mut self, pc: u32) { self.periph.misc.cur_pc = pc; }
++    #[inline(never)]
+     fn fast_mem(&mut self) -> Option<FastMem> { if self.approximate_cache.is_some() && !self.approximate_cache_fast_internal { None } else { Some(FastMem { tlb: self.tlb.as_ptr(), page_ver: self.page_ver.as_mut_ptr() }) } }
+     fn read_bulk(&mut self, addr: u32, out: &mut [u8]) -> bool {
+         // Only a range inside one mapped entry with no peripheral behind it: exactly what the
+diff --git a/xtensa-lx7/src/block.rs b/xtensa-lx7/src/block.rs
+index 84db63dd..1b70393d 100644
+--- a/xtensa-lx7/src/block.rs
++++ b/xtensa-lx7/src/block.rs
+@@ -470,6 +470,16 @@ fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, mut budget: u32, mut ei: u32,
+     }
+ }
+ 
++#[inline(never)]
++fn ccompare_limit(cpu: &Cpu, mut limit: u32) -> u32 {
++    for i in 0..3 {
++        let d = cpu.ccompare[i].wrapping_sub(cpu.ccount);
++        let d = if cpu.approximate_cpi == 1 { d } else { d.div_ceil(cpu.approximate_cpi) };
++        if d != 0 && d < limit { limit = d; }
++    }
++    limit
++}
++
+ /// One block (or wrapper chain). The third value is EX171's next block to continue with.
+ #[inline(always)]
+ fn run_decoded_once<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k: u32, end: u32) -> (u32, Option<Trap>, Option<(u32, u32, u32)>) {
+@@ -480,11 +490,7 @@ fn run_decoded_once<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mu
+     // loop or a region may continue past the block, under the same CCOMPARE deadline.
+     #[cfg(target_arch = "wasm32")]
+     let mut limit = budget.min(0xffff);
+-    for i in 0..3 {
+-        let d = cpu.ccompare[i].wrapping_sub(cpu.ccount);
+-        let d = if cpu.approximate_cpi == 1 { d } else { d.div_ceil(cpu.approximate_cpi) };
+-        if d != 0 && d < limit { limit = d; }
+-    }
++    limit = ccompare_limit(cpu, limit);
+ 
+     let code = cpu.blocks.entries[ei as usize].code;
+     // Native code has no price collector or deferred-access guard. Keep its default
+diff --git a/xtensa-lx7/src/jit/wasm.rs b/xtensa-lx7/src/jit/wasm.rs
+index 14b0abd6..6e3b85d2 100644
+--- a/xtensa-lx7/src/jit/wasm.rs
++++ b/xtensa-lx7/src/jit/wasm.rs
+@@ -93,7 +93,7 @@ impl RegionStats {
+ }
+ pub static CENSUS: [std::sync::atomic::AtomicU64; 8] = [const { std::sync::atomic::AtomicU64::new(0) }; 8];
+ #[inline(always)]
+-fn census(i: usize, n: u64) { if cfg!(feature = "wasm-cpu-profile") { CENSUS[i].fetch_add(n, std::sync::atomic::Ordering::Relaxed); } }
++fn census(i: usize, n: u64) { if false { CENSUS[i].fetch_add(n, std::sync::atomic::Ordering::Relaxed); } }
+ const HOT: u32 = 32;
+ /// EX138: emit control-flow prices into code generated from now on.
+ pub static PRICED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+@@ -782,7 +782,7 @@ fn bad_offset(b: &Block, entry: u32, done: u32, budget: u32, looping: Option<usi
+ 
+ /// The block's own module: whole, resumed or as a retained hardware loop.
+ #[allow(clippy::too_many_arguments)]
+-#[inline(always)]
++#[inline(never)]
+ unsafe fn run_block_body<B: Bus>(cc: &CodeCache, code: u32, cpu: &mut Cpu, bus: &mut B, h: &Helpers, budget: u32, entry: u32, tlb: *const TlbEntry, versions: *mut u32) -> u32 {
+     type Run<B> =
+         extern "C" fn(*mut Cpu, *mut B, *const Helpers, u32, u32, *const TlbEntry, *mut u32) -> u32;

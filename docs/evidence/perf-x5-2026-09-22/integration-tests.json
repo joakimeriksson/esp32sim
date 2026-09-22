@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-22",
+  "revision": "80b155350b602c112bcc80642c64f9a7a0abec0c",
+  "scope": "edges-s3 + helpers-s1s2 integration",
+  "environment": {
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "node": "v26.9.0",
+    "jobs": 4,
+    "cargo_build_jobs": 4
+  },
+  "runs": [
+    {
+      "id": "cargo-test",
+      "command": "JOBS=4 CARGO_BUILD_JOBS=4 cargo test --release --workspace",
+      "suites": 59,
+      "passed": 446,
+      "failed": 0,
+      "ignored": 22,
+      "ignored_tests": [
+        "test jit_a64::tests::external_encodings_match_clang ... ignored, needs Apple's clang and llvm-objdump; regenerates the fixture with UPDATE_FIXTURE=1",
+        "test external_two_motes_exchange_nullnet_broadcasts ... ignored, needs the ESP32-C6 mask ROM ELF and CONTIKI_C6_DIR (a Contiki-NG nullnet build)",
+        "test external_nullnet_c6 ... ignored, set CONTIKI_C6_DIR=/path/to/esp32-contiki/build-nullnet (built with -DCONTIKI_NULLNET=ON for esp32c6); needs the ESP32-C6 mask ROM ELF",
+        "test atech_script1 ... ignored, needs the ESP32-S3 mask ROM ELF",
+        "test atech_script1_no_jit ... ignored, needs the ESP32-S3 mask ROM ELF",
+        "test atech_script1_with_observers ... ignored, needs the ESP32-S3 mask ROM ELF",
+        "test atech_sid_jukebox ... ignored, needs the ESP32-S3 mask ROM ELF",
+        "test external_energy_scan_c6 ... ignored, set ENERGY_SCAN_DIR=/path/to/energy_scan (built for esp32c6); needs the ESP32-C6 mask ROM ELF",
+        "test external_wifi_station_c6 ... ignored, set C6_WIFI_STATION_BUILD=examples/c6-wifi-station/build-emu (built for esp32c6); needs the ESP32-C6 mask ROM ELF",
+        "test hello_world_c3 ... ignored, needs the ESP32-C3 mask ROM ELF",
+        "test hello_world_c3_reboot ... ignored, needs the ESP32-C3 mask ROM ELF",
+        "test hello_world_c6 ... ignored, needs the ESP32-C6 mask ROM ELF",
+        "test hello_world_c6_reboot ... ignored, needs the ESP32-C6 mask ROM ELF",
+        "test hello_world_s3 ... ignored, needs the ESP32-S3 mask ROM ELF",
+        "test hello_world_s3_profiles ... ignored, needs the ESP32-S3 mask ROM ELF",
+        "test hello_world_s3_reboot ... ignored, needs the ESP32-S3 mask ROM ELF",
+        "test panel_sid ... ignored, needs the ESP32-S3 mask ROM ELF",
+        "test c3_speaks_the_web_protocol ... ignored, needs the ESP32-C3 mask ROM ELF",
+        "test c6_speaks_the_web_protocol ... ignored, needs the ESP32-C6 mask ROM ELF",
+        "test s3_atech_speaks_the_web_protocol ... ignored, needs the ESP32-S3 mask ROM ELF",
+        "test external_decoder_matches_objdump ... ignored, set RISCV_DIS_FILES=/path/rom.dis:/path/app.dis (riscv32-esp-elf-objdump -d)",
+        "test external_decoder_matches_objdump ... ignored, set XTENSA_DIS_FILES=/path/app.dis:/path/rom.dis (xtensa-esp32s3-elf-objdump -d)"
+      ],
+      "exit_code": 0,
+      "status": "passed",
+      "raw_log": {
+        "path": "work/integration-cargo-test.log",
+        "sha256": "b31795046b8ce45cd319b2a976812c0bfa58f754f8bacd7872ef802be48a2316",
+        "retention": "ignored local file; raw log not suitable for committing"
+      }
+    },
+    {
+      "id": "clippy",
+      "command": "JOBS=4 CARGO_BUILD_JOBS=4 cargo clippy -p xtensa-lx7 -p esp-soc --all-targets -- -D warnings",
+      "exit_code": 0,
+      "status": "passed",
+      "raw_log": {
+        "path": "work/integration-clippy.log",
+        "sha256": "79e8a839d38ee44db32f35e7bcc90a3aef35c7be705ef917ad665f8e403f1c5b",
+        "retention": "ignored local file; raw log not suitable for committing"
+      }
+    },
+    {
+      "id": "wasm-jit-test",
+      "command": "JOBS=4 CARGO_BUILD_JOBS=4 tools/wasm-jit-test.sh",
+      "differential_cases": 85842,
+      "compiled_modules_released": 88524,
+      "nice_wrapper": false,
+      "exit_code": 0,
+      "status": "passed",
+      "raw_log": {
+        "path": "work/integration-wasm-jit-test.log",
+        "sha256": "3fd8f73aa5fc405b0d50c6ea12ac4b5a3915395e63c087ee5984e74c2d13817e",
+        "retention": "ignored local file; raw log not suitable for committing"
+      }
+    }
+  ],
+  "limitations": [
+    "Ignored tests were not executed; see individual reasons.",
+    "Wasm JIT build uses jit-tests feature and replaces default target artifact; production artifact must be rebuilt separately.",
+    "Compilation overlapped other authorized validation; these are correctness results, not performance measurements."
+  ],
+  "privacy": {
+    "curation": "Summary excludes absolute workspace paths and full compiler output. Raw logs remain in ignored work/.",
+    "effect": "No test counts, pass/fail status, commands or source revision removed."
+  }
+}

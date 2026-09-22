@@ -1,0 +1,251 @@
+diff --git a/xtensa-lx7/src/jit/wasm_region.rs b/xtensa-lx7/src/jit/wasm_region.rs
+index 8abf8615..0770397a 100644
+--- a/xtensa-lx7/src/jit/wasm_region.rs
++++ b/xtensa-lx7/src/jit/wasm_region.rs
+@@ -7,13 +7,16 @@
+ //! returns and computed jumps end the region, and the one admitted window rotation
+ //! (ENTRY) re-proves the window before anything after it runs.
+ use super::*;
+-use crate::block::{ends_block, must_start_block, pc_bit, MAX_LEN};
++use crate::block::{ends_block, must_start_block, pc_bit};
+ use crate::decode::decode;
+ use crate::exec::max_ar;
+ use std::collections::HashMap;
+ 
+-pub(super) const MAX_CHUNKS: usize = 64;
++pub(super) const MAX_CHUNKS: usize = 256;
+ pub(super) const MAX_INSNS: usize = 512;
++/// EX181 s4: regions cut chunks shorter than the block decoder's MAX_LEN, so the credit
++/// check at a chunk head rejects less of a 64-instruction quantum. The decoder is untouched.
++const CHUNK_LEN: usize = 8;
+ pub(in crate::jit) const MAX_PAGES: usize = 8;
+ 
+ /// One straight-line piece of a region, decoded independently of the block cache.
+@@ -44,6 +47,8 @@ pub(super) struct RegionGen {
+     pub loop_depth: usize,
+     /// control depth at the top level of the current chunk's code
+     pub chunk_depth: usize,
++    /// EX181 s2: the current chunk's code is wrapped in a WASM loop at `chunk_depth - 1`
++    pub self_loop: bool,
+     /// last retired PC for each exit site, indexed by the tag in the result
+     pub sites: Vec<ExitSite>,
+     /// version-page index range covering every chunk (stores inside it set DIRTY)
+@@ -81,7 +86,9 @@ fn successors(chunk: &Chunk) -> Vec<u32> {
+         J => vec![last.insn.imm as u32],
+         op if terminal(op) => vec![],
+         Loopnez | Loopgtz => vec![next, last.insn.imm as u32],
+-        op if conditional(op) => vec![last.insn.imm as u32, next],
++        // EX181 s3: fallthrough first, so breadth-first numbering makes the straight line
++        // chunk `current + 1` (no branch at all) and the taken target a forward `br`.
++        op if conditional(op) => vec![next, last.insn.imm as u32],
+         _ => vec![next],
+     }
+ }
+@@ -92,7 +99,7 @@ fn chunk<B: Bus>(cpu: &Cpu, bus: &mut B, head: u32, pc0: u32, fast: bool, room:
+     -> Option<Vec<BlockInsn>> {
+     let mut v: Vec<BlockInsn> = Vec::new();
+     let mut pc = pc0;
+-    while v.len() < room.min(MAX_LEN) {
++    while v.len() < room.min(CHUNK_LEN) {
+         let Ok(bytes) = bus.fetch(pc) else { break };
+         let i = decode(pc, bytes);
+         if i.len == 0 || !(supported_insn(&i, fast) || terminal(i.op)) { break }
+@@ -214,6 +221,8 @@ pub(super) fn region_edge(g: &mut Gen, target: u32, direct: bool) {
+     g.flush();
+     let r = g.region.as_ref().unwrap();
+     let (current, loop_depth, chunk_depth) = (r.current, r.loop_depth, r.chunk_depth);
++    // Depth just inside every dispatch block, where the br_table sits.
++    let (blocks, self_loop) = (loop_depth + r.heads.len(), r.self_loop);
+     match r.heads.get(&target).copied() {
+         Some((index, len)) => {
+             g.get(DONE);
+@@ -244,10 +253,20 @@ pub(super) fn region_edge(g: &mut Gen, target: u32, direct: bool) {
+             g.ret_value(CODE_LEFT);
+             g.end();
+             if !direct || index != current + 1 || g.depth() != chunk_depth {
+-                g.c(index as u32);
+-                g.set(NEXT);
++                // EX181: chunk `index` starts after the end of the block at ctl index
++                // `blocks - 1 - index`, which is still open for any forward target, and s2
++                // wraps a self-looping chunk in its own loop: both are a plain `br`, only a
++                // backward edge to another chunk re-dispatches through the br_table.
++                let label = if index > current {
++                    g.depth() + index - blocks
++                } else if index == current && self_loop {
++                    g.depth() - chunk_depth
++                } else {
++                    g.c(index as u32);
++                    g.set(NEXT);
++                    g.depth() - loop_depth
++                };
+                 g.op(0x0c);
+-                let label = g.depth() - loop_depth;
+                 uleb(&mut g.bytes, label);
+             }
+         }
+@@ -290,7 +309,7 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
+         written,
+         max_ar,
+         dynamic: true,
+-        region: Some(RegionGen { heads, current: 0, loop_depth: 0, chunk_depth: 0, sites: Vec::new(), page_lo, page_hi, loops }),
++        region: Some(RegionGen { heads, current: 0, loop_depth: 0, chunk_depth: 0, self_loop: false, sites: Vec::new(), page_lo, page_hi, loops }),
+         ..Gen::default()
+     };
+     // The caller has checked the credit for the entry chunk; window and coprocessor
+@@ -347,13 +366,25 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
+     for (k, chunk) in chunks.iter().enumerate() {
+         g.end();
+         g.pending = 0;
++        // EX181 s2: a chunk that branches back to its own head (a conditional or J to it, or
++        // a hardware loop body that is exactly this chunk) keeps that edge inside the
++        // function as a WASM loop; every other arrival still comes through the br_table.
++        let self_loop = successors(chunk).contains(&chunk.pc)
++            || formed_loops.iter().any(|&(lend, lbeg)| lbeg == chunk.pc && lend == chunk_end(chunk));
++        if self_loop {
++            g.begin_loop();
++        }
+         {
+             let r = g.region.as_mut().unwrap();
+             r.current = k;
+             r.loop_depth = loop_depth;
+             r.chunk_depth = g.ctl.len();
++            r.self_loop = self_loop;
+         }
+         emit_body(&mut g, chunk.pc, &chunk.instructions, fast, false, true, cp);
++        if self_loop {
++            g.end();
++        }
+     }
+     g.op(0x00); // every chunk leaves or branches; no fallthrough out of the last one
+     g.end(); // dispatch loop
+diff --git a/xtensa-lx7/src/jit/wasm_tests/regions.rs b/xtensa-lx7/src/jit/wasm_tests/regions.rs
+index ffe90102..46d0d4f1 100644
+--- a/xtensa-lx7/src/jit/wasm_tests/regions.rs
++++ b/xtensa-lx7/src/jit/wasm_tests/regions.rs
+@@ -270,7 +270,7 @@ pub(super) fn regions() -> u32 {
+         let formed = emitter::region::form(&c, &mut ram, BASE, &head, true).expect("hwloop region");
+         assert_eq!(formed.loops, vec![(BASE + 17, BASE + 7)]);
+         assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(),
+-            vec![(0, 3), (7, 2), (17, 1), (15, 1), (13, 2)]);
++            vec![(0, 3), (7, 2), (17, 1), (13, 2), (15, 1)]);
+         cases += 1;
+     }
+     // Calls and returns end chunks and leave; a function entry heads a region whose
+@@ -304,7 +304,7 @@ pub(super) fn regions() -> u32 {
+         let head: Vec<BlockInsn> = (0..4).scan(BASE + 12, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, straddle: false, off: 0 }) }).collect();
+         let formed = emitter::region::form(&c, &mut ram, BASE + 12, &head, true).expect("entry region");
+         assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(),
+-            vec![(12, 4), (24, 2), (22, 1)]);
++            vec![(12, 4), (22, 1), (24, 2)]);
+         assert!(emitter::region::form(&c, &mut ram, BASE, &head[..1], true).is_none(), "a lone call is not a region");
+         cases += 1;
+     }
+@@ -591,10 +591,106 @@ pub(super) fn regions() -> u32 {
+     let head: Vec<BlockInsn> = (0..2).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, straddle: false, off: 0 }) }).collect();
+     let formed = emitter::region::form(&c, &mut ram, BASE, &head, true).expect("tile region");
+     assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(),
+-        vec![(0, 2), (35, 1), (6, 3), (41, 2), (13, 6), (43, 1)]);
++        vec![(0, 2), (6, 3), (35, 1), (13, 6), (41, 2), (43, 1)]);
+     assert_eq!(formed.pages, vec![(0, 0)]);
+     assert!(emitter::region::form(&c, &mut ram, BASE + 38, &head, true).is_none(), "RSR head");
+-    cases + 2 + prev_page_store()
++    cases + 2 + prev_page_store() + forward_edges() + self_loops()
++}
++
++/// EX181 s2: the two shapes whose backedge stays inside one chunk — a `bnez` back to the
++/// chunk head, and a hardware loop body that is exactly one chunk after the LEND split.
++/// Both are wrapped in a WASM loop, so their backedge is a `br` instead of a br_table hop;
++/// the harness cuts credit at every index and probes the head.
++fn self_loops() -> u32 {
++    use Op::*;
++    let mut p = Vec::new();
++    p.extend(asm::movi_n(3, 5));                 // 0
++    p.extend(asm::addi_n(2, 2, 1));              // 2  the self-looping chunk starts here
++    p.extend(asm::addi_n(3, 3, -1));             // 4
++    p.extend(asm::bz(1, BASE + 6, 3, BASE + 2)); // 6  bnez a3, 2
++    p.extend(asm::addi_n(6, 6, 1));              // 9
++    p.extend(asm::j(BASE + 11, BASE));           // 11
++    let shape = [(0, MoviN, 0), (2, AddiN, 0), (4, AddiN, 0), (6, Bnez, 2), (9, AddiN, 0), (11, J, 0)];
++    {
++        let mut ram = Ram::new(true, false);
++        ram.ram.mem[..p.len()].copy_from_slice(&p);
++        let head: Vec<BlockInsn> = (0..4).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, straddle: false, off: 0 }) }).collect();
++        let formed = emitter::region::form(&cpu(0), &mut ram, BASE, &head, true).expect("bnez self-loop region");
++        assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(), vec![(0, 4), (9, 2), (2, 3)]);
++    }
++    let max = region_program("bnez-self-loop", &p, &shape, &[], 4, 2, |_| {}, 900);
++    assert!(max > 4, "bnez self-loop region never passed its head ({max})");
++
++    let mut p = Vec::new();
++    p.extend(asm::lp(9, BASE, 3, BASE + 9));        // 0  loopnez a3, 9
++    p.extend(asm::addi_n(2, 2, 1));                 // 3  LBEG: the whole body is one chunk
++    p.extend(asm::addi_n(4, 4, 1));                 // 5
++    p.extend(asm::addi_n(5, 5, 1));                 // 7  ends exactly at LEND
++    p.extend(asm::addi_n(6, 6, 1));                 // 9  loop exit
++    p.extend(asm::j(BASE + 11, BASE));              // 11
++    let shape = [(0, Loopnez, 9), (3, AddiN, 0), (7, AddiN, 0), (9, AddiN, 0), (11, J, 0)];
++    {
++        let mut ram = Ram::new(true, false);
++        ram.ram.mem[..p.len()].copy_from_slice(&p);
++        let head: Vec<BlockInsn> = (0..1).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, straddle: false, off: 0 }) }).collect();
++        let formed = emitter::region::form(&cpu(0), &mut ram, BASE, &head, true).expect("hardware self-loop region");
++        assert_eq!(formed.loops, vec![(BASE + 9, BASE + 3)]);
++        assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(), vec![(0, 1), (3, 3), (9, 2)]);
++    }
++    // a3 is never written, so the count is the same on every pass; 0 makes LOOPNEZ skip.
++    for count in [4, 1, 0] {
++        let max = region_program("hw-self-loop", &p, &shape, &[], 1, 3, move |c| { c.set_ar(3, count); }, 900);
++        assert!(max > 1, "hardware self-loop region never passed its head ({max})");
++    }
++    2
++}
++
++/// EX181: a graph whose internal forward edges skip chunks, so the emitted `br` labels are
++/// not all zero: chunk 2's taken target is chunk 4 and its fallthrough is chunk 5. Two bits
++/// of a counter pick the path, so every edge runs; `j 0` keeps the backward edges on the
++/// dispatch table.
++fn forward_edges() -> u32 {
++    use Op::*;
++    let mut p = Vec::new();
++    p.extend(asm::addi_n(10, 10, 1));            // 0
++    p.extend(asm::and(11, 10, 12));              // 2  a11 = a10 & 1
++    p.extend(asm::bz(0, BASE + 5, 11, BASE + 23)); // 5  beqz a11, 23
++    p.extend(asm::and(11, 10, 13));              // 8  a11 = a10 & 2
++    p.extend(asm::bz(0, BASE + 11, 11, BASE + 32)); // 11 beqz a11, 32
++    p.extend(asm::addi_n(4, 4, 1));              // 14
++    p.extend(asm::j(BASE + 16, BASE + 46));      // 16
++    p.extend(asm::nop_n());                      // 19 (never executed)
++    p.extend(asm::nop_n());                      // 21
++    p.extend(asm::addi_n(5, 5, 1));              // 23
++    p.extend(asm::addi_n(5, 5, 1));              // 25
++    p.extend(asm::j(BASE + 27, BASE + 39));      // 27
++    p.extend(asm::nop_n());                      // 30
++    p.extend(asm::addi_n(6, 6, 1));              // 32
++    p.extend(asm::j(BASE + 34, BASE + 46));      // 34
++    p.extend(asm::nop_n());                      // 37
++    p.extend(asm::addi_n(7, 7, 1));              // 39
++    p.extend(asm::j(BASE + 41, BASE));           // 41
++    p.extend(asm::nop_n());                      // 44
++    p.extend(asm::and(9, 10, 12));               // 46
++    p.extend(asm::bz(0, BASE + 49, 9, BASE));    // 49 beqz a9, 0
++    p.extend(asm::addi_n(8, 8, 1));              // 52
++    p.extend(asm::j(BASE + 54, BASE));           // 54
++    let shape = [(0, AddiN, 0), (2, And, 0), (5, Beqz, 23), (8, And, 0), (11, Beqz, 32), (14, AddiN, 0), (16, J, 46),
++                 (23, AddiN, 0), (27, J, 39), (32, AddiN, 0), (34, J, 46), (39, AddiN, 0), (41, J, 0),
++                 (46, And, 0), (49, Beqz, 0), (52, AddiN, 0), (54, J, 0)];
++    {
++        let mut ram = Ram::new(true, false);
++        ram.ram.mem[..p.len()].copy_from_slice(&p);
++        let head: Vec<BlockInsn> = (0..3).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, straddle: false, off: 0 }) }).collect();
++        let formed = emitter::region::form(&cpu(0), &mut ram, BASE, &head, true).expect("forward-edge region");
++        // Breadth first from the head: fallthrough, then taken target (EX181 s3).
++        assert_eq!(formed.chunks.iter().map(|c| c.pc - BASE).collect::<Vec<_>>(), vec![0, 8, 23, 14, 32, 39, 46, 52]);
++    }
++    let max = region_program("forward-edges", &p, &shape, &[], 3, 8, |c| {
++        c.set_ar(12, 1); c.set_ar(13, 2);
++    }, 1200);
++    assert!(max > 3, "forward-edge region never passed its head ({max})");
++    1
+ }
+ 
+ /// EX180: a region whose code lives entirely in page 0 stores into the first byte of page

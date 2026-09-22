@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-22",
+  "revision": "2f3c2d6ca2c9df2a9b81f9b3e4e40a83bbac3cef",
+  "scope": "Final integrated x5 source after concurrent x4 upstream native-layout and profiling fixes",
+  "environment": {
+    "rustc": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "node": "v26.9.0",
+    "jobs": 4,
+    "cargo_build_jobs": 4
+  },
+  "runs": [
+    {
+      "id": "native",
+      "command": "JOBS=4 CARGO_BUILD_JOBS=4 cargo test --release --workspace",
+      "suites": 59,
+      "passed": 446,
+      "failed": 0,
+      "ignored": 22,
+      "ignored_tests": [
+        "test jit_a64::tests::external_encodings_match_clang ... ignored, needs Apple's clang and llvm-objdump; regenerates the fixture with UPDATE_FIXTURE=1",
+        "test external_two_motes_exchange_nullnet_broadcasts ... ignored, needs the ESP32-C6 mask ROM ELF and CONTIKI_C6_DIR (a Contiki-NG nullnet build)",
+        "test external_nullnet_c6 ... ignored, set CONTIKI_C6_DIR=/path/to/esp32-contiki/build-nullnet (built with -DCONTIKI_NULLNET=ON for esp32c6); needs the ESP32-C6 mask ROM ELF",
+        "test atech_script1 ... ignored, needs the ESP32-S3 mask ROM ELF",
+        "test atech_script1_no_jit ... ignored, needs the ESP32-S3 mask ROM ELF",
+        "test atech_script1_with_observers ... ignored, needs the ESP32-S3 mask ROM ELF",
+        "test atech_sid_jukebox ... ignored, needs the ESP32-S3 mask ROM ELF",
+        "test external_energy_scan_c6 ... ignored, set ENERGY_SCAN_DIR=/path/to/energy_scan (built for esp32c6); needs the ESP32-C6 mask ROM ELF",
+        "test external_wifi_station_c6 ... ignored, set C6_WIFI_STATION_BUILD=examples/c6-wifi-station/build-emu (built for esp32c6); needs the ESP32-C6 mask ROM ELF",
+        "test hello_world_c3 ... ignored, needs the ESP32-C3 mask ROM ELF",
+        "test hello_world_c3_reboot ... ignored, needs the ESP32-C3 mask ROM ELF",
+        "test hello_world_c6 ... ignored, needs the ESP32-C6 mask ROM ELF",
+        "test hello_world_c6_reboot ... ignored, needs the ESP32-C6 mask ROM ELF",
+        "test hello_world_s3 ... ignored, needs the ESP32-S3 mask ROM ELF",
+        "test hello_world_s3_profiles ... ignored, needs the ESP32-S3 mask ROM ELF",
+        "test hello_world_s3_reboot ... ignored, needs the ESP32-S3 mask ROM ELF",
+        "test panel_sid ... ignored, needs the ESP32-S3 mask ROM ELF",
+        "test c3_speaks_the_web_protocol ... ignored, needs the ESP32-C3 mask ROM ELF",
+        "test c6_speaks_the_web_protocol ... ignored, needs the ESP32-C6 mask ROM ELF",
+        "test s3_atech_speaks_the_web_protocol ... ignored, needs the ESP32-S3 mask ROM ELF",
+        "test external_decoder_matches_objdump ... ignored, set RISCV_DIS_FILES=/path/rom.dis:/path/app.dis (riscv32-esp-elf-objdump -d)",
+        "test external_decoder_matches_objdump ... ignored, set XTENSA_DIS_FILES=/path/app.dis:/path/rom.dis (xtensa-esp32s3-elf-objdump -d)"
+      ],
+      "exit_code": 0,
+      "status": "passed",
+      "compiler_warning_lines": [],
+      "raw_log": {
+        "path": "work/size-validation/upstream-tests-native.log",
+        "sha256": "725f39806275607f4c04bd3dc1996d010d8bf2f4c16523ff45c76b71a4a36e85",
+        "retention": "Ignored local file; full compiler output not committed."
+      }
+    },
+    {
+      "id": "clippy",
+      "command": "JOBS=4 CARGO_BUILD_JOBS=4 cargo clippy --workspace --all-targets -- -D warnings",
+      "exit_code": 0,
+      "status": "passed",
+      "compiler_warning_lines": [],
+      "raw_log": {
+        "path": "work/size-validation/upstream-tests-clippy.log",
+        "sha256": "6769bd91d2adea1bf064aca4c8a1e7e16def7c8238d65be3e6878d69371e7d0e",
+        "retention": "Ignored local file; full compiler output not committed."
+      }
+    },
+    {
+      "id": "jit",
+      "command": "JOBS=4 CARGO_BUILD_JOBS=4 tools/wasm-jit-test.sh",
+      "nice_wrapper": false,
+      "differential_cases": 85842,
+      "compiled_modules_released": 88524,
+      "compiler_policy": {
+        "CARGO_PROFILE_RELEASE_DEBUG": "0",
+        "RUSTFLAGS": "-Cllvm-args=-inline-threshold=2000"
+      },
+      "exit_code": 0,
+      "status": "passed",
+      "compiler_warning_lines": [],
+      "raw_log": {
+        "path": "work/size-validation/upstream-tests-jit.log",
+        "sha256": "38fd1c180d6c75c5bc7140b110520ec1dd4569b41395244431acc6029d6dbc4e",
+        "retention": "Ignored local file; full compiler output not committed."
+      }
+    },
+    {
+      "id": "profile",
+      "command": ". ./tools/wasm-rustflags.sh; JOBS=4 CARGO_BUILD_JOBS=4 cargo build --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-profile,cpu-profile",
+      "compiler_policy": {
+        "CARGO_PROFILE_RELEASE_DEBUG": "0",
+        "RUSTFLAGS": "-Cllvm-args=-inline-threshold=2000"
+      },
+      "supersedes": "Earlier base profiling missing-symbol limitation: upstream 0735ac75 fixes the profiling export; this final-source build succeeds.",
+      "artifact": {
+        "sha256": "b19a005369096f9bbfb08079a5d5c1098ac1caa0467b61dc81c8e26f57377713",
+        "bytes": 2194687
+      },
+      "exit_code": 0,
+      "status": "passed",
+      "compiler_warning_lines": [],
+      "raw_log": {
+        "path": "work/size-validation/upstream-tests-profile.log",
+        "sha256": "fdd3f4ff82c37999456d0db76615bc02e87c4ec6a388e4282749a614043195e3",
+        "retention": "Ignored local file; full compiler output not committed."
+      }
+    }
+  ],
+  "limitations": [
+    "Ignored native tests not executed; individual reasons retained.",
+    "Optional profile configuration was built successfully but was not separately run as a benchmark or differential suite.",
+    "Build wall times include concurrent validation and lock waits; not performance measurements."
+  ],
+  "privacy": {
+    "curation": "Absolute workspace paths and full build logs omitted from summary; numeric checks, commands, revision and log hashes retained.",
+    "effect": "No correctness outcomes removed."
+  }
+}

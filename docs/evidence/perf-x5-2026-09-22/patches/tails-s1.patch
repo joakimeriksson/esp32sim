@@ -1,0 +1,226 @@
+diff --git a/xtensa-lx7/src/jit/wasm_emit.rs b/xtensa-lx7/src/jit/wasm_emit.rs
+index 2df7855c..3430cb74 100644
+--- a/xtensa-lx7/src/jit/wasm_emit.rs
++++ b/xtensa-lx7/src/jit/wasm_emit.rs
+@@ -818,13 +818,31 @@ fn emit_body(
+             // (an unconditional J before it has counted itself on its own dead path).
+             g.end();
+             g.pending = index as u32;
+-            g.get(STOP);
+-            g.c(index as u32);
+-            g.op(0x4d);
+-            g.begin_if();
+-            g.cpu_const(PC, pc);
+-            g.ret(CODE_CUT);
+-            g.end();
++            // EX182 s1: a region's guarded copy is entered with STOP above its entry index,
++            // so index 0 never cuts; skipping that test also keeps every emitted cut site
++            // naming the instruction in front of it.
++            if index > 0 || g.region.is_none() {
++                g.get(STOP);
++                g.c(index as u32);
++                g.op(0x4d);
++                g.begin_if();
++                g.cpu_const(PC, pc);
++                if g.region.is_some() {
++                    // A region returns LEFT: the caller reads a CUT's tag as a block index.
++                    // The site names the last retired instruction, exactly as an own-module
++                    // cut's `offset - 1` does, so note_pc/note_sequential see the same PC.
++                    let site = std::mem::replace(&mut g.last_pc, pc.wrapping_sub(instructions[index - 1].insn.len as u32));
++                    #[cfg(feature = "wasm-jit-profile")]
++                    let kind = std::mem::replace(&mut g.last_kind, ExitKind::Budget);
++                    g.ret(CODE_LEFT);
++                    g.last_pc = site;
++                    #[cfg(feature = "wasm-jit-profile")]
++                    { g.last_kind = kind; }
++                } else {
++                    g.ret(CODE_CUT);
++                }
++                g.end();
++            }
+         }
+         if !whole || window_changed {
+             // The window helper runs with the CPU visible; do not leave ACCX in a local.
+diff --git a/xtensa-lx7/src/jit/wasm_region.rs b/xtensa-lx7/src/jit/wasm_region.rs
+index 8abf8615..fe4868ff 100644
+--- a/xtensa-lx7/src/jit/wasm_region.rs
++++ b/xtensa-lx7/src/jit/wasm_region.rs
+@@ -39,6 +39,8 @@ pub(in crate::jit) struct Formed {
+ pub(super) struct RegionGen {
+     /// chunk head pc -> (chunk index, instruction count)
+     pub heads: HashMap<u32, (usize, u32)>,
++    /// EX182: dispatch index of each chunk's guarded copy, when it has one.
++    pub guards: Vec<Option<u32>>,
+     pub current: usize,
+     /// control depth just inside the dispatch loop
+     pub loop_depth: usize,
+@@ -214,8 +216,11 @@ pub(super) fn region_edge(g: &mut Gen, target: u32, direct: bool) {
+     g.flush();
+     let r = g.region.as_ref().unwrap();
+     let (current, loop_depth, chunk_depth) = (r.current, r.loop_depth, r.chunk_depth);
++    // EX182: a guarded copy is not followed by the next chunk's code, so it always branches.
++    let direct = direct && !g.guarded;
+     match r.heads.get(&target).copied() {
+         Some((index, len)) => {
++            let guard = g.region.as_ref().unwrap().guards[index];
+             g.get(DONE);
+             g.c(len);
+             g.op(0x6a);
+@@ -224,6 +229,28 @@ pub(super) fn region_edge(g: &mut Gen, target: u32, direct: bool) {
+             g.get(DIRTY);
+             g.op(0x72);
+             g.begin_if();
++            // EX182 s1: credit short of the whole chunk but not spent, and no helper ran:
++            // retire the quantum's tail in the target's guarded copy instead of leaving at
++            // its head and paying a second generated call for those r instructions.
++            if let Some(label) = guard {
++                g.get(DIRTY);
++                g.op(0x45);
++                g.get(3);
++                g.get(DONE);
++                g.op(0x4b);
++                g.op(0x71);
++                g.begin_if();
++                g.get(3);
++                g.get(DONE);
++                g.op(0x6b);
++                g.set(STOP);
++                g.c(label);
++                g.set(NEXT);
++                let back = g.depth() - loop_depth;
++                g.op(0x0c);
++                uleb(&mut g.bytes, back);
++                g.end();
++            }
+             g.spill();
+             g.cpu_const(PC, target);
+             #[cfg(feature = "wasm-jit-profile")]
+@@ -285,12 +312,16 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
+     let cp = all().fold(0, |mask, bi| mask | policy::required_coprocessors(bi.insn.op));
+     let heads = chunks.iter().enumerate().map(|(i, c)| (c.pc, (i, c.instructions.len() as u32))).collect();
+     let loops = formed_loops.iter().copied().collect();
++    // EX182 s1: a guarded copy per chunk, dispatched after the ordinary ones. A chunk of one
++    // instruction can never be entered short of credit (r < 1 means r = 0) and gets none.
++    let mut targets = chunks.len() as u32;
++    let guards: Vec<Option<u32>> = chunks.iter().map(|c| (c.instructions.len() > 1).then(|| { targets += 1; targets - 1 })).collect();
+     let mut g = Gen {
+         loaded: registers,
+         written,
+         max_ar,
+         dynamic: true,
+-        region: Some(RegionGen { heads, current: 0, loop_depth: 0, chunk_depth: 0, sites: Vec::new(), page_lo, page_hi, loops }),
++        region: Some(RegionGen { heads, guards, current: 0, loop_depth: 0, chunk_depth: 0, sites: Vec::new(), page_lo, page_hi, loops }),
+         ..Gen::default()
+     };
+     // The caller has checked the credit for the entry chunk; window and coprocessor
+@@ -334,7 +365,7 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
+     g.set(NEXT);
+     g.begin_loop();
+     let loop_depth = g.depth();
+-    let n = chunks.len();
++    let n = targets as usize;
+     for _ in 0..n {
+         g.begin_block();
+     }
+@@ -355,6 +386,26 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
+         }
+         emit_body(&mut g, chunk.pc, &chunk.instructions, fast, false, true, cp);
+     }
++    // EX182 s1: the guarded copies, in dispatch order. Entered at index 0 with STOP = the
++    // remaining credit, each retires the tail of a quantum and cuts between instructions;
++    // reaching the chunk end takes the ordinary edges. One entry label per instruction:
++    // control falls out of the innermost block into index 0.
++    for (k, chunk) in chunks.iter().enumerate().filter(|(_, c)| c.instructions.len() > 1) {
++        g.end();
++        g.pending = 0;
++        {
++            let r = g.region.as_mut().unwrap();
++            r.current = k;
++            r.loop_depth = loop_depth;
++            r.chunk_depth = g.ctl.len();
++        }
++        for _ in 0..chunk.instructions.len() {
++            g.begin_block();
++        }
++        g.guarded = true;
++        emit_body(&mut g, chunk.pc, &chunk.instructions, fast, false, true, cp);
++        g.guarded = false;
++    }
+     g.op(0x00); // every chunk leaves or branches; no fallthrough out of the last one
+     g.end(); // dispatch loop
+     g.op(0x00);
+diff --git a/xtensa-lx7/src/jit/wasm_tests/regions.rs b/xtensa-lx7/src/jit/wasm_tests/regions.rs
+index ffe90102..2e3d868b 100644
+--- a/xtensa-lx7/src/jit/wasm_tests/regions.rs
++++ b/xtensa-lx7/src/jit/wasm_tests/regions.rs
+@@ -95,7 +95,9 @@ pub(super) fn regions() -> u32 {
+         type Run = extern "C" fn(*mut Cpu, *mut Ram, *const Helpers, u32, u32, *const TlbEntry, *mut u32) -> u32;
+         let f: Run = unsafe { std::mem::transmute(slot as usize) };
+         for entry in 0..40 {
+-            for budget in [8, 15, 63, 300, 511] {
++            // EX182 s1: budgets 9..15 leave the guarded copy of the next chunk cut at every
++            // one of its indices; 8 and 16 land exactly on a chunk end.
++            for budget in [8, 9, 10, 11, 12, 13, 14, 15, 16, 23, 63, 300, 511] {
+                 for dst in [BASE + 0x2000, BASE + 4 * 256 + 31] {
+                     let (mut a, mut b) = (cpu(0), cpu(0));
+                     let (mut ra, mut rb) = (Ram::new(true, false), Ram::new(true, false));
+@@ -109,7 +111,9 @@ pub(super) fn regions() -> u32 {
+                     let result = f(&mut b, &mut rb, &Helpers::new::<Ram>(), budget, entry as u32, fm.tlb, fm.page_ver);
+                     let done = result & 0xffff;
+                     assert!(done > 0 && done <= budget);
+-                    if dst == BASE + 0x2000 && budget >= 300 { assert!(done >= 296, "large DONE credit: {done}"); }
++                    // EX182 s1: no store lands in the region's own pages, so nothing forces an
++                    // exit and the whole credit is spent, the tail inside a guarded copy.
++                    if dst == BASE + 0x2000 { assert_eq!(done, budget, "large region entry {entry} budget {budget}"); }
+                     for _ in 0..done {
+                         let i = crate::decode::decode(a.pc, ra.fetch(a.pc).unwrap());
+                         exec_insn(&mut a, &mut ra, &i).unwrap();
+@@ -594,7 +598,47 @@ pub(super) fn regions() -> u32 {
+         vec![(0, 2), (35, 1), (6, 3), (41, 2), (13, 6), (43, 1)]);
+     assert_eq!(formed.pages, vec![(0, 0)]);
+     assert!(emitter::region::form(&c, &mut ram, BASE + 38, &head, true).is_none(), "RSR head");
+-    cases + 2 + prev_page_store()
++    cases + 2 + prev_page_store() + deferred_in_guarded_copy()
++}
++
++/// EX182 s1: a helper fallback inside a guarded copy. The credit-short edge enters chunk 1
++/// two instructions short of its length, and the slow store there is refused under
++/// `defer_armed`: the refused instruction is counted and subtracted by the dispatcher
++/// exactly as it is from an own-module body, and its PC is the continuation.
++fn deferred_in_guarded_copy() -> u32 {
++    let mut p = Vec::new();
++    p.extend(asm::addi_n(3, 3, 1));        // 0  chunk 0
++    p.extend(asm::addi_n(5, 5, 1));        // 2
++    p.extend(asm::addi_n(6, 6, 1));        // 4
++    p.extend(asm::j(BASE + 6, BASE + 9));  // 6
++    p.extend(asm::addi_n(3, 3, 1));        // 9  chunk 1
++    p.extend(asm::s32i_n(3, 4, 0));        // 11 refused while deferring
++    p.extend(asm::addi_n(5, 5, 1));        // 13
++    p.extend(asm::j(BASE + 15, BASE));     // 15
++    let mut c = cpu(7);
++    let mut ram = Ram::new(true, false);
++    ram.ram.mem[..p.len()].copy_from_slice(&p);
++    c.set_ar(4, SLOW);
++    let formed = REGION_STATS[0].load(std::sync::atomic::Ordering::Relaxed);
++    for _ in 0..60 { c.pc = BASE; crate::block::run_block(&mut c, &mut ram, 64); }
++    assert!(REGION_STATS[0].load(std::sync::atomic::Ordering::Relaxed) > formed, "deferred-guarded: no region");
++    c.pc = BASE;
++    ram.defer_armed = true;
++    let (retired, writes) = (c.insn_count, ram.slow_writes);
++    let (a3, a5, a6) = (c.get_ar(3), c.get_ar(5), c.get_ar(6));
++    assert_eq!(crate::block::run_block(&mut c, &mut ram, 6), (5, None));
++    assert!(ram.deferred);
++    assert_eq!(c.pc, BASE + 11, "the refused store is the continuation");
++    assert_eq!(c.insn_count, retired + 5);
++    assert_eq!(ram.slow_writes, writes);
++    assert_eq!((c.get_ar(3), c.get_ar(5), c.get_ar(6)), (a3.wrapping_add(2), a5.wrapping_add(1), a6.wrapping_add(1)));
++    // The store runs on the next dispatch, from the interior PC the cut left behind.
++    ram.defer_armed = false;
++    ram.deferred = false;
++    assert_eq!(crate::block::run_block(&mut c, &mut ram, 1), (1, None));
++    assert_eq!(ram.slow_writes, writes + 1);
++    assert_eq!(&ram.slow[..4], &a3.wrapping_add(2).to_le_bytes());
++    1
+ }
+ 
+ /// EX180: a region whose code lives entirely in page 0 stores into the first byte of page

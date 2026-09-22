@@ -1,0 +1,52 @@
+{
+  "sourceRevision": "0ccb83372b5aaa04e29b355c5aee246e05fc635f",
+  "experiments": [
+    "EX120",
+    "EX181",
+    "EX183"
+  ],
+  "purpose": "Integrated production validation after adversarial review fixes; no new timing campaign",
+  "command": "CARGO_BUILD_JOBS=4 JOBS=4 tools/wasm-build.sh",
+  "environment": {
+    "rustc": "1.98.1 (48a229cea 2026-09-01)",
+    "node": "v26.9.0",
+    "RUSTFLAGS": "-Cllvm-args=-inline-threshold=2000",
+    "CARGO_PROFILE_RELEASE_DEBUG": "0",
+    "CARGO_PROFILE_RELEASE_STRIP": "debuginfo",
+    "WASM_OPT": "0"
+  },
+  "artifact": {
+    "bytes": 2088105,
+    "sha256": "eb754176f3100563da93b5269a54af1b93ff611abcf09fbae5026fd110b8409a",
+    "gzip9Bytes": 581068
+  },
+  "productionSections": {
+    "dwarfAbsent": true,
+    "nameRetained": true,
+    "bytes": 2088105
+  },
+  "previousPublishedArtifact": "1656179f3e9eebed72fd649b58c874922e7ea813a3dde699c5a96b8b50a5a245",
+  "comparison": {
+    "functionBodies": 1362,
+    "changedBodies": 0,
+    "changedBytes": 13,
+    "changedWords": 13,
+    "allDifferencesAreSourceLineRecords": true,
+    "allOtherSectionsIdentical": true,
+    "receipt": "review-production-codegen.json",
+    "dataReceipt": "review-production-data-locations.json"
+  },
+  "exactness": {
+    "passed": true,
+    "guestSeconds": 30,
+    "baselineSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "receipt": "review-production-exact.json"
+  },
+  "performanceInference": "Historical timing evidence is carried forward from the previously published artifact through unchanged function bodies and changes confined to diagnostic source-line fields. This artifact was not rebenchmarked.",
+  "limitations": [
+    "The 30-second exactness workload is Pocket Tank. This validation does not establish TinyDraw frame-content equivalence or M1 Pro browser performance.",
+    "gzip-9 byte count is compression output, not measured download or startup latency.",
+    "Local WASM files and full logs remain in persistent scratch, outside Git."
+  ],
+  "privacy": "Only source hashes, toolchain/configuration, aggregate results and sanitized correctness fields retained. Candidate local path normalized and nonbenchmark wall time omitted."
+}
