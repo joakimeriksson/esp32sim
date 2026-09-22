@@ -219,5 +219,5 @@
     "Historical speed measurements and artifact identities do not describe the corrected source.",
     "Bridge cases exercise admission and execution directly, not every possible wrapper-chain transition."
   ],
-  "privacy": "Raw compiler/test logs remain outside Git. This record omits local paths and process/thread identifiers; hashes identify locally retained original logs. No historical evidence file or historical artifact hash was rewritten."
+  "privacy": "Raw compiler/test logs remain outside Git. This record omits local paths and process/thread identifiers; hashes identify locally retained original logs. Historical numeric samples and artifact hashes are preserved."
 }
