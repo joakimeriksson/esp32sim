@@ -164,7 +164,7 @@ pub(super) fn held_and_coalesced() -> u32 {
                         c.accx = [0xaabb_ccdd, 0x77];
                         let lanes = if w == 8 { [100u8; 16] } else {
                             let mut lanes = [0; 16];
-                            for lane in lanes.chunks_exact_mut(2) { lane.copy_from_slice(&100i16.to_le_bytes()); }
+                            for lane in lanes.as_chunks_mut::<2>().0 { lane.copy_from_slice(&100i16.to_le_bytes()); }
                             lanes
                         };
                         c.qr[0] = u128::from_le_bytes(lanes);
