@@ -18,6 +18,7 @@ fn table(i: &crate::Insn) -> (&'static PieInsn, Ops) {
 
 /// EX178: the largest magnitude one `ee.vmulas.s*.accx` can add, `lanes * 2^(2w-2)`.
 fn max_dot(w: u8) -> i64 {
+    debug_assert!(matches!(w, 8 | 16));
     (128 / w as i64) * (1i64 << (2 * w as u32 - 2))
 }
 
@@ -198,6 +199,14 @@ fn add_i32_lanes(g: &mut Gen) {
     }
 }
 
+/// Flush before opening a conditional memory path: both the fast operation and its
+/// interpreter fallback must start from the same authoritative accumulator state.
+fn prepare_accumulate(g: &mut Gen, w: u8) {
+    if g.accx_live && g.accx_head > ((1i64 << 39) - 1) - max_dot(w) {
+        g.accx_flush();
+    }
+}
+
 /// ACCX += Σ x·y over the signed `w`-bit lanes of Q registers `x` and `y`, saturated to 40
 /// bits: exactly `pie::exec_packed`. The products are widening vector multiplies over the low
 /// and high halves. Signed-8 products sum in 32 bits (at most 16 * 128 * 128);
@@ -207,10 +216,8 @@ fn accumulate(g: &mut Gen, w: u8, x: i32, y: i32) {
     // the sum of the products added since, whose magnitudes `accx_head` bounds. While that
     // bound stays inside [-2^39, 2^39-1] neither the 40-bit sign extension of the old value
     // nor the two saturating selects can change anything, so the sum can live in a local.
+    prepare_accumulate(g, w);
     let step = max_dot(w);
-    if g.accx_live && g.accx_head > ((1i64 << 39) - 1) - step {
-        g.accx_flush();
-    }
     let held = g.accx_live;
     if held {
         g.accx_head += step;
@@ -368,9 +375,7 @@ pub(super) fn emit_run(g: &mut Gen, bis: &[BlockInsn], pc0: u32, extras: &[u8], 
     g.c(1);
     g.op(0x46);
     g.bytes.extend([0x0d, 0]);
-    g.get(5);
-    g.op(0x45);
-    g.bytes.extend([0x0d, 0]);
+    // run_inner always supplies a live TLB or the all-empty sentinel.
     memory::probe(g, run.span, false);
     g.get(TLB);
     g.load(offset_of!(TlbEntry, base));
@@ -379,6 +384,7 @@ pub(super) fn emit_run(g: &mut Gen, bis: &[BlockInsn], pc0: u32, extras: &[u8], 
     g.set(HOSTP);
     for (k, bi) in bis.iter().enumerate() {
         g.last_pc = pcs[k];
+        g.straddle = bi.straddle;
         g.wait_price = extras[k] as u32;
         g.price(g.wait_price);
         let (p, o) = table(&bi.insn);
@@ -401,6 +407,7 @@ pub(super) fn emit_run(g: &mut Gen, bis: &[BlockInsn], pc0: u32, extras: &[u8], 
     (g.accx_live, g.accx_head) = held;
     for (k, bi) in bis.iter().enumerate() {
         g.last_pc = pcs[k];
+        g.straddle = bi.straddle;
         g.wait_price = extras[k] as u32;
         g.price(g.wait_price);
         emit(g, bi, pcs[k], pcs[k + 1], block_end && k + 1 == run.len, true);
@@ -418,6 +425,7 @@ pub(super) fn emit_run(g: &mut Gen, bis: &[BlockInsn], pc0: u32, extras: &[u8], 
 /// succeed and before it overwrites Q register Qu, which may be one of its operands.
 #[allow(clippy::too_many_arguments)]
 fn vmem(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool, o: &Ops, store: bool, accumulate_first: Option<(u8, i32, i32)>) {
+    if let Some((w, _, _)) = accumulate_first { prepare_accumulate(g, w); }
     let a = o.get(Role::As) as u8;
     let imm = o.get(Role::Imm) as u32;
     // The hardware ignores the low address bits.

@@ -258,6 +258,7 @@ fn architectural_stops() -> u32 {
 }
 
 pub fn run() -> u32 {
+    crate::browser_jit::code_page_watch_test();
     let (mut a, mut b) = (machine(false), machine(true));
     for m in [&mut a, &mut b] {
         m.bus.periph.uart[0].tx_out.extend(b"compiled stop\n");

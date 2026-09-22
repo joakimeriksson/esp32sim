@@ -1,14 +1,8 @@
 //! Shared scalar and PIE memory probes, version tracking and optional cache pricing.
 use super::*;
-use emu_core::bus::{TLB_ENTRIES, TLB_INDEX_SHIFT, TLB_XOR_SHIFT, VPAGE_SHIFT};
+use emu_core::bus::{PREV_PAGE_BYTES, TLB_ENTRIES, TLB_INDEX_SHIFT, TLB_XOR_SHIFT, VPAGE_SHIFT};
 
 const VPAGE_MASK: u32 = (1 << VPAGE_SHIFT) - 1;
-/// An instruction can begin up to three bytes before a page boundary and still keep bytes
-/// in it, because PIE encodings are four bytes long (`pie::decode`). A write into the first
-/// three bytes of a page therefore also changes instructions whose code page is the
-/// previous one, and the bus bumps that page as well (`esp32s3/src/bus.rs` `bump` and
-/// `note_written`, `esp32s3/src/bus/dma.rs` for the DMA run copy).
-const PREV_PAGE_BYTES: u32 = 3;
 
 /// log2 of one entry's size: scaling the hash into a byte offset folds into its shifts.
 const ENTRY_SHIFT: u32 = size_of::<TlbEntry>().ilog2();
@@ -194,7 +188,7 @@ pub(super) fn probe(g: &mut Gen, width: u32, store: bool) {
     g.op(0x71);
     g.op(0x6a);
     g.set(TLB);
-    // EX173 s2: one unsigned compare decides the whole access. REL = ADDR - lo is the offset
+    // EX173 s2: for scalar/vector widths, one unsigned compare decides the whole access. REL = ADDR - lo is the offset
     // within the entry and the access is inside it exactly when REL + width - 1 < span:
     //  - ADDR below lo wraps REL to at least 2^32 - lo, and span <= 2^32 - lo, so it fails;
     //  - an empty slot has span 0, which no offset can beat;
@@ -206,14 +200,31 @@ pub(super) fn probe(g: &mut Gen, width: u32, store: bool) {
     g.load(offset_of!(TlbEntry, lo));
     g.op(0x6b);
     g.tee(REL);
-    if width > 1 {
-        g.c(width - 1);
-        g.op(0x6a);
+    if width > 16 {
+        // Coalesced runs are only 16-byte aligned, not aligned to their full width.
+        // Reject an offset outside the entry first, then compare the remaining length.
+        // Neither subtraction can wrap and no endpoint addition is needed.
+        g.get(TLB);
+        g.load(offset_of!(TlbEntry, span));
+        g.op(0x4f); // i32.ge_u
+        g.bytes.extend([0x0d, 0]);
+        g.get(TLB);
+        g.load(offset_of!(TlbEntry, span));
+        g.get(REL);
+        g.op(0x6b); // i32.sub
+        g.c(width);
+        g.op(0x49); // i32.lt_u
+        g.bytes.extend([0x0d, 0]);
+    } else {
+        if width > 1 {
+            g.c(width - 1);
+            g.op(0x6a);
+        }
+        g.get(TLB);
+        g.load(offset_of!(TlbEntry, span));
+        g.op(0x4f);
+        g.bytes.extend([0x0d, 0]);
     }
-    g.get(TLB);
-    g.load(offset_of!(TlbEntry, span));
-    g.op(0x4f);
-    g.bytes.extend([0x0d, 0]);
     if store {
         g.get(TLB);
         load16(g, offset_of!(TlbEntry, writable));
@@ -221,6 +232,14 @@ pub(super) fn probe(g: &mut Gen, width: u32, store: bool) {
         g.bytes.extend([0x0d, 0]);
     }
 }
+
+/// x4 pack: `writable` and `code` are u16 fields.
+fn load16(g: &mut Gen, offset: usize) {
+    g.op(0x2f); // i32.load16_u
+    uleb(&mut g.bytes, 1);
+    uleb(&mut g.bytes, offset);
+}
+
 
 /// Match the interpreter's number of word writes, including version increments.
 ///
@@ -237,13 +256,7 @@ pub(super) fn probe(g: &mut Gen, width: u32, store: bool) {
 /// `wasm_region.rs`; the decode cache records `pc + 3`, `exec.rs`), and `watch_code_page` marks
 /// the 64 KiB blocks containing the watched page and its neighboring pages, so watching `p - 1` alone
 /// already forces `code != 0` on any mapping covering `p`.
-/// x4 pack: `writable` and `code` are u16 fields.
-fn load16(g: &mut Gen, offset: usize) {
-    g.op(0x2f); // i32.load16_u
-    uleb(&mut g.bytes, 1);
-    uleb(&mut g.bytes, offset);
-}
-
+/// Clobbers TMP; it may finish pointing at the preceding version page.
 pub(super) fn record_store(g: &mut Gen, writes: u32) {
     g.get(TLB);
     load16(g, offset_of!(TlbEntry, code));
