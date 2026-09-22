@@ -129,8 +129,9 @@ pub trait Bus {
     /// before reading the version to remember: the bytes and the version are then read after the
     /// page is watched, so writes before the call are already visible in the bytes and writes
     /// after it move the version. A bus that skips version bookkeeping for unwatched memory must
-    /// implement this; the default costs nothing to a bus that always bumps.
-    fn note_code_page(&mut self, vidx: u32) { let _ = vidx; }
+    /// implement this. Wrappers must forward it; buses that always bump explicitly do nothing.
+    /// Requiring the method prevents wrappers from silently disabling invalidation.
+    fn note_code_page(&mut self, vidx: u32);
     /// The pc of the instruction about to execute, for buses that attribute accesses to code.
     #[inline(always)]
     fn note_pc(&mut self, pc: u32) { let _ = pc; }
@@ -187,6 +188,7 @@ impl FlatRam {
 }
 
 impl Bus for FlatRam {
+    fn note_code_page(&mut self, _vidx: u32) {} // All writes already update versions, or this bus has no decode cache.
     fn read8(&mut self, a: u32) -> Result<u8, Fault> { let o = self.off(a, 1)?; Ok(self.mem[o]) }
     fn read16(&mut self, a: u32) -> Result<u16, Fault> { let o = self.off(a, 2)?; Ok(u16::from_le_bytes([self.mem[o], self.mem[o + 1]])) }
     fn read32(&mut self, a: u32) -> Result<u32, Fault> { let o = self.off(a, 4)?; Ok(u32::from_le_bytes(self.mem[o..o + 4].try_into().unwrap())) }

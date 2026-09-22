@@ -257,7 +257,7 @@ mod tests {
         t!("str w10, [x21, w9, uxtw #2]", a.str_idx(10, 21, 9));
         t!("ldr w0, [x12, w10, uxtw]", a.ldr_u(0, 12, 10));
         t!("ldrh w0, [x12, w10, uxtw]", a.ldrh_u(0, 12, 10));
-        t!("ldrh w11, [x9, #24]", a.ldrh(11, 9, 24));
+        t!("ldrh w11, [x9, #20]", a.ldrh(11, 9, 20));
         t!("ldrb w0, [x12, w10, uxtw]", a.ldrb_u(0, 12, 10));
         t!("ldrsh w0, [x12, w10, uxtw]", a.ldrsh_u(0, 12, 10));
         t!("str w2, [x12, w10, uxtw]", a.str_u(2, 12, 10));

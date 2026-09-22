@@ -662,6 +662,7 @@ pub(crate) mod ownership_tests {
     #[repr(transparent)]
     struct TaggedBus<const VALUE: u32>(FlatRam);
     impl<const VALUE: u32> Bus for TaggedBus<VALUE> {
+        fn note_code_page(&mut self, _vidx: u32) {} // All writes already update versions, or this bus has no decode cache.
         fn read8(&mut self, a: u32) -> Result<u8, Fault> { self.0.read8(a) }
         fn read16(&mut self, a: u32) -> Result<u16, Fault> { self.0.read16(a) }
         fn read32(&mut self, _: u32) -> Result<u32, Fault> { Ok(VALUE) }

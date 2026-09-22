@@ -289,6 +289,7 @@ mod tests {
         }
     }
     impl Bus for PagedRam {
+        fn note_code_page(&mut self, _vidx: u32) {} // All writes already update versions, or this bus has no decode cache.
         fn read8(&mut self, address: u32) -> Result<u8, Fault> { let o = self.off(address, 1)?; Ok(self.mem[o]) }
         fn read16(&mut self, address: u32) -> Result<u16, Fault> { let o = self.off(address, 2)?; Ok(u16::from_le_bytes(self.mem[o..o + 2].try_into().unwrap())) }
         fn read32(&mut self, address: u32) -> Result<u32, Fault> { let o = self.off(address, 4)?; Ok(u32::from_le_bytes(self.mem[o..o + 4].try_into().unwrap())) }
