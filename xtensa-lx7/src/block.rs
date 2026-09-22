@@ -304,8 +304,6 @@ fn build<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc0: u32) -> Result<(u32, u32, u16)
     if vidx1 != vidx0 { bus.note_code_page(vidx1); }
     let pv = bus.page_versions();
     let ver = [pv.get(vidx0 as usize).copied().unwrap_or(0), pv.get(vidx1 as usize).copied().unwrap_or(0)];
-    #[cfg(feature = "wasm-jit-profile")]
-    { crate::census::note_code_page(vidx0, 1); crate::census::note_code_page(vidx1, 1); }
     let ei = BlockCache::index(pc0);
     let mut code = crate::jit::NONE;
     let fast = bus.fast_mem().is_some();
