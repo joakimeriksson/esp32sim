@@ -361,6 +361,33 @@ fn timed_spi2_dma_keeps_owner_and_interrupt_pending_until_wire_deadline() {
     assert_eq!(&*events.lock().unwrap(), &["spi:2:[11, 22, 33, 44]:0"]);
 }
 
+/// mmio-s1: SPI2/GDMA writes mark interrupt inputs dirty exactly when their sources move,
+/// including a DMA completion the last write triggers; other devices keep the blanket rule.
+#[test]
+fn spi2_and_gdma_writes_dirty_interrupts_only_when_their_sources_change() {
+    const DATA: u32 = 0x3fc9_0200;
+    let mut bus = dma_bus();
+    bus.write32(DATA, 0x4433_2211).unwrap();
+    bus.write32(FIRST_DESC, 4 | (4 << 12) | (1 << 30) | (1 << 31)).unwrap();
+    bus.write32(FIRST_DESC + 4, DATA).unwrap();
+    bus.write32(FIRST_DESC + 8, 0).unwrap();
+    bus.periph.gdma.out[0].conf0 = 1 << 2;
+    let dirty = |bus: &mut SocBus, addr: u32, v: u32| { bus.irq_dirty = false; bus.write32(addr, v).unwrap(); bus.irq_dirty };
+    assert!(!dirty(&mut bus, SPI2 + 0x08, 0x1234), "configuration write");
+    assert!(!dirty(&mut bus, GDMA + 0x70, 1 << 3), "GDMA enable without a raw event");
+    assert!(!dirty(&mut bus, SPI2 + 0x34, 1 << 12), "SPI2 enable without a raw event");
+    bus.write32(SPI2 + 0x30, 1 << 28).unwrap();
+    bus.write32(SPI2 + 0x10, 1 << 27).unwrap();
+    assert!(!dirty(&mut bus, SPI2 + 0x1c, 31));
+    assert!(dirty(&mut bus, SPI2, 1 << 24), "the command completes the DMA and raises both sources");
+    assert_ne!(bus.periph.spi2.int_raw & (1 << 12), 0);
+    assert!(!dirty(&mut bus, SPI2 + 0x34, 1 << 12), "unchanged enable");
+    assert!(dirty(&mut bus, SPI2 + 0x38, 1 << 12), "SPI2 clear drops its source");
+    assert!(dirty(&mut bus, GDMA + 0x74, 1 << 3), "GDMA clear drops its source");
+    assert!(!dirty(&mut bus, GDMA + 0x74, 1 << 3), "clearing again changes nothing");
+    assert!(dirty(&mut bus, 0x6000_0010, 1), "UART writes keep the blanket rule");
+}
+
 #[test]
 fn spi2_data_phase_comes_from_gdma_descriptor() {
     const DATA: u32 = 0x3fc9_0200;

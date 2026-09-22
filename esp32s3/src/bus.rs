@@ -447,6 +447,11 @@ impl SocBus {
         }
         self.flush_ticks();
         let a = addr & !3;
+        // mmio-s1: SPI2 and GDMA writes reach only those two devices' sources (and RAM, the board),
+        // so they re-derive interrupt lines only when one of those sources moved.
+        let spi = matches!(a >> 12, 0x60024 | 0x6003f);
+        let sources = |p: &Peripherals| (p.spi2.irq(), esp_periph::Device::irq_sources(&p.gdma));
+        let before = if spi { sources(&self.periph) } else { (false, 0) };
         if a == PERIPH_BASE + 0x24_000 && v & (1 << 24) != 0 {
             self.spi2_dma_fault = None;
             self.spi2_scheduled = None;
@@ -475,7 +480,9 @@ impl SocBus {
         self.deliver_spi2_transfer();
         // GPIO output writes usually only drive the board, but an enabled level
         // interrupt also observes output levels. Inspect only changed output pins.
-        if !(0x6000_4004..=0x6000_4018).contains(&a) {
+        if spi {
+            self.irq_dirty |= before != sources(&self.periph);
+        } else if !(0x6000_4004..=0x6000_4018).contains(&a) {
             self.irq_dirty = true;
         } else {
             let mut changed = (old_gpio_out ^ self.periph.gpio.out) & self.periph.gpio.enable & ((1u64 << 49) - 1);
