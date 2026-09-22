@@ -334,7 +334,7 @@ impl SocBus {
         let page = addr & !0xffff;
         let region = |lo: u32, hi: u32, src: u8, w: bool| -> TlbEntry {
             let lo_ = page.max(lo); let hi_ = (page + 0x10000).min(hi);
-            TlbEntry { lo: lo_, hi: hi_, base: std::ptr::null_mut(), off: lo_ - lo, vbase: 0, src: src as u32, writable: w as u16, code: 1, span: 0 }
+            TlbEntry { lo: lo_, hi: hi_, base: std::ptr::null_mut(), off: lo_ - lo, vbase: 0, src: src as u32, writable: w as u16, code: 1, #[cfg(target_arch = "wasm32")] span: 0 }
         };
         let mut e = match addr {
             DRAM_LOW..=0x3FCF_FFFF => { let mut e = region(DRAM_LOW, 0x3FD0_0000, SRC_SRAM, true); e.off += 0x8000; e }
@@ -350,7 +350,7 @@ impl SocBus {
                 let off = (entry & 0x3fff) as usize * PAGE as usize;
                 let (src, w) = if entry & MMU_SPIRAM != 0 { (SRC_PSRAM, true) } else { (SRC_FLASH, false) };
                 if off + PAGE as usize > self.buf(src).len() { return None; }
-                TlbEntry { lo: page, hi: page + 0x10000, base: std::ptr::null_mut(), off: off as u32, vbase: 0, src: src as u32, writable: w as u16, code: 1, span: 0 }
+                TlbEntry { lo: page, hi: page + 0x10000, base: std::ptr::null_mut(), off: off as u32, vbase: 0, src: src as u32, writable: w as u16, code: 1, #[cfg(target_arch = "wasm32")] span: 0 }
             }
             _ => return None,
         };

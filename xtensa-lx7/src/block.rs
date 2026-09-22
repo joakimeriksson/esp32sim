@@ -40,9 +40,9 @@ pub struct BlockInsn { pub insn: Insn, pub max_ar: u8, /// EX141: a static trans
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 #[derive(Clone, Copy)]
 struct Entry { pc: u32, start: u32, n: u16, /// EX168 s6: the first instruction needs no exact block-boundary state (fits the padding)
- chain: bool, /** EX171 bridge class of a block without code (0: never) */ bridge: u8, vidx: [u32; 2], ver: [u32; 2], code: u32 }
+ chain: bool, /** EX171 bridge class of a block without code (0: never) */ #[cfg(target_arch = "wasm32")] bridge: u8, vidx: [u32; 2], ver: [u32; 2], code: u32 }
 const _: () = assert!(std::mem::size_of::<Entry>() == 32);
-impl Entry { const EMPTY: Entry = Entry { pc: 1, start: 0, n: 0, chain: false, bridge: 0, vidx: [0; 2], ver: [0; 2], code: crate::jit::NONE }; }
+impl Entry { const EMPTY: Entry = Entry { pc: 1, start: 0, n: 0, chain: false, #[cfg(target_arch = "wasm32")] bridge: 0, vidx: [0; 2], ver: [0; 2], code: crate::jit::NONE }; }
 
 #[cfg(not(target_arch = "wasm32"))] const ENTRIES: usize = 1 << 17;
 #[cfg(target_arch = "wasm32")] const ENTRIES: usize = 1 << 15;
@@ -304,8 +304,6 @@ fn build<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc0: u32) -> Result<(u32, u32, u16)
     if vidx1 != vidx0 { bus.note_code_page(vidx1); }
     let pv = bus.page_versions();
     let ver = [pv.get(vidx0 as usize).copied().unwrap_or(0), pv.get(vidx1 as usize).copied().unwrap_or(0)];
-    #[cfg(feature = "wasm-jit-profile")]
-    { crate::census::note_code_page(vidx0, 1); crate::census::note_code_page(vidx1, 1); }
     let ei = BlockCache::index(pc0);
     let mut code = crate::jit::NONE;
     let fast = bus.fast_mem().is_some();
@@ -318,9 +316,7 @@ fn build<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc0: u32) -> Result<(u32, u32, u16)
     // EX171: a block the emitter refused may still be interpretable inside a wrapper chain.
     #[cfg(target_arch = "wasm32")]
     let bridge = if code == crate::jit::NONE { bridge_block_class(&cpu.blocks.arena[start as usize..start as usize + n as usize]) } else { 0 };
-    #[cfg(not(target_arch = "wasm32"))]
-    let bridge = 0;
-    cpu.blocks.entries[ei] = Entry { pc: pc0, start, n, chain, bridge, vidx: [vidx0, vidx1], ver, code };
+    cpu.blocks.entries[ei] = Entry { pc: pc0, start, n, chain, #[cfg(target_arch = "wasm32")] bridge, vidx: [vidx0, vidx1], ver, code };
     cpu.blocks.builds += 1;
     Ok((ei as u32, start, n))
 }
@@ -459,6 +455,15 @@ pub(crate) fn step_extra<B: Bus>(cpu: &mut Cpu, bus: &mut B, i: &Insn) -> u32 {
     cpu.blocks.extras[k as usize] as u32
 }
 
+// Only WASM can continue into another block here. Keep the native return path direct.
+#[cfg(not(target_arch = "wasm32"))]
+use self::run_decoded_once as run_decoded;
+#[cfg(not(target_arch = "wasm32"))]
+type DecodedResult = (u32, Option<Trap>);
+#[cfg(target_arch = "wasm32")]
+type DecodedResult = (u32, Option<Trap>, Option<(u32, u32, u32)>);
+
+#[cfg(target_arch = "wasm32")]
 fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, mut budget: u32, mut ei: u32, mut k: u32, mut end: u32) -> (u32, Option<Trap>) {
     let mut total = 0;
     loop {
@@ -470,9 +475,9 @@ fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, mut budget: u32, mut ei: u32,
     }
 }
 
-/// One block (or wrapper chain). The third value is EX171's next block to continue with.
+/// One block (or WASM wrapper chain). WASM also returns the next block to continue with.
 #[inline(always)]
-fn run_decoded_once<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k: u32, end: u32) -> (u32, Option<Trap>, Option<(u32, u32, u32)>) {
+fn run_decoded_once<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k: u32, end: u32) -> DecodedResult {
     // never run past a CCOMPARE match: the timer interrupt must land on the same instruction
     #[cfg(not(target_arch = "wasm32"))]
     let mut limit = (end - k).min(budget);
@@ -558,7 +563,10 @@ fn run_decoded_once<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mu
             }
             _ => (done, None),
         };
+        #[cfg(target_arch = "wasm32")]
         return (done, trap, None);
+        #[cfg(not(target_arch = "wasm32"))]
+        return (done, trap);
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -623,7 +631,10 @@ fn run_decoded_once<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mu
             return (done, None, Some((nei as u32, next.start, next.start + next.n as u32)));
         }
     }
-    (done + pre as u32, trap, None)
+    #[cfg(target_arch = "wasm32")]
+    { (done + pre as u32, trap, None) }
+    #[cfg(not(target_arch = "wasm32"))]
+    { (done + pre as u32, trap) }
 }
 
 #[cfg(any(test, feature = "wasm-jit-tests"))]

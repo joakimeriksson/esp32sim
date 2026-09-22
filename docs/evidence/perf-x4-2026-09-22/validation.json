@@ -303,5 +303,44 @@
     "passed": 12,
     "command": "uv run --offline --no-project --python <venv>/bin/python python -m unittest discover -s tools/browser-benchmark -p 'test_*.py'"
   },
-  "privacyCheck": "node tools/check-evidence-privacy.mjs passed; manual review excluded local paths, host identities and raw captures"
+  "privacyCheck": "node tools/check-evidence-privacy.mjs passed; manual review excluded local paths, host identities and raw captures",
+  "nativeFollowup": {
+    "sourceRevision": "3d81936a8d453b9930b2f4cc7fec414799824081",
+    "workspaceSources": {
+      "files": 201,
+      "sourceSha256": "060be87916fa0ec26403f88cbfba55ab2abd18ae703d9af8aa0fcdddaf74cfbb"
+    },
+    "wasm": {
+      "artifactSha256": "df1941163acd52e1873079c55e47500808ed7bce94bb8ae83f52fe51f0c36ac9",
+      "functions": 1356,
+      "changedBodies": 0,
+      "comparison": "codegen/native-fix-comparison.json",
+      "interpretation": "All production function bodies match the measured shipping WASM. Existing differential and browser results apply to unchanged emitted instructions; this is not a fresh browser timing."
+    },
+    "native": {
+      "workspaceTests": {
+        "passed": 455,
+        "scope": "After direct native decoder return/inlining, before final WASM-only bridge metadata exclusion",
+        "command": "cargo test --release --workspace -- --include-ignored --skip external_"
+      },
+      "finalXtensaTests": {
+        "passed": 51,
+        "command": "cargo test --release -p xtensa-lx7"
+      },
+      "finalClippy": "cargo clippy --workspace --all-targets -- -D warnings passed",
+      "limitation": "Local ROM-dependent paths are not exercised; CI supplies ROMs."
+    },
+    "logHashes": {
+      "complete-workspace.log": "76186d01bcbc03c74c5354546774d1e5cf9f54daca9a7a9e5aba018f18f43dcf",
+      "shipping-xtensa-tests.log": "b4b853a1b89799a4afa7a19efdb4eed9fc4a8e583d6494afb07f17f7723fa8d9",
+      "shipping-clippy.log": "8a625d7681b30600bb9351a5949442a7a36d70b0c86f24b7e86a1b3766bf467e"
+    }
+  },
+  "profilingBuildRepair": {
+    "sourceRevision": "396a828e9142ead23a4a3e9ea428965656c97bb4",
+    "change": "Remove six orphaned calls to the absent experimental census counter, all guarded by wasm-jit-profile. Default production paths are unchanged from measured source 3d81936a.",
+    "command": ". ./tools/wasm-rustflags.sh; cargo build --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-profile,cpu-profile",
+    "result": "passed",
+    "logSha256": "11ffc55b6ff78b4209bf09e0645cb58b99c0bed46964e8e971f3a0787aaf41ab"
+  }
 }
