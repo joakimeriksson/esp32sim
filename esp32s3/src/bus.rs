@@ -349,7 +349,7 @@ impl SocBus {
         self.page_ver[p] = self.page_ver[p].wrapping_add(1);
         let last = vbase as usize + ((off + len - 1) >> VPAGE_SHIFT);
         if last != p { self.page_ver[last] = self.page_ver[last].wrapping_add(1); }
-        if off & VPAGE_MASK < 3 && p > 0 { self.page_ver[p - 1] = self.page_ver[p - 1].wrapping_add(1); }
+        if off & VPAGE_MASK < emu_core::bus::PREV_PAGE_BYTES as usize && p > 0 { self.page_ver[p - 1] = self.page_ver[p - 1].wrapping_add(1); }
     }
 
     /// Record a write done behind the bus's back (image loaders, the SPI flash controller).
@@ -358,7 +358,7 @@ impl SocBus {
         let vbase = self.ver_base[src as usize];
         let (first, last) = (off >> VPAGE_SHIFT, (off + len - 1) >> VPAGE_SHIFT);
         for p in first..=last { let i = vbase as usize + p; if i < self.page_ver.len() { self.page_ver[i] = self.page_ver[i].wrapping_add(1); } }
-        if off & VPAGE_MASK < 3 && first > 0 { let i = vbase as usize + first - 1; self.page_ver[i] = self.page_ver[i].wrapping_add(1); }
+        if off & VPAGE_MASK < emu_core::bus::PREV_PAGE_BYTES as usize && first > 0 { let i = vbase as usize + first - 1; self.page_ver[i] = self.page_ver[i].wrapping_add(1); }
     }
 
     #[inline]

@@ -1,0 +1,25 @@
+diff --git a/emu-core/src/jit_a64.rs b/emu-core/src/jit_a64.rs
+index 3eeeb8a1..50ffb06e 100644
+--- a/emu-core/src/jit_a64.rs
++++ b/emu-core/src/jit_a64.rs
+@@ -257,6 +257,7 @@ mod tests {
+         t!("str w10, [x21, w9, uxtw #2]", a.str_idx(10, 21, 9));
+         t!("ldr w0, [x12, w10, uxtw]", a.ldr_u(0, 12, 10));
+         t!("ldrh w0, [x12, w10, uxtw]", a.ldrh_u(0, 12, 10));
++        t!("ldrh w11, [x9, #24]", a.ldrh(11, 9, 24));
+         t!("ldrb w0, [x12, w10, uxtw]", a.ldrb_u(0, 12, 10));
+         t!("ldrsh w0, [x12, w10, uxtw]", a.ldrsh_u(0, 12, 10));
+         t!("str w2, [x12, w10, uxtw]", a.str_u(2, 12, 10));
+diff --git a/xtensa-lx7/src/jit/wasm_memory.rs b/xtensa-lx7/src/jit/wasm_memory.rs
+index 331b2b54..c1f0c4ba 100644
+--- a/xtensa-lx7/src/jit/wasm_memory.rs
++++ b/xtensa-lx7/src/jit/wasm_memory.rs
+@@ -235,7 +235,7 @@ pub(super) fn probe(g: &mut Gen, width: u32, store: bool) {
+ /// depends on bytes in the written page `p` records page `p` as well (block entries record the
+ /// page of their last byte, `block.rs`; regions record both ends of every instruction,
+ /// `wasm_region.rs`; the decode cache records `pc + 3`, `exec.rs`), and `watch_code_page` marks
+-/// the 64 KiB block of the watched page *and of both neighbors*, so watching `p - 1` alone
++/// the 64 KiB blocks containing the watched page and its neighboring pages, so watching `p - 1` alone
+ /// already forces `code != 0` on any mapping covering `p`.
+ /// x4 pack: `writable` and `code` are u16 fields.
+ fn load16(g: &mut Gen, offset: usize) {
