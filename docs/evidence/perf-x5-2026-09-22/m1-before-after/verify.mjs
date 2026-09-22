@@ -11,14 +11,16 @@ const median = values => {
 };
 const hash = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 export function verifyResults(index, readJob, provenance) {
-  requireThat(index.jobs === 12 && index.timedArms === 56 && Array.isArray(index.browsers) && index.browsers.length === 2, 'campaign totals');
+  requireThat(Array.isArray(index.browsers) && [2, 3].includes(index.browsers.length), 'campaign browsers');
+  const expectedBrowsers = index.browsers.length === 2 ? ['chrome', 'safari'] : ['chrome', 'safari', 'firefox'];
+  requireThat(index.jobs === expectedBrowsers.length * 6 && index.timedArms === expectedBrowsers.length * 28, 'campaign totals');
   const artifacts = provenance.artifacts;
   for (const arm of ['before', 'after'])
     requireThat(hash(artifacts[arm]?.wasmSha256) && /^[a-f0-9]{40}$/.test(artifacts[arm]?.sourceRevision), `${arm} provenance`);
   const browsers = new Set();
   let jobs = 0, arms = 0;
   for (const browser of index.browsers) {
-    requireThat(['chrome', 'safari'].includes(browser.browser) && !browsers.has(browser.browser), 'browser identity');
+    requireThat(expectedBrowsers.includes(browser.browser) && !browsers.has(browser.browser), 'browser identity');
     browsers.add(browser.browser);
     requireThat(browser.jobs === 6 && browser.arms === 28 && Array.isArray(browser.results) && browser.results.length === 6, 'browser totals');
     const names = new Set();
@@ -35,6 +37,10 @@ export function verifyResults(index, readJob, provenance) {
       for (const field of ['name', 'workload', 'role', 'pairs']) requireThat(job[field] === entry[field], label(`index ${field}`));
       requireThat(job.browserFamily === browser.browser && job.workload === workload && job.pairs === pairs && job.role === role, label('job metadata'));
       for (const field of ['isolation', 'captureTransport']) requireThat(typeof job[field] === 'string' && job[field].length > 0 && job[field] === browser[field], label(`browser ${field}`));
+      if (browser.browser === 'firefox') {
+        requireThat(job.captureTransport === 'Firefox ordinary browser page', label('Firefox transport'));
+        requireThat(job.isolation === 'Ordinary visible page; fresh page and worker per arm; browser process and caches may persist', label('Firefox isolation'));
+      }
       for (const arm of ['baseline', 'candidate']) {
         const artifact = artifacts[arm === 'baseline' || kind === 'control' ? 'before' : 'after'];
         requireThat(job[`${arm}WasmSha256`] === artifact.wasmSha256 && job[`${arm}SourceRevision`] === artifact.sourceRevision, label(`${arm} provenance`));
@@ -53,6 +59,8 @@ export function verifyResults(index, readJob, provenance) {
         requireThat(run.verdictValidation?.valid === true && run.verdictValidation?.passed === true && run.verdictValidation?.error === null, label('verdict'));
         requireThat(run.wasmSha256 === job[`${arm}WasmSha256`] && hash(run.consoleSha256), label('arm hashes'));
         requireThat(run.captureTransport === job.captureTransport, label('capture transport'));
+        if (browser.browser === 'firefox')
+          requireThat(typeof run.browser === 'string' && /^Firefox\/[0-9]+(?:\.[0-9]+)*$/.test(run.browser) && run.engine === 'SpiderMonkey' && run.v8 === null && run.pageWasHidden === false, label('Firefox metadata and visibility'));
       }
       requireThat(new Set(job.runs.map(run => run.consoleSha256)).size === 1, label('console equality'));
       const medians = Object.fromEntries(['baseline', 'candidate'].map(arm => [arm, median(job.runs.filter(run => run.arm === arm).map(run => run.wallSeconds))]));

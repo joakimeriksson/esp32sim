@@ -6,8 +6,8 @@
     "EX183"
   ],
   "scope": "Direct pre-x4 versus reviewed post-x5 artifacts on the local M1 Pro; aggregate runtime comparison, not isolated x5 or per-feature speedup.",
-  "jobs": 18,
-  "timedArms": 84,
+  "jobs": 12,
+  "timedArms": 56,
   "browsers": [
     {
       "browser": "chrome",
@@ -222,119 +222,12 @@
           "receipt": "safari/before-after-tinydraw.json"
         }
       ]
-    },
-    {
-      "browser": "firefox",
-      "jobs": 6,
-      "arms": 28,
-      "isolation": "Ordinary visible page; fresh page and worker per arm; browser process and caches may persist",
-      "captureTransport": "Firefox ordinary browser page",
-      "results": [
-        {
-          "name": "warmup-pocket",
-          "workload": "pocket-tank",
-          "role": "retained warm-up; excluded from headline",
-          "pairs": 1,
-          "wallReductionPercent": 16.186213481621813,
-          "pairsWallReductionPercent": [
-            16.186213481621813
-          ],
-          "medianWallSeconds": {
-            "baseline": 68.84958,
-            "candidate": 57.70544
-          },
-          "receipt": "firefox/warmup-pocket.json"
-        },
-        {
-          "name": "control-pocket",
-          "workload": "pocket-tank",
-          "role": "A/A control",
-          "pairs": 2,
-          "wallReductionPercent": -0.5257512176051637,
-          "pairsWallReductionPercent": [
-            -0.3614275616148799,
-            -0.6891400904869505
-          ],
-          "medianWallSeconds": {
-            "baseline": 67.50341,
-            "candidate": 67.85831
-          },
-          "receipt": "firefox/control-pocket.json"
-        },
-        {
-          "name": "before-after-pocket",
-          "workload": "pocket-tank",
-          "role": "primary comparison",
-          "pairs": 4,
-          "wallReductionPercent": 17.490968757292467,
-          "pairsWallReductionPercent": [
-            19.18140718397443,
-            11.277019226047202,
-            20.08948664478707,
-            18.493626775860307
-          ],
-          "medianWallSeconds": {
-            "baseline": 65.64988,
-            "candidate": 54.16708
-          },
-          "receipt": "firefox/before-after-pocket.json"
-        },
-        {
-          "name": "warmup-tinydraw",
-          "workload": "tinydraw",
-          "role": "retained warm-up; excluded from headline",
-          "pairs": 1,
-          "wallReductionPercent": 6.7854435627497605,
-          "pairsWallReductionPercent": [
-            6.7854435627497605
-          ],
-          "medianWallSeconds": {
-            "baseline": 67.49123999999999,
-            "candidate": 62.91166
-          },
-          "receipt": "firefox/warmup-tinydraw.json"
-        },
-        {
-          "name": "control-tinydraw",
-          "workload": "tinydraw",
-          "role": "A/A control",
-          "pairs": 2,
-          "wallReductionPercent": -3.497982479821493,
-          "pairsWallReductionPercent": [
-            -1.086307166317213,
-            -5.902229390592462
-          ],
-          "medianWallSeconds": {
-            "baseline": 67.89771,
-            "candidate": 70.27276
-          },
-          "receipt": "firefox/control-tinydraw.json"
-        },
-        {
-          "name": "before-after-tinydraw",
-          "workload": "tinydraw",
-          "role": "primary comparison",
-          "pairs": 4,
-          "wallReductionPercent": 9.290613418183291,
-          "pairsWallReductionPercent": [
-            6.8401153173590306,
-            11.436543811041167,
-            9.447215689857213,
-            6.845818984529906
-          ],
-          "medianWallSeconds": {
-            "baseline": 71.06506000000002,
-            "candidate": 64.46268
-          },
-          "receipt": "firefox/before-after-tinydraw.json"
-        }
-      ]
     }
   ],
   "method": "100 * (1 - median(candidate wallSeconds) / median(baseline wallSeconds)); within each job alternate baseline/candidate then candidate/baseline. Warm-up jobs retained separately and excluded from primary estimates.",
   "limitations": [
     "Small sequential nonrandomized campaign; no formal confidence interval or established noise floor.",
-    "Chrome uses fresh headless processes; the completed Safari and Firefox campaigns use ordinary visible pages/workers with possible browser process/cache reuse. Browser numbers are not an isolated engine comparison.",
+    "Chrome uses fresh headless processes; the completed Safari campaign uses ordinary visible pages with fresh workers and possible browser process/cache reuse. Browser numbers are not an isolated engine comparison.",
     "Browser receipts establish pinned retired work, frame counts and console output. They do not contain frame-content hashes.",
     "Baseline and candidate use the same inline threshold and no-DWARF build policy. This comparison does not measure download/startup or isolate individual x4/x5 changes.",
     "Compilation was user-reported and observed during part of Chrome and was allowed to continue. Later compiler-count snapshots were zero, but concurrent work was not controlled or quantified. Safari is not assumed to have experienced the same interference. These observed timings on an in-use machine are not a clean causal estimate. Conditions are retained in conditions.json.",

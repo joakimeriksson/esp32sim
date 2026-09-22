@@ -8,10 +8,10 @@
     "node docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.mjs"
   ],
   "tests": {
-    "passed": 53,
+    "passed": 44,
     "failed": 0,
     "existingX5": 21,
-    "threeBrowserM1": 32
+    "newM1": 23
   },
   "campaigns": [
     {
@@ -20,15 +20,14 @@
       "timedArms": 254
     },
     {
-      "name": "M1 before/after Chrome, Safari and Firefox",
-      "jobs": 18,
-      "timedArms": 84
+      "name": "M1 before/after",
+      "jobs": 12,
+      "timedArms": 56
     }
   ],
   "originalTestLog": {
-    "sha256": "9f53e8ca0c0da2b80622c609b8a936118535787aea2d31299a88b428379b9602",
-    "bytes": 2793
+    "sha256": "886d0d8436419fb0a5813581ac5535553475d308647df1e4bb6e86f5a493413a",
+    "bytes": 2237
   },
-  "redaction": "Original test log retained privately; public receipt omits local file paths and per-test durations.",
-  "previousValidation": "history/chrome-safari/local-validation.json"
+  "redaction": "Original test log retained privately; public receipt omits local file paths and per-test durations."
 }

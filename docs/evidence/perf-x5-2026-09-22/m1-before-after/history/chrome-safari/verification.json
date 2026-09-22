@@ -1,7 +1,7 @@
 {
   "status": "passed",
-  "jobs": 18,
-  "timedArms": 84,
+  "jobs": 12,
+  "timedArms": 56,
   "checks": [
     "All expected jobs and arm counts",
     "Frozen artifact hashes and source/build policy",
@@ -20,10 +20,6 @@
     },
     {
       "browser": "safari",
-      "files": 90
-    },
-    {
-      "browser": "firefox",
       "files": 90
     }
   ]

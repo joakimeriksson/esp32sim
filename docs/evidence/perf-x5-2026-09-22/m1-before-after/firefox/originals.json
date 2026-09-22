@@ -1,0 +1,455 @@
+{
+  "retention": "Original captures remain in private persistent task storage; hashes identify originals without publishing their paths or contents.",
+  "files": [
+    {
+      "path": "firefox/warmup-pocket/summary.json",
+      "sha256": "5516e1d82b0c513101b5e1214fcb5481ee1f50794ce1d2f15e3ed8e3cd9d69e0",
+      "bytes": 4462
+    },
+    {
+      "path": "firefox/warmup-pocket/1-baseline/result.json",
+      "sha256": "cdddd855098b88920220ace9bf8a5354ff80d33767dac1a08b2adeea5bd41079",
+      "bytes": 2826
+    },
+    {
+      "path": "firefox/warmup-pocket/1-baseline/capture.json",
+      "sha256": "c33c43c13b955a04b8302de562ddc194e41cb4a117b5c0301ab8cde4d8a015df",
+      "bytes": 543
+    },
+    {
+      "path": "firefox/warmup-pocket/1-baseline/events.json",
+      "sha256": "3876c1e7563b1c9b52be1ed61c38a4ac2f2a4d54a9f506a22edd2a52fcba659e",
+      "bytes": 44484
+    },
+    {
+      "path": "firefox/warmup-pocket/1-candidate/result.json",
+      "sha256": "e841a9bc525e823c1492c629c3e3304d11c8db2af0c11d920e39578bcd0882b3",
+      "bytes": 2826
+    },
+    {
+      "path": "firefox/warmup-pocket/1-candidate/capture.json",
+      "sha256": "3d2de75938aa722c75f09e53b782ea8c0429326ac9c22be7000d449b0bd803e8",
+      "bytes": 540
+    },
+    {
+      "path": "firefox/warmup-pocket/1-candidate/events.json",
+      "sha256": "b9d7dfb149c4ac2505201802626d3329a9d853cfb776337b9ecaaf7bab63d081",
+      "bytes": 39773
+    },
+    {
+      "path": "firefox/control-pocket/summary.json",
+      "sha256": "db51dacf56b42d52475158d033c267ef9793788b3d61f9fa5b6ff3dccfc460a2",
+      "bytes": 8744
+    },
+    {
+      "path": "firefox/control-pocket/1-baseline/result.json",
+      "sha256": "480872e2c063926f5dcc207c772959473d771573a893d3d1139d516b38981626",
+      "bytes": 2839
+    },
+    {
+      "path": "firefox/control-pocket/1-baseline/capture.json",
+      "sha256": "012601e5eaeacf1be1400a15e6c572301d45bfcb68e740e0e5e1edeb9cb7f941",
+      "bytes": 546
+    },
+    {
+      "path": "firefox/control-pocket/1-baseline/events.json",
+      "sha256": "392a5cf3e32565cb160712cc7d1796315f2da8560114db89737c0e7cf528cf91",
+      "bytes": 43576
+    },
+    {
+      "path": "firefox/control-pocket/1-candidate/result.json",
+      "sha256": "956f1ab73c53264aa4b3418369cf2dd7c469cfc01e33611c657b15e9752116b1",
+      "bytes": 2825
+    },
+    {
+      "path": "firefox/control-pocket/1-candidate/capture.json",
+      "sha256": "4b95045df68d4b8917bd29cc3ce00f912a7a8646177b77a300ddb5dcc935044b",
+      "bytes": 540
+    },
+    {
+      "path": "firefox/control-pocket/1-candidate/events.json",
+      "sha256": "652abe43b6f88ec2d87674cfe7fbdb515385528a3b2b6de762b014b83ecdfb67",
+      "bytes": 43681
+    },
+    {
+      "path": "firefox/control-pocket/2-candidate/result.json",
+      "sha256": "092c13aceb8f59bba522f58da96f834c265e5d9ed3038f3b189bad35196294a5",
+      "bytes": 2838
+    },
+    {
+      "path": "firefox/control-pocket/2-candidate/capture.json",
+      "sha256": "9aa03058df5875135bb8284eaf595e0a3bde2e839e423a15ad3d14bc68af990f",
+      "bytes": 539
+    },
+    {
+      "path": "firefox/control-pocket/2-candidate/events.json",
+      "sha256": "59b1969e7b47a66aa5cf145247d76e663975634f81774cc8e7cc9bf5e6641894",
+      "bytes": 43703
+    },
+    {
+      "path": "firefox/control-pocket/2-baseline/result.json",
+      "sha256": "fa8eb68ba37d8e7b242fc47812e804869181e33b28f1b791f8fcefadd9c37b24",
+      "bytes": 2835
+    },
+    {
+      "path": "firefox/control-pocket/2-baseline/capture.json",
+      "sha256": "28c51f797088617d7c72b68df28f6d0dc703357399b87e7e73306f11b36d4f0a",
+      "bytes": 540
+    },
+    {
+      "path": "firefox/control-pocket/2-baseline/events.json",
+      "sha256": "6efdbfd3a26ff940fd70014c4d3259bd036ddb7a37e23fefd50995630cd2ac61",
+      "bytes": 43757
+    },
+    {
+      "path": "firefox/before-after-pocket/summary.json",
+      "sha256": "370d26a8455d37affdd99fbffae091925ce92ee0acd311a88862613c07b57388",
+      "bytes": 17348
+    },
+    {
+      "path": "firefox/before-after-pocket/1-baseline/result.json",
+      "sha256": "c8102549394c7df2c6aac7e7f6b490e068bb23b577807d52de887062cafc7939",
+      "bytes": 2846
+    },
+    {
+      "path": "firefox/before-after-pocket/1-baseline/capture.json",
+      "sha256": "a3f10417851c9dc84ee11e9cbbf648b678f313e824d4cbd70590d4903d912e47",
+      "bytes": 541
+    },
+    {
+      "path": "firefox/before-after-pocket/1-baseline/events.json",
+      "sha256": "aea4cc2dcae16e33c7f9a302d1a02efb8b2eb6db8efe6933b982ee5cec7d8ec8",
+      "bytes": 45283
+    },
+    {
+      "path": "firefox/before-after-pocket/1-candidate/result.json",
+      "sha256": "414c271fa08aa0e48dba34363e7e4b7e64ffb8b59f317c16a219fe9854651716",
+      "bytes": 2836
+    },
+    {
+      "path": "firefox/before-after-pocket/1-candidate/capture.json",
+      "sha256": "8a904d856012e0c7e36ff1632b0ac41c0154f029e5af12120e739b1d91728863",
+      "bytes": 544
+    },
+    {
+      "path": "firefox/before-after-pocket/1-candidate/events.json",
+      "sha256": "84f5bd26e57381f8fcb947c835b0f9b10761ecfc2d5a116e1c270e15026b21f1",
+      "bytes": 39931
+    },
+    {
+      "path": "firefox/before-after-pocket/2-candidate/result.json",
+      "sha256": "365eed79626fa11d788c3655cc8725e6c9ad1f22e0e5b8c7454ed5dde4ba884a",
+      "bytes": 2849
+    },
+    {
+      "path": "firefox/before-after-pocket/2-candidate/capture.json",
+      "sha256": "20d9fdf43e230c280a31df727a3cf45ea719f776fd9902da744bb2375e8e4348",
+      "bytes": 544
+    },
+    {
+      "path": "firefox/before-after-pocket/2-candidate/events.json",
+      "sha256": "5c3e76f03f7ec3fdf8f402293f5bbac11f6d87ff5847c6cc81d5d5d07abd0ef2",
+      "bytes": 39036
+    },
+    {
+      "path": "firefox/before-after-pocket/2-baseline/result.json",
+      "sha256": "4f478d991dc0741974abd36174feafe1a0939d0e9a9ea40c1bde2087596a6021",
+      "bytes": 2834
+    },
+    {
+      "path": "firefox/before-after-pocket/2-baseline/capture.json",
+      "sha256": "59fa9f7464b6a3d816786976c3ff808b25b2512133d2bf967ddcd7d2b55603f2",
+      "bytes": 543
+    },
+    {
+      "path": "firefox/before-after-pocket/2-baseline/events.json",
+      "sha256": "7ef61163b173d2845d5aacb883eaabfcb88f16bea281749b3cf25dc59dd01b52",
+      "bytes": 42099
+    },
+    {
+      "path": "firefox/before-after-pocket/3-baseline/result.json",
+      "sha256": "7181e60bb3ed0f7f5e810ceb53049a45e306529ca44596ef3c128482a0a82039",
+      "bytes": 2847
+    },
+    {
+      "path": "firefox/before-after-pocket/3-baseline/capture.json",
+      "sha256": "5a55a837d3a0ceee91a19989453004f5b27eb4bc1a0e2793d79f8ccad1b81e45",
+      "bytes": 542
+    },
+    {
+      "path": "firefox/before-after-pocket/3-baseline/events.json",
+      "sha256": "1f68d7f7073ec41ddc2fccbc295c771ee7d67a924a3be054d49f2d3a4c6fe489",
+      "bytes": 42969
+    },
+    {
+      "path": "firefox/before-after-pocket/3-candidate/result.json",
+      "sha256": "2800c4a9b09835dad2829189ffd8ef64b630b7c02c1c293d72c9c166d9845129",
+      "bytes": 2838
+    },
+    {
+      "path": "firefox/before-after-pocket/3-candidate/capture.json",
+      "sha256": "391d393a4467ff3c680e1f52fdcccacddfde99914bd52b7c5f8a3dc613ccdb57",
+      "bytes": 541
+    },
+    {
+      "path": "firefox/before-after-pocket/3-candidate/events.json",
+      "sha256": "fb115b11f13b7f595fa815d43b92fea0f24aa37b79ff17528d83c77fafa41547",
+      "bytes": 38296
+    },
+    {
+      "path": "firefox/before-after-pocket/4-candidate/result.json",
+      "sha256": "8365910ae223b2c12c78d5a6fc108d7869d08299d1413f9757373ae4f5dce4bd",
+      "bytes": 2838
+    },
+    {
+      "path": "firefox/before-after-pocket/4-candidate/capture.json",
+      "sha256": "cf24e6b28faea4b9ff8394f5a1745c5ccd2ec803283fc203bc72954a20816f56",
+      "bytes": 542
+    },
+    {
+      "path": "firefox/before-after-pocket/4-candidate/events.json",
+      "sha256": "ca3468d502a727ded52fe6a6c2c9bb5f652f2ce7bd2469d5eb31d1e180b11e18",
+      "bytes": 38408
+    },
+    {
+      "path": "firefox/before-after-pocket/4-baseline/result.json",
+      "sha256": "6223c49fb7b006be62f6efa6d21cdba9fcefdbc96d36993e0f4a2a3022c15fc6",
+      "bytes": 2837
+    },
+    {
+      "path": "firefox/before-after-pocket/4-baseline/capture.json",
+      "sha256": "09ba876483421024ae67addc215a2d2d96fe1d1bbe6cb352b0b5e1c42f7cfbb9",
+      "bytes": 541
+    },
+    {
+      "path": "firefox/before-after-pocket/4-baseline/events.json",
+      "sha256": "995f44acb2f3f74759c65dc2ca1cd137db009de81f76acf77b7b0f9c351b19f1",
+      "bytes": 42988
+    },
+    {
+      "path": "firefox/warmup-tinydraw/summary.json",
+      "sha256": "bc632cdc21a4280ec716f13c931372313c60ab66b2dc991912f1fa6323aee99f",
+      "bytes": 4468
+    },
+    {
+      "path": "firefox/warmup-tinydraw/1-baseline/result.json",
+      "sha256": "67f81d89921f465851231af761e337019b59f0ab35a7a5c6d505980391ad2dd3",
+      "bytes": 3217
+    },
+    {
+      "path": "firefox/warmup-tinydraw/1-baseline/capture.json",
+      "sha256": "98307499ec2c16e16de40144b6ca8d8f73e8f559294b3e3b5bff0f4c92955442",
+      "bytes": 535
+    },
+    {
+      "path": "firefox/warmup-tinydraw/1-baseline/events.json",
+      "sha256": "b0ee559cba5161c06080f62e08dd29a2ff4c1a81a8e9afc362b3aa9d6f82141c",
+      "bytes": 126719
+    },
+    {
+      "path": "firefox/warmup-tinydraw/1-candidate/result.json",
+      "sha256": "0524239022de2f3b5659ac4de2482e663cc513924f7f4e84b4459091cd0dbcfb",
+      "bytes": 3195
+    },
+    {
+      "path": "firefox/warmup-tinydraw/1-candidate/capture.json",
+      "sha256": "0b045b66106fe88223526770786cf38f2837ab3009ff1073edd21dad036617ed",
+      "bytes": 537
+    },
+    {
+      "path": "firefox/warmup-tinydraw/1-candidate/events.json",
+      "sha256": "6c277a823d0953f4a00642a3163ec94f95a2690cbb6c3d7ea39dd1852aa9064e",
+      "bytes": 125187
+    },
+    {
+      "path": "firefox/control-tinydraw/summary.json",
+      "sha256": "ea8d7e4a5d351cc5fb34558b6f9e8b0baa60e7b81ccf79f2b72170cf74498bd6",
+      "bytes": 8715
+    },
+    {
+      "path": "firefox/control-tinydraw/1-baseline/result.json",
+      "sha256": "fd318d15e5474fb741523fde3eebc696a63dcc268f9185e92204263de7da9835",
+      "bytes": 3196
+    },
+    {
+      "path": "firefox/control-tinydraw/1-baseline/capture.json",
+      "sha256": "f5d12df8dea2aafe637f5a701adc1ec5beab4f63ba0b45c67b004e70eacb6ded",
+      "bytes": 541
+    },
+    {
+      "path": "firefox/control-tinydraw/1-baseline/events.json",
+      "sha256": "1b80eccc84bea2c44a07c10fbc1ceeb6a95612ebaa076956232cb8ed6885ea68",
+      "bytes": 126527
+    },
+    {
+      "path": "firefox/control-tinydraw/1-candidate/result.json",
+      "sha256": "b9819b95171b19e40b24d853f86580b5733aa08465f3b21719a624c93913996e",
+      "bytes": 3196
+    },
+    {
+      "path": "firefox/control-tinydraw/1-candidate/capture.json",
+      "sha256": "9c00dcce5597548a681c606a092da2aa0fe4d8c65d906a1d41b5ffa96d40e7af",
+      "bytes": 543
+    },
+    {
+      "path": "firefox/control-tinydraw/1-candidate/events.json",
+      "sha256": "fb5665576d805e81694ebb2558123e0dd0970d992a8d775c8e078f2e273dc6c9",
+      "bytes": 127570
+    },
+    {
+      "path": "firefox/control-tinydraw/2-candidate/result.json",
+      "sha256": "00e4e3d1cff2e69376dc3861d1709096abfbbab9f35556a5add1af08b6c946d3",
+      "bytes": 3217
+    },
+    {
+      "path": "firefox/control-tinydraw/2-candidate/capture.json",
+      "sha256": "b122f55e7b6fbc14ec92ee3a088f6c4e9ab419a8d6a9e01f3529643b43cd2886",
+      "bytes": 542
+    },
+    {
+      "path": "firefox/control-tinydraw/2-candidate/events.json",
+      "sha256": "52a7521b7316ddc13644ea50a09b24037ce806258eefc7f77f731cf0b0624a57",
+      "bytes": 128529
+    },
+    {
+      "path": "firefox/control-tinydraw/2-baseline/result.json",
+      "sha256": "b8a2b159d3548c7ceb472f800376f46103b257e8013382c5670d8450200c6a05",
+      "bytes": 3196
+    },
+    {
+      "path": "firefox/control-tinydraw/2-baseline/capture.json",
+      "sha256": "acc3d0b79cd5499b73b900f7cc0c0db2d718176b9fb0a82b57b95b4f21d7de32",
+      "bytes": 537
+    },
+    {
+      "path": "firefox/control-tinydraw/2-baseline/events.json",
+      "sha256": "2a1c4be0c657ea139ccebe663e28cb218ffb2cee3bf34ea5190f474d7feffdde",
+      "bytes": 126637
+    },
+    {
+      "path": "firefox/before-after-tinydraw/summary.json",
+      "sha256": "096eb6fb9b4746dab83c087a4f23df166e1254960a9330549c45ca5f830ae8c4",
+      "bytes": 17274
+    },
+    {
+      "path": "firefox/before-after-tinydraw/1-baseline/result.json",
+      "sha256": "d06802f0411d084ccb15d48f52dfa296d9365c4eef47800d4502ecb2425f9451",
+      "bytes": 3195
+    },
+    {
+      "path": "firefox/before-after-tinydraw/1-baseline/capture.json",
+      "sha256": "a9124c4f16cd8c7e5bd79303dbd15f7c337918414d8d699343331868178ec3b7",
+      "bytes": 534
+    },
+    {
+      "path": "firefox/before-after-tinydraw/1-baseline/events.json",
+      "sha256": "2d711aba253db4bbeadca4e21597506c6cc7ccdec4f1a0aefa81c46fc62c9e33",
+      "bytes": 126693
+    },
+    {
+      "path": "firefox/before-after-tinydraw/1-candidate/result.json",
+      "sha256": "747b64546e138a342f14b12094a72adaf734ecf411a5e331927319b239cce022",
+      "bytes": 3194
+    },
+    {
+      "path": "firefox/before-after-tinydraw/1-candidate/capture.json",
+      "sha256": "c69ebd184b5c1e19ead8be5a121d4b421b53983c053b1cfaeed9434edcf4d5f7",
+      "bytes": 536
+    },
+    {
+      "path": "firefox/before-after-tinydraw/1-candidate/events.json",
+      "sha256": "40a8fc3e690a3f0cb7393f1ab4a78c16b2ecb445fa60736765550ac34912475c",
+      "bytes": 124105
+    },
+    {
+      "path": "firefox/before-after-tinydraw/2-candidate/result.json",
+      "sha256": "49b3ed45981c83feceb010e6a3c3042a786b88c81d9036de77cc77455995b61d",
+      "bytes": 3194
+    },
+    {
+      "path": "firefox/before-after-tinydraw/2-candidate/capture.json",
+      "sha256": "3e5d9db1441e1a901fa48707c19d25e8df7eb639789d735263d2b311d4ee750c",
+      "bytes": 540
+    },
+    {
+      "path": "firefox/before-after-tinydraw/2-candidate/events.json",
+      "sha256": "8b8fb276e933d99de78f1c8a7f153815cb91bacf360e56be751d6c691897965d",
+      "bytes": 124368
+    },
+    {
+      "path": "firefox/before-after-tinydraw/2-baseline/result.json",
+      "sha256": "1f16f0061fdb6a7b8efa2aa9091e01b4721d1073ff69e9129ae965f502e49169",
+      "bytes": 3216
+    },
+    {
+      "path": "firefox/before-after-tinydraw/2-baseline/capture.json",
+      "sha256": "8fdd9f87322a2a19fcb40d454d30afc635c5c64f4f85b26972c8854664da1593",
+      "bytes": 542
+    },
+    {
+      "path": "firefox/before-after-tinydraw/2-baseline/events.json",
+      "sha256": "2751bbba5002a425bc8ce820936f2ec94f9a0861cd221f4fcc240d49839a0a49",
+      "bytes": 128172
+    },
+    {
+      "path": "firefox/before-after-tinydraw/3-baseline/result.json",
+      "sha256": "891e9fbcd77044242ead62a03e347da06bbb0a64ca026a1cf9fd4192f608c10c",
+      "bytes": 3195
+    },
+    {
+      "path": "firefox/before-after-tinydraw/3-baseline/capture.json",
+      "sha256": "9ce6ebaef10283764094e68ba22269e905ea1e4c648ad76d52e3c5f32af3a834",
+      "bytes": 538
+    },
+    {
+      "path": "firefox/before-after-tinydraw/3-baseline/events.json",
+      "sha256": "dd0070f3d4de12bba1e0d778a6d379e5c7770fd9a1064237dd14713cc5467931",
+      "bytes": 128352
+    },
+    {
+      "path": "firefox/before-after-tinydraw/3-candidate/result.json",
+      "sha256": "107fb48ad6d7089725c97142d8638b09cb218552a2e024511bfc21018e2eaaef",
+      "bytes": 3194
+    },
+    {
+      "path": "firefox/before-after-tinydraw/3-candidate/capture.json",
+      "sha256": "4109755e5d9952133fe76f3268aae904a779217c4b5cdd443e1161feb3b80d73",
+      "bytes": 538
+    },
+    {
+      "path": "firefox/before-after-tinydraw/3-candidate/events.json",
+      "sha256": "682337b2d3c96d73b906f5e0f59a52b0e0545445d10a463d3d7a2f9872a47127",
+      "bytes": 126223
+    },
+    {
+      "path": "firefox/before-after-tinydraw/4-candidate/result.json",
+      "sha256": "1ce34a96cb7a1d9a7d73ad875d6476ea9d799f5175fe3ff9a8b579010568ef3a",
+      "bytes": 3196
+    },
+    {
+      "path": "firefox/before-after-tinydraw/4-candidate/capture.json",
+      "sha256": "837f64fa0ed008535c2e254ddd874e7ae5416c50df0a29fcde5ac0d841cd38bf",
+      "bytes": 543
+    },
+    {
+      "path": "firefox/before-after-tinydraw/4-candidate/events.json",
+      "sha256": "45ac5c8b91073e582c053f47b5ef7874b5c62781eeff8446f1f3e20eb7dd251a",
+      "bytes": 126097
+    },
+    {
+      "path": "firefox/before-after-tinydraw/4-baseline/result.json",
+      "sha256": "23d1ec2e414b8a2af4e670aa015c1110aed578697d6378a71e404f9192df4bf0",
+      "bytes": 3216
+    },
+    {
+      "path": "firefox/before-after-tinydraw/4-baseline/capture.json",
+      "sha256": "e5d2df4d22009fd67e9dc380f9f2eb5e8cf73d2dfa70c6637a5e73eaad868e44",
+      "bytes": 542
+    },
+    {
+      "path": "firefox/before-after-tinydraw/4-baseline/events.json",
+      "sha256": "4478fa0f612e1ae48f0dcab764a172309abbe3fa1f62d60ab3ea282d4db51c04",
+      "bytes": 128305
+    }
+  ]
+}

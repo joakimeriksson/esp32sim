@@ -141,13 +141,8 @@
     },
     {
       "path": "attempt-metadata.json",
-      "sha256": "74fc660d8f80edf07f446df1d5b891120e9038f9cdb1a3c0553d4245e7c319ef",
-      "bytes": 3920
-    },
-    {
-      "path": "firefox/conditions.jsonl",
-      "sha256": "f11efae9ccdef4547584d768ea55a6628ec7f02d1e2db047891e246612ee0f45",
-      "bytes": 1000
+      "sha256": "adb43fb58027fdef5496920e4d690ad8765f2705af5b741a3106c8a65461f44c",
+      "bytes": 2155
     }
   ],
   "limitations": [
@@ -155,7 +150,7 @@
     "Timestamps locate observations but do not establish which arm absorbed contention or permit a causal correction.",
     "All measurements are retained; no observations are discarded or numerically adjusted for contention."
   ],
-  "powerInterpretation": "Chrome started on battery; the first interrupted Safari attempt also started on battery. The selected Safari restart began on AC power at 28%. These are snapshots, not continuous power or thermal monitoring. Firefox power observations are retained separately by phase. The 85% AC observation was after five completed restart arms, not at restart start; no dedicated restart-start power snapshot was recorded. No browser-engine-only comparison is established.",
+  "powerInterpretation": "Chrome started on battery; the first interrupted Safari attempt also started on battery. The selected Safari restart began on AC power at 28%. These are snapshots, not continuous power or thermal monitoring. No browser-engine-only comparison is established.",
   "attempts": [
     {
       "browser": "Safari",
@@ -222,143 +217,6 @@
       "reason": "Remote Automation disabled; no permission setting changed.",
       "includedInPrimaryComparison": false,
       "completedArms": 0
-    },
-    {
-      "browser": "Firefox",
-      "label": "Initial ordinary-page adapter attempt",
-      "status": "adapter validation failure after completed baseline workload",
-      "reason": "The copied comparator still required Safari metadata. Its metadata check rejected the Firefox result; this was not a firmware/output or browser execution failure. The adapter was corrected and the selected campaign restarted from the beginning.",
-      "includedInPrimaryComparison": false,
-      "completedJobs": 0,
-      "completedArms": 1,
-      "completedBaseline": {
-        "pair": 1,
-        "arm": "baseline",
-        "wallSeconds": 68.74474,
-        "instructions": 10073833775,
-        "frames": 737,
-        "passed": true,
-        "jitFailed": 0,
-        "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd"
-      },
-      "originals": [
-        {
-          "path": "firefox-excluded/warmup-pocket/1-baseline/result.json",
-          "sha256": "052dc95305a2b7eb21d2ccb2c7ce5a4242aaf1ad0a2ceab9f7ed31a69d50bf9e",
-          "bytes": 2837
-        },
-        {
-          "path": "firefox-excluded/warmup-pocket/1-baseline/capture.json",
-          "sha256": "75ea73da15cb4e5122f665184227dc751eaa97b5a28fed4d18cef516989f7aaa",
-          "bytes": 543
-        },
-        {
-          "path": "firefox-excluded/warmup-pocket/1-baseline/events.json",
-          "sha256": "327da735e06f9279d5637bbc33bb8639f440e096613206f7aee5e0867af393c4",
-          "bytes": 44467
-        }
-      ]
-    },
-    {
-      "browser": "Firefox",
-      "label": "Ordinary-page restart 1",
-      "status": "completed",
-      "includedInPrimaryComparison": true,
-      "requiredJobs": 6,
-      "requiredArms": 28,
-      "completedJobs": 6,
-      "completedArms": 28
-    }
-  ],
-  "firefox": [
-    {
-      "at": "2026-09-22T12:24:08.083Z",
-      "phase": "Firefox",
-      "power": {
-        "source": "AC",
-        "percent": 76
-      },
-      "load": [
-        8.369140625,
-        11.96337890625,
-        19.02001953125
-      ],
-      "compilerProcessCounts": {
-        "rustc": 0,
-        "cargo": 0,
-        "rust-lld": 0,
-        "clang": 0
-      }
-    },
-    {
-      "at": "2026-09-22T12:33:39.374Z",
-      "phase": "Firefox restart",
-      "power": {
-        "source": "AC",
-        "percent": 85
-      },
-      "load": [
-        12.47509765625,
-        9.5498046875,
-        14.18994140625
-      ],
-      "compilerProcessCounts": {
-        "rustc": 0,
-        "cargo": 0,
-        "rust-lld": 0,
-        "clang": 0
-      }
-    },
-    {
-      "at": "2026-09-22T12:40:15.460Z",
-      "phase": "Firefox restart",
-      "power": {
-        "source": "AC",
-        "percent": 90
-      },
-      "load": [
-        7.53857421875,
-        8.1318359375,
-        11.828125
-      ],
-      "compilerProcessCounts": {
-        "rustc": 0,
-        "cargo": 0,
-        "rust-lld": 0,
-        "clang": 0
-      }
-    },
-    {
-      "at": "2026-09-22T12:51:23.508Z",
-      "phase": "Firefox restart",
-      "power": {
-        "source": "AC",
-        "percent": 96
-      },
-      "load": [
-        6.9462890625,
-        6.458984375,
-        8.78271484375
-      ],
-      "compilerProcessCounts": {
-        "rustc": 0,
-        "cargo": 0,
-        "rust-lld": 0,
-        "clang": 0
-      }
-    },
-    {
-      "at": "2026-09-22T12:58:13.398Z",
-      "phase": "Firefox completed",
-      "power": {
-        "source": "AC",
-        "percent": 98
-      },
-      "load": [
-        6.4111328125,
-        7.1962890625,
-        8.2978515625
-      ]
     }
   ]
 }

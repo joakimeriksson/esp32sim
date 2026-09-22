@@ -11,7 +11,7 @@ const index = read('results.json'), provenance = read('provenance.json');
 const jobs = Object.fromEntries(index.browsers.flatMap(b => b.results.map(e => [e.receipt, read(e.receipt)])));
 const check = (i = index, j = jobs, p = provenance) => verifyResults(i, name => j[name], p);
 test('all public M1 receipts verify without changing measured values', () => {
-  assert.deepEqual(check(), {status: 'passed', jobs: 12, timedArms: 56});
+  assert.deepEqual(check(), {status: 'passed', jobs: index.jobs, timedArms: index.timedArms});
 });
 const mutations = {
   'original review exploit: numeric strings and fabricated headline': (e, j) => {
@@ -60,4 +60,42 @@ test('rejects missing or duplicated campaign entries', () => {
   const truncated = structuredClone(index);
   truncated.browsers[0].results.pop();
   assert.throws(() => check(truncated));
+});
+// Exercise the extension even when replaying the historical two-browser receipts.
+// Synthetic Firefox metadata is used only in tests and is never a measurement.
+function withFirefox() {
+  const i = structuredClone(index), j = structuredClone(jobs);
+  if (i.browsers.some(b => b.browser === 'firefox')) return [i, j];
+  const browser = structuredClone(i.browsers.find(b => b.browser === 'safari'));
+  browser.browser = 'firefox';
+  browser.captureTransport = 'Firefox ordinary browser page';
+  browser.isolation = 'Ordinary visible page; fresh page and worker per arm; browser process and caches may persist';
+  for (const entry of browser.results) {
+    const job = structuredClone(j[entry.receipt]);
+    entry.receipt = `firefox/${entry.name}.json`;
+    Object.assign(job, {browserFamily: 'firefox', captureTransport: browser.captureTransport, isolation: browser.isolation});
+    for (const run of job.runs) Object.assign(run, {browser: 'Firefox/156.0', engine: 'SpiderMonkey', v8: null, pageWasHidden: false, captureTransport: browser.captureTransport});
+    j[entry.receipt] = job;
+  }
+  i.browsers.push(browser); i.jobs = 18; i.timedArms = 84;
+  return [i, j];
+}
+test('accepts the three-browser receipt schema', () => {
+  const [i, j] = withFirefox();
+  assert.deepEqual(check(i, j), {status: 'passed', jobs: 18, timedArms: 84});
+});
+for (const [field, value] of [['browser', 'Safari/26.0'], ['browser', 'Firefox/..'], ['engine', 'JavaScriptCore'], ['v8', '15.0'], ['pageWasHidden', true], ['pageWasHidden', undefined], ['captureTransport', 'Safari ordinary browser page']])
+  test(`rejects Firefox ${field}=${String(value)}`, () => {
+    const [i, j] = withFirefox();
+    j['firefox/before-after-pocket.json'].runs[0][field] = value;
+    assert.throws(() => check(i, j));
+  });
+test('rejects Firefox metadata mismatched consistently across index, job and arms', () => {
+  const [i, j] = withFirefox();
+  i.browsers.find(b => b.browser === 'firefox').captureTransport = 'unknown';
+  for (const [path, job] of Object.entries(j)) if (path.startsWith('firefox/')) {
+    job.captureTransport = 'unknown';
+    for (const run of job.runs) run.captureTransport = 'unknown';
+  }
+  assert.throws(() => check(i, j));
 });

@@ -148,7 +148,7 @@
   ],
   "curationScript": {
     "path": "curate.mjs",
-    "sha256": "6941dd5c3277ae615b37d6292321516712ee513faefefea66688f2a396248553",
-    "bytes": 27350
+    "sha256": "7a9c9dcf514e9678329ca6cd47e266e2ad5e4b1a25a4dae436390f78593e6d63",
+    "bytes": 21948
   }
 }
