@@ -196,7 +196,7 @@ fn round_batches_match_the_per_round_schedule() {
         for at in [1usize, 63, 64, 65, 129] {
             for cut in 0..2usize {
                 let mut results = Vec::new();
-                for bb in [1u64, 16] {
+                for bb in [1u64, 128] {
                     let mut m = esp32s3::machine([0; 6]);
                     m.console.capture = true;
                     m.vq_max = 1;
@@ -239,7 +239,7 @@ fn round_batches_match_the_per_round_schedule() {
                     }
                     if kind == 5 { m.dbg.stop_after_exceptions = 1; }
                     m.bb_max = bb;
-                    m.max_cycles = m.bus.cycles + 512;
+                    m.max_cycles = m.bus.cycles + if kind == 0 || kind == 3 { 32768 } else { 512 };
                     let label = format!("kind={kind} at={at} cut={cut} bb={bb}");
                     let stop = m.run(1 << 20);
                     if kind == 5 { assert!(matches!(stop, Stop::Exceptions(1)), "{label}: {stop:?}"); }
@@ -247,6 +247,7 @@ fn round_batches_match_the_per_round_schedule() {
                     assert_eq!(m.bus.vq_violations, 0, "{label}: undeferred device access");
                     if armed && bb > 1 {
                         assert!(m.bb_stats[0] > 0, "{label}: no batch ran");
+                        if kind == 0 { assert!(m.bb_stats[1] / m.bb_stats[0] > 8, "{label}: shallow batches"); }
                         if kind == 1 { assert!(m.bb_stats[2] > 0, "{label}: no device-register cut"); }
                         if kind == 2 { assert!(m.bb_stats[3] > 0, "{label}: no waiti cut"); }
                         if kind == 3 { assert!(m.interrupts > 0, "{label}: timer never fired"); }
@@ -278,4 +279,57 @@ fn frontier_instruction_observers_do_not_arm_mmio_deferral() {
     m.max_cycles = 128;
     assert!(matches!(m.run(1024), Stop::Halted));
     assert_eq!(m.bus.vq_violations, 0);
+}
+
+#[test]
+fn peripheral_alarm_inside_both_busy_rounds_matches_single_round_scheduling() {
+    const VECTOR: u32 = IRAM + 0x1000;
+    // 16 MHz SYSTIMER deadlines straddle the 64-cycle scheduling boundary.
+    for ticks in [9u32, 12, 13, 17, 257, 1025] {
+        for busy in 0..2 {
+            let mut results = Vec::new();
+            for bb in [1, 128] {
+                let mut m = esp32s3::machine([0; 6]);
+                m.console.capture = true;
+                m.vq_max = 1;
+                m.bb_max = 1;
+                for core in &mut m.cores { core.set_jit(false); }
+                let spin = [0x06, 0xff, 0xff];
+                m.bus.load_bytes(IRAM, &spin).unwrap();
+                m.bus.load_bytes(0x4000_0400, &spin).unwrap();
+                m.cores[0].pc = IRAM;
+                m.cores[0].ps = 0;
+                m.bus.write32(0x600c_0000, 2).unwrap();
+                assert!(matches!(m.run(64), Stop::MaxInsns));
+                m.cores[1 - busy].waiting = false;
+                m.cores[busy].pc = IRAM;
+                m.cores[busy].ps = 0;
+                m.cores[busy].vecbase = VECTOR;
+                m.cores[busy].intenable = 1 << 1; // level-one external interrupt
+                // Capture interrupt delivery time once, then spin in the handler.
+                m.bus.load_bytes(VECTOR + xtensa_lx7::state::vec::KERNEL,
+                    &[0x20, 0xea, 0x03, 0x06, 0xff, 0xff]).unwrap(); // rsr a2,ccount; j .
+                let source = esp32s3::periph::SRC_SYSTIMER_T0 as u32;
+                m.bus.write32(0x600c_2000 + busy as u32 * 0x800 + source * 4, 1).unwrap();
+                m.bus.write32(0x6002_3000, (1 << 30) | (1 << 24)).unwrap();
+                m.bus.write32(0x6002_3020, ticks).unwrap();
+                m.bus.write32(0x6002_3064, 1).unwrap();
+                m.bus.write32(0x6002_3050, 1).unwrap();
+                m.bb_max = bb;
+                m.max_cycles = m.bus.cycles + 32768;
+                assert!(matches!(m.run(1 << 20), Stop::Halted));
+                assert_eq!(m.interrupts, 1, "alarm must reach core={busy} ticks={ticks} bb={bb}");
+                assert_eq!(m.cores[busy].epc[1], IRAM);
+                assert!((64..32832).contains(&m.cores[busy].get_ar(2)), "handler must capture its arrival time");
+                assert_eq!(m.bus.periph.systimer.int_raw & 1, 1);
+                assert_eq!(m.bus.vq_violations, 0);
+                if bb > 1 && std::env::var_os("ESP32SIM_VQ_NATIVE").is_some() {
+                    assert!(m.bb_stats[0] > 0 && m.bb_stats[1] >= 2, "exercise batched rounds");
+                }
+                results.push((m.bus.cycles, m.cores.iter()
+                    .map(|c| (c.ccount, c.insn_count, c.pc, c.ps, c.interrupt, c.epc, c.get_ar(2))).collect::<Vec<_>>()));
+            }
+            assert_eq!(results[0], results[1], "busy={busy} ticks={ticks}");
+        }
+    }
 }

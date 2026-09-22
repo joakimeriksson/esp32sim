@@ -179,13 +179,15 @@ def main():
     parser.add_argument('--baseline', nargs='+', required=True, help='Capture directories, one per run')
     parser.add_argument('--candidate', nargs='+', required=True, help='Capture directories, one per run')
     parser.add_argument('--legacy', action='store_true', help='Inspect older captures without certifying their capture mode or build identity')
+    parser.add_argument('--screening', action='store_true', help='Allow fewer than three pairs; not a production speed claim')
     parser.add_argument('--allow-change', action='append', default=['asset/wasm'], help='Explicit provenance key allowed to differ between arms')
     args = parser.parse_args()
-    if len(args.baseline) != len(args.candidate):
-        parser.error('comparison requires the same number of baseline and candidate runs')
+    if not args.screening and (len(args.baseline) != len(args.candidate) or len(args.baseline) < 3):
+        parser.error('production comparison requires at least three matched pairs; use --screening for exploration')
     try:
         result = comparison([read_run(p, legacy=args.legacy) for p in args.baseline], [read_run(p, legacy=args.legacy) for p in args.candidate], legacy=args.legacy, allowed_changes=args.allow_change)
         result['legacy'] = args.legacy
+        result['screeningOnly'] = args.screening
     except (ValueError, KeyError) as error:
         parser.error(str(error))
     print(json.dumps(result, indent=2))

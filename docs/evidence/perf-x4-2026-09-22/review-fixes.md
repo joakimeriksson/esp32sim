@@ -1,0 +1,18 @@
+# Corrections to the x4 execution changes
+
+The follow-up fixes two PIE correctness defects: coalesced loads now validate the remaining mapping length without overflowing endpoint arithmetic, and a held ACCX sum is saved before a memory operation splits into fast and fallback paths. See the [range check](../../../xtensa-lx7/src/jit/wasm_memory.rs) and [accumulator handling](../../../xtensa-lx7/src/jit/wasm_pie.rs).
+
+| Layer | Correction and validation |
+|---|---|
+| Previous-page versions (#129, EX180) | Share the three-byte overlap constant across bus, DMA and generated stores. Add an independent real-bus version test and a WASM Clippy CI gate. Move the existing x4 evidence and ledger into this bottom layer so later PRs inherit working receipts. |
+| Dispatch caches (#130, EX136/EX168) | Assert the live owner, chunk and cached region facts in WASM test builds. Document the epoch invariant and assert undecorated helper tables. The 79,732-case suite passes with these checks. |
+| Interpreted bridges (#131, EX171) | Require the same chain-boundary guard as compiled successors. Add 22 direct bridge cases covering class-2 admission, multiple instructions, budget/version rejection, window overflow, return underflow and divide-by-zero accounting. |
+| Watched memory (#132, EX110/EX173) | Register browser ticket code pages before taking version snapshots. Test dependencies across a mapping boundary. Keep natural WASM TLB alignment and assert that optional entries occupy 36 bytes. Remove unused census fields and correct misplaced comments. |
+| PIE (#133, EX178) | Fix both defects above. Add 38 cases covering held s8/s16 sums around the static bound, ordinary and coalesced slow-load continuations and partially covered load runs. Mapping tests retain valid backing storage and assert that slow reads occurred. |
+| Round batching (#134, EX177) | Exercise cap 128 with a 32,768-cycle budget and assert average realized batch depth exceeds eight in native and WASM tests. Add SYSTIMER alarm comparisons with both cores busy. Clamp the environment setting to 4096, correct counter labels and restore the benchmark screening gate. |
+
+The source tests are in [real-bus version tests](../../../esp32s3/src/bus/tests.rs), [bridge tests](../../../xtensa-lx7/src/jit/wasm_tests/control.rs), [PIE tests](../../../xtensa-lx7/src/jit/wasm_tests/pie_accx.rs), [native scheduler tests](../../../esp32s3/tests/virtual_stops.rs) and [WASM scheduler tests](../../../wasm/src/jit_tests.rs). The final commands and results are recorded in [review validation](review-validation.json).
+
+No new performance claim is made. The timing samples in this directory describe their recorded source revisions and artifacts; these fixes change the artifact. In particular, the previous-page-only screen lost 1.24% over two pairs, while its combination with watched-store gating gained 1.08% ([historical results](results.md)). The 128-round default is a policy choice within the control variation, not a demonstrated optimum ([EX177](../../experiments.md#ex177)).
+
+Performance-only suggestions, including round-batch backoff, remain unmeasured follow-ups. Existing interpreter/native-JIT version-counter differences on unwatched pages are conservative; this follow-up preserves native generated-store behavior. The source-relative loader guard also remains distinct from the absolute CPU/DMA guard. The new bridge tests invoke admission and execution directly; they do not claim every case traversed a full wrapper chain. No new mask-ROM boot or browser timing campaign was run.
