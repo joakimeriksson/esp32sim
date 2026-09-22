@@ -65,6 +65,7 @@ impl<B: Bus> Bus for RecordingBus<'_, B> {
     }
     fn page_versions(&self) -> &[u32] { self.bus.page_versions() }
     fn code_page(&mut self, pc: u32) -> u32 { self.bus.code_page(pc) }
+    fn note_code_page(&mut self, vidx: u32) { self.bus.note_code_page(vidx); }
     fn note_pc(&mut self, pc: u32) { self.bus.note_pc(pc); }
     fn block_break(&self) -> bool { self.bus.block_break() }
     fn fast_mem(&mut self) -> Option<emu_core::bus::FastMem> { None }
