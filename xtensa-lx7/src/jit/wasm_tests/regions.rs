@@ -680,7 +680,7 @@ pub(super) fn regions() -> u32 {
         vec![(0, 2), (6, 3), (35, 1), (13, 6), (41, 2), (43, 1)]);
     assert_eq!(formed.pages, vec![(0, 0)]);
     assert!(emitter::region::form(&c, &mut ram, BASE + 38, &head, true).is_none(), "RSR head");
-    cases + 2 + prev_page_store() + forward_edges() + self_loops()
+    cases + 2 + prev_page_store() + forward_edges() + self_loops() + outside_loops()
 }
 
 /// EX181 s2: the two shapes whose backedge stays inside one chunk — a `bnez` back to the
@@ -731,6 +731,43 @@ fn self_loops() -> u32 {
         let max = region_program("hw-self-loop", &p, &shape, &[], 1, 3, move |c| { c.set_ar(3, count); }, 900);
         assert!(max > 1, "hardware self-loop region never passed its head ({max})");
         assert!(emitter::region::SELF_LOOP_BRANCHES.load(std::sync::atomic::Ordering::Relaxed) > before, "hardware self-loop emitted no direct backedge (count {count})");
+    }
+    2
+}
+
+/// coverage-s1: a loop body whose LOOP ran before its region formed. Formation adopts the
+/// active (LEND, LBEG), so the backedge stays inside; the count drains to zero and later passes
+/// arrive through `j`. With LBEG off every chunk head the backedge leaves the region instead.
+fn outside_loops() -> u32 {
+    use Op::*;
+    let mut p = Vec::new();
+    p.extend(asm::addi_n(2, 2, 1));   // 0  LBEG
+    p.extend(asm::addi_n(4, 4, 1));   // 2
+    p.extend(asm::addi_n(5, 5, 1));   // 4  ends exactly at LEND
+    p.extend(asm::addi_n(6, 6, 1));   // 6
+    p.extend(asm::j(BASE + 8, BASE)); // 8
+    let shape = [(0, AddiN, 0), (2, AddiN, 0), (4, AddiN, 0), (6, AddiN, 0), (8, J, 0)];
+    let active = |c: &mut Cpu, lbeg: u32| { c.lcount = 3000; c.lbeg = BASE + lbeg; c.lend = BASE + 6; };
+    {
+        let mut ram = Ram::new(true, false);
+        ram.ram.mem[..p.len()].copy_from_slice(&p);
+        let head: Vec<BlockInsn> = (0..3).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, straddle: false, off: 0 }) }).collect();
+        let mut c = cpu(0);
+        assert!(emitter::region::form(&c, &mut ram, BASE, &head, true).is_none(), "one chunk without an active loop");
+        active(&mut c, 0);
+        let formed = emitter::region::form(&c, &mut ram, BASE, &head, true).expect("outside-loop region");
+        assert_eq!(formed.loops, vec![(BASE + 6, BASE)]);
+        assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(), vec![(0, 3), (6, 2)]);
+    }
+    for lbeg in [0, 2] {
+        let before = emitter::region::SELF_LOOP_BRANCHES.load(std::sync::atomic::Ordering::Relaxed);
+        // A probed head rejects the region; the own module's backedge to it then ends a dispatch
+        // and a new one starts there, so a run may legally pass the head: no head bound here.
+        let max = region_program("outside-loop", &p, &shape, &[], 71, 6, move |c| active(c, lbeg), 900);
+        assert!(max > 3, "outside-loop region never passed its head ({max}, LBEG +{lbeg})");
+        if lbeg == 0 {
+            assert!(emitter::region::SELF_LOOP_BRANCHES.load(std::sync::atomic::Ordering::Relaxed) > before, "outside loop emitted no direct backedge");
+        }
     }
     2
 }

@@ -1,7 +1,8 @@
 //! Bounded regions: a hot block and the blocks reachable from it over statically known
 //! edges (fallthrough, conditional-branch target, J, and the backedge of a hardware loop
-//! set up inside the region) compiled as one function. Guest registers stay in locals
-//! across internal edges; the only per-edge work is the credit check and a jump.
+//! set up inside the region or active when it formed) compiled as one function. Guest
+//! registers stay in locals across internal edges; the only per-edge work is the credit
+//! check and a jump.
 //! Everything that could make an internal boundary observable exits the region instead:
 //! helpers set DIRTY, probes and self-modifying code are checked by the caller, calls,
 //! returns and computed jumps end the region, and the one admitted window rotation
@@ -30,8 +31,8 @@ pub(in crate::jit) struct Chunk {
 
 pub(in crate::jit) struct Formed {
     pub chunks: Vec<Chunk>,
-    /// Hardware loops set up inside the region, as (LEND, LBEG): their backedges are
-    /// internal edges, and an entry with exactly this loop active is admitted.
+    /// Hardware loops set up inside the region or active when it formed, as (LEND, LBEG):
+    /// their backedges are internal edges, and an entry with exactly this loop active is admitted.
     pub loops: Vec<(u32, u32)>,
     /// Every instruction PC, head included: a probe there must stop the region being used.
     pub bloom: u64,
@@ -165,7 +166,6 @@ pub(in crate::jit) fn form<B: Bus>(cpu: &Cpu, bus: &mut B, head: u32, block: &[B
         }
         q += 1;
     }
-    if chunks.len() < 2 { return None }
     let mut loops: Vec<(u32, u32)> = Vec::new();
     for c in &chunks {
         let mut pc = c.pc;
@@ -177,6 +177,17 @@ pub(in crate::jit) fn form<B: Bus>(cpu: &Cpu, bus: &mut B, head: u32, block: &[B
             pc = next;
         }
     }
+    // coverage-s1: the loop active now was set up before this region (its body got hot first);
+    // its backedge is internal too when a chunk instruction ends at its LEND.
+    let ends_at = |a: u32| chunks.iter().any(|c| {
+        c.instructions.iter().try_fold(c.pc, |pc, bi| {
+            let end = pc.wrapping_add(bi.insn.len as u32);
+            if end == a { None } else { Some(end) }
+        }).is_none()
+    });
+    if cpu.lcount != 0 && !loops.iter().any(|l| l.0 == cpu.lend) && ends_at(cpu.lend) {
+        loops.push((cpu.lend, cpu.lbeg));
+    }
     // A loop is only usable when its body and end are region chunks; two loops sharing
     // an end would make the backedge target ambiguous.
     loops.sort_unstable();
@@ -184,6 +195,8 @@ pub(in crate::jit) fn form<B: Bus>(cpu: &Cpu, bus: &mut B, head: u32, block: &[B
     if loops.windows(2).any(|w| w[0].0 == w[1].0) { return None }
     split_at_loop_ends(&mut chunks, &loops);
     if chunks.len() > MAX_CHUNKS + loops.len() { return None }
+    // coverage-s1: after the split, so an adopted loop can make a one-chunk body a region.
+    if chunks.len() < 2 { return None }
     let (mut lo, mut hi) = (u32::MAX, 0u32);
     let mut pages: Vec<(u32, u32)> = Vec::new();
     for c in &chunks {
