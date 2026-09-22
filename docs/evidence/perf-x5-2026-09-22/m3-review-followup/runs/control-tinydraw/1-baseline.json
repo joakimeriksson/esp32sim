@@ -1,0 +1,71 @@
+{
+  "pair": 1,
+  "arm": "baseline",
+  "workload": "tinydraw",
+  "wallSeconds": 29.584489999979734,
+  "guestSeconds": 47.750049575,
+  "realtimeRatio": 1.6140230767889765,
+  "instructions": 9819885134,
+  "frames": 428,
+  "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+  "passed": true,
+  "status": "completed",
+  "stopCode": 0,
+  "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+  "verdictValidation": {
+    "schema": "tinydraw-gate1-v1",
+    "valid": true,
+    "passed": true,
+    "error": null
+  },
+  "checks": null,
+  "jit": {
+    "compiled": 10802,
+    "failed": 0,
+    "released": 3254,
+    "compileMs": 598.9199997484684,
+    "bytes": 112629067,
+    "liveBytes": 76221805,
+    "peakBytes": 76221805,
+    "peakModules": 7548,
+    "instructions": 9637431524
+  },
+  "wasmSha256": "37c13458edfeb392838004e164734292cb9f5d39b487b7f6cd6e9ebc04027d39",
+  "inputHashes": {
+    "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+    "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+    "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+    "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+    "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd"
+  },
+  "browser": "Chrome/153.0.8010.53",
+  "v8": "15.3.76.13",
+  "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+  "loadBefore": [
+    4.9140625,
+    4.15283203125,
+    3.16796875
+  ],
+  "loadAfter": [
+    7.39501953125,
+    4.96142578125,
+    3.5029296875
+  ],
+  "originals": [
+    {
+      "path": "control-tinydraw/1-baseline/result.json",
+      "bytes": 4701,
+      "sha256": "959be893a21174bba87a14d7b7cce9e4f380a9b9b7a53d685a6550b9a5c52d7f"
+    },
+    {
+      "path": "control-tinydraw/1-baseline/capture.json",
+      "bytes": 997,
+      "sha256": "a75bb74fa367846dc6360725445038d50d40a9576c4351ffb08cdf516d442218"
+    },
+    {
+      "path": "control-tinydraw/1-baseline/events.json",
+      "bytes": 105104,
+      "sha256": "c93f5f5d512d0dbbf4b1698cca4a7e78870de72547834a756de55e77c43734be"
+    }
+  ]
+}

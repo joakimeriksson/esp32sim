@@ -1,0 +1,68 @@
+{
+  "jobs": [
+    {
+      "name": "control-pocket",
+      "workload": "pocket-tank",
+      "pairs": 3,
+      "medianWallSeconds": {
+        "baseline": 28.71259999999404,
+        "candidate": 28.87127000001073
+      },
+      "wallReductionPercent": -0.5526145316576025,
+      "pairWallReductionPercent": [
+        -0.9201654709922957,
+        0.18594605955428722,
+        -0.7438197865142548
+      ]
+    },
+    {
+      "name": "control-tinydraw",
+      "workload": "tinydraw",
+      "pairs": 3,
+      "medianWallSeconds": {
+        "baseline": 29.393780000001193,
+        "candidate": 29.37342000001669
+      },
+      "wallReductionPercent": 0.06926635493802458,
+      "pairWallReductionPercent": [
+        0.1928206299548374,
+        -0.15718408135310113,
+        0.06926635493802458
+      ]
+    },
+    {
+      "name": "before-after-pocket",
+      "workload": "pocket-tank",
+      "pairs": 4,
+      "medianWallSeconds": {
+        "baseline": 28.694652500003578,
+        "candidate": 24.001432500004768
+      },
+      "wallReductionPercent": 16.355730392616618,
+      "pairWallReductionPercent": [
+        16.44935361334251,
+        15.997621176695665,
+        17.004957356020057,
+        16.833192655869766
+      ]
+    },
+    {
+      "name": "before-after-tinydraw",
+      "workload": "tinydraw",
+      "pairs": 4,
+      "medianWallSeconds": {
+        "baseline": 29.20511249999702,
+        "candidate": 24.97447499999404
+      },
+      "wallReductionPercent": 14.485948307863605,
+      "pairWallReductionPercent": [
+        14.732654481318253,
+        14.581381315630004,
+        14.271114515089945,
+        14.119529961585698
+      ]
+    }
+  ],
+  "totalArms": 28,
+  "estimator": "100 * (1 - median(candidate wall) / median(baseline wall))"
+}

@@ -1,0 +1,90 @@
+{
+  "name": "before-after-tinydraw",
+  "workload": "tinydraw",
+  "pairs": 4,
+  "medianWallSeconds": {
+    "baseline": 29.20511249999702,
+    "candidate": 24.97447499999404
+  },
+  "wallReductionPercent": 14.485948307863605,
+  "pairWallReductionPercent": [
+    14.732654481318253,
+    14.581381315630004,
+    14.271114515089945,
+    14.119529961585698
+  ],
+  "runs": [
+    {
+      "pair": 1,
+      "arm": "baseline",
+      "wallSeconds": 29.187509999990464,
+      "instructions": 9819885134,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "receipt": "runs/before-after-tinydraw/1-baseline.json"
+    },
+    {
+      "pair": 1,
+      "arm": "candidate",
+      "wallSeconds": 24.887414999991655,
+      "instructions": 9819885134,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "receipt": "runs/before-after-tinydraw/1-candidate.json"
+    },
+    {
+      "pair": 2,
+      "arm": "candidate",
+      "wallSeconds": 24.892569999992848,
+      "instructions": 9819885134,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "receipt": "runs/before-after-tinydraw/2-candidate.json"
+    },
+    {
+      "pair": 2,
+      "arm": "baseline",
+      "wallSeconds": 29.14185499998927,
+      "instructions": 9819885134,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "receipt": "runs/before-after-tinydraw/2-baseline.json"
+    },
+    {
+      "pair": 3,
+      "arm": "baseline",
+      "wallSeconds": 29.227465000003576,
+      "instructions": 9819885134,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "receipt": "runs/before-after-tinydraw/3-baseline.json"
+    },
+    {
+      "pair": 3,
+      "arm": "candidate",
+      "wallSeconds": 25.056379999995233,
+      "instructions": 9819885134,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "receipt": "runs/before-after-tinydraw/3-candidate.json"
+    },
+    {
+      "pair": 4,
+      "arm": "candidate",
+      "wallSeconds": 25.09660499998927,
+      "instructions": 9819885134,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "receipt": "runs/before-after-tinydraw/4-candidate.json"
+    },
+    {
+      "pair": 4,
+      "arm": "baseline",
+      "wallSeconds": 29.222715000003575,
+      "instructions": 9819885134,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "receipt": "runs/before-after-tinydraw/4-baseline.json"
+    }
+  ]
+}

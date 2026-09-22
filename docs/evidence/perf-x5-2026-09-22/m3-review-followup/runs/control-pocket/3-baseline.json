@@ -1,0 +1,82 @@
+{
+  "pair": 3,
+  "arm": "baseline",
+  "workload": "pocket-tank",
+  "wallSeconds": 28.71259999999404,
+  "guestSeconds": 30.000000229166666,
+  "realtimeRatio": 1.044837466101046,
+  "instructions": 10073833775,
+  "frames": 737,
+  "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+  "passed": true,
+  "status": "completed",
+  "stopCode": 0,
+  "verdict": null,
+  "verdictValidation": {
+    "schema": "pocket-tank-v1",
+    "valid": true,
+    "passed": true,
+    "error": null
+  },
+  "checks": [
+    {
+      "name": "model_decisions",
+      "min": 10,
+      "count": 13
+    },
+    {
+      "name": "render_reports",
+      "min": 2,
+      "count": 2
+    }
+  ],
+  "jit": {
+    "compiled": 5160,
+    "failed": 0,
+    "released": 1427,
+    "compileMs": 289.73500004410744,
+    "bytes": 50256087,
+    "liveBytes": 36198403,
+    "peakBytes": 42221994,
+    "peakModules": 4344,
+    "instructions": 10015925218
+  },
+  "wasmSha256": "37c13458edfeb392838004e164734292cb9f5d39b487b7f6cd6e9ebc04027d39",
+  "inputHashes": {
+    "asset/app": "443dd24aed14a509e6df597eb3a02635cc07e0fbee6f04db85a62f4d4dadb113",
+    "asset/bootloader": "9556d59f3a10f6b04fa6d75f3142a66034339afafffbd4bbc3d9a127eaa73859",
+    "asset/model": "b200bf87c78dc85c4d727f68941ac0b83cced9827037cc169cd2122d71002c2a",
+    "asset/ptable": "7af5b28608c91167e00778b7f20622f3b47849efebeb3e64117162d73f3e0508",
+    "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd"
+  },
+  "browser": "Chrome/153.0.8010.53",
+  "v8": "15.3.76.13",
+  "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+  "loadBefore": [
+    4.98974609375,
+    4.01904296875,
+    3.05615234375
+  ],
+  "loadAfter": [
+    4.751953125,
+    4.0615234375,
+    3.103515625
+  ],
+  "originals": [
+    {
+      "path": "control-pocket/3-baseline/result.json",
+      "bytes": 4330,
+      "sha256": "eaa3b964a43c6644ea5d5f770ec28b98b45eb7a60cb477f1b7f1404c5c70a630"
+    },
+    {
+      "path": "control-pocket/3-baseline/capture.json",
+      "bytes": 998,
+      "sha256": "d50ef7ca9314b9927bd430a00bda2570edadcc86c9b5c561200cde70781c3874"
+    },
+    {
+      "path": "control-pocket/3-baseline/events.json",
+      "bytes": 27035,
+      "sha256": "20fff2d8cd1419b77f8e360e9cf1e8317bf5b122c0c16b86b9fb5f7615c3bc89"
+    }
+  ]
+}

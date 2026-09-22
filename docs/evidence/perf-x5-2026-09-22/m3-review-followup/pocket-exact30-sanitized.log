@@ -1,0 +1,17 @@
+{
+ "wasm": "artifacts/candidate/main.wasm",
+ "secs": 30,
+ "framesSha256": "71a5ccdbf9dccbb35775c0d1ce90a2fad3f46370b901c39e4f3d58798537ca7d",
+ "insns": "10073833775",
+ "consoleSha256": "b9d9966e5d9d73984203c11846eb7f8c86507cb53ffe133c4e7e92dff66319d7",
+ "frames": 737,
+ "panics": 0,
+ "jitFailures": 0,
+ "wallSeconds": 35.197,
+ "refInsns": "10073833775",
+ "refSha": "b9d9966e",
+ "refFrames": 737,
+ "refFramesSha": "71a5ccdb",
+ "EXACT": true
+}
+EXACT ok (pocket-tank, 30 guest s; Node wall time is NOT a benchmark)

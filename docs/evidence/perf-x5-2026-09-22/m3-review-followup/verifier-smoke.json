@@ -1,0 +1,26 @@
+{
+  "status": "passed",
+  "cleanReceiptVerification": "verification.json",
+  "mutations": [
+    {
+      "mutation": "index-median",
+      "rejected": true,
+      "exitCode": 1
+    },
+    {
+      "mutation": "artifact",
+      "rejected": true,
+      "exitCode": 1
+    },
+    {
+      "mutation": "input",
+      "rejected": true,
+      "exitCode": 1
+    },
+    {
+      "mutation": "jit",
+      "rejected": true,
+      "exitCode": 1
+    }
+  ]
+}

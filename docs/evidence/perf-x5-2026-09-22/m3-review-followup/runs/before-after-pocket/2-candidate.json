@@ -1,0 +1,82 @@
+{
+  "pair": 2,
+  "arm": "candidate",
+  "workload": "pocket-tank",
+  "wallSeconds": 24.076115000009537,
+  "guestSeconds": 30.000000229166666,
+  "realtimeRatio": 1.2460482195385254,
+  "instructions": 10073833775,
+  "frames": 737,
+  "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+  "passed": true,
+  "status": "completed",
+  "stopCode": 0,
+  "verdict": null,
+  "verdictValidation": {
+    "schema": "pocket-tank-v1",
+    "valid": true,
+    "passed": true,
+    "error": null
+  },
+  "checks": [
+    {
+      "name": "model_decisions",
+      "min": 10,
+      "count": 13
+    },
+    {
+      "name": "render_reports",
+      "min": 2,
+      "count": 2
+    }
+  ],
+  "jit": {
+    "compiled": 5163,
+    "failed": 0,
+    "released": 1420,
+    "compileMs": 291.94500228762627,
+    "bytes": 50591669,
+    "liveBytes": 36727494,
+    "peakBytes": 42287416,
+    "peakModules": 4365,
+    "instructions": 10016097005
+  },
+  "wasmSha256": "3bc68c660738cbf63449d5ab00b72cedd54efb8a0ac89a3a387bf0b5172af84c",
+  "inputHashes": {
+    "asset/app": "443dd24aed14a509e6df597eb3a02635cc07e0fbee6f04db85a62f4d4dadb113",
+    "asset/bootloader": "9556d59f3a10f6b04fa6d75f3142a66034339afafffbd4bbc3d9a127eaa73859",
+    "asset/model": "b200bf87c78dc85c4d727f68941ac0b83cced9827037cc169cd2122d71002c2a",
+    "asset/ptable": "7af5b28608c91167e00778b7f20622f3b47849efebeb3e64117162d73f3e0508",
+    "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd"
+  },
+  "browser": "Chrome/153.0.8010.53",
+  "v8": "15.3.76.13",
+  "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+  "loadBefore": [
+    6.1484375,
+    5.7578125,
+    4.185546875
+  ],
+  "loadAfter": [
+    6.47314453125,
+    5.91259765625,
+    4.29736328125
+  ],
+  "originals": [
+    {
+      "path": "before-after-pocket/2-candidate/result.json",
+      "bytes": 4331,
+      "sha256": "70a36f160f4c7ab6e237082866b08bdf2d6b431d2563b13cbb734a69d48b5b91"
+    },
+    {
+      "path": "before-after-pocket/2-candidate/capture.json",
+      "bytes": 999,
+      "sha256": "31791e09c8f54cfe96ba3e0b81edcc021d798d19a726df7d315e0e2b3af5b953"
+    },
+    {
+      "path": "before-after-pocket/2-candidate/events.json",
+      "bytes": 25715,
+      "sha256": "6b161f0f30f9f593950e29b3091909afa07fef2517d8b444a0ffe70b61101167"
+    }
+  ]
+}
