@@ -328,7 +328,7 @@ fn compare_hinted(block: &mut [BlockInsn], case: Case, configure: &impl Fn(&mut 
     let mut count = 0;
     let mut trap = None;
     let mut pre = false;
-    let repeat = loop_len(&cc, code, &a).is_some();
+    let repeat = loop_len(&cc, code, &a, &mut ra).is_some();
     for _ in 0..budget {
         let index = a.pc.wrapping_sub(BASE) / 3;
         let Some(instruction) = block.get(index as usize) else { break; };

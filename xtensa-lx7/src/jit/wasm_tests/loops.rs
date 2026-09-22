@@ -100,6 +100,31 @@ pub(super) fn hardware_loops() -> u32 {
         assert_eq!(result & 0xffff, expected, "hardware loop admission/exit");
         cases += 1;
     }
+    // shell-s1: LEND moves between dispatches of one block. The memoised retained-loop answer
+    // must agree with a fresh cache every time, and a rebuild reusing the block forgets it.
+    let run_at = |cc: &CodeCache, code: u32, lend: u32| {
+        let mut c = cpu(0);
+        let mut ram = Ram::new(true, false);
+        c.set_ar(4, BASE + 0x1000); c.set_ar(6, BASE + 0x2000);
+        c.lbeg = BASE; c.lend = lend; c.lcount = 9;
+        let fm = ram.fast_mem();
+        let result = unsafe { run(cc, code, &mut c, &mut ram, &Helpers::new::<Ram>(), 100, 0, fm) };
+        (result, c, ram)
+    };
+    for lend in [BASE + 6, BASE + 3, BASE + 0x40, BASE + 6, BASE + 9, BASE + 3] {
+        let mut fresh = CodeCache::new(0).unwrap();
+        let f = queue(&mut fresh, &mut block, BASE, true);
+        for _ in 0..HOT { ready(&fresh, f, 0); }
+        let (want, a, ra) = run_at(&fresh, f, lend);
+        let (got, b, rb) = run_at(&cc, code, lend);
+        assert_eq!(got, want, "memoised loop length at LEND {lend:#x}");
+        same(&a, &b);
+        assert_eq!((ra.versions, ra.noted), (rb.versions, rb.noted));
+        cases += 1;
+    }
+    assert_ne!(cc.recs[code as usize].looped.get(), LOOP_UNKNOWN);
+    assert_eq!(queue(&mut cc, &mut block, BASE, true), code);
+    assert_eq!(cc.recs[code as usize].looped.get(), LOOP_UNKNOWN, "a rebuild must forget the loop answer");
     // Attaching/removing a block observer affects an already published module without
     // flushing it; ordinary JIT execution stays active while repeated callbacks stop.
     let mut c = cpu(0);

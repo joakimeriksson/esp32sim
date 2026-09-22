@@ -259,11 +259,11 @@ pub(super) fn retention() {
     for _ in 0..HOT {
         ready(&cc, first, 0);
     }
-    let slot = cc.blocks[first as usize].slot.get();
+    let slot = cc.recs[first as usize].slot.get();
     assert!(slot != 0 && slot != NONE);
     cc.reset();
     let reused = queue(&mut cc, &mut code, BASE, true);
-    assert_eq!(cc.blocks[reused as usize].slot.get(), slot);
+    assert_eq!(cc.recs[reused as usize].slot.get(), slot);
     // Force the retained module through its slow helper: the embedded instruction
     // pointer must still be live after cache compaction, and the store must run once.
     let mut c = cpu(15);
@@ -290,7 +290,7 @@ pub(super) fn retention() {
         changed, reused,
         "decoded fields must all participate in identity"
     );
-    assert_eq!(cc.blocks[changed as usize].slot.get(), NONE);
+    assert_eq!(cc.recs[changed as usize].slot.get(), NONE);
     assert_ne!(
         queue(&mut cc, &mut code[..2], BASE, true),
         changed,

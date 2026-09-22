@@ -123,7 +123,6 @@ struct Block {
     lend_hint: Cell<u32>,
     generation: u64,
     hits: Cell<u32>,
-    slot: Cell<u32>,
     bytes: Cell<usize>,
     /// A region headed by this block, once it is hot and one could be formed.
     region: RefCell<Option<Region>>,
@@ -132,10 +131,21 @@ struct Block {
     covered_by: Cell<(u32, u32)>,
     /// Last coverage epoch where this PC was absent from the map.
     uncovered_epoch: Cell<u64>,
+}
+/// shell-s1: what a dispatch of a compiled block reads, flat and borrow-free, indexed like
+/// `CodeCache::blocks`; `run_block_body` still names its last instruction through `Block::pcs`.
+struct Rec {
+    slot: Cell<u32>,
+    pc: u32,
+    n: u32,
+    /// Retained-loop answer for LBEG == pc: (LEND, prefix length or 0, code pages of the first and
+    /// last byte). `LOOP_UNKNOWN` until computed, and again whenever a rebuild reuses this block.
+    looped: Cell<(u32, u32, [u32; 2])>,
     /// EX136: everything a dispatch at this head needs to enter its region, copied out of the
     /// owning block so the common path follows no pointers; valid while `epoch` is current.
-    hot: RefCell<Hot>,
+    hot: Cell<Hot>,
 }
+const LOOP_UNKNOWN: (u32, u32, [u32; 2]) = (0, u32::MAX, [0; 2]);
 /// Entry facts of one region chunk. `sites` points into the owning region's vector, which
 /// lives until that region is dropped, and every drop moves `CodeCache::region_epoch` on.
 #[derive(Clone, Copy)]
@@ -171,6 +181,7 @@ struct Region {
 // A decoder flush invalidates every handle before reset may compact this cache.
 pub struct CodeCache {
     blocks: Vec<Block>,
+    recs: Vec<Rec>,
     by_pc: HashMap<(u32, usize, bool), u32>,
     generation: u64,
     /// Chunk heads of live regions: PC -> (owning block, chunk index). A head inside
@@ -188,11 +199,11 @@ pub struct CodeCache {
     pub region_stats: RegionStats,
 }
 impl Block {
-    fn release(&self, id: u32, covered: &RefCell<HashMap<u32, (u32, u32)>>) {
-        if self.slot.get() != NONE && self.slot.get() != 0 {
+    fn release(&self, slot: u32, id: u32, covered: &RefCell<HashMap<u32, (u32, u32)>>) {
+        if slot != NONE && slot != 0 {
             // SAFETY: reset/drop happen only when no compiled block is executing.
             unsafe {
-                host_jit_release(self.slot.get());
+                host_jit_release(slot);
             }
         }
         self.drop_region(id, covered);
@@ -217,6 +228,7 @@ impl CodeCache {
     pub fn new(_: usize) -> Option<Self> {
         Some(Self {
             blocks: Vec::new(),
+            recs: Vec::new(),
             by_pc: HashMap::new(),
             generation: 0,
             covered: RefCell::new(HashMap::new()),
@@ -235,11 +247,12 @@ impl CodeCache {
         self.region_epoch.set(self.region_epoch.get() + 1);
         // Keep recently decoded blocks across arena turnover. Prefer recent code under
         // pressure; enforce these retention limits only after all decoder handles die.
-        self.blocks.sort_by_key(|b| std::cmp::Reverse(b.generation));
+        let mut all: Vec<(Block, Rec)> = self.blocks.drain(..).zip(self.recs.drain(..)).collect();
+        all.sort_by_key(|(b, _)| std::cmp::Reverse(b.generation));
         let (mut bytes, mut count) = (0, 0);
         let (generation, covered) = (self.generation, &self.covered);
         let mut id = 0u32;
-        self.blocks.retain(|b| {
+        all.retain(|(b, r)| {
             let keep = generation - b.generation <= 2
                 && count < RETAIN_BLOCKS
                 && bytes + b.size() <= RETAIN_BYTES;
@@ -247,11 +260,12 @@ impl CodeCache {
                 bytes += b.size();
                 count += 1;
             } else {
-                b.release(id, covered);
+                b.release(r.slot.get(), id, covered);
             }
             id += 1;
             keep
         });
+        (self.blocks, self.recs) = all.into_iter().unzip();
         // Retained blocks have new indices: rebuild every map that holds them.
         self.by_pc.clear();
         let mut covered = self.covered.borrow_mut();
@@ -267,8 +281,8 @@ impl CodeCache {
 }
 impl Drop for CodeCache {
     fn drop(&mut self) {
-        for (id, b) in self.blocks.iter().enumerate() {
-            b.release(id as u32, &self.covered);
+        for (id, (b, r)) in self.blocks.iter().zip(&self.recs).enumerate() {
+            b.release(r.slot.get(), id as u32, &self.covered);
         }
     }
 }
@@ -300,12 +314,14 @@ fn queue(cc: &mut CodeCache, instructions: &mut [BlockInsn], pc: u32, fast: bool
             .all(|(a, b)| a.insn == b.insn && a.max_ar == b.max_ar)
         {
             b.generation = cc.generation;
+            // shell-s1: the rebuild may map this PC to other code pages.
+            cc.recs[id as usize].looped.set(LOOP_UNKNOWN);
             return id;
         }
     }
     let id = cc.blocks.len() as u32;
     let mut at = pc;
-    let pcs = instructions
+    let pcs: Vec<u32> = instructions
         .iter()
         .map(|i| {
             let old = at;
@@ -313,6 +329,7 @@ fn queue(cc: &mut CodeCache, instructions: &mut [BlockInsn], pc: u32, fast: bool
             old
         })
         .collect();
+    cc.recs.push(Rec { slot: Cell::new(NONE), pc, n: pcs.len() as u32, looped: Cell::new(LOOP_UNKNOWN), hot: Cell::new(Hot::NONE) });
     cc.blocks.push(Block {
         pcs,
         // Explicit loop-state writes break the LCOUNT-delta accounting used for retained
@@ -327,27 +344,24 @@ fn queue(cc: &mut CodeCache, instructions: &mut [BlockInsn], pc: u32, fast: bool
         lend_hint: Cell::new(0),
         generation: cc.generation,
         hits: Cell::new(0),
-        slot: Cell::new(NONE),
         bytes: Cell::new(0),
         region: RefCell::new(None),
         region_tries: Cell::new(0),
         covered_by: Cell::new((NONE, 0)),
         uncovered_epoch: Cell::new(u64::MAX),
-        hot: RefCell::new(Hot::NONE),
     });
     cc.by_pc.insert(key, id);
     id
 }
 #[inline]
 pub fn ready(cc: &CodeCache, code: u32, lend: u32) -> bool {
-    let b = &cc.blocks[code as usize];
-    let slot = b.slot.get();
-    if slot == NONE { prepare(b, lend) } else { slot != 0 }
+    let slot = cc.recs[code as usize].slot.get();
+    if slot == NONE { prepare(&cc.blocks[code as usize], &cc.recs[code as usize].slot, lend) } else { slot != 0 }
 }
 
 #[cold]
 #[inline(never)]
-fn prepare(b: &Block, lend: u32) -> bool {
+fn prepare(b: &Block, slot_out: &Cell<u32>, lend: u32) -> bool {
     let hits = b.hits.get() + 1;
     b.hits.set(hits);
     if hits < HOT { return false; }
@@ -357,7 +371,7 @@ fn prepare(b: &Block, lend: u32) -> bool {
     // SAFETY: The host synchronously copies these bytes, installs a module using the
     // shared memory/table, and returns a correctly typed function slot or zero.
     let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
-    b.slot.set(slot);
+    slot_out.set(slot);
     b.bytes.set(if slot == 0 { 0 } else { bytes.len() });
     slot != 0
 }
@@ -468,23 +482,30 @@ extern "C" fn h_overflow(cpu: *mut Cpu, max_ar: u32, pc: u32) -> u32 {
 
 /// A loop may repeat only across an ordinary instruction boundary with no observer.
 /// The decoder already cuts at interior observers; the loop head needs its own check.
+/// Returns the retained prefix length and the code pages of the block's first and last byte.
 #[inline(always)]
-pub fn loop_len(cc: &CodeCache, code: u32, cpu: &Cpu) -> Option<usize> {
-    // EX168 s3: the two tests that refuse nearly every call stay in the caller; the out-of-line
-    // call returned its Option through stack memory.
-    if cpu.lcount == 0 || cpu.lbeg != cc.blocks[code as usize].pc { return None; }
-    loop_len_at_head(cc, code, cpu)
-}
-#[inline(never)]
-fn loop_len_at_head(cc: &CodeCache, code: u32, cpu: &Cpu) -> Option<usize> {
-    let b = &cc.blocks[code as usize];
-    if cpu.blocks.observed
-        || cpu.boundary_bloom & emu_core::core::pc_bit(b.pc) != 0 {
+pub fn loop_len<B: Bus>(cc: &CodeCache, code: u32, cpu: &Cpu, bus: &mut B) -> Option<(usize, [u32; 2])> {
+    let r = &cc.recs[code as usize];
+    if cpu.lcount == 0 || cpu.lbeg != r.pc || cpu.blocks.observed
+        || cpu.boundary_bloom & emu_core::core::pc_bit(r.pc) != 0 {
         return None;
     }
-    b.instructions.iter().zip(&b.pcs).take(b.loop_prefix)
-        .position(|(i, pc)| pc.wrapping_add(i.insn.len as u32) == cpu.lend)
-        .map(|n| n + 1)
+    // shell-s1: the answer depends only on LEND and this block's immutable instructions.
+    let (lend, n, pages) = r.looped.get();
+    let (n, pages) = if lend == cpu.lend && n != u32::MAX { (n, pages) } else { loop_learn(cc, code, cpu.lend, bus) };
+    (n != 0).then_some((n as usize, pages))
+}
+#[cold]
+#[inline(never)]
+fn loop_learn<B: Bus>(cc: &CodeCache, code: u32, lend: u32, bus: &mut B) -> (u32, [u32; 2]) {
+    let b = &cc.blocks[code as usize];
+    let n = b.instructions.iter().zip(&b.pcs).take(b.loop_prefix)
+        .position(|(i, pc)| pc.wrapping_add(i.insn.len as u32) == lend)
+        .map_or(0, |n| n as u32 + 1);
+    let last = b.pcs.last().unwrap().wrapping_add(b.instructions.last().unwrap().insn.len as u32 - 1);
+    let pages = if n == 0 { [0; 2] } else { [bus.code_page(b.pc), bus.code_page(last)] };
+    cc.recs[code as usize].looped.set((lend, n, pages));
+    (n, pages)
 }
 
 /// Execute a published block against the exclusively borrowed machine state.
@@ -540,7 +561,7 @@ pub unsafe fn run<B: Bus>(
                 }
                 break
             };
-            let slot = cc.blocks[next as usize].slot.get();
+            let slot = cc.recs[next as usize].slot.get();
             if slot == NONE || slot == 0 { break; }
             total = sofar;
             cpu.blocks.chain_ei = ei;
@@ -601,7 +622,7 @@ unsafe fn run_inner<B: Bus>(
     let (tlb, versions) = fm
         .map(|m| (m.tlb, m.page_ver))
         .unwrap_or((NO_FAST_MEM.as_ptr(), std::ptr::null_mut()));
-    let b = &cc.blocks[code as usize];
+    let rec = &cc.recs[code as usize];
     if entry == 0 && !cpu.blocks.observed {
         // EX136: the facts the checks below would fetch through the owning block, its region and
         // three of its vectors are cached in this block while no region has been dropped.
@@ -609,11 +630,12 @@ unsafe fn run_inner<B: Bus>(
         // End the borrow before entering generated code or updating the cached descriptor.
         let mut rejected = false;
         {
-            let hot = b.hot.borrow();
+            // SAFETY: the only writer, the refill below, runs after this reference's scope.
+            let hot = unsafe { &*rec.hot.as_ptr() };
             #[cfg(any(debug_assertions, feature = "wasm-jit-tests"))]
             if hot.epoch == cc.region_epoch.get() {
-                let (owner, k) = if b.region.borrow().is_some() { (code, 0) }
-                    else { *cc.covered.borrow().get(&b.pc).expect("live hot owner") };
+                let (owner, k) = if cc.blocks[code as usize].region.borrow().is_some() { (code, 0) }
+                    else { *cc.covered.borrow().get(&rec.pc).expect("live hot owner") };
                 let region = cc.blocks[owner as usize].region.borrow();
                 hot.assert_matches(region.as_ref().expect("live hot region"), k);
             }
@@ -628,7 +650,6 @@ unsafe fn run_inner<B: Bus>(
                   if !fits { rejected = true; } else {
                     // SAFETY: as for the region call below; the epoch proves slot and sites are live.
                     let (slot, k, sites, nsites) = (hot.slot, hot.k, hot.sites, hot.nsites);
-                    drop(hot);
                     let f: Run<B> = unsafe { std::mem::transmute(slot as usize) };
                     let result = f(cpu, bus, h, budget.min(0xffff), k, tlb, versions);
                     let site = if (result >> 16) & 7 != CODE_REJECT {
@@ -649,6 +670,7 @@ unsafe fn run_inner<B: Bus>(
             }
         }
         if !rejected {
+        let b = &cc.blocks[code as usize];
         // The region to run: this block's own, or the one covering this PC.
         let (owner, k) = if b.region.borrow().is_some() {
             (code, 0)
@@ -736,14 +758,14 @@ unsafe fn run_inner<B: Bus>(
                     let f: Run<B> = unsafe { std::mem::transmute(r.slot as usize) };
                     // EX168 t3: facts stamped with the current epoch were copied from this same live
                     // (owner, chunk) and a region's facts never change: nothing to rewrite.
-                    if r.pages.len() <= emitter::region::MAX_PAGES && b.hot.borrow().epoch != cc.region_epoch.get() {
+                    if r.pages.len() <= emitter::region::MAX_PAGES && unsafe { (*rec.hot.as_ptr()).epoch } != cc.region_epoch.get() {
                         let mut pages = [(0, 0); emitter::region::MAX_PAGES];
                         pages[..r.pages.len()].copy_from_slice(&r.pages);
-                        *b.hot.borrow_mut() = Hot { epoch: cc.region_epoch.get(), bloom: r.bloom, slot: r.slot, k, len: r.lens[k as usize], lo: r.lo,
-                            span: r.hi.wrapping_sub(r.lo), pages, npages: r.pages.len() as u32, nsites: r.sites.len() as u32, sites: r.sites.as_ptr() };
+                        rec.hot.set(Hot { epoch: cc.region_epoch.get(), bloom: r.bloom, slot: r.slot, k, len: r.lens[k as usize], lo: r.lo,
+                            span: r.hi.wrapping_sub(r.lo), pages, npages: r.pages.len() as u32, nsites: r.sites.len() as u32, sites: r.sites.as_ptr() });
                     }
                     #[cfg(any(debug_assertions, feature = "wasm-jit-tests"))]
-                    b.hot.borrow().assert_matches(r, k);
+                    unsafe { &*rec.hot.as_ptr() }.assert_matches(r, k);
                     let result = f(cpu, bus, h, budget.min(0xffff), k, tlb, versions);
                     let site = if (result >> 16) & 7 != CODE_REJECT {
                         assert!(((result >> 19) as usize) < r.sites.len(), "region {:x}: result {result:#x} sites {}", rb.pc, r.sites.len());
@@ -809,17 +831,15 @@ fn bad_offset(b: &Block, entry: u32, done: u32, budget: u32, looping: Option<usi
 unsafe fn run_block_body<B: Bus>(cc: &CodeCache, code: u32, cpu: &mut Cpu, bus: &mut B, h: &Helpers, budget: u32, entry: u32, tlb: *const TlbEntry, versions: *mut u32) -> u32 {
     type Run<B> =
         extern "C" fn(*mut Cpu, *mut B, *const Helpers, u32, u32, *const TlbEntry, *mut u32) -> u32;
+    let r = &cc.recs[code as usize];
     // SAFETY: host_jit_compile installs exactly this signature in the shared WASM table.
-    let f: Run<B> = unsafe { std::mem::transmute(cc.blocks[code as usize].slot.get() as usize) };
-    let b = &cc.blocks[code as usize];
-    let looping = loop_len(cc, code, cpu);
+    let f: Run<B> = unsafe { std::mem::transmute(r.slot.get() as usize) };
+    let looping = loop_len(cc, code, cpu, bus);
     let initial_lcount = cpu.lcount;
-    let result = if looping.is_some() {
+    let result = if let Some((_, pages)) = looping {
         let mut guarded = *h;
-        let last = b.pcs.last().unwrap().wrapping_add(b.instructions.last().unwrap().insn.len as u32 - 1);
-        let indices = [bus.code_page(b.pc), bus.code_page(last)];
         let pv = bus.page_versions();
-        if let (Some(a), Some(z)) = (pv.get(indices[0] as usize), pv.get(indices[1] as usize)) {
+        if let (Some(a), Some(z)) = (pv.get(pages[0] as usize), pv.get(pages[1] as usize)) {
             guarded.loop_end = cpu.lend;
             guarded.version_ptrs = [a as *const u32, z as *const u32];
             guarded.versions = [*a, *z];
@@ -828,8 +848,10 @@ unsafe fn run_block_body<B: Bus>(cc: &CodeCache, code: u32, cpu: &mut Cpu, bus: 
     } else {
         f(cpu, bus, h, budget.min(0xffff), entry, tlb, versions)
     };
+    let looping = looping.map(|(n, _)| n);
     let done = result & 0xffff;
     if cfg!(feature = "wasm-cpu-profile") {
+        let b = &cc.blocks[code as usize];
         let bytes = b.pcs.last().unwrap().wrapping_add(b.instructions.last().unwrap().insn.len as u32).wrapping_sub(b.pc);
         let noloop = initial_lcount == 0 || cpu.lend.wrapping_sub(b.pc) > bytes;
         if entry == 0 && budget as usize >= b.instructions.len() { census(3, 1); census(4, done as u64); }
@@ -844,14 +866,15 @@ unsafe fn run_block_body<B: Bus>(cc: &CodeCache, code: u32, cpu: &mut Cpu, bus: 
         #[cfg(feature = "wasm-jit-profile")]
         if looping.is_some() {
             let retained = initial_lcount - cpu.lcount - u32::from(offset == 0);
-            cpu.blocks.profile.record_loop(b.pc, retained);
+            cpu.blocks.profile.record_loop(r.pc, retained);
         }
         // Offset zero means the last retired instruction took a hardware backedge.
         // The destination PC alone cannot prove that: a suffix branch may target LBEG.
         let last = if offset == 0 { looping.unwrap() - 1 } else { offset - 1 };
+        let b = &cc.blocks[code as usize];
         let pc = match b.pcs.get(last) { Some(&pc) => pc, None => bad_offset(b, entry, done, budget, looping, initial_lcount, cpu.lcount, result) };
         bus.note_pc(pc);
-        if result >> 16 != CODE_CUT && offset != 0 && offset < b.instructions.len() { crate::block::note_sequential(cpu, pc); }
+        if result >> 16 != CODE_CUT && offset != 0 && offset < r.n as usize { crate::block::note_sequential(cpu, pc); }
     }
     #[cfg(feature = "wasm-jit-profile")]
     {
@@ -865,7 +888,7 @@ unsafe fn run_block_body<B: Bus>(cc: &CodeCache, code: u32, cpu: &mut Cpu, bus: 
     // Reuse the offset already reconstructed above instead of scanning decoded PCs
     // again in run_block_inner. Regions never return CODE_CUT.
     if result >> 16 == CODE_CUT {
-        debug_assert_eq!(b.pcs[offset], cpu.pc);
+        debug_assert_eq!(cc.blocks[code as usize].pcs[offset], cpu.pc);
         result | ((offset as u32) << 19)
     } else { result }
 }
