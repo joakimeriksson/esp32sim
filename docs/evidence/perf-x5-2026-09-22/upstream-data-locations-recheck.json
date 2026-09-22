@@ -1,0 +1,697 @@
+{
+  "beforeSha256": "3539adf718613eff7493e003f4da955191b2898955bfb0130fbd23eb5b444e60",
+  "afterSha256": "1656179f3e9eebed72fd649b58c874922e7ea813a3dde699c5a96b8b50a5a245",
+  "changedBytes": 98,
+  "changedWords": 98,
+  "allDifferencesAreSourceLineRecords": true,
+  "dataSegmentLayoutUnchanged": true,
+  "filenamesPointersLengthsAndColumnsUnchanged": true,
+  "changes": [
+    {
+      "address": 1060216,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 237,
+      "afterLine": 235,
+      "column": 19
+    },
+    {
+      "address": 1060232,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 715,
+      "afterLine": 713,
+      "column": 102
+    },
+    {
+      "address": 1060248,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 716,
+      "afterLine": 714,
+      "column": 94
+    },
+    {
+      "address": 1060264,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 717,
+      "afterLine": 715,
+      "column": 104
+    },
+    {
+      "address": 1060280,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 718,
+      "afterLine": 716,
+      "column": 96
+    },
+    {
+      "address": 1060296,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 719,
+      "afterLine": 717,
+      "column": 36
+    },
+    {
+      "address": 1060312,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 719,
+      "afterLine": 717,
+      "column": 45
+    },
+    {
+      "address": 1060328,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 719,
+      "afterLine": 717,
+      "column": 27
+    },
+    {
+      "address": 1060344,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 720,
+      "afterLine": 718,
+      "column": 36
+    },
+    {
+      "address": 1060360,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 720,
+      "afterLine": 718,
+      "column": 45
+    },
+    {
+      "address": 1060376,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 720,
+      "afterLine": 718,
+      "column": 27
+    },
+    {
+      "address": 1060392,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 721,
+      "afterLine": 719,
+      "column": 36
+    },
+    {
+      "address": 1060408,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 721,
+      "afterLine": 719,
+      "column": 45
+    },
+    {
+      "address": 1060424,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 721,
+      "afterLine": 719,
+      "column": 27
+    },
+    {
+      "address": 1060440,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 722,
+      "afterLine": 720,
+      "column": 37
+    },
+    {
+      "address": 1060456,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 722,
+      "afterLine": 720,
+      "column": 52
+    },
+    {
+      "address": 1060472,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 722,
+      "afterLine": 720,
+      "column": 60
+    },
+    {
+      "address": 1060488,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 723,
+      "afterLine": 721,
+      "column": 39
+    },
+    {
+      "address": 1060504,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 723,
+      "afterLine": 721,
+      "column": 55
+    },
+    {
+      "address": 1060520,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 723,
+      "afterLine": 721,
+      "column": 63
+    },
+    {
+      "address": 1060536,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 727,
+      "afterLine": 725,
+      "column": 37
+    },
+    {
+      "address": 1060552,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 728,
+      "afterLine": 726,
+      "column": 37
+    },
+    {
+      "address": 1060568,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 729,
+      "afterLine": 727,
+      "column": 37
+    },
+    {
+      "address": 1060584,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 730,
+      "afterLine": 728,
+      "column": 36
+    },
+    {
+      "address": 1060600,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 732,
+      "afterLine": 730,
+      "column": 29
+    },
+    {
+      "address": 1060616,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 733,
+      "afterLine": 731,
+      "column": 30
+    },
+    {
+      "address": 1060632,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 731,
+      "afterLine": 729,
+      "column": 38
+    },
+    {
+      "address": 1060648,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 734,
+      "afterLine": 732,
+      "column": 48
+    },
+    {
+      "address": 1060664,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 734,
+      "afterLine": 732,
+      "column": 27
+    },
+    {
+      "address": 1060680,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 735,
+      "afterLine": 733,
+      "column": 48
+    },
+    {
+      "address": 1060696,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 735,
+      "afterLine": 733,
+      "column": 27
+    },
+    {
+      "address": 1060712,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 736,
+      "afterLine": 734,
+      "column": 48
+    },
+    {
+      "address": 1060728,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 736,
+      "afterLine": 734,
+      "column": 27
+    },
+    {
+      "address": 1060744,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 737,
+      "afterLine": 735,
+      "column": 34
+    },
+    {
+      "address": 1060760,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 738,
+      "afterLine": 736,
+      "column": 26
+    },
+    {
+      "address": 1060776,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 739,
+      "afterLine": 737,
+      "column": 29
+    },
+    {
+      "address": 1060792,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 742,
+      "afterLine": 740,
+      "column": 39
+    },
+    {
+      "address": 1060808,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 742,
+      "afterLine": 740,
+      "column": 30
+    },
+    {
+      "address": 1060824,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 741,
+      "afterLine": 739,
+      "column": 39
+    },
+    {
+      "address": 1060840,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 741,
+      "afterLine": 739,
+      "column": 48
+    },
+    {
+      "address": 1060856,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 743,
+      "afterLine": 741,
+      "column": 52
+    },
+    {
+      "address": 1060872,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 743,
+      "afterLine": 741,
+      "column": 31
+    },
+    {
+      "address": 1060888,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 744,
+      "afterLine": 742,
+      "column": 35
+    },
+    {
+      "address": 1060904,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 744,
+      "afterLine": 742,
+      "column": 54
+    },
+    {
+      "address": 1060920,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 745,
+      "afterLine": 743,
+      "column": 36
+    },
+    {
+      "address": 1060936,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 745,
+      "afterLine": 743,
+      "column": 46
+    },
+    {
+      "address": 1060952,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 746,
+      "afterLine": 744,
+      "column": 36
+    },
+    {
+      "address": 1060968,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 746,
+      "afterLine": 744,
+      "column": 46
+    },
+    {
+      "address": 1060984,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 747,
+      "afterLine": 745,
+      "column": 36
+    },
+    {
+      "address": 1061000,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 747,
+      "afterLine": 745,
+      "column": 45
+    },
+    {
+      "address": 1061016,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 748,
+      "afterLine": 746,
+      "column": 36
+    },
+    {
+      "address": 1061032,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 748,
+      "afterLine": 746,
+      "column": 45
+    },
+    {
+      "address": 1061048,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 749,
+      "afterLine": 747,
+      "column": 36
+    },
+    {
+      "address": 1061064,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 749,
+      "afterLine": 747,
+      "column": 46
+    },
+    {
+      "address": 1061080,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 750,
+      "afterLine": 748,
+      "column": 36
+    },
+    {
+      "address": 1061096,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 750,
+      "afterLine": 748,
+      "column": 46
+    },
+    {
+      "address": 1061112,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 751,
+      "afterLine": 749,
+      "column": 68
+    },
+    {
+      "address": 1061128,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 751,
+      "afterLine": 749,
+      "column": 47
+    },
+    {
+      "address": 1061144,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 752,
+      "afterLine": 750,
+      "column": 68
+    },
+    {
+      "address": 1061160,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 752,
+      "afterLine": 750,
+      "column": 47
+    },
+    {
+      "address": 1061176,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 753,
+      "afterLine": 751,
+      "column": 76
+    },
+    {
+      "address": 1061192,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 753,
+      "afterLine": 751,
+      "column": 55
+    },
+    {
+      "address": 1061208,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 754,
+      "afterLine": 752,
+      "column": 77
+    },
+    {
+      "address": 1061224,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 754,
+      "afterLine": 752,
+      "column": 56
+    },
+    {
+      "address": 1061240,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 755,
+      "afterLine": 753,
+      "column": 64
+    },
+    {
+      "address": 1061256,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 755,
+      "afterLine": 753,
+      "column": 43
+    },
+    {
+      "address": 1061272,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 756,
+      "afterLine": 754,
+      "column": 63
+    },
+    {
+      "address": 1061288,
+      "filename": "xtensa-lx7/src/exec.rs",
+      "beforeLine": 756,
+      "afterLine": 754,
+      "column": 42
+    },
+    {
+      "address": 1061304,
+      "filename": "xtensa-lx7/src/block.rs",
+      "beforeLine": 439,
+      "afterLine": 435,
+      "column": 40
+    },
+    {
+      "address": 1061320,
+      "filename": "xtensa-lx7/src/block.rs",
+      "beforeLine": 445,
+      "afterLine": 441,
+      "column": 40
+    },
+    {
+      "address": 1061336,
+      "filename": "xtensa-lx7/src/block.rs",
+      "beforeLine": 459,
+      "afterLine": 455,
+      "column": 22
+    },
+    {
+      "address": 1061352,
+      "filename": "xtensa-lx7/src/block.rs",
+      "beforeLine": 489,
+      "afterLine": 494,
+      "column": 34
+    },
+    {
+      "address": 1061368,
+      "filename": "xtensa-lx7/src/block.rs",
+      "beforeLine": 497,
+      "afterLine": 502,
+      "column": 145
+    },
+    {
+      "address": 1061384,
+      "filename": "xtensa-lx7/src/block.rs",
+      "beforeLine": 578,
+      "afterLine": 586,
+      "column": 33
+    },
+    {
+      "address": 1061400,
+      "filename": "xtensa-lx7/src/block.rs",
+      "beforeLine": 599,
+      "afterLine": 607,
+      "column": 97
+    },
+    {
+      "address": 1061416,
+      "filename": "xtensa-lx7/src/block.rs",
+      "beforeLine": 615,
+      "afterLine": 623,
+      "column": 30
+    },
+    {
+      "address": 1061432,
+      "filename": "xtensa-lx7/src/block.rs",
+      "beforeLine": 621,
+      "afterLine": 629,
+      "column": 39
+    },
+    {
+      "address": 1061448,
+      "filename": "xtensa-lx7/src/block.rs",
+      "beforeLine": 622,
+      "afterLine": 630,
+      "column": 116
+    },
+    {
+      "address": 1061464,
+      "filename": "xtensa-lx7/src/block.rs",
+      "beforeLine": 498,
+      "afterLine": 503,
+      "column": 37
+    },
+    {
+      "address": 1061480,
+      "filename": "xtensa-lx7/src/block.rs",
+      "beforeLine": 516,
+      "afterLine": 521,
+      "column": 48
+    },
+    {
+      "address": 1061496,
+      "filename": "xtensa-lx7/src/block.rs",
+      "beforeLine": 549,
+      "afterLine": 554,
+      "column": 52
+    },
+    {
+      "address": 1061512,
+      "filename": "xtensa-lx7/src/block.rs",
+      "beforeLine": 552,
+      "afterLine": 557,
+      "column": 51
+    },
+    {
+      "address": 1061528,
+      "filename": "xtensa-lx7/src/block.rs",
+      "beforeLine": 485,
+      "afterLine": 490,
+      "column": 60
+    },
+    {
+      "address": 1061544,
+      "filename": "xtensa-lx7/src/block.rs",
+      "beforeLine": 378,
+      "afterLine": 374,
+      "column": 32
+    },
+    {
+      "address": 1061560,
+      "filename": "xtensa-lx7/src/block.rs",
+      "beforeLine": 381,
+      "afterLine": 377,
+      "column": 36
+    },
+    {
+      "address": 1061592,
+      "filename": "xtensa-lx7/src/block.rs",
+      "beforeLine": 317,
+      "afterLine": 315,
+      "column": 52
+    },
+    {
+      "address": 1061608,
+      "filename": "xtensa-lx7/src/block.rs",
+      "beforeLine": 320,
+      "afterLine": 318,
+      "column": 84
+    },
+    {
+      "address": 1061624,
+      "filename": "xtensa-lx7/src/block.rs",
+      "beforeLine": 323,
+      "afterLine": 319,
+      "column": 23
+    },
+    {
+      "address": 1061640,
+      "filename": "xtensa-lx7/src/block.rs",
+      "beforeLine": 315,
+      "afterLine": 313,
+      "column": 84
+    },
+    {
+      "address": 1085252,
+      "filename": "xtensa-lx7/src/block.rs",
+      "beforeLine": 401,
+      "afterLine": 397,
+      "column": 42
+    },
+    {
+      "address": 1085268,
+      "filename": "xtensa-lx7/src/block.rs",
+      "beforeLine": 404,
+      "afterLine": 400,
+      "column": 27
+    },
+    {
+      "address": 1085284,
+      "filename": "xtensa-lx7/src/block.rs",
+      "beforeLine": 414,
+      "afterLine": 410,
+      "column": 27
+    },
+    {
+      "address": 1085300,
+      "filename": "xtensa-lx7/src/block.rs",
+      "beforeLine": 426,
+      "afterLine": 422,
+      "column": 39
+    },
+    {
+      "address": 1100672,
+      "filename": "xtensa-lx7/src/jit/wasm_region.rs",
+      "beforeLine": 219,
+      "afterLine": 213,
+      "column": 31
+    },
+    {
+      "address": 1100688,
+      "filename": "xtensa-lx7/src/jit/wasm_region.rs",
+      "beforeLine": 298,
+      "afterLine": 292,
+      "column": 22
+    },
+    {
+      "address": 1100704,
+      "filename": "xtensa-lx7/src/jit/wasm_region.rs",
+      "beforeLine": 298,
+      "afterLine": 292,
+      "column": 44
+    },
+    {
+      "address": 1100720,
+      "filename": "xtensa-lx7/src/jit/wasm_region.rs",
+      "beforeLine": 375,
+      "afterLine": 369,
+      "column": 39
+    },
+    {
+      "address": 1100736,
+      "filename": "xtensa-lx7/src/jit/wasm_region.rs",
+      "beforeLine": 390,
+      "afterLine": 384,
+      "column": 33
+    }
+  ]
+}

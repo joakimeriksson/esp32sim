@@ -1,0 +1,21 @@
+{
+  "sourceRevision": "2f3c2d6ca2c9df2a9b81f9b3e4e40a83bbac3cef",
+  "measuredSourceRevision": "2c62807023aa37d0321fd53b749e74fb55fd0544",
+  "earlierCommentCorrectedRevision": "946d1c6bc34e20f4e8a488a057226abe29af91bf",
+  "originalBaselineRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+  "upstreamMergedRevision": "b8155937f22f5e99ca53ebd5d26b89cb512954b2",
+  "measuredArtifactSha256": "3539adf718613eff7493e003f4da955191b2898955bfb0130fbd23eb5b444e60",
+  "finalArtifactSha256": "1656179f3e9eebed72fd649b58c874922e7ea813a3dde699c5a96b8b50a5a245",
+  "artifactBytes": 2088105,
+  "comparison": "All 1362 function bodies and all sections except data are byte-identical. Data segment layout is unchanged; 98 changed bytes are 98 line-number fields with unchanged source filenames, pointers, lengths and columns.",
+  "receipts": [
+    "upstream-comparison.json",
+    "upstream-data-locations.json",
+    "upstream-data-locations-recheck.json",
+    "upstream-exact.json",
+    "upstream-comparison-recheck.json",
+    "upstream-tests.json"
+  ],
+  "performanceInference": "Apply the measured timing result to the final source based on unchanged executable sections and nondiagnostic data. Final artifact was not rebenchmarked. Changed source-location line values may alter diagnostics on error paths.",
+  "historicalReceipt": "published-equivalence.json remains the earlier byte-identical 946d1c6b build receipt."
+}

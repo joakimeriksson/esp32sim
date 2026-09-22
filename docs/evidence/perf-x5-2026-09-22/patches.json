@@ -131,5 +131,13 @@
     "sourceRevision": "946d1c6bc34e20f4e8a488a057226abe29af91bf",
     "sha256": "1a27cd25981c8b541501690e0fde1f9aeccfc0c3cba46535878272af93258f1b",
     "bytes": 28604
+  },
+  {
+    "path": "patches/final-upstream-merge-code.patch",
+    "baseRevision": "946d1c6bc34e20f4e8a488a057226abe29af91bf",
+    "sourceRevision": "2f3c2d6ca2c9df2a9b81f9b3e4e40a83bbac3cef",
+    "scope": "Code changes only; upstream documentation and evidence changes omitted.",
+    "sha256": "c8c5d003dfd8746ef2bb5a92c8540cc2dd4b9d59e96b9696e7fe02fed3676c0c",
+    "bytes": 14716
   }
 ]
