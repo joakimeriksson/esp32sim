@@ -387,6 +387,8 @@ pub(super) fn wrapper_bridge_guards() {
         for r in [&mut ra, &mut rb] {
             r.ram.mem[..5].copy_from_slice(&[0x3d, 0xf0, 0xa0, 0x04, 0x00]); // nop.n; jx a4
             r.ram.mem[64..71].copy_from_slice(&[0x3d, 0xf0, 0x3d, 0xf0, 0xa0, 0x05, 0x00]);
+            // Priced JX uses a helper, which would mask the pricing guard with jit_helped.
+            if mode == 2 { r.ram.mem[2..5].copy_from_slice(&asm::j(BASE + 2, BASE + 64)); }
         }
         let check = |a: &mut Cpu, b: &mut Cpu, ra: &mut Ram, rb: &mut Ram, budget| {
             let (done, trap) = crate::block::run_block(b, rb, budget);
@@ -397,11 +399,15 @@ pub(super) fn wrapper_bridge_guards() {
             same(a, b);
             (done, trap)
         };
+        b.blocks.observed = true; // warm single blocks, without forming a region
         for _ in 0..40 {
             for c in [&mut a, &mut b] { c.pc = BASE; c.ps = 0; c.price_control = mode == 2; c.set_ar(4, BASE + 64); c.set_ar(5, BASE + 128); }
             check(&mut a, &mut b, &mut ra, &mut rb, 2);
         }
         assert!(b.blocks.jit_instructions > 0, "predecessor must compile");
+        b.blocks.observed = false;
+        // Keep the direct-J pricing case in the wrapper, not a compiled region.
+        for block in &b.blocks.test_code().blocks { block.region_tries.set(REGION_TRIES); }
         let mut ops = Vec::new();
         for offset in [64, 66, 68] {
             let i = crate::decode::decode(BASE + offset, rb.fetch(BASE + offset).unwrap());
