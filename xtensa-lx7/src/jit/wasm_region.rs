@@ -190,6 +190,8 @@ pub(in crate::jit) fn form<B: Bus>(cpu: &Cpu, bus: &mut B, head: u32, block: &[B
         }
     }
     if pages.len() > MAX_PAGES { return None }
+    // EX110: watch every page before reading the versions the region will compare against.
+    for (i, _) in &pages { bus.note_code_page(*i); }
     let pv = bus.page_versions();
     for (i, v) in &mut pages { *v = pv.get(*i as usize).copied().unwrap_or(0); }
     Some(Formed { chunks, loops, bloom, lo, hi, pages })

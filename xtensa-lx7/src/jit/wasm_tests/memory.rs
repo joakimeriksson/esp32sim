@@ -117,6 +117,78 @@ pub(super) fn flat_ram_bounds() -> u32 {
     8
 }
 
+/// EX110: a store through a mapping that no decoded code depends on writes its bytes and skips
+/// every version increment; the generated path and the interpreter must skip exactly the same
+/// ones, so the differential comparison of `versions` stays meaningful. A page that gains code
+/// later is watched by the decode that first reads its bytes, so the skipped earlier increments
+/// cannot leave a stale block running.
+pub(super) fn code_page_flag() -> u32 {
+    use Op::*;
+    let mut tests = 0;
+    for op in [S8i, S16i, S32i, S32iN] {
+        for addr in [BASE + 0x100, BASE + 0x1fc, BASE + 0x200, BASE + 0xfffc] {
+            for unwatched in [false, true] {
+                let mut block = [insn(Add), insn(op), insn(Xor)];
+                compare(&mut block, Case { seed: 21, budget: 3, addr: Some(addr), fast: true, unwatched, ..Case::default() }, |_| {});
+                tests += 1;
+            }
+        }
+    }
+    // The counters themselves: the bytes land either way, only the bookkeeping moves.
+    let store = |watched: bool, mark: bool| -> Vec<u32> {
+        let mut ram = Ram::new(true, false);
+        if !watched { ram.unwatch(); }
+        if mark { ram.note_code_page(1); }
+        let mut block = [insn(S32i)];
+        block[0].insn.imm = 0;
+        let mut cc = CodeCache::new(0).unwrap();
+        let code = queue(&mut cc, &mut block, BASE, true);
+        for _ in 0..HOT { ready(&cc, code, 0); }
+        assert!(ready(&cc, code, 0));
+        let mut c = cpu(0);
+        c.set_ar(4, BASE + 0x100);
+        c.set_ar(5, 0x1234_5678);
+        let fm = ram.fast_mem();
+        let result = unsafe { run(&cc, code, &mut c, &mut ram, &Helpers::new::<Ram>(), 1, 0, fm) };
+        assert_eq!(result & 0xffff, 1, "the store must retire on the fast path");
+        assert_eq!(ram.ram.read32(BASE + 0x100).unwrap(), 0x1234_5678, "the bytes land whatever the flag says");
+        ram.versions.clone()
+    };
+    let watched = store(true, false);
+    assert_eq!(watched[1], 1, "a watched page records the generated store");
+    assert!(store(false, false).iter().all(|v| *v == 0), "an unwatched mapping records nothing");
+    assert_eq!(store(false, true), watched, "note_code_page restores the bookkeeping");
+    tests += 3;
+
+    // Self-modifying code in a page that held no code when it was written. The first decode
+    // watches the page, so the rewrite after it must invalidate the block that ran.
+    for jit in [false, true] {
+        let mut ram = Ram::new(true, false);
+        ram.unwatch();
+        let put = |ram: &mut Ram, at: u32, bytes: &[u8]| {
+            for (i, b) in bytes.iter().enumerate() { ram.write8(at + i as u32, *b).unwrap(); }
+        };
+        let program = |k: u32| [asm::movi_n(3, k), asm::j(BASE + 2, BASE)].concat();
+        put(&mut ram, BASE, &program(1));
+        assert!(ram.versions.iter().all(|v| *v == 0), "writing code into an unwatched page is not recorded");
+        let mut c = cpu(0);
+        c.pc = BASE;
+        c.blocks.jit_enabled = jit;
+        c.set_ar(3, 0xf);
+        crate::block::run_block(&mut c, &mut ram, 2);
+        assert_eq!(c.get_ar(3), 1, "jit={jit}: the first decode reads the bytes that were written");
+        assert!(ram.watched && ram.tlb[tlb_index(BASE)].code != 0, "the decode must watch the page it decoded from");
+        let before = ram.versions[0];
+        put(&mut ram, BASE, &program(2));
+        assert_ne!(ram.versions[0], before, "a rewrite of watched code must move the version");
+        c.pc = BASE;
+        crate::block::run_block(&mut c, &mut ram, 2);
+        assert_eq!(c.get_ar(3), 2, "jit={jit}: the rewritten instruction must run, not the stale block");
+        tests += 1;
+    }
+    tests
+}
+
 /// EX180: an Xtensa instruction can begin up to three bytes before a page boundary (PIE
 /// admits 4-byte encodings, `pie::decode`), so a store into the first three bytes of a
 /// version page also changes instructions whose code page is the previous one. The bus
@@ -187,6 +259,89 @@ pub(super) fn straddling_instruction_rewrite() -> u32 {
     assert!(b.blocks.jit_instructions > 100, "the rewriting block never ran compiled");
     assert!(a.get_ar(3) > 100, "the straddling ADDI never accumulated");
     1
+}
+
+/// EX173: one unsigned compare against `TlbEntry.span` decides range, and later alignment and
+/// writability, for every generated access. Walk the addresses that can flip that compare: both
+/// endpoints of the mapping, the last access that fits and the first that does not, unaligned
+/// starts, wrapping addresses, and an address that hashes to the live entry from far outside it.
+/// Only the helper can reach `SLOW`, and it answers from a different buffer, so an access wrongly
+/// admitted to the fast path past the limit is visible in the compared state.
+pub(super) fn probe_boundaries() -> u32 {
+    use Op::*;
+    const END: u32 = BASE + 65536;
+    /// Hashes to the same TLB slot as BASE, 32 MiB above the mapping.
+    const ALIAS: u32 = 0x4235_0000;
+    assert_eq!(tlb_index(ALIAS), tlb_index(BASE), "the alias must share the live entry's slot");
+    let mut tests = 0;
+    for (op, width) in [(L8ui, 1u32), (L16ui, 2), (L16si, 2), (L32i, 4), (L32iN, 4), (L32r, 4),
+                        (S8i, 1), (S16i, 2), (S32i, 4), (S32iN, 4)] {
+        for addr in [BASE, BASE + 1, BASE + 2, BASE + 3, BASE + 15, BASE + 16,
+                     END - width, END - width + 1, END - 1, END, END + 1, END + 4, END + 252,
+                     BASE - width, BASE - 1, BASE - 16, 0, 1, 4, u32::MAX, u32::MAX - width + 1,
+                     ALIAS, ALIAS + 4, ALIAS - 4] {
+            for fast in [false, true] {
+                for readonly in [false, true] {
+                    let mut block = [insn(Add), insn(op), insn(Xor)];
+                    if op == L32r { block[1].insn.imm = addr as i32; }
+                    compare(&mut block, Case { seed: 21, budget: 3, addr: Some(addr), fast, readonly, ..Case::default() }, |_| {});
+                    tests += 1;
+                }
+            }
+        }
+        // A mapping whose length is not a multiple of the width: the last aligned access inside
+        // it still runs past the limit, which only the width term of the compare rejects.
+        for shrink in 1..=3 {
+            let limit = END - shrink;
+            for addr in [limit - 8, limit - 4, limit - width, limit - width + 1, limit - 1, limit] {
+                for readonly in [false, true] {
+                    let mut block = [insn(Add), insn(op), insn(Xor)];
+                    if op == L32r { block[1].insn.imm = addr as i32; }
+                    compare(&mut block, Case { seed: 21, budget: 3, addr: Some(addr), fast: true, readonly, shrink, ..Case::default() }, |_| {});
+                    tests += 1;
+                }
+            }
+        }
+    }
+    // The same probe serves 16-byte PIE vectors, whose address is masked instead of tested.
+    for (name, store) in [("ee.vld.128.ip", false), ("ee.vst.128.ip", true)] {
+        use crate::pie::Role::{As, Imm, Qu, Qv};
+        let bytes = asm::pie(name, &[(if store { Qv } else { Qu }, 1), (As, 4), (Imm, 16)]);
+        let raw = bytes[0] as u32 | ((bytes[1] as u32) << 8) | ((bytes[2] as u32) << 16);
+        let mut access = insn(Op::Pie);
+        access.insn = crate::decode::decode(BASE + 3, raw.to_le_bytes());
+        access.max_ar = crate::exec::max_ar(&access.insn);
+        for addr in [BASE, BASE + 16, BASE + 15, END - 16, END - 15, END - 1, END, END + 16,
+                     BASE - 16, BASE - 1, 0, u32::MAX, u32::MAX - 15, ALIAS] {
+            for fast in [false, true] {
+                for readonly in [false, true] {
+                    let mut block = [insn(Add), access, insn(Xor)];
+                    compare(&mut block, Case { seed: 21, budget: 3, fast, readonly, ..Case::default() }, |c| {
+                        c.ps = 0;
+                        c.cpenable = 8;
+                        c.set_ar(4, addr);
+                        c.qr[1] = u128::from_le_bytes([0x3c; 16]);
+                    });
+                    tests += 1;
+                }
+            }
+        }
+        for shrink in [1, 8, 15] {
+            for addr in [END - 16 - shrink, END - 32, END - 16, END] {
+                for readonly in [false, true] {
+                    let mut block = [insn(Add), access, insn(Xor)];
+                    compare(&mut block, Case { seed: 21, budget: 3, fast: true, readonly, shrink, ..Case::default() }, |c| {
+                        c.ps = 0;
+                        c.cpenable = 8;
+                        c.set_ar(4, addr);
+                        c.qr[1] = u128::from_le_bytes([0x3c; 16]);
+                    });
+                    tests += 1;
+                }
+            }
+        }
+    }
+    tests
 }
 
 pub(super) fn loads_and_stores() -> u32 {

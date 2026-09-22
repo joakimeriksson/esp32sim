@@ -278,9 +278,6 @@ fn vmem(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool, o: &Ops, st
     g.c(1);
     g.op(0x46);
     g.bytes.extend([0x0d, 0]);
-    g.get(5);
-    g.op(0x45);
-    g.bytes.extend([0x0d, 0]);
     memory::probe(g, 16, store);
     #[cfg(feature = "wasm-cache-inline")]
     memory::emit_cache_hit(g, store, 4); // The reference PIE helper performs four words.

@@ -594,9 +594,13 @@ unsafe fn run_inner<B: Bus>(
     debug_assert!(h.cache.is_null(), "run_inner requires an undecorated helper table");
     #[cfg(feature = "wasm-cache-inline")]
     let h = if let Some(cache) = cache_view.as_ref() { hinted = Helpers { cache, ..*h }; &hinted } else { h };
+    // EX173 s1: a bus without fast memory gets a table where every entry is EMPTY instead of a
+    // null pointer, so generated accesses reject it with the range test they already run and no
+    // per-access null test is emitted. No probe can succeed, so `versions` is never dereferenced.
+    static NO_FAST_MEM: [TlbEntry; crate::bus::TLB_ENTRIES] = [TlbEntry::EMPTY; crate::bus::TLB_ENTRIES];
     let (tlb, versions) = fm
         .map(|m| (m.tlb, m.page_ver))
-        .unwrap_or((std::ptr::null(), std::ptr::null_mut()));
+        .unwrap_or((NO_FAST_MEM.as_ptr(), std::ptr::null_mut()));
     let b = &cc.blocks[code as usize];
     if entry == 0 && !cpu.blocks.observed {
         // EX136: the facts the checks below would fetch through the owning block, its region and

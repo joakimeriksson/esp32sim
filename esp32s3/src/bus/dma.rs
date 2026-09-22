@@ -389,7 +389,9 @@ impl SocBus {
             let dp = self.buf_mut(de.src as u8).as_mut_ptr();
             // SAFETY: both ranges were bounds-checked against their buffers above; `copy` is memmove.
             unsafe { std::ptr::copy(sp.add(so), dp.add(dof), len); }
-            self.bump_run(de.vbase, (d - de.lo) as usize, len, words);
+            // EX110: the per-word reference path bumps through `write*_access`, which skips a
+            // destination no decoded code depends on; the run copy must skip exactly the same.
+            if de.code != 0 { self.bump_run(de.vbase, (d - de.lo) as usize, len, words); }
             i += take;
         }
         i
