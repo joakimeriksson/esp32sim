@@ -190,7 +190,7 @@ pub(super) fn probe(g: &mut Gen, width: u32, store: bool) {
     g.c(TLB_XOR_SHIFT - ENTRY_SHIFT);
     g.op(0x76);
     g.op(0x73);
-    g.c(((TLB_ENTRIES as u32 - 1) << ENTRY_SHIFT) as u32);
+    g.c((TLB_ENTRIES as u32 - 1) << ENTRY_SHIFT);
     g.op(0x71);
     g.op(0x6a);
     g.set(TLB);
