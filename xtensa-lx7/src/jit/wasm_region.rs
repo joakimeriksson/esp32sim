@@ -305,6 +305,7 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
     let cp = all().fold(0, |mask, bi| mask | policy::required_coprocessors(bi.insn.op));
     let heads: HashMap<_, _> = chunks.iter().enumerate().map(|(i, c)| (c.pc, (i, c.instructions.len() as u32))).collect();
     // Forward labels use the head count; the dispatch nesting uses the chunk count.
+    #[cfg(any(debug_assertions, feature = "wasm-jit-tests"))]
     assert_eq!(heads.len(), chunks.len(), "region chunk heads must be unique");
     let loops = formed_loops.iter().copied().collect();
     let mut g = Gen {

@@ -9,7 +9,7 @@
     "niceOverride": false
   },
   "sourceSha256": {
-    "xtensa-lx7/src/jit/wasm_region.rs": "186fcf0a342feb1b4ebe184cf3351ff47f8b530ede75161b85093008e7a4de7d",
+    "xtensa-lx7/src/jit/wasm_region.rs": "841b5881b5b0d616af5b637339a53b50098aebf8859c306c0dc1b5a513e9f9ec",
     "xtensa-lx7/src/jit/wasm_tests/regions.rs": "7d94bb7f61e194d0cea587d30f4827fdef252d559c110e5e2a2601c32f28d8c3",
     "xtensa-lx7/src/jit/wasm_memory.rs": "1510112b2bb26def3b07eb8520f9aa95cc15c1ff33534113a698694254e2e65d",
     "wasm/src/jit_tests.rs": "e4673700ac184094aa66b80994fa09c0467f622853b57e9ebdd85c77e34da461"
@@ -43,5 +43,12 @@
   "mutationCommand": "CARGO_BUILD_JOBS=4 tools/wasm-jit-test.sh",
   "mutationLimit": "Each mutation retains correct dispatcher fallback. These are emission-presence tests, not timing measurements. Hardware-loop emission is asserted separately in the unmutated suite.",
   "unchangedNit": "The optional two-byte dead hardware-loop wrapper cleanup is not included; it does not affect correctness.",
-  "privacy": "Raw logs remain outside Git and include build paths. This compact receipt retains commands, numeric outcomes and source hashes only; no host or process inventory was collected."
+  "privacy": "Raw logs remain outside Git and include build paths. This compact receipt retains commands, numeric outcomes and source hashes only; no host or process inventory was collected.",
+  "mutationSourceSha256": {
+    "xtensa-lx7/src/jit/wasm_region.rs": "186fcf0a342feb1b4ebe184cf3351ff47f8b530ede75161b85093008e7a4de7d",
+    "xtensa-lx7/src/jit/wasm_tests/regions.rs": "7d94bb7f61e194d0cea587d30f4827fdef252d559c110e5e2a2601c32f28d8c3",
+    "xtensa-lx7/src/jit/wasm_memory.rs": "1510112b2bb26def3b07eb8520f9aa95cc15c1ff33534113a698694254e2e65d",
+    "wasm/src/jit_tests.rs": "e4673700ac184094aa66b80994fa09c0467f622853b57e9ebdd85c77e34da461"
+  },
+  "followup": "The uniqueness assertion is now gated by any(debug_assertions, feature = \"wasm-jit-tests\"). Release differential and wasm32 Clippy were rerun successfully with the current source hashes. Mutation results above were obtained with mutationSourceSha256 before adding this guard; the same assertion remains compiled in the differential build."
 }
