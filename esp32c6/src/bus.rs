@@ -433,6 +433,7 @@ macro_rules! rd {
 }
 
 impl Bus for SocBus {
+    fn note_code_page(&mut self, _vidx: u32) {} // All writes already update versions, or this bus has no decode cache.
     fn read8(&mut self, addr: u32) -> Result<u8, Fault> {
         if Self::is_periph(addr) { return Ok(self.periph_read(addr, 1) as u8); }
         rd!(self, addr, 1, |b: &[u8]| b[0])

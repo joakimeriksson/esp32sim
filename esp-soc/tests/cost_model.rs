@@ -209,6 +209,7 @@ impl TestBus {
 }
 
 impl Bus for TestBus {
+    fn note_code_page(&mut self, _vidx: u32) {} // All writes already update versions, or this bus has no decode cache.
     fn read8(&mut self, address: u32) -> Result<u8, Fault> { Ok(self.memory[self.range(address, 1)?]) }
     fn read16(&mut self, address: u32) -> Result<u16, Fault> {
         let start = self.range(address, 2)?;

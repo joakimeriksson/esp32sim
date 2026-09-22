@@ -1,0 +1,25 @@
+EX178 correctness follow-up, September 22, 2026
+Base: f30f447be62522b234a56dccfaf310fd4d93c9d2
+Review: https://github.com/joakimeriksson/esp32sim/pull/133#issuecomment-5778012977
+Command: sh tools/wasm-jit-test.sh
+Runtime: Node.js v26.9.0; rustc 1.98.1 (48a229cea 2026-09-01)
+Inputs: held-accx-lend scheduler fixture and two direct compiled-body exit cases
+in xtensa-lx7/src/jit/wasm_tests/regions.rs. Mixed bytes use the existing
+(i * 0x9e3779b9 >> 24) fixture, with wrapping u32 multiplication.
+
+Original emitter plus scheduler regression: FAIL at turn 45, PC 0x40370005,
+budget 32. Interpreter a11 = 88451; JIT a11 = 83887.
+Fixed emitter plus all three regression cases:
+PASS: 81497 WASM differential cases; 83981 compiled modules released.
+The direct cases independently enter the loop body with LCOUNT=0 and with
+LCOUNT=2/LEND different from the compiled chunk end. Both compare complete
+architectural state and RAM against instruction-by-instruction execution.
+
+Source SHA-256:
+wasm_emit.rs 54444e607bd89bc83935e967ed92cdcc41d5ed4cc9cb4ec3a17c8a0d0c3a4662
+wasm_tests/regions.rs dc5d4f534456eab5c6709c65e736431636f3c92ea063909c4509be9fc705b750
+
+This changes the correctness contract coverage for held ACCX at a conditional
+LEND edge. No performance measurement was made and historical timings do not
+measure this corrected emitter. This summary omits local build paths and
+redundant stack traces; it preserves the failing values and full-suite result.

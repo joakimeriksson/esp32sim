@@ -338,21 +338,19 @@ pub(super) fn interpreted_bridges() -> u32 {
             b.blocks.install_test_bridge(BASE, &ops);
             let (start, n) = b.blocks.bridge_target(BASE, rb.page_versions(), 3).unwrap();
             let result = crate::block::bridge(&mut b, &mut rb, start, n);
-            let mut done = 0;
-            let mut exit = CODE_END;
-            let mut trap_ref = None;
-            for bi in &ops {
-                if let Some(t) = a.check_overflow(bi.max_ar) { trap_ref = Some(t); exit = CODE_TRAP_PRE; break; }
-                let at = a.pc;
-                ra.note_pc(at);
-                let r = exec_insn(&mut a, &mut ra, &bi.insn);
-                done += 1;
-                if let Err(t) = r { trap_ref = Some(t); exit = CODE_TRAP; break; }
-                if a.pc != at.wrapping_add(bi.insn.len as u32) { break; }
-            }
-            assert_eq!(result, done | exit << 16, "bridge {op:?} trap={trap}");
+            a.blocks.install_test_bridge(BASE, &ops);
+            a.blocks.jit_enabled = false;
+            a.blocks.observed = true; // one decoded block, without continuation
+            let (iterations, trap_ref) = crate::block::run_block(&mut a, &mut ra, 3);
+            let done = result & 0xffff;
+            let exit = result >> 16;
+            let pre = exit == CODE_TRAP_PRE;
+            assert_eq!(exit, if trap_ref.is_none() { CODE_END } else if pre { CODE_TRAP_PRE } else { CODE_TRAP });
+            assert_eq!(iterations, done + u32::from(pre), "bridge {op:?} trap={trap}");
             assert_eq!(b.jit_trap, trap_ref);
             assert_eq!(b.blocks.bridged, done);
+            b.insn_count += done as u64;
+            b.advance_ccount(done * b.approximate_cpi);
             same(&a, &b);
             assert_eq!(ra.noted, rb.noted);
             if op == Add { assert_eq!(result, if trap { 1 | CODE_TRAP_PRE << 16 } else { 3 | CODE_END << 16 }); }
@@ -362,4 +360,24 @@ pub(super) fn interpreted_bridges() -> u32 {
         }
     }
     cases
+}
+
+pub(super) fn bridge_classes() -> u32 {
+    use Op::*;
+    // Every currently supported word_access opcode, including indexed floating
+    // accesses and atomic/synchronized forms, plus dispatcher-visible controls.
+    let memory = [L32i, L32iN, L32ai, S32i, S32iN, S32ri, S32nb, L32e,
+        S32e, S32c1i, Lsi, Lsip, Ssi, Ssip, Lsx, Lsxp, Ssx, Ssxp, L32r];
+    let c = cpu(0);
+    for op in memory {
+        let i = insn(op).insn;
+        assert!(crate::exec::word_access(&c, &i).is_some(), "{op:?}");
+        let class = crate::block::bridge_class(&i);
+        assert!(class == 0 || class == 3, "{op:?}: {class}");
+        assert!(class == 0 || class > crate::block::BRIDGE_CLASS, "memory admitted: {op:?}");
+    }
+    for op in [Wsr, Xsr, Rsil] {
+        assert_eq!(crate::block::bridge_class(&insn(op).insn), 0, "{op:?}");
+    }
+    22
 }
