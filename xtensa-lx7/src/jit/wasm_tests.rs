@@ -399,7 +399,8 @@ pub fn run_tests() -> u32 {
     scheduler::interior_alias();
     scheduler::interior_alias_deferred();
     scheduler::interior_alias_instruction_bytes();
-    tests += 3;
+    scheduler::ps_terminal_chain();
+    tests += 4;
     tests += memory::extension_deferral() + memory::flat_ram_bounds() + regions::regions() + pie_accx::run_tests();
     tests += memory::code_page_flag();
     scheduler::retention();
@@ -410,6 +411,6 @@ pub fn run_tests() -> u32 {
     tests += 1;
     tests + arithmetic::integer_ops() + float::floating_point() + float::floating_point_guard_proof() + float::fma_halfway_fallback()
         + loops::hardware_loops() + control::window_masks() + control::terminal_helpers()
-        + control::special_register_blocks() + control::whole_block_guards()
+        + control::special_register_blocks() + control::ps_terminals() + control::whole_block_guards()
         + control::entry_and_shifts() + control::guarded_loop_sites() + control::pie_wide_shifts() + timing::priced_cases()
 }

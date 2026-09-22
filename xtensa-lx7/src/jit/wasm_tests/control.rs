@@ -61,6 +61,43 @@ pub(super) fn special_register_blocks() -> u32 {
     tests
 }
 
+/// helpers-s1: the compiled RSIL / WSR PS / XSR PS terminals. Sweeps the PS write mask, the old
+/// value returned in AR[t], and a hardware loop whose end is the terminal's own fall-through, so
+/// the backedge has to come out of generated code instead of the helper's `exec_insn`.
+pub(super) fn ps_terminals() -> u32 {
+    use Op::*;
+    let mut tests = 0;
+    for op in [Rsil, Wsr, Xsr] {
+        for (ps0, value) in [(0u32, 0u32), (0x1f, 9), (ps::WOE | 3, 0x0007_ff3f), (0x1f, 0xffff_ffff), (ps::WOE, ps::WOE | 15)] {
+            for level in [0, 3, 15] {
+                let mut block = [insn(Add), insn(MovN), insn(op)];
+                block[2].insn.imm = if op == Rsil { level } else { crate::state::sr::PS as i32 };
+                // Falling back to the helper would pass the oracle silently.
+                assert!(emitter::supported_insn(&block[2].insn, false), "{op:?} must be emitted inline");
+                for lend in [0, BASE + 6, BASE + 9] {
+                    for entry in 0..3 {
+                        for budget in [1, 3] {
+                            let configure = |c: &mut Cpu| {
+                                c.ps = ps0;
+                                c.set_ar(4, value);
+                                c.set_ar(5, value);
+                                c.lbeg = BASE;
+                                c.lend = lend;
+                                c.lcount = 2 * u32::from(lend != 0);
+                            };
+                            let case = Case { seed: 15, entry, budget, ..Case::default() };
+                            compare_hinted(&mut block, case, &configure, lend);
+                            compare_hinted(&mut block, case, &configure, 0);
+                            tests += 2;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    tests
+}
+
 pub(super) fn terminal_helpers() -> u32 {
     use Op::*;
     let mut tests = 0;

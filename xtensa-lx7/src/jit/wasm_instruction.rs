@@ -51,6 +51,10 @@ pub(super) fn emit(
         g.set_ar(t);
         return true;
     }
+    if last && policy::ps_terminal(i) {
+        emit_ps_terminal(g, i, next);
+        return true;
+    }
     match i.op {
         Nop | NopN | Memw | Extw | Rsync | Esync | Dsync => {}
         Movi | MoviN => {
@@ -432,6 +436,57 @@ pub(super) fn emit(
         _ => return false,
     }
     true
+}
+
+/// helpers-s1: RSIL / WSR PS / XSR PS inline, still terminal. EX135 made them terminal helpers;
+/// the only thing the helper did besides `exec_insn` is set `jit_helped`, which stops the EX153
+/// chain so the dispatcher re-derives the interrupt masking this instruction just changed.
+fn emit_ps_terminal(g: &mut Gen, i: &crate::Insn, next: u32) {
+    use crate::Op::*;
+    let ps_field = offset_of!(Cpu, ps);
+    if i.op != Wsr {
+        g.cpu(ps_field); // RSIL and XSR return the old PS in AR[t].
+        g.set(TMP);
+    }
+    g.get(0);
+    if i.op == Rsil {
+        g.get(TMP);
+        g.c(!ps::INTLEVEL_MASK);
+        g.op(0x71);
+        g.c(i.imm as u32 & ps::INTLEVEL_MASK);
+        g.op(0x72);
+    } else {
+        g.ar(i.t);
+        g.c(0x0007_ff3f); // `Cpu::write_sr`'s PS mask
+        g.op(0x71);
+    }
+    g.store(ps_field);
+    if i.op != Wsr {
+        g.get(TMP);
+        g.set_ar(i.t);
+    }
+    g.get(0);
+    g.c(1);
+    g.op(0x3a); // i32.store8 of Cpu::jit_helped, exactly what h_exec sets for these ops
+    uleb(&mut g.bytes, 0);
+    uleb(&mut g.bytes, offset_of!(Cpu, jit_helped));
+    g.advance();
+    // exec_insn's epilogue: a hardware loop ending here takes its backedge before the exit.
+    g.cpu(LEND);
+    g.c(next);
+    g.op(0x46);
+    g.begin_if();
+    g.cpu(LCOUNT);
+    g.begin_if();
+    g.decrement_loop();
+    g.get(0);
+    g.cpu(LBEG);
+    g.store(PC);
+    g.ret(CODE_LEFT);
+    g.end();
+    g.end();
+    g.cpu_const(PC, next);
+    g.ret(CODE_END);
 }
 
 /// QUOU/QUOS/REMU/REMS. A zero divisor raises DIVIDE_BY_ZERO and QUOS of INT_MIN by -1 wraps,

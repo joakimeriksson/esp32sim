@@ -10,6 +10,15 @@ pub(in crate::jit) fn supported_insn(i: &crate::Insn, fast: bool) -> bool {
         // EX155: WUR SAR_BYTE precedes every ee.src.q of the 4-bit unpack kernels.
         || (i.op == crate::Op::Wur && i.imm == 13)
         || (i.op == crate::Op::Rsr && rsr_field(i.imm as u32).is_some())
+        || ps_terminal(i)
+}
+
+/// helpers-s1: RSIL and WSR/XSR of PS, which `instruction::emit` lowers as compiled terminals
+/// (EX135 ran them through the helper). Every other special register keeps the helper: only PS
+/// is a plain `Cpu` field that `write_sr` masks and that no other state is derived from.
+pub(in crate::jit) fn ps_terminal(i: &crate::Insn) -> bool {
+    use crate::Op::*;
+    i.op == Rsil || (matches!(i.op, Wsr | Xsr) && i.imm as u32 == crate::state::sr::PS)
 }
 
 /// EX135: special registers whose `Cpu` field is exact at any instruction of a dispatch and that
