@@ -73,7 +73,7 @@
     },
     {
       "name": "benchmark-python",
-      "command": "uv run --offline --no-project --python <venv>/bin/python python -m unittest discover -s tools/browser-benchmark -p test_*.py",
+      "command": "uv run --offline --no-project --python <venv>/bin/python python -m unittest discover -s tools/browser-benchmark -p 'test_*.py'",
       "status": "passed",
       "passed": 15,
       "rawLogSha256": "96f7f6227f23e62c7c914ca35d689c134fd39236ee49e6c561f82d2ca04c01b2"
