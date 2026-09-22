@@ -1,0 +1,458 @@
+{
+  "scope": "Retained capture source and dependencies; no firmware binaries, WASM binaries, raw profiles, process inventories or browser sessions.",
+  "files": [
+    {
+      "original": {
+        "path": "chrome-harness/battery-failure.test.mjs",
+        "sha256": "5181f9bd895d397fcbfaa09c9330339247e1fe1fd382eb8379f4636dbcab5e3c",
+        "bytes": 3117
+      },
+      "retained": {
+        "path": "harness/chrome/battery-failure.test.mjs",
+        "sha256": "5181f9bd895d397fcbfaa09c9330339247e1fe1fd382eb8379f4636dbcab5e3c",
+        "bytes": 3117
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "chrome-harness/battery-worker.mjs",
+        "sha256": "4856f3531a83b8f81bd5118e07060a183c2b904b900f4b8b2b51e187230a3b81",
+        "bytes": 1142
+      },
+      "retained": {
+        "path": "harness/chrome/battery-worker.mjs",
+        "sha256": "4856f3531a83b8f81bd5118e07060a183c2b904b900f4b8b2b51e187230a3b81",
+        "bytes": 1142
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "chrome-harness/battery-workload.test.mjs",
+        "sha256": "3673288c3fcdbbc604986d172d3bfc61a780687092df330aec1058c1db98f550",
+        "bytes": 5201
+      },
+      "retained": {
+        "path": "harness/chrome/battery-workload.test.mjs",
+        "sha256": "3673288c3fcdbbc604986d172d3bfc61a780687092df330aec1058c1db98f550",
+        "bytes": 5201
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "chrome-harness/battery.html",
+        "sha256": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+        "bytes": 540
+      },
+      "retained": {
+        "path": "harness/chrome/battery.html",
+        "sha256": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+        "bytes": 540
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "chrome-harness/battery.mjs",
+        "sha256": "9b8f26a9fb949c81514fd6bc28bf57ba467090b1d435fc577f530eff4e051b62",
+        "bytes": 5018
+      },
+      "retained": {
+        "path": "harness/chrome/battery.mjs",
+        "sha256": "9b8f26a9fb949c81514fd6bc28bf57ba467090b1d435fc577f530eff4e051b62",
+        "bytes": 5018
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "chrome-harness/capture-battery.mjs",
+        "sha256": "3a6eb7f654af08075d808296bf1b4eea7da5607518687594f7115dbe608a286d",
+        "bytes": 3011
+      },
+      "retained": {
+        "path": "harness/chrome/capture-battery.mjs",
+        "sha256": "3a6eb7f654af08075d808296bf1b4eea7da5607518687594f7115dbe608a286d",
+        "bytes": 3011
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "chrome-harness/capture-cpu.mjs",
+        "sha256": "2a224056be6502fb5b7df1f1f63b29e75ba6946e1aa08768030de40f71ffd9cc",
+        "bytes": 4751
+      },
+      "retained": {
+        "path": "harness/chrome/capture-cpu.mjs",
+        "sha256": "2a224056be6502fb5b7df1f1f63b29e75ba6946e1aa08768030de40f71ffd9cc",
+        "bytes": 4751
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "chrome-harness/capture-page-response.mjs",
+        "sha256": "4e4d38ef935ab2fd565d5f3665889b014321f6f2c8cb82b70d12e5db530420c1",
+        "bytes": 11278
+      },
+      "retained": {
+        "path": "harness/chrome/capture-page-response.mjs",
+        "sha256": "4e4d38ef935ab2fd565d5f3665889b014321f6f2c8cb82b70d12e5db530420c1",
+        "bytes": 11278
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "chrome-harness/capture-response.mjs",
+        "sha256": "74a502f612e24170ba7c3fa329eed79bd3b78b01aab679f7fe67920643f3e4d6",
+        "bytes": 2478
+      },
+      "retained": {
+        "path": "harness/chrome/capture-response.mjs",
+        "sha256": "74a502f612e24170ba7c3fa329eed79bd3b78b01aab679f7fe67920643f3e4d6",
+        "bytes": 2478
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "chrome-harness/check-page-input.mjs",
+        "sha256": "1188b390807ad3096e14a9da2fe4139887b4f256b809640cf752b39edba608eb",
+        "bytes": 6919
+      },
+      "retained": {
+        "path": "harness/chrome/check-page-input.mjs",
+        "sha256": "1188b390807ad3096e14a9da2fe4139887b4f256b809640cf752b39edba608eb",
+        "bytes": 6919
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "chrome-harness/compare-runs.py",
+        "sha256": "3ea01b316e9bf1c2e919f4d50f6e40c77b81f89aae45526786735982c7804e0b",
+        "bytes": 10364
+      },
+      "retained": {
+        "path": "harness/chrome/compare-runs.py",
+        "sha256": "3ea01b316e9bf1c2e919f4d50f6e40c77b81f89aae45526786735982c7804e0b",
+        "bytes": 10364
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "chrome-harness/experiments.test.mjs",
+        "sha256": "1e30cb0fe89a2c41f4fbbe100d58046d602d07f70debb0bb5b8be03a6c87fb9c",
+        "bytes": 3017
+      },
+      "retained": {
+        "path": "harness/chrome/experiments.test.mjs",
+        "sha256": "1e30cb0fe89a2c41f4fbbe100d58046d602d07f70debb0bb5b8be03a6c87fb9c",
+        "bytes": 3017
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "chrome-harness/response.html",
+        "sha256": "2ded61ce3ed5449f249f1db204305ca16d0447cfef628dbe1dbe13e33c3d2051",
+        "bytes": 583
+      },
+      "retained": {
+        "path": "harness/chrome/response.html",
+        "sha256": "2ded61ce3ed5449f249f1db204305ca16d0447cfef628dbe1dbe13e33c3d2051",
+        "bytes": 583
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "chrome-harness/response.mjs",
+        "sha256": "edd358a836f123863a64f802c7a5d2723afbc27c45e732a444db25b2820dc7c4",
+        "bytes": 9017
+      },
+      "retained": {
+        "path": "harness/chrome/response.mjs",
+        "sha256": "edd358a836f123863a64f802c7a5d2723afbc27c45e732a444db25b2820dc7c4",
+        "bytes": 9017
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "chrome-harness/run-pairs.py",
+        "sha256": "49880738b68561744e158aaaf7fb470a0a3745dfd96bb17dbd48bd1f730ab651",
+        "bytes": 14268
+      },
+      "retained": {
+        "path": "harness/chrome/run-pairs.py",
+        "sha256": "49880738b68561744e158aaaf7fb470a0a3745dfd96bb17dbd48bd1f730ab651",
+        "bytes": 14268
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "chrome-harness/serve.py",
+        "sha256": "b7f3ec6dca66bdb802fa0db1d4f9f9889210a55210bd12ac3655a185a585fcd7",
+        "bytes": 3951
+      },
+      "retained": {
+        "path": "harness/chrome/serve.py",
+        "sha256": "b7f3ec6dca66bdb802fa0db1d4f9f9889210a55210bd12ac3655a185a585fcd7",
+        "bytes": 3951
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "chrome-harness/verdict-schema.json",
+        "sha256": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+        "bytes": 858
+      },
+      "retained": {
+        "path": "harness/chrome/verdict-schema.json",
+        "sha256": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+        "bytes": 858
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "chrome-harness/verdict.mjs",
+        "sha256": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+        "bytes": 1669
+      },
+      "retained": {
+        "path": "harness/chrome/verdict.mjs",
+        "sha256": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+        "bytes": 1669
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "chrome-harness/verdict.test.mjs",
+        "sha256": "fc77e45e65a7d5072723613833fb35d592b56f7590d80079201d4a2cfba006f4",
+        "bytes": 1952
+      },
+      "retained": {
+        "path": "harness/chrome/verdict.test.mjs",
+        "sha256": "fc77e45e65a7d5072723613833fb35d592b56f7590d80079201d4a2cfba006f4",
+        "bytes": 1952
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "chrome-harness/workloads.json",
+        "sha256": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+        "bytes": 2977
+      },
+      "retained": {
+        "path": "harness/chrome/workloads.json",
+        "sha256": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+        "bytes": 2977
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "safari-harness/battery-worker.mjs",
+        "sha256": "4856f3531a83b8f81bd5118e07060a183c2b904b900f4b8b2b51e187230a3b81",
+        "bytes": 1142
+      },
+      "retained": {
+        "path": "harness/safari/battery-worker.mjs",
+        "sha256": "4856f3531a83b8f81bd5118e07060a183c2b904b900f4b8b2b51e187230a3b81",
+        "bytes": 1142
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "safari-harness/battery.mjs",
+        "sha256": "9b8f26a9fb949c81514fd6bc28bf57ba467090b1d435fc577f530eff4e051b62",
+        "bytes": 5018
+      },
+      "retained": {
+        "path": "harness/safari/battery.mjs",
+        "sha256": "9b8f26a9fb949c81514fd6bc28bf57ba467090b1d435fc577f530eff4e051b62",
+        "bytes": 5018
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "safari-harness/compare-runs.py",
+        "sha256": "b8c67c70167fa311e106eb08d38fab3a206ec45ae98d5b30bfa093f37f9013e1",
+        "bytes": 10619
+      },
+      "retained": {
+        "path": "harness/safari/compare-runs.py",
+        "sha256": "b8c67c70167fa311e106eb08d38fab3a206ec45ae98d5b30bfa093f37f9013e1",
+        "bytes": 10619
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "safari-harness/run-pairs.py",
+        "sha256": "49880738b68561744e158aaaf7fb470a0a3745dfd96bb17dbd48bd1f730ab651",
+        "bytes": 14268
+      },
+      "retained": {
+        "path": "harness/safari/run-pairs.py",
+        "sha256": "49880738b68561744e158aaaf7fb470a0a3745dfd96bb17dbd48bd1f730ab651",
+        "bytes": 14268
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "safari-harness/server.py",
+        "sha256": "c8b69317e70c9c05b786f44d46a5dac7585c9e1cdb7c4f853fa6ff781dcbe915",
+        "bytes": 13880
+      },
+      "retained": {
+        "path": "harness/safari/server.py",
+        "sha256": "c8b69317e70c9c05b786f44d46a5dac7585c9e1cdb7c4f853fa6ff781dcbe915",
+        "bytes": 13880
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "safari-harness/verdict-schema.json",
+        "sha256": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+        "bytes": 858
+      },
+      "retained": {
+        "path": "harness/safari/verdict-schema.json",
+        "sha256": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+        "bytes": 858
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "safari-harness/verdict.mjs",
+        "sha256": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+        "bytes": 1669
+      },
+      "retained": {
+        "path": "harness/safari/verdict.mjs",
+        "sha256": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+        "bytes": 1669
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "safari-harness/workloads.json",
+        "sha256": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+        "bytes": 2977
+      },
+      "retained": {
+        "path": "harness/safari/workloads.json",
+        "sha256": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+        "bytes": 2977
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "captured-runtime/web/wasm/experiments.mjs",
+        "sha256": "29c4b556b0c7e25a529a9c4b1c3b5132aee06bb4884de684ba6c78a10ac4716b",
+        "bytes": 3959
+      },
+      "retained": {
+        "path": "harness/runtime/web/wasm/experiments.mjs",
+        "sha256": "29c4b556b0c7e25a529a9c4b1c3b5132aee06bb4884de684ba6c78a10ac4716b",
+        "bytes": 3959
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "captured-runtime/web/wasm/jit.mjs",
+        "sha256": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+        "bytes": 1793
+      },
+      "retained": {
+        "path": "harness/runtime/web/wasm/jit.mjs",
+        "sha256": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+        "bytes": 1793
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "captured-runtime/web/wasm/pacing.mjs",
+        "sha256": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+        "bytes": 1016
+      },
+      "retained": {
+        "path": "harness/runtime/web/wasm/pacing.mjs",
+        "sha256": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+        "bytes": 1016
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "captured-runtime/web/wasm/worker.js",
+        "sha256": "7ee25b3bb9036587685bafc92f7951f892ea63e0202e3cceac84201d8eca7e89",
+        "bytes": 12059
+      },
+      "retained": {
+        "path": "harness/runtime/web/wasm/worker.js",
+        "sha256": "7ee25b3bb9036587685bafc92f7951f892ea63e0202e3cceac84201d8eca7e89",
+        "bytes": 12059
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    },
+    {
+      "original": {
+        "path": "baseline-from-main.patch",
+        "sha256": "1dc96ed62487b4425ebe9d0d8733e7de4c96c37d72b7132ca3e50abb8a65ec05",
+        "bytes": 9997
+      },
+      "retained": {
+        "path": "baseline-from-main.patch",
+        "sha256": "1dc96ed62487b4425ebe9d0d8733e7de4c96c37d72b7132ca3e50abb8a65ec05",
+        "bytes": 9997
+      },
+      "changes": "None; retained byte-for-byte. Source files are not captured logs or browser profiles."
+    }
+  ],
+  "baselineReconstruction": {
+    "publicBaseRevision": "0042d0536baf06919e57183c7004b21739f35381",
+    "measuredSourceRevision": "7828e683bec41b9fc47dbbc38391a3a794fc4956",
+    "publicBaseTree": "daa8e6497d844b5c8b919830aade93c6a249b015",
+    "measuredSourceTree": "c40ce2f3ef8e734b4f3c98bab0e4fae822512b58",
+    "patch": "baseline-from-main.patch",
+    "limitation": "Measured baseline revision originated in private x4 work. Its commit is not guaranteed fetchable; reconstruct the tree from publicBaseRevision plus the preserved patch."
+  },
+  "reproduction": {
+    "chromeEntry": "harness/chrome/run-pairs.py",
+    "safariEntry": "harness/safari/server.py",
+    "requires": [
+      "Caller-supplied persistent scratch directory and uv-created virtual environment.",
+      "Caller-supplied Git checkout, firmware assets matching provenance.json and two WASM artifacts matching the recorded hashes.",
+      "The Git checkout must provide the recorded web/wasm runtime modules. Copies are retained under harness/runtime for hash comparison.",
+      "Chrome installed for Chrome capture; ordinary visible Safari page for Safari capture. No Remote Automation setting change is required."
+    ],
+    "sourceMeaning": "Chrome starts a fresh headless process/profile for each arm. Safari reloads the visible page and starts a fresh worker; process and caches may persist. Source siblings not used by the timing path are retained only because they were included in its provenance hash map."
+  },
+  "limitations": [
+    "The original campaign scripts contain machine-local paths and are not copied. Commands below use caller-supplied paths.",
+    "No new performance run is performed by this retention script.",
+    "Rebuilding a source tree is not proof of matching a timed artifact; compare the reconstructed WASM hash against provenance.json."
+  ]
+}
