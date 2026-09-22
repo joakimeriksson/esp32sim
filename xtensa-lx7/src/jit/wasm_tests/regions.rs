@@ -765,6 +765,23 @@ fn resumed_head_copy() -> u32 {
     assert_eq!(stat(13), resumes + 1, "resumed-head: the resume must enter the head's copy");
     // 66 instructions from the head: 9 passes of 7, then three more (a3 counts twice per pass).
     assert_eq!((c.pc, c.get_ar(3)), (BASE + 6, a3.wrapping_add(19)));
+    // edge-s1r: a second window of resumes, now into chunk 1, adds its copy to the head's. Chunk 1
+    // is reached inside the region only, so its own module is compiled first (no resume yet).
+    for _ in 0..40 { c.pc = BASE + 9; crate::block::run_block(&mut c, &mut ram, 1); }
+    assert_eq!(stat(12), tuned + 1, "resumed-head: dispatches that are not resumes count nothing");
+    for _ in 0..2 {
+        c.pc = BASE + 9;
+        assert_eq!(crate::block::run_block(&mut c, &mut ram, 1), (1, None));
+        assert_eq!(crate::block::run_block(&mut c, &mut ram, 1), (1, None));
+    }
+    assert_eq!(stat(12), tuned + 2, "resumed-head: a second window must add chunk 1's copy");
+    for (start, first) in [(BASE + 9, 1), (BASE, 2)] {
+        let resumes = stat(13);
+        c.pc = start;
+        assert_eq!(crate::block::run_block(&mut c, &mut ram, first), (first, None));
+        assert_eq!(crate::block::run_block(&mut c, &mut ram, 64), (64, None));
+        assert_eq!(stat(13), resumes + 1, "resumed-head: the resume at {start:x} must enter its copy");
+    }
     2
 }
 
