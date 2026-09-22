@@ -174,10 +174,10 @@ fn both_busy_rounds() -> u32 {
                             }
                             code.extend(SPIN);
                             SocBus::load_bytes(&mut m.bus, VECTORS + xtensa_lx7::state::vec::KERNEL, &SPIN).unwrap();
-                            for i in 0..2 {
-                                SocBus::load_bytes(&mut m.bus, CODE[i], if i == cut { &code } else { &peer }).unwrap();
+                            for (i, &entry) in CODE.iter().enumerate() {
+                                SocBus::load_bytes(&mut m.bus, entry, if i == cut { &code } else { &peer }).unwrap();
                                 let c = &mut m.cores[i];
-                                c.pc = CODE[i]; c.ps = 0; c.waiting = false;
+                                c.pc = entry; c.ps = 0; c.waiting = false;
                                 c.intenable = 0; c.interrupt = 0; c.vecbase = VECTORS;
                                 c.set_ar(3, 0x6002_3000);
                             }
