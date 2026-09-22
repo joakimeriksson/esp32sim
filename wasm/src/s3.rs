@@ -171,6 +171,30 @@ pub unsafe extern "C" fn esp32sim_set_quantum(e: *mut Emu, instructions: u32) ->
     0
 }
 
+/// EX177 (diagnostic): most whole scheduling rounds one both-busy batch may run (1 = off).
+/// The batch keeps the per-core quanta, their order and their budgets, so it is bit-exact with
+/// the per-round schedule; `ESP32SIM_BB_BUILD=<n>` pins a build's default.
+/// # Safety
+/// `e` must be a live exclusively borrowed emulator.
+#[no_mangle]
+pub unsafe extern "C" fn esp32sim_set_round_batch(e: *mut Emu, rounds: u32) -> u32 {
+    let e = unsafe { &mut *e };
+    let Some(m) = e.m.s3_mut() else { return 1 };
+    if rounds == 0 || rounds > 4096 { return 1; }
+    m.bb_max = u64::from(rounds);
+    0
+}
+
+/// EX177 counters: batches, whole rounds covered, cuts at a device register, cuts at waiti,
+/// batches that ran the whole cap, granted rounds, batches the bound refused.
+/// # Safety
+/// `e` must be a live exclusively borrowed emulator.
+#[no_mangle]
+pub unsafe extern "C" fn esp32sim_round_batch_stat(e: *mut Emu, i: u32) -> f64 {
+    let e = unsafe { &mut *e };
+    e.m.s3_mut().and_then(|m| m.bb_stats.get(i as usize).copied()).unwrap_or(0) as f64
+}
+
 /// EX147 (diagnostic): instruction-fetch cache fill price for flash-mapped code, per 32-byte line.
 /// Nonzero prices require approximate JIT timing; zero disables fetch prices.
 /// # Safety

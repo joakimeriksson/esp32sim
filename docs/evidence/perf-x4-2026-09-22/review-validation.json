@@ -1,0 +1,223 @@
+{
+  "date": "2026-09-22",
+  "sourceRevision": "455afad637f35fdb7bcc0a9c908b9e64f942f49b",
+  "reviewedStackTop": "b8155937f22f5e99ca53ebd5d26b89cb512954b2",
+  "layers": [
+    {
+      "branch": "codex/x4-dispatch",
+      "revision": "539b3b69f45a68e4d7794b568375e3cc46729dc8"
+    },
+    {
+      "branch": "codex/x4-inchain",
+      "revision": "c3849da2951dc3484f7a07bdbb6fb83ab761f9c9"
+    },
+    {
+      "branch": "codex/x4-memory",
+      "revision": "235c3a4af6c1bc8d9f36252ce9c9140948c85e64"
+    },
+    {
+      "branch": "codex/x4-pie",
+      "revision": "f30f447be62522b234a56dccfaf310fd4d93c9d2"
+    },
+    {
+      "branch": "codex/x4-prevpage",
+      "revision": "6a13ddf01087ce3dcc38c61fb77f73ac0e75fdb7"
+    },
+    {
+      "branch": "codex/x4-rounds",
+      "revision": "455afad637f35fdb7bcc0a9c908b9e64f942f49b"
+    }
+  ],
+  "environment": {
+    "rustc": "1.98.1 (48a229cea 2026-09-01)",
+    "node": "v26.9.0",
+    "nativeTarget": "aarch64-apple-darwin",
+    "wasmTarget": "wasm32-unknown-unknown",
+    "python": "CPython 3.14.2 in a uv-created virtual environment"
+  },
+  "checks": [
+    {
+      "command": "tools/wasm-jit-test.sh",
+      "result": {
+        "status": "passed",
+        "cases": 81686,
+        "releasedModules": 84328
+      },
+      "localLog": {
+        "published": false,
+        "sha256": "dce8587c9ec45fd37585667ead7f8a43e3c48770f48dd4c8d0c050396d96e7e4"
+      }
+    },
+    {
+      "command": "cargo test --release --workspace",
+      "result": {
+        "status": "passed",
+        "passed": 448,
+        "failed": 0,
+        "ignored": 22
+      },
+      "localLog": {
+        "published": false,
+        "sha256": "4dc1c6c460fa64638bfda52f6d30fd571cb6db7bfe3312592cc75bbbe3e739bb"
+      }
+    },
+    {
+      "command": "ESP32SIM_VQ_NATIVE=1 cargo test --release -p esp32s3 --test machine --test virtual_stops",
+      "result": {
+        "status": "passed",
+        "passed": 38,
+        "failed": 0,
+        "ignored": 0
+      },
+      "localLog": {
+        "published": false,
+        "sha256": "c760704475e08d35452759887c005ed9df160fd2a06d42a4864a56b350e7f439"
+      }
+    },
+    {
+      "command": "cargo clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+      "result": {
+        "status": "passed"
+      },
+      "localLog": {
+        "published": false,
+        "sha256": "ef4e935efae358318aa2f06937c0afe587eda477465a3d78b9b78fdf597466b7"
+      }
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets -- -D warnings",
+      "result": {
+        "status": "passed"
+      },
+      "localLog": {
+        "published": false,
+        "sha256": "58d1b6cbcb5e181ca1e3eb1efff3beda4227ea52ca503b528e82ce8c71bbf0c4"
+      }
+    },
+    {
+      "command": ". ./tools/wasm-rustflags.sh; cargo build --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-profile,cpu-profile",
+      "result": {
+        "status": "passed"
+      },
+      "localLog": {
+        "published": false,
+        "sha256": "e2f45f78a980050e0c004e9c08c04ebb4984ea24a554edf0f936cd56db523e04"
+      }
+    },
+    {
+      "command": "uv run --no-project --python <venv>/bin/python python -m unittest discover -s tools/browser-benchmark -p test_*.py",
+      "result": {
+        "status": "passed",
+        "tests": 12
+      },
+      "localLog": {
+        "published": false,
+        "sha256": "82498e1b831c40aef69835760a96d62213ede3bfc5ea83775373a9d7a60bb125"
+      }
+    },
+    {
+      "command": "node --test tools/browser-benchmark/*.test.mjs",
+      "result": {
+        "status": "passed",
+        "tests": 13
+      },
+      "localLog": {
+        "published": false,
+        "sha256": "dd3e6afe0de53c04c58a4ec28f4a9c111a32297087f218087fa441b624a152d2"
+      }
+    }
+  ],
+  "changedSourceHashes": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "53042edbb4291b105115f5bba9d6283d3151b77a8b8514cc90d1a5b853fb5c12"
+    },
+    {
+      "path": "emu-core/src/bus.rs",
+      "sha256": "c56d7a7836724dd1828371bc5d71d2edda089e8054b04d3e438d829389891f5e"
+    },
+    {
+      "path": "esp-soc/src/machine.rs",
+      "sha256": "1e0319ef387a70fffecfa900ea013e7671753668f1c93fec18e8d8f0510f4b06"
+    },
+    {
+      "path": "esp32s3/src/bus.rs",
+      "sha256": "4e58f150771e71db95a2ccb1d2be72029d533653cfc82a596feffedfa2cc58b9"
+    },
+    {
+      "path": "esp32s3/src/bus/dma.rs",
+      "sha256": "7c99e0c58cb1a4b8cdf38eaa0f7961bf1f459f65eb7939cf21bc45c04cb5a292"
+    },
+    {
+      "path": "esp32s3/src/bus/tests.rs",
+      "sha256": "4f2cf67c3d73ec250a877f96e5c3c5e934792d880f2dbc00be324c20678a519e"
+    },
+    {
+      "path": "esp32s3/tests/virtual_stops.rs",
+      "sha256": "96dba92feae7e6cd75fa9e1622fbad349cdd67ef5551329d553999850c932c17"
+    },
+    {
+      "path": "tools/browser-benchmark/compare-runs.py",
+      "sha256": "ebcc9ac1cd01beadecba943ea70f4f189723b3e4ea3029a26fe5772b1848203e"
+    },
+    {
+      "path": "tools/browser-benchmark/run-pairs.py",
+      "sha256": "e84dacf743a93dad097c2ff52e53290ade8e6c737c7bcb474a2087a7ecd3d5fd"
+    },
+    {
+      "path": "wasm/src/browser_jit.rs",
+      "sha256": "9cde06c9fd3f40c37ad4dc7f937b91344dd34accfcdfc55b2894ed33589caf3a"
+    },
+    {
+      "path": "wasm/src/jit_tests.rs",
+      "sha256": "b74f8121b2c08f9602846e5ae2120618ea8bd3ba1cfcb9f46ec97e7c08fcc24b"
+    },
+    {
+      "path": "wasm/src/s3.rs",
+      "sha256": "373e601fdfe939be6f43d6748720a733146a8dd4592fb19a6da7b3b3347fdf5c"
+    },
+    {
+      "path": "xtensa-lx7/src/block.rs",
+      "sha256": "b1b2ca6ed4be9e32eadafce5bb8109ca301af187cb2e49fb1adfa0b449f41579"
+    },
+    {
+      "path": "xtensa-lx7/src/jit/mod.rs",
+      "sha256": "e5fb26fd32db90a582a0e398d6cf41e1c1dc454fbcdbfba62bd5892594b92d26"
+    },
+    {
+      "path": "xtensa-lx7/src/jit/wasm.rs",
+      "sha256": "43de4906a97916f4f209f9d8152c29f53574c2a3ca05a957138b021b1d0624f1"
+    },
+    {
+      "path": "xtensa-lx7/src/jit/wasm_memory.rs",
+      "sha256": "b3a64cd25038645d5e0ae32c219737005e84f9e2ece233aa825e9c30128b7e5c"
+    },
+    {
+      "path": "xtensa-lx7/src/jit/wasm_pie.rs",
+      "sha256": "64121aecd49747efaf0090e9bbf87e2683747eec86e68812599fbd2278b3f4dc"
+    },
+    {
+      "path": "xtensa-lx7/src/jit/wasm_tests.rs",
+      "sha256": "0c78914fa5007ba5046d6325b5b5cec32a1e13fef73ad73c5493ad008df825dc"
+    },
+    {
+      "path": "xtensa-lx7/src/jit/wasm_tests/control.rs",
+      "sha256": "c1e106b3f48f88e8333674bd670136f66c02c4949a23eb14b1ec470a5248fca7"
+    },
+    {
+      "path": "xtensa-lx7/src/jit/wasm_tests/pie_accx.rs",
+      "sha256": "518393a743cc02de08d21adebc15c4cc839d224082efc82cc508d0877b653bdd"
+    },
+    {
+      "path": "xtensa-lx7/src/jit/wasm_tests/regions.rs",
+      "sha256": "7691547277ca0e217027aae4232f4400ec0dbea3b5448cc48dcc9ee4d584d889"
+    }
+  ],
+  "limitations": [
+    "The default native workspace run leaves 22 ROM-dependent or external-tool tests ignored. No new mask-ROM boot or browser performance campaign was run.",
+    "The native opt-in scheduler run is separate from the default workspace run.",
+    "Historical speed measurements and artifact identities do not describe the corrected source.",
+    "Bridge cases exercise admission and execution directly, not every possible wrapper-chain transition."
+  ],
+  "privacy": "Raw compiler/test logs remain outside Git. This record omits local paths and process/thread identifiers; hashes identify locally retained original logs. Historical numeric samples and artifact hashes are preserved."
+}
