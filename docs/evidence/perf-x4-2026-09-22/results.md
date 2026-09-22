@@ -1,0 +1,72 @@
+# Browser measurements
+
+Positive reductions mean less wall time against the round’s plain base. All 66 jobs retain their positive or negative aggregate here. Detailed historical receipts are retained locally; the linked shipping and control receipts retain samples, work checks and input hashes.
+
+| Round | Job | Source | Pairs | Median seconds: base → candidate | Reduction | Receipt |
+|---|---|---|---:|---:|---:|---|
+| x3 | calls-s1 | `fe3a2a48` | 2 | 28.17713 → 33.76965 | -19.85% | Local |
+| x3 | calls-s2 | `7c8273d9` | 2 | 28.52116 → 29.41074 | -3.12% | Local |
+| x3 | calls-s3 | `cd618bca` | 2 | 28.50999 → 29.46275 | -3.34% | Local |
+| x3 | calls-s4 | `118e9e0f` | 2 | 28.33755 → 28.85021 | -1.81% | Local |
+| x3 | coalesce-s1 | `0366dc83` | 2 | 28.38465 → 28.23486 | 0.53% | Local |
+| x3 | coalesce-s1s2 | `9a75197a` | 2 | 28.46384 → 27.84650 | 2.17% | Local |
+| x3 | coalesce-s2 | `86a22a1b` | 2 | 28.20951 → 27.99532 | 0.76% | Local |
+| x3 | coldpath-s1 | `5167baad` | 2 | 28.35543 → 28.46164 | -0.37% | Local |
+| x3 | coldpath-s1s2 | `33009ebc` | 2 | 28.39985 → 29.21381 | -2.87% | Local |
+| x3 | coldpath-s3 | `be36b11d` | 2 | 28.26354 → 28.99374 | -2.58% | Local |
+| x3 | confirm-all-noaccx-td | `97808ccb` | 3 | 28.80731 → 27.64260 | 4.04% | Local |
+| x3 | confirm-all-noaccx | `97808ccb` | 4 | 28.39609 → 27.23432 | 4.09% | Local |
+| x3 | confirm-all-td | `b3ff3660` | 3 | 28.94845 → 27.79758 | 3.98% | Local |
+| x3 | confirm-all | `b3ff3660` | 4 | 28.26799 → 27.01692 | 4.43% | Local |
+| x3 | confirm-dispatch-inchain | `fdcb3c32` | 4 | 28.39708 → 27.42481 | 3.42% | Local |
+| x3 | confirm-dispatch-t3t4 | `5a718c30` | 4 | 28.33844 → 27.62982 | 2.50% | Local |
+| x3 | confirm-dispatch | `9114f36e` | 4 | 28.04691 → 27.44275 | 2.15% | Local |
+| x3 | confirm-inchain | `87062b88` | 4 | 28.24632 → 27.75236 | 1.75% | Local |
+| x3 | control-aa-1 | `5167baad` | 2 | 27.28248 → 27.56010 | -1.02% | Local |
+| x3 | control-aa-2 | `5167baad` | 2 | 28.05020 → 28.00093 | 0.18% | Local |
+| x3 | control-aa-td | `5167baad` | 2 | 28.67826 → 28.66938 | 0.03% | Local |
+| x3 | hints-inv | `3a4f3a27` | 2 | 28.28153 → 30.03158 | -6.19% | Local |
+| x3 | hints-s1 | `3a4f3a27` | 2 | 28.27699 → 28.34069 | -0.23% | Local |
+| x3 | hints-s2 | `3a4f3a27` | 2 | 28.37661 → 28.09151 | 1.00% | Local |
+| x3 | hints-s3 | `2e672002` | 2 | 28.30288 → 28.29856 | 0.02% | Local |
+| x3 | hints-s4 | `ffe1f160` | 2 | 28.27288 → 28.15439 | 0.42% | Local |
+| x3 | pgo-s1 | `5e00aaff` | 2 | 28.28469 → 28.46598 | -0.64% | Local |
+| x3 | pgo-s2 | `5e00aaff` | 2 | 28.28229 → 29.50826 | -4.33% | Local |
+| x3 | pgo-s3 | `5e00aaff` | 2 | 28.19910 → 28.36897 | -0.60% | Local |
+| x3 | pgo-s4 | `5e00aaff` | 2 | 28.24162 → 28.30685 | -0.23% | Local |
+| x3 | pgo-s5b | `5e00aaff` | 2 | 28.26891 → 28.33548 | -0.24% | Local |
+| x3 | pgo-s6b | `5e00aaff` | 2 | 28.40658 → 28.31899 | 0.31% | Local |
+| x3 | prevpage-b | `a468589b` | 2 | 28.38815 → 28.73896 | -1.24% | Local |
+| x3 | prevpage-storever | `cfcfee4f` | 2 | 28.26659 → 27.96060 | 1.08% | Local |
+| x3 | probe-s1 | `afc7bb30` | 2 | 28.27569 → 28.22609 | 0.18% | Local |
+| x3 | probe-s1s2 | `1ba40101` | 2 | 28.30703 → 27.39979 | 3.21% | Local |
+| x3 | probe-s1s2s3 | `8e1d3eb1` | 2 | 28.32241 → 27.41738 | 3.20% | Local |
+| x3 | rounds-k16 | `717c127c` | 2 | 28.27938 → 27.88158 | 1.41% | Local |
+| x3 | rounds-k16s2 | `2428525d` | 2 | 28.54412 → 27.79866 | 2.61% | Local |
+| x3 | rounds-k4 | `717c127c` | 2 | 28.23050 → 28.39322 | -0.58% | Local |
+| x3 | rounds-k64 | `717c127c` | 2 | 28.41510 → 27.80334 | 2.15% | Local |
+| x3 | rounds-s2 | `2428525d` | 2 | 28.92794 → 29.29489 | -1.27% | Local |
+| x3 | sramwin-s1 | `34dd7cef` | 2 | 28.36986 → 28.45118 | -0.29% | Local |
+| x3 | sramwin-s1s3 | `d10d2137` | 2 | 28.29578 → 28.28767 | 0.03% | Local |
+| x3 | sramwin-s2 | `34dd7cef` | 2 | 28.20615 → 28.04391 | 0.58% | Local |
+| x3 | storever-s1 | `c19b0648` | 2 | 28.26597 → 27.96247 | 1.07% | Local |
+| x4 | coalesce-s1s2 | `b71b52ba` | 4 | 28.62505 → 28.09320 | 1.86% | Local |
+| x4 | control-aa-1 | `7828e683` | 2 | 28.26175 → 28.50733 | -0.87% | [Samples](x4/control-aa-1.json) |
+| x4 | control-aa-td | `7828e683` | 2 | 29.21557 → 29.14506 | 0.24% | [Samples](x4/control-aa-td.json) |
+| x4 | everything-accx-k128-pack32-r2 | `c37ee04e` | 4 | 28.63600 → 24.74849 | 13.58% | [Samples](x4/everything-accx-k128-pack32-r2.json) |
+| x4 | everything-accx-k128-pack32 | `c37ee04e` | 4 | 28.48555 → 24.75876 | 13.08% | [Samples](x4/everything-accx-k128-pack32.json) |
+| x4 | everything-accx-k128-r2 | `70c7222e` | 4 | 28.48661 → 24.94993 | 12.42% | Local |
+| x4 | everything-accx-k128-td | `70c7222e` | 3 | 29.10321 → 26.89169 | 7.60% | Local |
+| x4 | everything-accx-k128 | `70c7222e` | 4 | 28.60667 → 24.84155 | 13.16% | Local |
+| x4 | everything-k64-td | `124943a4` | 3 | 29.17412 → 26.90575 | 7.78% | Local |
+| x4 | everything-k64 | `124943a4` | 4 | 28.58875 → 25.44300 | 11.00% | Local |
+| x4 | final-pack32-default128-td | `4080afdd` | 3 | 29.11198 → 26.71095 | 8.25% | [Samples](x4/final-pack32-default128-td.json) |
+| x4 | probe-s1s2 | `c060068a` | 4 | 28.63003 → 27.66202 | 3.38% | [Samples](x4/probe-s1s2.json) |
+| x4 | rounds-k1024 | `1a14b350` | 4 | 28.64337 → 28.03269 | 2.13% | Local |
+| x4 | rounds-k128 | `1a14b350` | 4 | 28.66736 → 28.02239 | 2.25% | Local |
+| x4 | rounds-k256 | `1a14b350` | 4 | 28.51591 → 28.02980 | 1.70% | Local |
+| x4 | rounds-k64 | `1a14b350` | 4 | 28.55376 → 28.02629 | 1.85% | Local |
+| x4 | stack-accx | `649665c4` | 4 | 28.52310 → 27.24857 | 4.47% | Local |
+| x4 | stack-noaccx-td | `87d9dcdd` | 3 | 29.20480 → 28.01813 | 4.06% | Local |
+| x4 | stack-noaccx | `87d9dcdd` | 4 | 28.59554 → 27.42527 | 4.09% | Local |
+| x4 | storever-s1 | `d510cc9b` | 4 | 28.63021 → 28.06803 | 1.96% | [Samples](x4/storever-s1.json) |
