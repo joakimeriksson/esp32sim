@@ -413,6 +413,7 @@ impl SocBus {
                                   else { (stop - at, (emu_core::bus::PREV_PAGE_BYTES as usize).saturating_sub(in_page).min(stop - at)) };
             self.page_ver[p] = self.page_ver[p].wrapping_add(writes as u32);
             if early != 0 && p > 0 { self.page_ver[p - 1] = self.page_ver[p - 1].wrapping_add(early as u32); }
+            self.touched(p.saturating_sub(1), p);
             at = stop;
         }
     }

@@ -224,6 +224,42 @@ fn both_busy_rounds() -> u32 {
     cases
 }
 
+/// shell-s2: cached region entry facts leave flash pages to the bus epoch. Rewriting or remapping
+/// the second chunk of a hot compiled flash loop, whose head page stays current, must still run
+/// the new code, exactly like the interpreter.
+fn flash_code_rewrites() -> u32 {
+    const CODE: u32 = 0x4201_0000; // IBUS page 1
+    const HEAD: [u8; 5] = [0x1b, 0x33, 0x86, 0x3e, 0x00]; // addi.n a3,a3,1; j CODE+0x100
+    let tail = |step: u8| [0x0b | (step << 4), 0x33, 0x86, 0xbe, 0xff]; // addi.n a3,a3,STEP; j CODE
+    for writer in 0..3 {
+        let (mut a, mut b) = (machine(false), machine(true));
+        for m in [&mut a, &mut b] {
+            for (page, step) in [(0x1_0000, 1), (0x2_0000, 2)] {
+                m.write_flash(page, &HEAD).unwrap();
+                m.write_flash(page + 0x100, &tail(step)).unwrap();
+            }
+            m.bus.write32(esp32s3::bus::MMU_TABLE + 4, 1).unwrap();
+            let c = &mut m.cores[0];
+            c.pc = CODE;
+            c.set_ar(3, 0);
+            for _ in 0..2 {
+                m.max_cycles = m.bus.cycles + 20_000;
+                assert!(matches!(m.run(u64::MAX), Stop::Halted));
+                match writer {
+                    0 => m.write_flash(0x1_0100, &tail(2)).unwrap(),
+                    1 => m.bus.write32(esp32s3::bus::MMU_TABLE + 4, 2).unwrap(),
+                    _ => SocBus::load_bytes(&mut m.bus, CODE + 0x100, &tail(2)).unwrap(),
+                }
+            }
+            m.max_cycles = m.bus.cycles + 20_000;
+            assert!(matches!(m.run(u64::MAX), Stop::Halted));
+        }
+        same(&a, &b);
+        assert!(b.cores[0].get_ar(3) > 20_000, "writer {writer}: the flash loop never ran");
+    }
+    3
+}
+
 fn architectural_stops() -> u32 {
     for jit in [false, true] {
         for busy in 0..2 {
@@ -303,7 +339,7 @@ pub fn run() -> u32 {
         }
         same(&a, &b);
     }
-    let cases = 3 + solo_core_one() + architectural_stops() + both_busy_rounds();
+    let cases = 3 + solo_core_one() + architectural_stops() + both_busy_rounds() + flash_code_rewrites();
     #[cfg(feature = "cache-inline")]
     let cases = cases + sequential_emulators_reset_timing_state();
     cases

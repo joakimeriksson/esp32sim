@@ -149,14 +149,16 @@ const LOOP_UNKNOWN: (u32, u32, [u32; 2]) = (0, u32::MAX, [0; 2]);
 /// Entry facts of one region chunk. `sites` points into the owning region's vector, which
 /// lives until that region is dropped, and every drop moves `CodeCache::region_epoch` on.
 #[derive(Clone, Copy)]
-struct Hot { epoch: u64, bloom: u64, slot: u32, k: u32, len: u32, lo: u32, span: u32, pages: [(u32, u32); emitter::region::MAX_PAGES], npages: u32, nsites: u32, sites: *const ExitSite }
-impl Hot { const NONE: Hot = Hot { epoch: 0, bloom: 0, slot: 0, k: 0, len: 0, lo: 0, span: 0, pages: [(0, 0); emitter::region::MAX_PAGES], npages: 0, nsites: 0, sites: std::ptr::null() }; }
+struct Hot { epoch: u64, bloom: u64, slot: u32, k: u32, len: u32, lo: u32, span: u32, pages: [(u32, u32); emitter::region::MAX_PAGES], npages: u32, nsites: u32, sites: *const ExitSite,
+    /// shell-s2: `Bus::stable_pages` epoch at the refill; `pages` leaves out the pages it vouches for.
+    fepoch: u64 }
+impl Hot { const NONE: Hot = Hot { epoch: 0, bloom: 0, slot: 0, k: 0, len: 0, lo: 0, span: 0, pages: [(0, 0); emitter::region::MAX_PAGES], npages: 0, nsites: 0, sites: std::ptr::null(), fepoch: 0 }; }
 #[cfg(any(debug_assertions, feature = "wasm-jit-tests"))]
 impl Hot {
-    fn assert_matches(&self, r: &Region, k: u32) {
+    fn assert_matches(&self, r: &Region, k: u32, (lo, hi, _): (u32, u32, u64)) {
         assert_eq!((self.slot, self.k, self.len), (r.slot, k, r.lens[k as usize]));
         assert_eq!((self.bloom, self.lo, self.span), (r.bloom, r.lo, r.hi.wrapping_sub(r.lo)));
-        assert_eq!(&self.pages[..self.npages as usize], r.pages.as_slice());
+        assert!(self.pages[..self.npages as usize].iter().eq(r.pages.iter().filter(|&&(i, _)| i < lo || i >= hi)));
         assert_eq!((self.sites, self.nsites), (r.sites.as_ptr(), r.sites.len() as u32));
     }
 }
@@ -632,17 +634,18 @@ unsafe fn run_inner<B: Bus>(
         {
             // SAFETY: the only writer, the refill below, runs after this reference's scope.
             let hot = unsafe { &*rec.hot.as_ptr() };
+            let stable = bus.stable_pages();
             #[cfg(any(debug_assertions, feature = "wasm-jit-tests"))]
-            if hot.epoch == cc.region_epoch.get() {
+            if hot.epoch == cc.region_epoch.get() && hot.fepoch == stable.2 {
                 let (owner, k) = if cc.blocks[code as usize].region.borrow().is_some() { (code, 0) }
                     else { *cc.covered.borrow().get(&rec.pc).expect("live hot owner") };
                 let region = cc.blocks[owner as usize].region.borrow();
-                hot.assert_matches(region.as_ref().expect("live hot region"), k);
+                hot.assert_matches(region.as_ref().expect("live hot region"), k, stable);
             }
             // EX168 s1: `fits` false with current pages is a proven rejection: while the epoch holds,
             // the slow lookup below selects this same live chunk and fails the same budget/bloom test.
             let fits = budget >= hot.len && cpu.boundary_bloom & hot.bloom == 0;
-            if hot.epoch == cc.region_epoch.get()
+            if hot.epoch == cc.region_epoch.get() && hot.fepoch == stable.2
                 && (!fits || cpu.lcount == 0 || cpu.lend.wrapping_sub(hot.lo) > hot.span)
             {
                 let pv = bus.page_versions();
@@ -758,14 +761,20 @@ unsafe fn run_inner<B: Bus>(
                     let f: Run<B> = unsafe { std::mem::transmute(r.slot as usize) };
                     // EX168 t3: facts stamped with the current epoch were copied from this same live
                     // (owner, chunk) and a region's facts never change: nothing to rewrite.
-                    if r.pages.len() <= emitter::region::MAX_PAGES && unsafe { (*rec.hot.as_ptr()).epoch } != cc.region_epoch.get() {
+                    let (lo, hi, fepoch) = bus.stable_pages();
+                    // SAFETY: a copied field; no reference into `hot` is live here.
+                    let old = unsafe { ((*rec.hot.as_ptr()).epoch, (*rec.hot.as_ptr()).fepoch) };
+                    if r.pages.len() <= emitter::region::MAX_PAGES && old != (cc.region_epoch.get(), fepoch) {
+                        // shell-s2: every page was compared just above; the pages the bus vouches for stay
+                        // current while its epoch holds, so only the others are compared from now on.
                         let mut pages = [(0, 0); emitter::region::MAX_PAGES];
-                        pages[..r.pages.len()].copy_from_slice(&r.pages);
+                        let mut npages = 0;
+                        for &(i, v) in &r.pages { if i < lo || i >= hi { pages[npages] = (i, v); npages += 1; } }
                         rec.hot.set(Hot { epoch: cc.region_epoch.get(), bloom: r.bloom, slot: r.slot, k, len: r.lens[k as usize], lo: r.lo,
-                            span: r.hi.wrapping_sub(r.lo), pages, npages: r.pages.len() as u32, nsites: r.sites.len() as u32, sites: r.sites.as_ptr() });
+                            span: r.hi.wrapping_sub(r.lo), pages, npages: npages as u32, nsites: r.sites.len() as u32, sites: r.sites.as_ptr(), fepoch });
                     }
                     #[cfg(any(debug_assertions, feature = "wasm-jit-tests"))]
-                    unsafe { &*rec.hot.as_ptr() }.assert_matches(r, k);
+                    unsafe { &*rec.hot.as_ptr() }.assert_matches(r, k, (lo, hi, fepoch));
                     let result = f(cpu, bus, h, budget.min(0xffff), k, tlb, versions);
                     let site = if (result >> 16) & 7 != CODE_REJECT {
                         assert!(((result >> 19) as usize) < r.sites.len(), "region {:x}: result {result:#x} sites {}", rb.pc, r.sites.len());

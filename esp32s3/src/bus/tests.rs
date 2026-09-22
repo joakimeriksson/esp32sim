@@ -1187,3 +1187,38 @@ fn cpu_store_versions_cover_instruction_overlap() {
         }
     }
 }
+
+/// shell-s2: every version `stable_pages` covers changes only together with its epoch, and the
+/// page generated stores can reach through the EX180 previous-page rule stays outside the range.
+#[test]
+fn stable_pages_move_their_epoch() {
+    use esp_soc::SocBus as _;
+    // Whether a covered version changed; if one did, the epoch must have moved.
+    fn check(bus: &mut SocBus, what: &str, op: impl FnOnce(&mut SocBus)) -> bool {
+        let (lo, hi, epoch) = bus.stable_pages();
+        let before = bus.page_versions()[lo as usize..hi as usize].to_vec();
+        op(bus);
+        let changed = bus.stable_pages().0 != lo || bus.page_versions()[lo as usize..hi as usize] != before[..];
+        assert!(!changed || bus.stable_pages().2 != epoch, "{what}: a covered version changed without the epoch");
+        changed
+    }
+    let mut bus = SocBus::new(4 << 16, 2 << 16, [0; 6]);
+    assert!(check(&mut bus, "flash write", |b| b.write_flash(0x1_0010, &[1, 2, 3]).unwrap()));
+    assert!(check(&mut bus, "remap", |b| b.write32(MMU_TABLE + 4, 1).unwrap()));
+    assert!(check(&mut bus, "load through the flash mapping", |b| b.load_bytes(IBUS_LOW + 0x1_0020, &[7]).unwrap()));
+    assert!(check(&mut bus, "SPI flash write-back", |b| b.note_written(SRC_FLASH, 0x2_0000, 4)));
+    assert!(check(&mut bus, "PSRAM resize", |b| b.set_psram_size(4 << 16).unwrap()));
+    bus.write32(MMU_TABLE, MMU_SPIRAM).unwrap();
+    let first = bus.code_page(DBUS_LOW);
+    bus.note_code_page(first);
+    let before = bus.page_versions().to_vec();
+    for width in [1, 2, 4] {
+        assert!(!check(&mut bus, "store to the first bytes of PSRAM", |b| match width {
+            1 => b.write8(DBUS_LOW, 1).unwrap(),
+            2 => b.write16(DBUS_LOW, 1).unwrap(),
+            _ => b.write32(DBUS_LOW, 1).unwrap(),
+        }));
+    }
+    assert_eq!(bus.stable_pages().1, first - 1, "the last flash page is left to per-page compares");
+    assert_eq!(bus.page_versions()[first as usize - 1], before[first as usize - 1] + 3);
+}
