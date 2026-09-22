@@ -114,13 +114,19 @@ pub(super) fn regions() -> u32 {
         assert_eq!(formed.chunks.len(), 40);
         assert_eq!(formed.chunks.iter().map(|c| c.instructions.len()).sum::<usize>(), 320);
         assert_eq!(formed.pages.len(), 5);
-        let (bytes, sites) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, true);
+        // tails-s1: a counting region, guarded copies of every chunk, and of every other chunk.
+        let all: Vec<usize> = (0..40).collect();
+        let even: Vec<usize> = (0..40).step_by(2).collect();
+        for copies in [None, Some(&all[..]), Some(&even[..])] {
+        let (bytes, sites) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, true, copies);
         let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
         assert_ne!(slot, 0, "large region module with {} exit sites", sites.len());
         type Run = extern "C" fn(*mut Cpu, *mut Ram, *const Helpers, u32, u32, *const TlbEntry, *mut u32) -> u32;
         let f: Run = unsafe { std::mem::transmute(slot as usize) };
         for entry in 0..40 {
-            for budget in [8, 15, 63, 300, 511] {
+            // Budgets 9..15 cut a copy of the next chunk at every one of its indices; 8 and 16
+            // land exactly on a chunk end.
+            for budget in [8, 9, 10, 11, 12, 13, 14, 15, 16, 23, 63, 300, 511] {
                 for dst in [BASE + 0x2000, BASE + 4 * 256 + 31] {
                     let (mut a, mut b) = (cpu(0), cpu(0));
                     let (mut ra, mut rb) = (Ram::new(true, false), Ram::new(true, false));
@@ -129,12 +135,16 @@ pub(super) fn regions() -> u32 {
                         c.pc = formed.chunks[entry].pc; c.ps = 0;
                         c.set_ar(3, 0x42); c.set_ar(4, dst);
                     }
-                    CONTEXT.with(|c| *c.borrow_mut() = format!("large region entry {entry} budget {budget} dst {dst:x}"));
+                    CONTEXT.with(|c| *c.borrow_mut() = format!("large region entry {entry} budget {budget} dst {dst:x} copies {:?}", copies.map(|c| c.len())));
                     let fm = rb.fast_mem().unwrap();
                     let result = f(&mut b, &mut rb, &Helpers::new::<Ram>(), budget, entry as u32, fm.tlb, fm.page_ver);
                     let done = result & 0xffff;
                     assert!(done > 0 && done <= budget);
                     if dst == BASE + 0x2000 && budget >= 300 { assert!(done >= 296, "large DONE credit: {done}"); }
+                    // No store lands in the region's own pages: with every chunk copied the whole
+                    // credit is spent, and a counting region reports each unspent exit as SHORT.
+                    if dst == BASE + 0x2000 && copies.is_some_and(|c| c.len() == 40) { assert_eq!(done, budget); }
+                    if dst == BASE + 0x2000 && copies.is_none() && done < budget { assert_eq!((result >> 16) & 7, CODE_SHORT); }
                     for _ in 0..done {
                         let i = crate::decode::decode(a.pc, ra.fetch(a.pc).unwrap());
                         exec_insn(&mut a, &mut ra, &i).unwrap();
@@ -147,6 +157,7 @@ pub(super) fn regions() -> u32 {
             }
         }
         unsafe { host_jit_release(slot) };
+        }
     }
     for dst in [BASE + 0x2000, BASE + 4 * 256 + 31] {
         let max = region_program("large-region-dispatch", &large, &[], &[], 8, 32, |c| {
@@ -204,7 +215,7 @@ pub(super) fn regions() -> u32 {
         let head: Vec<BlockInsn> = (0..6).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, straddle: false, off: 0 }) }).collect();
         let formed = emitter::region::form(&c, &mut ram, BASE, &head, true).expect("memmove region");
         assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(), vec![(0, 6), (17, 1)]);
-        let (bytes, sites) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, true);
+        let (bytes, sites) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, true, Some(&[]));
         let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
         assert!(slot != 0, "memmove region module must compile ({} bytes, {} sites)", bytes.len(), sites.len());
         unsafe { host_jit_release(slot) };
@@ -366,7 +377,7 @@ pub(super) fn regions() -> u32 {
         let head: Vec<BlockInsn> = (0..4).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: crate::exec::max_ar(&i), straddle: false, off: 0 }) }).collect();
         let formed = emitter::region::form(&c0, &mut ram, BASE, &head, true).expect("entry-interior region");
         let interior = formed.chunks.iter().position(|c| c.pc == BASE + 3).expect("interior chunk") as u32;
-        let (bytes, _) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, true);
+        let (bytes, _) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, true, Some(&[]));
         let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
         assert!(slot != 0);
         type Run = extern "C" fn(*mut Cpu, *mut Ram, *const Helpers, u32, u32, *const TlbEntry, *mut u32) -> u32;
@@ -533,7 +544,7 @@ pub(super) fn regions() -> u32 {
         }).collect();
         let formed = emitter::region::form(&cpu(0), &mut ram, BASE, &head, true).expect("held ACCX region");
         let entry = formed.chunks.iter().position(|c| c.pc == BASE + 5).expect("held ACCX body") as u32;
-        let (bytes, _) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, true);
+        let (bytes, _) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, true, Some(&[]));
         let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
         assert_ne!(slot, 0);
         type Run = extern "C" fn(*mut Cpu, *mut Ram, *const Helpers, u32, u32, *const TlbEntry, *mut u32) -> u32;
@@ -680,7 +691,64 @@ pub(super) fn regions() -> u32 {
         vec![(0, 2), (6, 3), (35, 1), (13, 6), (41, 2), (43, 1)]);
     assert_eq!(formed.pages, vec![(0, 0)]);
     assert!(emitter::region::form(&c, &mut ram, BASE + 38, &head, true).is_none(), "RSR head");
-    cases + 2 + prev_page_store() + forward_edges() + self_loops() + outside_loops() + jx_literal()
+    // tails-s1: the region programs above choose guarded copies and run through them.
+    assert!(REGION_STATS[12].load(std::sync::atomic::Ordering::Relaxed) > 20, "too few regions chose guarded copies");
+    cases + 2 + prev_page_store() + forward_edges() + self_loops() + outside_loops() + jx_literal() + deferred_in_guarded_copy()
+}
+
+/// tails-s1 (from EX182 s1): a helper fallback inside a guarded copy. Short credit first makes
+/// the region count its exits at chunk 1 and regenerate with that chunk copied; then a
+/// credit-short edge enters the copy two instructions short and the slow store there is
+/// refused under `defer_armed`: the refused instruction is counted and subtracted exactly
+/// as from an own-module body, and its PC is the continuation.
+fn deferred_in_guarded_copy() -> u32 {
+    let mut p = Vec::new();
+    p.extend(asm::addi_n(3, 3, 1));        // 0  chunk 0
+    p.extend(asm::addi_n(5, 5, 1));        // 2
+    p.extend(asm::addi_n(6, 6, 1));        // 4
+    p.extend(asm::j(BASE + 6, BASE + 9));  // 6
+    p.extend(asm::addi_n(3, 3, 1));        // 9  chunk 1
+    p.extend(asm::s32i_n(3, 4, 0));        // 11 refused while deferring
+    p.extend(asm::addi_n(5, 5, 1));        // 13
+    p.extend(asm::j(BASE + 15, BASE));     // 15
+    let mut c = cpu(7);
+    let mut ram = Ram::new(true, false);
+    ram.ram.mem[..p.len()].copy_from_slice(&p);
+    c.set_ar(4, SLOW);
+    let stat = |i: usize| REGION_STATS[i].load(std::sync::atomic::Ordering::Relaxed);
+    let (formed, tuned) = (stat(0), stat(12));
+    for _ in 0..60 { c.pc = BASE; crate::block::run_block(&mut c, &mut ram, 64); }
+    assert!(stat(0) > formed, "deferred-guarded: no region");
+    for _ in 0..20 { c.pc = BASE; crate::block::run_block(&mut c, &mut ram, 6); }
+    assert_eq!(stat(12), tuned + 1, "deferred-guarded: the region must choose its copy exactly once");
+    c.pc = BASE;
+    ram.defer_armed = true;
+    let (retired, writes) = (c.insn_count, ram.slow_writes);
+    let (a3, a5, a6) = (c.get_ar(3), c.get_ar(5), c.get_ar(6));
+    assert_eq!(crate::block::run_block(&mut c, &mut ram, 6), (5, None));
+    assert!(ram.deferred);
+    assert_eq!(c.pc, BASE + 11, "the refused store is the continuation");
+    assert_eq!(c.insn_count, retired + 5);
+    assert_eq!(ram.slow_writes, writes);
+    assert_eq!((c.get_ar(3), c.get_ar(5), c.get_ar(6)), (a3.wrapping_add(2), a5.wrapping_add(1), a6.wrapping_add(1)));
+    // The store runs on the next dispatch, from the interior PC the cut left behind.
+    ram.defer_armed = false;
+    ram.deferred = false;
+    assert_eq!(crate::block::run_block(&mut c, &mut ram, 1), (1, None));
+    assert_eq!(ram.slow_writes, writes + 1);
+    assert_eq!(&ram.slow[..4], &a3.wrapping_add(2).to_le_bytes());
+    // A copy cut two instructions into chunk 1 names its head. With the head block gone from
+    // the decoded cache, the resume decodes that head and aliases into it, not a new head.
+    c.set_ar(4, BASE + 0x1000);
+    c.pc = BASE;
+    assert_eq!(crate::block::run_block(&mut c, &mut ram, 6), (6, None));
+    assert_eq!((c.pc, c.blocks.alias_pc, c.blocks.alias_head), (BASE + 13, BASE + 13, (BASE + 13, BASE + 9)));
+    c.blocks.flush();
+    c.blocks.alias_pc = c.pc;
+    let (hits, builds) = (c.blocks.alias_hits, c.blocks.builds);
+    assert_eq!(crate::block::run_block(&mut c, &mut ram, 1), (1, None));
+    assert_eq!((c.blocks.alias_hits, c.blocks.builds, c.pc), (hits + 1, builds + 1, BASE + 15));
+    2
 }
 
 /// EX181 s2: the two shapes whose backedge stays inside one chunk — a `bnez` back to the

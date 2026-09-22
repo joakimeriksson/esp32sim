@@ -18,10 +18,18 @@ pub const CODE_CUT: u32 = 3;
 pub const CODE_TRAP_PRE: u32 = 4;
 /// A region declined to run (resume, short credit, window or coprocessor state).
 pub const CODE_REJECT: u32 = 5;
+/// tails-s1: private region exits the dispatcher reports as CODE_LEFT. SHORT: a fresh region
+/// left at a chunk head short of credit, counted. TAIL: a guarded copy cut mid-chunk; the site
+/// after its own names the chunk head.
+const CODE_SHORT: u32 = 6;
+const CODE_TAIL: u32 = 7;
+/// tails-s1: credit-short exits a region counts before it chooses its guarded copies
+/// (few under the differential suite, so its region programs run through the copies).
+const SHORT_SAMPLE: u32 = if cfg!(feature = "wasm-jit-tests") { 2 } else { 1024 };
 /// Formation attempts per block, including re-formation after a code page changed.
 const REGION_TRIES: u8 = 8;
 #[cfg(feature = "wasm-jit-tests")]
-pub(crate) static REGION_STATS: [std::sync::atomic::AtomicU32; 12] = [const { std::sync::atomic::AtomicU32::new(0) }; 12];
+pub(crate) static REGION_STATS: [std::sync::atomic::AtomicU32; 13] = [const { std::sync::atomic::AtomicU32::new(0) }; 13];
 
 #[cfg(not(feature = "wasm-jit-profile"))]
 type ExitSite = u32;
@@ -67,6 +75,7 @@ pub struct RegionStats {
     pub failed: Cell<u64>,
     pub covered: Cell<u64>,
     pub dropped: Cell<u64>,
+    pub tuned: Cell<u64>,
     pub calls: Cell<u64>,
     pub rejected: Cell<u64>,
     pub retired: Cell<u64>,
@@ -82,13 +91,13 @@ pub struct RegionStats {
 #[cfg(feature = "wasm-jit-profile")]
 impl RegionStats {
     pub fn report(&self) -> String {
-        format!("[ex153] run_calls={} budget64_calls={} whole_calls={} whole_retired={} tailcut_calls={} tailcut_retired={} resumed_calls={} resumed_retired={} resumed_cut_again={} zero_retired_calls={} budget_sum={} chained={}\n[wasm-region] formed={} failed={} covered={} dropped={} chunks={} instructions={} bytes={} calls={} rejected={} retired={} exits[end,left,trap,cut,pre]={:?} left_kinds[call,callx,retw,ret,jx,sr,memory,edge,budget,dirty,other]={:?}",
+        format!("[ex153] run_calls={} budget64_calls={} whole_calls={} whole_retired={} tailcut_calls={} tailcut_retired={} resumed_calls={} resumed_retired={} resumed_cut_again={} zero_retired_calls={} budget_sum={} chained={}\n[wasm-region] formed={} failed={} covered={} dropped={} chunks={} instructions={} bytes={} calls={} rejected={} retired={} exits[end,left,trap,cut,pre]={:?} left_kinds[call,callx,retw,ret,jx,sr,memory,edge,budget,dirty,other]={:?} tuned={}",
             self.ex153[0].get(), self.ex153[1].get(), self.ex153[2].get(), self.ex153[3].get(), self.ex153[4].get(), self.ex153[5].get(),
             self.ex153[6].get(), self.ex153[7].get(), self.ex153[8].get(), self.ex153[9].get(), self.ex153[10].get(), self.ex153[11].get(),
             self.formed.get(), self.failed.get(), self.covered.get(), self.dropped.get(), self.chunks.get(),
             self.instructions.get(), self.bytes.get(), self.calls.get(), self.rejected.get(), self.retired.get(),
             self.exits[..5].iter().map(|c| c.get()).collect::<Vec<_>>(),
-            self.left_kinds.iter().map(|c| c.get()).collect::<Vec<_>>())
+            self.left_kinds.iter().map(|c| c.get()).collect::<Vec<_>>(), self.tuned.get())
     }
 }
 pub static CENSUS: [std::sync::atomic::AtomicU64; 8] = [const { std::sync::atomic::AtomicU64::new(0) }; 8];
@@ -178,6 +187,9 @@ struct Region {
     sites: Vec<ExitSite>,
     /// instructions per chunk, for the credit check at an entry
     lens: Vec<u32>,
+    /// tails-s1: credit-short exits per target chunk while counting; empty once the copies
+    /// are chosen, so a region is regenerated at most once per formation.
+    short: Vec<u32>,
 }
 // Compiled instructions own their backing storage, independently of the decoder arena.
 // A decoder flush invalidates every handle before reset may compact this cache.
@@ -654,7 +666,9 @@ unsafe fn run_inner<B: Bus>(
                     // SAFETY: as for the region call below; the epoch proves slot and sites are live.
                     let (slot, k, sites, nsites) = (hot.slot, hot.k, hot.sites, hot.nsites);
                     let f: Run<B> = unsafe { std::mem::transmute(slot as usize) };
-                    let result = f(cpu, bus, h, budget.min(0xffff), k, tlb, versions);
+                    let mut result = f(cpu, bus, h, budget.min(0xffff), k, tlb, versions);
+                    // SAFETY: the epoch proves the owning region, and so this vector, is live.
+                    let short = private_exit(&mut result, budget, cpu, unsafe { std::slice::from_raw_parts(sites, nsites as usize) });
                     let site = if (result >> 16) & 7 != CODE_REJECT {
                         assert!((result >> 19) < nsites);
                         // SAFETY: index checked against the live vector's length.
@@ -662,6 +676,7 @@ unsafe fn run_inner<B: Bus>(
                     } else { None };
                     region_stats(cc, result, budget, site);
                     if site.is_some() { census(0, 1); census(1, (result & 0xffff) as u64); }
+                    if short { note_short(cc, code, slot, cpu.pc); }
                     if let Some(site) = site {
                         bus.note_pc(site_pc(site));
                         crate::block::note_sequential(cpu, site_pc(site));
@@ -703,11 +718,12 @@ unsafe fn run_inner<B: Bus>(
             } else if b.region_tries.get() < REGION_TRIES {
                 b.region_tries.set(b.region_tries.get() + 1);
                 let formed = emitter::region::form(cpu, bus, b.pc, &b.instructions, b.fast).and_then(|f| {
-                    let (bytes, sites) = emitter::region::generate(&f.chunks, &f.pages, &f.loops, b.fast);
+                    let (bytes, sites) = emitter::region::generate(&f.chunks, &f.pages, &f.loops, b.fast, None);
                     // SAFETY: as for ready(): the host copies and installs the module.
                     let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
                     (slot != 0).then(|| Region {
                         lens: f.chunks.iter().map(|c| c.instructions.len() as u32).collect(),
+                        short: vec![0; f.chunks.len()],
                         chunks: f.chunks, slot, bytes: bytes.len(), bloom: f.bloom, lo: f.lo, hi: f.hi, loops: f.loops, pages: f.pages, sites,
                     })
                 });
@@ -775,13 +791,19 @@ unsafe fn run_inner<B: Bus>(
                     }
                     #[cfg(any(debug_assertions, feature = "wasm-jit-tests"))]
                     unsafe { &*rec.hot.as_ptr() }.assert_matches(r, k, (lo, hi, fepoch));
-                    let result = f(cpu, bus, h, budget.min(0xffff), k, tlb, versions);
+                    let mut result = f(cpu, bus, h, budget.min(0xffff), k, tlb, versions);
+                    let short = private_exit(&mut result, budget, cpu, &r.sites);
                     let site = if (result >> 16) & 7 != CODE_REJECT {
                         assert!(((result >> 19) as usize) < r.sites.len(), "region {:x}: result {result:#x} sites {}", rb.pc, r.sites.len());
                         Some(r.sites[(result >> 19) as usize])
                     } else { None };
                     region_stats(cc, result, budget, site);
                     if site.is_some() { census(0, 1); census(1, (result & 0xffff) as u64); }
+                    if short {
+                        let slot = r.slot;
+                        drop(region);
+                        note_short(cc, code, slot, cpu.pc);
+                    }
                     if let Some(site) = site {
                         bus.note_pc(site_pc(site));
                         crate::block::note_sequential(cpu, site_pc(site));
@@ -793,6 +815,62 @@ unsafe fn run_inner<B: Bus>(
         }
     }
     run_block_body(cc, code, cpu, bus, h, budget, entry, tlb, versions)
+}
+
+/// tails-s1: report SHORT and TAIL as CODE_LEFT. True for a SHORT exit that left credit
+/// unspent, which the wrapper would spend in the target's own module. A TAIL exit names the
+/// chunk head, so the next dispatch resumes inside that block rather than decoding a new
+/// head mid-chunk (EX172's alias finds it, or decodes it after a flush).
+#[inline(always)]
+fn private_exit(result: &mut u32, budget: u32, cpu: &mut Cpu, sites: &[ExitSite]) -> bool {
+    let code = (*result >> 16) & 7;
+    if code < CODE_SHORT { return false; }
+    *result ^= (code ^ CODE_LEFT) << 16;
+    if code == CODE_TAIL {
+        // Sequential by construction, also after a four-byte PIE instruction.
+        cpu.blocks.alias_pc = cpu.pc;
+        cpu.blocks.alias_head = (cpu.pc, site_pc(sites[(*result >> 19) as usize + 1]));
+        return false;
+    }
+    *result & 0xffff < budget
+}
+
+/// tails-s1: count a credit-short exit to chunk head `target` of the region in `slot`, reached
+/// through block `code`. After SHORT_SAMPLE of them, regenerate the region once with guarded
+/// copies of the few chunks that caught at least an eighth, so code grows only where
+/// quanta actually end. The drop of the old module moves the region epoch on like any drop.
+#[cold]
+#[inline(never)]
+fn note_short(cc: &CodeCache, code: u32, slot: u32, target: u32) {
+    let b = &cc.blocks[code as usize];
+    let owner = if b.region.borrow().is_some() { code } else { b.covered_by.get().0 };
+    let Some(rb) = cc.blocks.get(owner as usize) else { return };
+    let mut region = rb.region.borrow_mut();
+    let Some(r) = region.as_mut().filter(|r| r.slot == slot && !r.short.is_empty()) else { return };
+    let Some(k) = r.chunks.iter().position(|c| c.pc == target) else { return };
+    r.short[k] += 1;
+    let total: u32 = r.short.iter().sum();
+    if total < SHORT_SAMPLE { return; }
+    let mut hot: Vec<usize> = (0..r.short.len()).filter(|&k| r.short[k] * 8 >= total).collect();
+    hot.sort_by_key(|&k| std::cmp::Reverse(r.short[k]));
+    hot.truncate(4);
+    r.short.clear();
+    if hot.is_empty() { return; }
+    let (bytes, sites) = emitter::region::generate(&r.chunks, &r.pages, &r.loops, rb.fast, Some(&hot));
+    // SAFETY: as for ready(): the host copies and installs the module; the old one is not running.
+    let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
+    if slot == 0 { return; }
+    unsafe { host_jit_release(r.slot) };
+    (r.slot, r.bytes, r.sites) = (slot, bytes.len(), sites);
+    cc.region_epoch.set(cc.region_epoch.get() + 1);
+    #[cfg(feature = "wasm-jit-profile")]
+    {
+        let st = &cc.region_stats;
+        st.tuned.set(st.tuned.get() + 1);
+        st.bytes.set(st.bytes.get() + r.bytes as u64);
+    }
+    #[cfg(feature = "wasm-jit-tests")]
+    REGION_STATS[12].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 }
 
 /// Test and profile counters of one region call.

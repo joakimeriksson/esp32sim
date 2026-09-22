@@ -66,6 +66,9 @@ pub(super) struct RegionGen {
     pub loops: HashMap<u32, u32>,
     /// the current chunk's predicted JX target
     pub jx: Option<u32>,
+    /// tails-s1: dispatch index of each chunk's guarded copy, when it has one; `None` while
+    /// the region still counts its credit-short exits (they return CODE_SHORT).
+    pub copies: Option<Vec<Option<u32>>>,
 }
 
 /// Ends a chunk and leaves the region by itself: calls, returns and computed jumps.
@@ -251,9 +254,10 @@ pub(super) fn region_edge(g: &mut Gen, target: u32, direct: bool) {
     let r = g.region.as_ref().unwrap();
     let (current, loop_depth, chunk_depth) = (r.current, r.loop_depth, r.chunk_depth);
     // Depth just inside every dispatch block, where the br_table sits.
-    let (blocks, self_loop) = (loop_depth + r.heads.len(), r.self_loop);
+    let (blocks, self_loop) = (loop_depth + r.heads.len() + r.copies.iter().flatten().flatten().count(), r.self_loop);
     match r.heads.get(&target).copied() {
         Some((index, len)) => {
+            let (copy, short) = match &r.copies { Some(c) => (c[index], CODE_LEFT), None => (None, CODE_SHORT) };
             g.get(DONE);
             g.c(len);
             g.op(0x6a);
@@ -262,6 +266,27 @@ pub(super) fn region_edge(g: &mut Gen, target: u32, direct: bool) {
             g.get(DIRTY);
             g.op(0x72);
             g.begin_if();
+            // tails-s1 (EX182 s1 form): credit short of the whole chunk but not spent and no
+            // helper ran: retire the quantum's tail in the target's guarded copy.
+            if let Some(label) = copy {
+                g.get(DIRTY);
+                g.op(0x45);
+                g.get(3);
+                g.get(DONE);
+                g.op(0x4b);
+                g.op(0x71);
+                g.begin_if();
+                g.get(3);
+                g.get(DONE);
+                g.op(0x6b);
+                g.set(STOP);
+                g.c(label);
+                g.set(NEXT);
+                let back = g.depth() - loop_depth;
+                g.op(0x0c);
+                uleb(&mut g.bytes, back);
+                g.end();
+            }
             g.spill();
             g.cpu_const(PC, target);
             #[cfg(feature = "wasm-jit-profile")]
@@ -275,13 +300,21 @@ pub(super) fn region_edge(g: &mut Gen, target: u32, direct: bool) {
                 g.ret_value(CODE_LEFT);
                 g.end();
                 g.last_kind = ExitKind::Budget;
-                g.ret_value(CODE_LEFT);
+                g.ret_value(short);
                 g.last_kind = saved;
             }
             #[cfg(not(feature = "wasm-jit-profile"))]
-            g.ret_value(CODE_LEFT);
+            g.ret_value(short);
             g.end();
-            if !direct || index != current + 1 || g.depth() != chunk_depth {
+            // A guarded copy is neither followed by the next chunk nor inside the open blocks
+            // of later chunks: every edge out of it re-dispatches.
+            if g.guarded {
+                g.c(index as u32);
+                g.set(NEXT);
+                let label = g.depth() - loop_depth;
+                g.op(0x0c);
+                uleb(&mut g.bytes, label);
+            } else if !direct || index != current + 1 || g.depth() != chunk_depth {
                 // EX181: chunk `index` starts after the end of the block at ctl index
                 // `blocks - 1 - index`, which is still open for any forward target, and s2
                 // wraps a self-looping chunk in its own loop: both are a plain `br`, only a
@@ -315,7 +348,9 @@ pub(super) fn region_edge(g: &mut Gen, target: u32, direct: bool) {
     }
 }
 
-pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_loops: &[(u32, u32)], fast: bool) -> (Vec<u8>, Vec<ExitSite>) {
+/// `copies`: the chunks given a guarded copy (tails-s1), or `None` for a fresh region that
+/// reports its credit-short exits as CODE_SHORT so the dispatcher can choose them.
+pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_loops: &[(u32, u32)], fast: bool, copies: Option<&[usize]>) -> (Vec<u8>, Vec<ExitSite>) {
     let page_lo = pages.iter().map(|p| p.0).min().unwrap_or(0);
     let page_hi = pages.iter().map(|p| p.0).max().unwrap_or(0);
     let all = || chunks.iter().flat_map(|c| c.instructions.iter());
@@ -339,12 +374,16 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
     // Forward labels use the head count; the dispatch nesting uses the chunk count.
     assert_eq!(heads.len(), chunks.len(), "region chunk heads must be unique");
     let loops = formed_loops.iter().copied().collect();
+    // tails-s1: copies are dispatched after the ordinary chunks, in chunk order. A chunk of one
+    // instruction is never entered short of credit (r < 1 means r = 0) and gets none.
+    let mut n = chunks.len();
+    let copies = copies.map(|c| chunks.iter().enumerate().map(|(k, ch)| (ch.instructions.len() > 1 && c.contains(&k)).then(|| { n += 1; n as u32 - 1 })).collect::<Vec<_>>());
     let mut g = Gen {
         loaded: registers,
         written,
         max_ar,
         dynamic: true,
-        region: Some(RegionGen { heads, current: 0, loop_depth: 0, chunk_depth: 0, self_loop: false, sites: Vec::new(), page_lo, page_hi, loops, jx: None }),
+        region: Some(RegionGen { heads, current: 0, loop_depth: 0, chunk_depth: 0, self_loop: false, sites: Vec::new(), page_lo, page_hi, loops, jx: None, copies }),
         ..Gen::default()
     };
     // The caller has checked the credit for the entry chunk; window and coprocessor
@@ -388,7 +427,6 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
     g.set(NEXT);
     g.begin_loop();
     let loop_depth = g.depth();
-    let n = chunks.len();
     for _ in 0..n {
         g.begin_block();
     }
@@ -421,6 +459,37 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
         if self_loop {
             g.end();
         }
+    }
+    // tails-s1: the guarded copies (EX156's form). Entered at index 0 with STOP = the remaining
+    // credit, a copy retires the quantum's tail and cuts between instructions; reaching the
+    // chunk end takes the ordinary edges. Every cut shares one spill-and-return (EX182 s3).
+    let copied: Vec<usize> = g.region.as_ref().unwrap().copies.iter().flatten().enumerate().filter_map(|(k, c)| c.map(|_| k)).collect();
+    for k in copied {
+        let chunk = &chunks[k];
+        g.end();
+        g.pending = 0;
+        g.begin_block();
+        g.cut_target = Some(g.depth());
+        for _ in 0..chunk.instructions.len() {
+            g.begin_block();
+        }
+        {
+            let r = g.region.as_mut().unwrap();
+            r.current = k;
+            r.loop_depth = loop_depth;
+            r.chunk_depth = g.ctl.len();
+            r.self_loop = false;
+            r.jx = chunk.jx;
+        }
+        g.guarded = true;
+        emit_body(&mut g, chunk.pc, &chunk.instructions, fast, false, true, cp);
+        g.guarded = false;
+        g.cut_target = None;
+        g.op(0x00); // the body always leaves or branches; only a cut reaches the epilogue
+        g.end();
+        g.spill();
+        g.get(TMP);
+        g.op(0x0f);
     }
     g.op(0x00); // every chunk leaves or branches; no fallthrough out of the last one
     g.end(); // dispatch loop

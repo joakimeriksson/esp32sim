@@ -81,6 +81,8 @@ pub struct BlockCache {
     /// EX172: an exception-return, sequential or deferred arrival PC, or 1. A lookup miss there
     /// may enter an existing block at that instruction instead of decoding a new head.
     pub(crate) alias_pc: u32,
+    /// tails-s1: a guarded region copy cut at `.0` inside the chunk headed at `.1`.
+    pub(crate) alias_head: (u32, u32),
     /// EX172: direct-mapped interior PC -> (head PC, arena start of that build, arena index),
     /// filled on misses. The arena only grows between flushes, so an entry that still has this
     /// head and start is the same build and the index still names `pc`. Cleared by flush.
@@ -124,7 +126,7 @@ impl BlockCache {
                      chain_ei: u32::MAX,
                      #[cfg(target_arch = "wasm32")]
                      bridged: 0,
-                     entries: vec![Entry::EMPTY; ENTRIES], arena: Vec::with_capacity(ARENA_MAX + MAX_LEN), extras: Vec::new(), resume: (0, 0, 1), alias_pc: 1, aliases: vec![(1, 0, 0, 0); if ALIAS { ALIASES } else { 0 }], builds: 0, flushes: 0,
+                     entries: vec![Entry::EMPTY; ENTRIES], arena: Vec::with_capacity(ARENA_MAX + MAX_LEN), extras: Vec::new(), resume: (0, 0, 1), alias_pc: 1, alias_head: (1, 1), aliases: vec![(1, 0, 0, 0); if ALIAS { ALIASES } else { 0 }], builds: 0, flushes: 0,
                      #[cfg(feature = "wasm-jit-tests")]
                      alias_hits: 0,
                      #[cfg(all(target_arch = "wasm32", feature = "wasm-jit-profile"))]
@@ -441,6 +443,17 @@ fn alias_lookup(cpu: &mut Cpu, pv: &[u32], pc: u32) -> Option<(u32, u32, u32)> {
     None
 }
 
+/// tails-s1: after a guarded region copy cut mid-chunk, decode the chunk's head block (the one the
+/// own-module tail cut it replaces would have run) and resume inside it, instead of a new head here.
+#[cold]
+#[inline(never)]
+fn head_lookup<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc: u32) -> Option<(u32, u32, u32)> {
+    let (at, head) = cpu.blocks.alias_head;
+    if at != pc || head == pc { return None; }
+    build(cpu, bus, head).ok()?;
+    alias_lookup(cpu, bus.page_versions(), pc)
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), inline(always))]
 fn find_block<B: Bus>(cpu: &mut Cpu, bus: &mut B) -> Result<(u32, u32, u32), Trap> {
     let pc = cpu.pc;
@@ -457,7 +470,7 @@ fn find_block<B: Bus>(cpu: &mut Cpu, bus: &mut B) -> Result<(u32, u32, u32), Tra
             let e = &cpu.blocks.entries[ei];
             if e.pc == pc && BlockCache::valid(e, bus.page_versions()) { (ei as u32, e.start, e.start + e.n as u32) }
             else if let Some(hit) = (ALIAS && cpu.blocks.alias_pc == pc && !cpu.price_control && !cpu.blocks.observed
-                && cpu.boundary_bloom & pc_bit(pc) == 0).then(|| alias_lookup(cpu, bus.page_versions(), pc)).flatten() { hit }
+                && cpu.boundary_bloom & pc_bit(pc) == 0).then(|| alias_lookup(cpu, bus.page_versions(), pc).or_else(|| head_lookup(cpu, bus, pc))).flatten() { hit }
             else { let (ei, s, n) = build(cpu, bus, pc)?; (ei, s, s + n as u32) }
         }
     })

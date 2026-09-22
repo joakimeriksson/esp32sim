@@ -94,6 +94,9 @@ struct Gen {
     /// repeated prefix, control depth just inside the repeat loop) when LEND is hinted.
     guarded: bool,
     guard_site: Option<(usize, usize)>,
+    /// tails-s1: in a region's guarded copy, the control depth of the block whose end spills
+    /// and returns for every cut (EX182 s3), so the spill is emitted once per copy.
+    cut_target: Option<usize>,
     /// EX178: this body is straight line from its head, so a run of PIE accumulates can
     /// keep ACCX in a local. False for the guarded body (every index is an entry label)
     /// and the checked body (a cut may land between two instructions of a run).
@@ -828,13 +831,48 @@ fn emit_body(
             // (an unconditional J before it has counted itself on its own dead path).
             g.end();
             g.pending = index as u32;
-            g.get(STOP);
-            g.c(index as u32);
-            g.op(0x4d);
-            g.begin_if();
-            g.cpu_const(PC, pc);
-            g.ret(CODE_CUT);
-            g.end();
+            match g.cut_target {
+                None => {
+                    g.get(STOP);
+                    g.c(index as u32);
+                    g.op(0x4d);
+                    g.begin_if();
+                    g.cpu_const(PC, pc);
+                    g.ret(CODE_CUT);
+                    g.end();
+                }
+                // tails-s1: a region copy is entered with STOP above its entry index, so index 0
+                // never cuts. A region returns TAIL, not CUT (whose tag the caller reads as a block
+                // index), with the site naming the last retired instruction, as an own-module
+                // cut's `offset - 1` does for note_pc/note_sequential; the next site names the head.
+                Some(depth) if index > 0 => {
+                    g.get(STOP);
+                    g.c(index as u32);
+                    g.op(0x4d);
+                    g.begin_if();
+                    g.cpu_const(PC, pc);
+                    let site = std::mem::replace(&mut g.last_pc, pc.wrapping_sub(instructions[index - 1].insn.len as u32));
+                    #[cfg(feature = "wasm-jit-profile")]
+                    let kind = std::mem::replace(&mut g.last_kind, ExitKind::Budget);
+                    let tag = g.tag(CODE_TAIL);
+                    g.last_pc = pc0;
+                    g.tag(CODE_TAIL);
+                    g.last_pc = site;
+                    #[cfg(feature = "wasm-jit-profile")]
+                    { g.last_kind = kind; }
+                    g.get(DONE);
+                    g.c(index as u32);
+                    g.op(0x6a);
+                    g.c(tag);
+                    g.op(0x72);
+                    g.set(TMP);
+                    let label = g.depth() - depth;
+                    g.op(0x0c);
+                    uleb(&mut g.bytes, label);
+                    g.end();
+                }
+                Some(_) => {}
+            }
         }
         if !whole || window_changed {
             // The window helper runs with the CPU visible; do not leave ACCX in a local.
