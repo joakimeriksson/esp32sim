@@ -26,6 +26,8 @@ const CODE_TAIL: u32 = 7;
 /// tails-s1: credit-short exits a region counts before it chooses its guarded copies
 /// (few under the differential suite, so its region programs run through the copies).
 const SHORT_SAMPLE: u32 = if cfg!(feature = "wasm-jit-tests") { 2 } else { 1024 };
+/// edge-s1: instructions a region may copy, whatever the number of chunks (tails-s1's 4 x 32 bound).
+const COPY_ROOM: u32 = 128;
 /// Formation attempts per block, including re-formation after a code page changed.
 const REGION_TRIES: u8 = 8;
 #[cfg(feature = "wasm-jit-tests")]
@@ -158,11 +160,12 @@ const LOOP_UNKNOWN: (u32, u32, [u32; 2]) = (0, u32::MAX, [0; 2]);
 /// Entry facts of one region chunk. `sites` points into the owning region's vector, which
 /// lives until that region is dropped, and every drop moves `CodeCache::region_epoch` on.
 #[derive(Clone, Copy)]
-/// `copy`: tails-s2, dispatch index of this chunk's guarded copy, or 0.
+/// `copy`: tails-s2, dispatch index of this chunk's guarded copy, or 0. `counting`: edge-s1, the
+/// region still counts where quanta end (no copies yet) and this chunk could get one.
 struct Hot { epoch: u64, bloom: u64, slot: u32, k: u32, len: u32, lo: u32, span: u32, pages: [(u32, u32); emitter::region::MAX_PAGES], npages: u32, nsites: u32, sites: *const ExitSite, copy: u32,
     /// shell-s2: `Bus::stable_pages` epoch at the refill; `pages` leaves out the pages it vouches for.
-    fepoch: u64 }
-impl Hot { const NONE: Hot = Hot { epoch: 0, bloom: 0, slot: 0, k: 0, len: 0, lo: 0, span: 0, pages: [(0, 0); emitter::region::MAX_PAGES], npages: 0, nsites: 0, sites: std::ptr::null(), copy: 0, fepoch: 0 }; }
+    fepoch: u64, counting: bool }
+impl Hot { const NONE: Hot = Hot { epoch: 0, bloom: 0, slot: 0, k: 0, len: 0, lo: 0, span: 0, pages: [(0, 0); emitter::region::MAX_PAGES], npages: 0, nsites: 0, sites: std::ptr::null(), copy: 0, fepoch: 0, counting: false }; }
 #[cfg(any(debug_assertions, feature = "wasm-jit-tests"))]
 impl Hot {
     fn assert_matches(&self, r: &Region, k: u32, (lo, hi, _): (u32, u32, u64)) {
@@ -170,6 +173,7 @@ impl Hot {
         assert_eq!((self.bloom, self.lo, self.span), (r.bloom, r.lo, r.hi.wrapping_sub(r.lo)));
         assert!(self.pages[..self.npages as usize].iter().eq(r.pages.iter().filter(|&&(i, _)| i < lo || i >= hi)));
         assert_eq!((self.sites, self.nsites), (r.sites.as_ptr(), r.sites.len() as u32));
+        assert_eq!(self.counting, !r.short.is_empty() && r.lens[k as usize] > 1);
     }
 }
 /// Several chunks compiled as one function; see wasm_region.rs.
@@ -670,6 +674,8 @@ unsafe fn run_inner<B: Bus>(
                 let b = &cc.blocks[code as usize];
                 b.covered_by.get().0 == NONE && b.region.borrow().is_none()
             });
+            // edge-s1: a resume the own module must take (no copy yet) also marks where quanta end.
+            if live && entry != 0 && hot.counting { note_short(cc, code, hot.slot, rec.pc); }
             if live && enter {
                 let pv = bus.page_versions();
                 if hot.pages[..hot.npages as usize].iter().all(|&(i, v)| pv.get(i as usize).copied().unwrap_or(0) == v) {
@@ -796,7 +802,7 @@ unsafe fn run_inner<B: Bus>(
                     for &(i, v) in &r.pages { if i < lo || i >= hi { pages[npages] = (i, v); npages += 1; } }
                     rec.hot.set(Hot { epoch: cc.region_epoch.get(), bloom: r.bloom, slot: r.slot, k, len: r.lens[k as usize], lo: r.lo,
                         span: r.hi.wrapping_sub(r.lo), pages, npages: npages as u32, nsites: r.sites.len() as u32, sites: r.sites.as_ptr(),
-                        copy: r.copies[k as usize], fepoch });
+                        copy: r.copies[k as usize], fepoch, counting: !r.short.is_empty() && r.lens[k as usize] > 1 });
                 }
                 if entry == 0
                     && budget >= r.lens[k as usize]
@@ -856,9 +862,10 @@ fn private_exit(result: &mut u32, budget: u32, cpu: &mut Cpu, sites: &[ExitSite]
 }
 
 /// tails-s1: count a credit-short exit to chunk head `target` of the region in `slot`, reached
-/// through block `code`. After SHORT_SAMPLE of them, regenerate the region once with guarded
-/// copies of the few chunks that caught at least an eighth, so code grows only where
-/// quanta actually end. The drop of the old module moves the region epoch on like any drop.
+/// through block `code` (edge-s1: or an own-module resume there). After SHORT_SAMPLE of them,
+/// regenerate the region once with guarded copies of the chunks that caught at least 1/32, largest
+/// first, up to COPY_ROOM instructions, so code grows only where quanta actually end. The drop of
+/// the old module moves the region epoch on like any drop.
 #[cold]
 #[inline(never)]
 fn note_short(cc: &CodeCache, code: u32, slot: u32, target: u32) {
@@ -871,10 +878,13 @@ fn note_short(cc: &CodeCache, code: u32, slot: u32, target: u32) {
     r.short[k] += 1;
     let total: u32 = r.short.iter().sum();
     if total < SHORT_SAMPLE { return; }
-    let mut hot: Vec<usize> = (0..r.short.len()).filter(|&k| r.short[k] * 8 >= total).collect();
+    let mut hot: Vec<usize> = (0..r.short.len()).filter(|&k| r.short[k] * 32 >= total && r.lens[k] > 1).collect();
     hot.sort_by_key(|&k| std::cmp::Reverse(r.short[k]));
-    hot.truncate(4);
+    let mut room = COPY_ROOM;
+    hot.retain(|&k| r.lens[k] <= room && { room -= r.lens[k]; true });
     r.short.clear();
+    // edge-s1: Hot facts stop counting resumes when the epoch moves, also if nothing is copied.
+    cc.region_epoch.set(cc.region_epoch.get() + 1);
     if hot.is_empty() { return; }
     let (bytes, sites) = emitter::region::generate(&r.chunks, &r.pages, &r.loops, rb.fast, Some(&hot));
     let copies = emitter::region::copy_indices(&r.chunks, &hot).iter().map(|c| c.unwrap_or(0)).collect();
@@ -883,7 +893,6 @@ fn note_short(cc: &CodeCache, code: u32, slot: u32, target: u32) {
     if slot == 0 { return; }
     unsafe { host_jit_release(r.slot) };
     (r.slot, r.bytes, r.sites, r.copies) = (slot, bytes.len(), sites, copies);
-    cc.region_epoch.set(cc.region_epoch.get() + 1);
     #[cfg(feature = "wasm-jit-profile")]
     {
         let st = &cc.region_stats;

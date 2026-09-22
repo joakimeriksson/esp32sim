@@ -726,7 +726,46 @@ pub(super) fn regions() -> u32 {
     // tails-s2: and resume inside them.
     assert!(REGION_STATS[13].load(std::sync::atomic::Ordering::Relaxed) > 200, "too few resumes into guarded copies: {}", REGION_STATS[13].load(std::sync::atomic::Ordering::Relaxed));
     cases + 2 + prev_page_store() + forward_edges() + self_loops() + outside_loops() + jx_literal() + deferred_in_guarded_copy()
-        + head_recovery_long_pie()
+        + resumed_head_copy() + head_recovery_long_pie()
+}
+
+/// edge-s1: a head chunk no internal edge reaches. Its quanta end only in dispatches short of its
+/// credit, so only the own-module resumes there can choose its copy; later resumes enter the copy.
+fn resumed_head_copy() -> u32 {
+    let mut p = Vec::new();
+    p.extend(asm::addi_n(3, 3, 1));        // 0  chunk 0
+    p.extend(asm::addi_n(5, 5, 1));        // 2
+    p.extend(asm::addi_n(6, 6, 1));        // 4
+    p.extend(asm::j(BASE + 6, BASE + 9));  // 6
+    p.extend(asm::addi_n(3, 3, 1));        // 9  chunk 1
+    p.extend(asm::addi_n(5, 5, 1));        // 11
+    p.extend(asm::jx(7));                  // 13 back to the head through the dispatcher
+    let expected = [(0, Op::AddiN, 0), (6, Op::J, 9), (9, Op::AddiN, 0), (13, Op::Jx, 0)];
+    region_program("resumed-head", &p, &expected, &[], 4, 9, |c| c.set_ar(7, BASE), 400);
+    let stat = |i: usize| REGION_STATS[i].load(std::sync::atomic::Ordering::Relaxed);
+    let mut c = cpu(7);
+    let mut ram = Ram::new(true, false);
+    ram.ram.mem[..p.len()].copy_from_slice(&p);
+    c.set_ar(7, BASE);
+    let formed = stat(0);
+    // Whole passes only: no quantum ends at the internal edge, and none resumes.
+    for _ in 0..60 { c.pc = BASE; crate::block::run_block(&mut c, &mut ram, 64); }
+    assert!(stat(0) > formed, "resumed-head: no region");
+    let (tuned, resumes) = (stat(12), stat(13));
+    for _ in 0..2 {
+        c.pc = BASE;
+        assert_eq!(crate::block::run_block(&mut c, &mut ram, 2), (2, None));
+        assert_eq!(crate::block::run_block(&mut c, &mut ram, 1), (1, None));
+    }
+    assert_eq!(stat(12), tuned + 1, "resumed-head: resumes alone must choose the head's copy");
+    c.pc = BASE;
+    let a3 = c.get_ar(3);
+    assert_eq!(crate::block::run_block(&mut c, &mut ram, 2), (2, None));
+    assert_eq!(crate::block::run_block(&mut c, &mut ram, 64), (64, None));
+    assert_eq!(stat(13), resumes + 1, "resumed-head: the resume must enter the head's copy");
+    // 66 instructions from the head: 9 passes of 7, then three more (a3 counts twice per pass).
+    assert_eq!((c.pc, c.get_ar(3)), (BASE + 6, a3.wrapping_add(19)));
+    2
 }
 
 /// tails-s1 (from EX182 s1): a helper fallback inside a guarded copy. Short credit first makes
