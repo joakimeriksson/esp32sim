@@ -190,12 +190,6 @@ pub(in crate::jit) fn form<B: Bus>(cpu: &Cpu, bus: &mut B, head: u32, block: &[B
         }
     }
     if pages.len() > MAX_PAGES { return None }
-    #[cfg(feature = "wasm-jit-profile")]
-    {
-        let (plo, phi) = (pages.iter().map(|p| p.0).min().unwrap_or(0), pages.iter().map(|p| p.0).max().unwrap_or(0));
-        for (i, _) in &pages { crate::census::note_code_page(*i, 1 | 4); }
-        for p in plo..=phi { crate::census::note_code_page(p, 2); }
-    }
     // EX110: watch every page before reading the versions the region will compare against.
     for (i, _) in &pages { bus.note_code_page(*i); }
     let pv = bus.page_versions();
