@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Verify that removing either new helper-family lowering fails a runtime reachability assertion instead of silently passing through interpreter fallback.",
+  "referenceSourceRevision": "ef51d62bfb75de40930ae82f7352ad6691548c09",
+  "sourceProvenance": "Mutations ran on the pre-commit working tree that became the reference revision. The PS mutation preceded a diagnostic-only change of two admission assertion messages from \"must be emitted inline\" to \"must be admitted\"; the final restored-source run used the committed reference revision. No lowering or reachability-assertion behavior changed between mutation runs and that commit.",
+  "environment": {
+    "platform": "Darwin arm64",
+    "rustc": "1.98.1 (48a229cea 2026-09-01)",
+    "node": "v26.9.0",
+    "CARGO_BUILD_JOBS": "4"
+  },
+  "reproduction": {
+    "sourceRevision": "ef51d62bfb75de40930ae82f7352ad6691548c09",
+    "procedure": [
+      "Use an isolated checkout of sourceRevision and a caller-supplied persistent scratch directory.",
+      "Apply exactly one literal replacement below to the named file, starting from pristine source each time. Admission policy and runtime counter assertions stay enabled.",
+      "Set TMPDIR, TMP and TEMP to that persistent scratch directory. Run the command below and require exit code 1 plus the stated assertion.",
+      "Restore the file before applying the other mutation. Restore all source and rerun the same command to require the final passing summary."
+    ],
+    "command": "CARGO_BUILD_JOBS=4 tools/wasm-jit-test.sh",
+    "compilerPolicy": "The test script sources tools/wasm-rustflags.sh from the pinned revision."
+  },
+  "mutations": [
+    {
+      "id": "disable-ps",
+      "replace": "emit_ps_terminal(g, i, next);\n        return true;",
+      "with": "return false;",
+      "assertion": "Rsil PS=0 must execute inline inside a region",
+      "file": "xtensa-lx7/src/jit/wasm_instruction.rs",
+      "exitCode": 1,
+      "meaningfulFailure": true,
+      "rawLog": {
+        "sha256": "58eb25f9038a119b3f34fcc4e6bd54a04501c19b9c6de669fde9c9bf3598a8f6",
+        "bytes": 2499,
+        "retention": "Retained in private persistent task storage; not committed."
+      }
+    },
+    {
+      "id": "disable-retw",
+      "replace": "Retw | RetwN => emit_retw(g, bi, pc, next, last),",
+      "with": "Retw | RetwN => return false,",
+      "assertion": "assertion `left == right` failed: Retw flags=40000 inc=1 windows=ffff: inline guard outcome",
+      "file": "xtensa-lx7/src/jit/wasm_instruction.rs",
+      "exitCode": 1,
+      "meaningfulFailure": true,
+      "rawLog": {
+        "sha256": "2aa7659b4f034c2e9ca4bf460d0f1097164a0c3e458c949c18c28f7958e5f8cc",
+        "bytes": 2566,
+        "retention": "Retained in private persistent task storage; not committed."
+      }
+    }
+  ],
+  "restoredSource": {
+    "sourceRevision": "ef51d62bfb75de40930ae82f7352ad6691548c09",
+    "command": "CARGO_BUILD_JOBS=4 tools/wasm-jit-test.sh",
+    "exitCode": 0,
+    "summary": {
+      "differentialCases": 86028,
+      "compiledModulesReleased": 88722
+    },
+    "rawLog": {
+      "sha256": "0e612b17f250d06fa76ac1c73991e128880be80c379bc45abb17c2771beac141",
+      "bytes": 605,
+      "retention": "Retained in private persistent task storage; not committed."
+    }
+  },
+  "limitations": [
+    "Each mutation aborts on its first failing assertion, so it does not complete the full suite.",
+    "This checks detection of deleted lowerings, not mutation coverage for every possible semantic defect.",
+    "Raw logs are not independently accessible from the published repository; the exact mutations, reproduction command, failure assertions and original log hashes are retained."
+  ],
+  "privacy": {
+    "curation": "Private local build paths and raw stack traces were omitted. Exact failure messages, result counts and original raw-log hashes were preserved."
+  }
+}

@@ -1,0 +1,72 @@
+# x5 adversarial review dispositions
+
+The review fixes add coverage that detects missing JIT optimizations, enforce the production WASM section policy and make receipt verification reject malformed or falsified data. Historical timing samples and artifact hashes are unchanged. Integrated source `9e930d58` passes **86,028 WASM differential cases**, wasm32 Clippy with warnings denied and **446 native workspace tests** with 22 ignored. These checks establish correctness and lint results; they are not new browser timing measurements. [Integrated validation](review-integration-tests.json), [historical measurements](results.json)
+
+The tables below correspond to the findings in the x5 stack adversarial review, in their original order. “Fixed” describes the implementation or documentation change; separately deferred nits remain explicit.
+
+## PR #136 — direct region branches
+
+| Finding | Disposition and evidence |
+| --- | --- |
+| wasm32 Clippy was red despite the claimed gate | Fixed the unnecessary cast, doc continuation and an inherited range-loop lint. The retained gate explicitly compiles `wasm32-unknown-unknown`; host Clippy is not a substitute. [Layer validation](../perf-x5-edges-review/validation.json) |
+| Performance paragraph omitted s2/s3 and control context | The layer note names the common x5 base, reports s2 2.48% versus s3 2.15% on Pocket and retains s4a's 4.06% TinyDraw gain alongside its Pocket regression. It explains the sparse, order-sensitive A/A controls and makes no isolated marginal-s3 claim. [Layer note](../perf-x5-edges-review/README.md), [control sensitivity](control-sensitivity.json) |
+| EX181 was absent on the implementing branch | Added EX181 and related EX112/EX167 history on the code layer, then reconciled them with the full closeout catalog. The canonical catalog retains one EX181 row and the earlier negative EX167 results. [Catalog](../../experiments.md#ex181) |
+| Native test count did not exercise the changed emitter | The layer note explicitly identifies the WASM differential suite as the emitter gate; native tests are broader regression checks. [Validation scope](../perf-x5-edges-review/README.md) |
+| Removing the optimization left tests green | Test-only emission counters now require direct forward branches and direct self-loop backedges. Disabling either path fails its intended assertion while retaining correct dispatcher fallback. [Mutation receipt](../perf-x5-edges-review/validation.json), [emitter](../../../xtensa-lx7/src/jit/wasm_region.rs), [directed tests](../../../xtensa-lx7/src/jit/wasm_tests/regions.rs) |
+| `heads.len()`/`chunks.len()` invariant was implicit | Added an assertion before region generation in debug and JIT-test builds. [Emitter](../../../xtensa-lx7/src/jit/wasm_region.rs) |
+| A hardware-loop body ending in a terminal can retain an unused two-byte wrapper | **Deferred.** The optional cleanup does not fix a correctness defect. Keeping the emitted shape avoids introducing an unrelated production-emission change in this coverage fix. [Recorded disposition](../perf-x5-edges-review/validation.json) |
+| One hardware-loop body instruction lacked an encoding check | Added offset 5 to the shape check. [Directed tests](../../../xtensa-lx7/src/jit/wasm_tests/regions.rs) |
+
+## PR #137 — compiled PS terminals and windowed returns
+
+| Finding | Disposition and evidence |
+| --- | --- |
+| Both lowerings could be deleted without a test failure | Added test-only runtime counters and assertions for PS emission and RETW guard outcomes. The suite now requires execution of the optimized paths as well as interpreter equivalence. Independent disabling mutations fail the intended assertions. [Mutation receipt](helper-mutations.json), [Control tests](../../../xtensa-lx7/src/jit/wasm_tests/control.rs), [lowerings](../../../xtensa-lx7/src/jit/wasm_instruction.rs), [integrated validation](review-integration-tests.json) |
+| Two WOE rows trapped before the instruction under test | Set the fixture's current window frame in `windowstart`, so these rows reach their PS instruction and its inline-execution assertion. [PS fixtures](../../../xtensa-lx7/src/jit/wasm_tests/control.rs) |
+| No compiled PS terminal was tested inside a region | Added six region programs spanning RSIL, WSR PS and XSR PS with WOE off/on. They use the existing differential boundary/timer oracle and assert inline region execution. [Region tests](../../../xtensa-lx7/src/jit/wasm_tests/regions.rs) |
+| RETW region comment was stale | Corrected the comment to match guarded compiled windowed returns. [Region tests](../../../xtensa-lx7/src/jit/wasm_tests/regions.rs) |
+| Policy comment asserted a false invariant | Replaced the blanket helper claim with the actual terminal-boundary policy. [Policy](../../../xtensa-lx7/src/jit/wasm_policy.rs) |
+| PS documentation omitted helper work | Documented interrupt/window-state refresh at the next entry, the absence of deferral and control/alignment pricing for these operations, reissued `note_pc` and the profiling-only block-break exit distinction. [Lowering documentation](../../../xtensa-lx7/src/jit/wasm_instruction.rs) |
+| RETW assumed it was the last instruction | Added `debug_assert!(last)` at its lowering entry. [Lowering](../../../xtensa-lx7/src/jit/wasm_instruction.rs) |
+| WSR/XSR repeated unused interrupt levels | Removed duplicate level iterations for operations that do not consume that operand. [PS fixtures](../../../xtensa-lx7/src/jit/wasm_tests/control.rs) |
+| PS terminals were not exercised with pricing | The priced test pass now runs the PS terminal cases. [Timing tests](../../../xtensa-lx7/src/jit/wasm_tests/timing.rs) |
+
+## PR #138 — production WASM size policy
+
+| Finding | Disposition and evidence |
+| --- | --- |
+| No guard prevented DWARF from returning | Explicitly default stripping to `debuginfo` for debug-off builds. CI and Pages run a section guard that validates the module, rejects DWARF and requires `name`; regression fixtures include missing names, malformed modules and DWARF. [Policy](../../../tools/wasm-rustflags.sh), [guard](../../../tools/check-wasm-sections.mjs), [tests](../../../tools/wasm-build-policy.test.mjs) |
+| EX120 and evidence were absent on this branch | Added the EX120 update, the byte-preserved historical size receipt and a fresh policy matrix on the size layer. [Catalog](../../experiments.md#ex120), [historical receipt](size-validation.json), [policy matrix](size-policy-review.json) |
+| Empty override failed and was misdescribed | Empty DEBUG/STRIP values now select defaults; nonempty explicit values remain effective. Default and empty builds are byte-identical in the matrix. The worker note distinguishes historical behavior from the correction. [Policy matrix](size-policy-review.json), [historical note](notes/host.md) |
+| `WASM_OPT=1` dropped the `name` section | Use `wasm-opt -O3 -g`; the optimized matrix artifact passes the production section guard. [Build script](../../../tools/wasm-build.sh), [matrix](size-policy-review.json) |
+| Benchmark builds inherited unrecorded profile overrides | Remove ambient `CARGO_PROFILE_RELEASE_*` overrides and record the workspace release settings plus normalized override state. Direct-Cargo benchmark builds continue using the source profile. [Harness](../../../tools/browser-benchmark/run-pairs.py), [tests](../../../tools/browser-benchmark/test_run_pairs.py) |
+| Native/WASM host-unit fingerprints duplicate build work | **Accepted cost.** Native builds retain the workspace's deliberate debug policy; this fix does not change native compilation solely to share cache entries. [Matrix limitations](size-policy-review.json) |
+| Sourcing the policy affected later native commands | Documented the shell-wide export effect beside the settings. Integrated native checks run without sourcing the WASM policy. [Policy comment](../../../tools/wasm-rustflags.sh), [integrated validation](review-integration-tests.json) |
+| “Data addresses” understated the rebuild difference | Historical documentation retains the +40-byte data-section difference and symbol/address renumbering; byte identity across debug settings is not claimed. [Worker analysis](notes/host.md), [historical size receipt](size-validation.json) |
+| Compressed wire sizes were absent | The fresh matrix records gzip-9 and Brotli-11 byte counts for every configuration. Debug1/default are 2,846,126/581,068 gzip bytes and 1,821,579/382,435 Brotli bytes. These are compressed artifact sizes, not measured transfer or startup latency. [Policy matrix](size-policy-review.json) |
+| Panic source paths remain after DWARF removal | **Deferred path-remapping policy.** Removing DWARF does not remove panic-location strings; the receipt states this explicitly. No claim of source-path removal is made. [Matrix limitations](size-policy-review.json) |
+| Inline threshold is a separate size lever | **Unchanged.** EX154 records the existing threshold-2000 decision. This fix does not reopen that speed/size experiment. [Catalog](../../experiments.md#ex154), [build policy](../../../tools/wasm-rustflags.sh) |
+
+## PR #139 — evidence and provenance
+
+| Finding | Disposition and evidence |
+| --- | --- |
+| Verifier accepted falsified headlines through NaN | Enforce numeric finite positive wall times, finite summaries, index/run equality, supported workloads, ordered complete pairs, exact-gate artifact coverage, identical A/A artifact hashes and strict correctness fields. Regression tests include stringified times with a falsified headline. The retained 37 jobs and 254 timed arms still verify. [Verifier](verify-results.mjs), [regressions](verify-results.test.mjs), [receipt](verification.json) |
+| Serialization method relied on an uncommitted runner | Retained the actual scheduler with caller-supplied paths, explicit portability changes and original/sanitized hashes. It preserves four-way Pocket gate batching and serial timed jobs. Its process checks do not prove an idle or thermally controlled machine. [Runner](harness/runner.sh), [provenance](source-manifest.json), [method limits](README.md) |
+| Two-pair initial A/A controls were treated as a noise band | State pair counts and order sensitivity. Omitting pair 1 yields −0.06%/−0.27% for the initial controls and 3.99%/8.20% for the combined production result. All original samples remain in the main estimates. This post-hoc calculation establishes neither a noise floor nor a causal cold-start explanation. [Executable sensitivity calculation](control-sensitivity.mjs), [receipt](control-sensitivity.json) |
+| EX181 omitted EX167 and EX112 | Added the failed shared-jump-cache history, the intra-function versus cross-module mechanism distinction and successor-ordering scope, with reciprocal catalog references. Profile-guided choice and isolated marginal-s3 benefit remain unestablished. [Catalog](../../experiments.md#ex181) |
+| Patch and result source revisions disagreed | `combined-size.patch` now records both reconstructed `sourceRevision` and `measuredSourceRevision`, linking the comment-only equivalence receipt. [Patch index](patches.json), [equivalence](published-equivalence.json) |
+| Measured revisions were not publicly reachable | Explicitly identify the original private-worktree labels and preserved patch reconstruction path. No remote refs or public raw-artifact archive are claimed. [Reproduction limits](README.md), [patches](patches.json) |
+| Canonical catalog still called ready PRs drafts | Removed the stale x5 draft labels while retaining “not merged.” Historical older experiment statuses remain historical. [Catalog](../../experiments.md) |
+| Catalog inverted measured and rebuilt sources | Corrected measured `2c628070` versus comment-corrected `946d1c6b`. [Catalog](../../experiments.md), [equivalence](upstream-equivalence.json) |
+| Two artifacts were ambiguously called final | Opening text and table identify measured `3539adf7`, historical integrated `1656179f` and current reviewed `eb754176`; timing carry-forward is visible alongside the numbers. [README](README.md) |
+| Exact gate accepted a null JIT-failure count | Require numeric zero panic and JIT-failure counters for both baseline and candidate. Null, missing, false and string counters fail regression tests. Preserve the original harness hash and firmware-validation history separately from the stricter current gate. [Contract](exact-contract.mjs), [regressions](verify-results.test.mjs), [harness provenance](exact-harness.json) |
+| Historical notes duplicated EX181 anchors/status | Removed duplicate anchors and labeled the proposed worker row superseded. Original queued text remains historical; original and prior sanitized hashes remain preserved. [Edges note](notes/edges.md), [curation history](source-manifest.json) |
+| Per-PR heads differed from measured revisions | Individual EX181/EX183 rows identify the earlier measured revisions and later x4 integration. Aggregate artifact equivalence is not represented as per-head equivalence. [Catalog](../../experiments.md#ex181), [source explanation](README.md) |
+| “Does not merge or adopt” obscured ancestry | State that the documentation layer's base already carries the three code proposals by ancestry, so merging the whole stack includes them. [Scope explanation](README.md) |
+
+## Current production validation
+
+Reviewed production source `0ccb8337` builds artifact `eb754176` at 2,088,105 bytes, with `name` retained and DWARF absent. Compared with historical integrated `1656179f`, all 1,362 function bodies and every section except data match; the 13 changed data bytes are diagnostic source-line fields. The strict current harness passes the 30-second Pocket check with 10,073,833,775 instructions, 737 frames and matching console/frame-content hashes. Historical exact gates remain separately preserved. [Production comparison](review-production.json), [fresh exact gate](review-production-exact.json), [receipt hashes](receipt-manifest.json)
+
+The retained browser measurements were not rerun. Performance is carried forward using the recorded artifact comparisons; this is not a new M1 Pro result. TinyDraw frame-content equality remains outside the historical browser contract. Source-path remapping, the unused wrapper cleanup and the inline-threshold tradeoff remain deferred as noted above. [Contract limits](README.md)
