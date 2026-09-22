@@ -148,6 +148,39 @@ pub(super) fn interior_alias() {
     }
 }
 
+/// helpers-s1: a compiled PS terminal must stop the EX153 wrapper chain exactly where the
+/// helper did, so an interrupt it unmasks is delivered at the same instruction boundary.
+pub(super) fn ps_terminal_chain() {
+    // nop.n; rsil a2,0 | nop.n; j BASE  (RSIL: op0/op1/op2 = 0, r = 6, s = level, t = AR)
+    let mut program = asm::nop_n();
+    program.extend([0x20, 0x60, 0x00]);
+    program.extend(asm::nop_n());
+    program.extend(asm::j(BASE + 7, BASE));
+    let (mut a, mut b) = (cpu(0), cpu(0));
+    let (mut ra, mut rb) = (Ram::new(true, false), Ram::new(true, false));
+    for r in [&mut ra, &mut rb] { r.ram.mem[..program.len()].copy_from_slice(&program); }
+    let rsil = crate::decode::decode(BASE + 2, ra.fetch(BASE + 2).unwrap());
+    assert_eq!((rsil.op, rsil.imm, rsil.t), (Op::Rsil, 0, 2));
+    let check = |a: &mut Cpu, b: &mut Cpu, ra: &mut Ram, rb: &mut Ram, budget| {
+        let (done, trap) = crate::block::run_block(b, rb, budget);
+        let mut oracle = None;
+        for _ in 0..done { if let Err(t) = crate::step(a, ra) { oracle = Some(t); break; } }
+        assert_eq!(trap, oracle);
+        same(a, b);
+        (done, trap)
+    };
+    for c in [&mut a, &mut b] { c.pc = BASE; c.ps = 0; }
+    for _ in 0..200 { check(&mut a, &mut b, &mut ra, &mut rb, 4); }
+    assert!(b.blocks.jit_instructions > 100);
+    // PS.INTLEVEL 15 masks the pending interrupt; the RSIL unmasks it.
+    for c in [&mut a, &mut b] { c.pc = BASE; c.ps = 15; c.intenable = 1 << 6; c.interrupt = 1 << 6; }
+    assert_eq!(check(&mut a, &mut b, &mut ra, &mut rb, 32), (2, None), "chain must stop at the PS terminal");
+    assert_eq!(b.ps, 0);
+    let (done, trap) = check(&mut a, &mut b, &mut ra, &mut rb, 32);
+    assert_eq!(done, 1);
+    assert!(matches!(trap, Some(Trap::Interrupt(_))), "unmasked interrupt must be delivered next");
+}
+
 pub(super) fn interior_alias_instruction_bytes() {
     // A three-byte ADDI between narrow instructions. RFE may target any byte;
     // only its first byte is an instruction boundary in the existing owner.

@@ -51,6 +51,10 @@ pub(super) fn emit(
         g.set_ar(t);
         return true;
     }
+    if last && policy::ps_terminal(i) {
+        emit_ps_terminal(g, i, next);
+        return true;
+    }
     match i.op {
         Nop | NopN | Memw | Extw | Rsync | Esync | Dsync => {}
         Movi | MoviN => {
@@ -358,6 +362,12 @@ pub(super) fn emit(
             }
             g.ret(CODE_LEFT);
         }
+        Retw | RetwN if super::super::PRICED.load(std::sync::atomic::Ordering::Relaxed) => {
+            // EX138 prices a taken return by the alignment of its target's bytes, which only
+            // the interpreter can fetch; `straddle` covers static targets alone.
+            g.fallback(bi, pc, next, last, false);
+        }
+        Retw | RetwN => emit_retw(g, bi, pc, next, last),
         Beqz | BeqzN | Bnez | BnezN | Bltz | Bgez | Beqi | Bnei | Blti | Bgei | Bltui | Bgeui
         | Beq | Bne | Blt | Bge | Bltu | Bgeu => {
             g.ar(s);
@@ -432,6 +442,135 @@ pub(super) fn emit(
         _ => return false,
     }
     true
+}
+
+/// helpers-s2 (EX109): the common windowed return inline, still terminal. PS.WOE clear, an A0
+/// with no call increment and a window underflow all leave exception state behind, so each keeps
+/// the interpreter. `h_exec` deliberately does not set `jit_helped` for returns; neither does this.
+fn emit_retw(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
+    debug_assert!(last, "windowed returns must terminate the block");
+    g.cpu(offset_of!(Cpu, ps));
+    g.c(ps::WOE);
+    g.op(0x71);
+    g.op(0x45);
+    g.ar(0);
+    g.c(30);
+    g.op(0x76); // i32.shr_u: the call increment RETW unwinds
+    g.tee(TMP);
+    g.op(0x45);
+    g.op(0x72);
+    g.begin_if();
+    g.fallback(bi, pc, next, last, false);
+    g.end();
+    g.cpu(WINDOWBASE);
+    g.get(TMP);
+    g.op(0x6b);
+    g.c(crate::state::NUM_WINDOWS - 1);
+    g.op(0x71);
+    g.set(REL); // the frame being returned into
+    g.cpu(offset_of!(Cpu, windowstart));
+    g.c(1);
+    g.get(REL);
+    g.op(0x74);
+    g.op(0x71);
+    g.op(0x45);
+    g.begin_if();
+    g.fallback(bi, pc, next, last, false);
+    g.end();
+    #[cfg(feature = "wasm-jit-tests")]
+    g.test_hit(&super::tests::RETW_INLINE_TAKEN);
+    g.advance();
+    g.ar(0);
+    g.c(0x3fff_ffff);
+    g.op(0x71);
+    g.c(pc & 0xc000_0000);
+    g.op(0x72);
+    g.set(ADDR);
+    g.spill(); // commit the caller's window before rotating out of it
+    g.get(0);
+    g.cpu(offset_of!(Cpu, windowstart));
+    g.c(1);
+    g.cpu(WINDOWBASE);
+    g.op(0x74);
+    g.c(u32::MAX);
+    g.op(0x73);
+    g.op(0x71);
+    g.store(offset_of!(Cpu, windowstart));
+    g.get(0);
+    g.get(REL);
+    g.store(WINDOWBASE);
+    g.get(0);
+    g.cpu(offset_of!(Cpu, ps));
+    g.c(!ps::CALLINC_MASK);
+    g.op(0x71);
+    g.get(TMP);
+    g.c(ps::CALLINC_SHIFT);
+    g.op(0x74);
+    g.op(0x72);
+    g.store(offset_of!(Cpu, ps));
+    g.get(0);
+    g.get(ADDR);
+    g.store(PC);
+    // A return is a taken transfer: no hardware-loop backedge, and the locals are already spilled.
+    g.ret_value(CODE_LEFT);
+}
+
+/// helpers-s1: RSIL / WSR PS / XSR PS inline, still terminal. EX135 made them terminal helpers;
+/// `jit_helped` stops EX153 chaining so the next entry re-derives interrupt and window state.
+/// These ops are not deferred and have no control/alignment price. Exit handling reissues
+/// `note_pc`; the helper's block-break exit-code distinction affects only profiling because
+/// `jit_helped` stops chaining for either exit code.
+fn emit_ps_terminal(g: &mut Gen, i: &crate::Insn, next: u32) {
+    use crate::Op::*;
+    #[cfg(feature = "wasm-jit-tests")]
+    {
+        g.test_hit(&super::tests::PS_INLINE_TAKEN);
+        if g.region.is_some() { g.test_hit(&super::tests::PS_REGION_TAKEN); }
+    }
+    let ps_field = offset_of!(Cpu, ps);
+    if i.op != Wsr {
+        g.cpu(ps_field); // RSIL and XSR return the old PS in AR[t].
+        g.set(TMP);
+    }
+    g.get(0);
+    if i.op == Rsil {
+        g.get(TMP);
+        g.c(!ps::INTLEVEL_MASK);
+        g.op(0x71);
+        g.c(i.imm as u32 & ps::INTLEVEL_MASK);
+        g.op(0x72);
+    } else {
+        g.ar(i.t);
+        g.c(0x0007_ff3f); // `Cpu::write_sr`'s PS mask
+        g.op(0x71);
+    }
+    g.store(ps_field);
+    if i.op != Wsr {
+        g.get(TMP);
+        g.set_ar(i.t);
+    }
+    g.get(0);
+    g.c(1);
+    g.op(0x3a); // i32.store8 of Cpu::jit_helped, exactly what h_exec sets for these ops
+    uleb(&mut g.bytes, 0);
+    uleb(&mut g.bytes, offset_of!(Cpu, jit_helped));
+    g.advance();
+    // exec_insn's epilogue: a hardware loop ending here takes its backedge before the exit.
+    g.cpu(LEND);
+    g.c(next);
+    g.op(0x46);
+    g.begin_if();
+    g.cpu(LCOUNT);
+    g.begin_if();
+    g.decrement_loop();
+    g.get(0);
+    g.cpu(LBEG);
+    g.store(PC);
+    g.ret(CODE_LEFT);
+    g.end();
+    g.end();
+    g.cpu_const(PC, next);
+    g.ret(CODE_END);
 }
 
 /// QUOU/QUOS/REMU/REMS. A zero divisor raises DIVIDE_BY_ZERO and QUOS of INT_MIN by -1 wraps,

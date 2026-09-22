@@ -61,6 +61,49 @@ pub(super) fn special_register_blocks() -> u32 {
     tests
 }
 
+/// helpers-s1: the compiled RSIL / WSR PS / XSR PS terminals. Sweeps the PS write mask, the old
+/// value returned in AR[t], and a hardware loop whose end is the terminal's own fall-through, so
+/// the backedge has to come out of generated code instead of the helper's `exec_insn`.
+pub(super) fn ps_terminals() -> u32 {
+    use Op::*;
+    let mut tests = 0;
+    for op in [Rsil, Wsr, Xsr] {
+        for (ps0, value) in [(0u32, 0u32), (0x1f, 9), (ps::WOE | 3, 0x0007_ff3f), (0x1f, 0xffff_ffff), (ps::WOE, ps::WOE | 15)] {
+            for &level in if op == Rsil { &[0, 3, 15][..] } else { &[0][..] } {
+                let mut block = [insn(Add), insn(MovN), insn(op)];
+                block[2].insn.imm = if op == Rsil { level } else { crate::state::sr::PS as i32 };
+                assert!(emitter::supported_insn(&block[2].insn, false), "{op:?} must be admitted");
+                for lend in [0, BASE + 6, BASE + 9] {
+                    for entry in 0..3 {
+                        for budget in [1, 3] {
+                            let configure = |c: &mut Cpu| {
+                                c.ps = ps0;
+                                c.windowstart = 1 << c.windowbase;
+                                c.set_ar(4, value);
+                                c.set_ar(5, value);
+                                c.lbeg = BASE;
+                                c.lend = lend;
+                                c.lcount = 2 * u32::from(lend != 0);
+                            };
+                            let case = Case { seed: 15, entry, budget, ..Case::default() };
+                            for hint in [lend, 0] {
+                                let before = PS_INLINE_TAKEN.load(std::sync::atomic::Ordering::Relaxed);
+                                compare_hinted(&mut block, case, &configure, hint);
+                                if entry == 2 {
+                                    assert!(PS_INLINE_TAKEN.load(std::sync::atomic::Ordering::Relaxed) > before,
+                                        "{op:?} PS={ps0:x} hint={hint:x} must execute inline");
+                                }
+                            }
+                            tests += 2;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    tests
+}
+
 pub(super) fn terminal_helpers() -> u32 {
     use Op::*;
     let mut tests = 0;
@@ -93,6 +136,57 @@ pub(super) fn terminal_helpers() -> u32 {
                                         c.set_ar(4, ret);
                                     });
                                 tests += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    tests
+}
+
+/// helpers-s2: the guarded inline RETW / RETW.N. Sweeps every call increment against a window
+/// where only the returned-into frame is live, plus WOE clear, A0 without an increment and the
+/// underflow, and a hardware loop ending on the return, which a taken transfer must not take.
+pub(super) fn windowed_return() -> u32 {
+    use Op::*;
+    let mut tests = 0;
+    for op in [Retw, RetwN] {
+        let mut block = [insn(Add), insn(MovN), insn(op)];
+        // Dirty A0 before the return reads it: the spill must use the pre-rotation window.
+        block[1].insn.t = 0;
+        block[1].max_ar = crate::exec::max_ar(&block[1].insn);
+        assert!(emitter::supported_insn(&block[2].insn, false), "{op:?} must be admitted");
+        for wb in [0, 7, 15] {
+            for flags in [0, ps::WOE, ps::WOE | ps::EXCM] {
+                for inc in 0..4u32 {
+                    for windows in [0, 0xffff, 1 << ((wb + 16 - inc) % 16)] {
+                        for lend in [0, BASE + 9] {
+                            for entry in 0..3 {
+                                for budget in [1, 3] {
+                                    let configure = |c: &mut Cpu| {
+                                        c.ps = flags;
+                                        c.windowbase = wb;
+                                        c.windowstart = windows;
+                                        let ret = (inc << 30) | ((BASE + 0x400) & 0x3fff_ffff);
+                                        c.set_ar(0, ret);
+                                        c.set_ar(4, ret);
+                                        c.lbeg = BASE;
+                                        c.lend = lend;
+                                        c.lcount = 2 * u32::from(lend != 0);
+                                    };
+                                    let case = Case { seed: wb, entry, budget, ..Case::default() };
+                                    let before = RETW_INLINE_TAKEN.load(std::sync::atomic::Ordering::Relaxed);
+                                    compare_hinted(&mut block, case, &configure, lend);
+                                    if entry == 2 {
+                                        let inline = flags & ps::WOE != 0 && inc != 0
+                                            && windows & (1 << ((wb + 16 - inc) % 16)) != 0;
+                                        assert_eq!(RETW_INLINE_TAKEN.load(std::sync::atomic::Ordering::Relaxed) > before, inline,
+                                            "{op:?} flags={flags:x} inc={inc} windows={windows:x}: inline guard outcome");
+                                    }
+                                    tests += 1;
+                                }
                             }
                         }
                     }

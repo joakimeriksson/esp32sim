@@ -66,6 +66,31 @@ fn region_program_on(name: &str, program: &[u8], expected: &[(u32, Op, u32)], da
 pub(super) fn regions() -> u32 {
     use Op::*;
     let mut cases = 0;
+    // A PS-writing leaf exits the region so interrupt/window proofs are rebuilt.
+    // Count only region lowerings: hot standalone blocks cannot satisfy this check.
+    for (op, word) in [(Rsil, 0x006030u32), (Wsr, 0x130000 | (crate::state::sr::PS << 8) | 0x30),
+        (Xsr, 0x610000 | (crate::state::sr::PS << 8) | 0x30)] {
+        let mut p = asm::addi_n(2, 2, 1);
+        p.extend(asm::bz(1, BASE + 2, 2, BASE + 8));
+        p.extend(asm::j(BASE + 5, BASE + 11));
+        p.extend([word as u8, (word >> 8) as u8, (word >> 16) as u8]);
+        p.extend(asm::movi_n(2, 0));
+        p.extend(asm::j(BASE + 13, BASE));
+        for flags in [0, ps::WOE] {
+            let before = PS_REGION_TAKEN.load(std::sync::atomic::Ordering::Relaxed);
+            region_program("PS-terminal-leaf", &p,
+                &[(0, AddiN, 0), (2, Bnez, 8), (5, J, 11), (8, op, 0), (11, MoviN, 0), (13, J, 0)],
+                &[], 2, 8, |c| {
+                    c.ps = flags;
+                    c.windowstart = 1 << c.windowbase;
+                    c.set_ar(2, 0);
+                    c.set_ar(3, flags);
+                }, 600);
+            assert!(PS_REGION_TAKEN.load(std::sync::atomic::Ordering::Relaxed) > before,
+                "{op:?} PS={flags:x} must execute inline inside a region");
+            cases += 1;
+        }
+    }
     // Forty non-contiguous chunks exercise a large br_table and five version pages.
     // Enter every chunk with both short credit and hundreds of instructions of credit.
     let mut large = vec![0; 40 * 32];
@@ -274,7 +299,7 @@ pub(super) fn regions() -> u32 {
         cases += 1;
     }
     // Calls and returns end chunks and leave; a function entry heads a region whose
-    // window proof is redone after ENTRY; RETW.N runs through the terminal helper.
+    // window proof is redone after ENTRY; RETW.N uses its guarded inline path.
     let mut p = Vec::new();
     p.extend(asm::call8(BASE, BASE + 12));          // 0  call8 F
     p.extend(asm::addi_n(2, 2, 1));                 // 3  (return address)

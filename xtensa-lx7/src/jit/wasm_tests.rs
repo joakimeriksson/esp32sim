@@ -4,6 +4,9 @@
 use super::*;
 use crate::bus::{tlb_index, TLB_ENTRIES};
 use crate::{Fault, FlatRam, Insn, Op, Trap};
+pub(super) static PS_INLINE_TAKEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+pub(super) static PS_REGION_TAKEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+pub(super) static RETW_INLINE_TAKEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 pub(super) static GUARDED_TAKEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 #[path = "wasm_tests/pie_accx.rs"]
 mod pie_accx;
@@ -403,7 +406,8 @@ pub fn run_tests() -> u32 {
     scheduler::interior_alias();
     scheduler::interior_alias_deferred();
     scheduler::interior_alias_instruction_bytes();
-    tests += 3;
+    scheduler::ps_terminal_chain();
+    tests += 4;
     tests += memory::extension_deferral() + memory::flat_ram_bounds() + regions::regions() + pie_accx::run_tests() + pie_accx::held_and_coalesced();
     tests += memory::code_page_flag();
     scheduler::retention();
@@ -414,6 +418,6 @@ pub fn run_tests() -> u32 {
     tests += 1;
     tests + arithmetic::integer_ops() + float::floating_point() + float::floating_point_guard_proof() + float::fma_halfway_fallback()
         + loops::hardware_loops() + control::window_masks() + control::terminal_helpers()
-        + control::special_register_blocks() + control::whole_block_guards()
+        + control::special_register_blocks() + control::ps_terminals() + control::windowed_return() + control::whole_block_guards()
         + control::entry_and_shifts() + control::guarded_loop_sites() + control::pie_wide_shifts() + timing::priced_cases()
 }

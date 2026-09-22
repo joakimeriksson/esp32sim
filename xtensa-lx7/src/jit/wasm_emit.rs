@@ -106,6 +106,16 @@ struct Gen {
     last_kind: ExitKind,
 }
 impl Gen {
+    /// Runtime reachability receipt; absent from production modules.
+    #[cfg(feature = "wasm-jit-tests")]
+    fn test_hit(&mut self, counter: &std::sync::atomic::AtomicU32) {
+        self.c(counter.as_ptr() as u32);
+        self.c(counter.as_ptr() as u32);
+        self.load(0);
+        self.c(1);
+        self.op(0x6a);
+        self.store(0);
+    }
     fn op(&mut self, op: u8) {
         self.bytes.push(op);
     }
