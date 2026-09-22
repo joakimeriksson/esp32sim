@@ -4,3 +4,5 @@
 # -inline-threshold is an internal LLVM option. New stable LLVM versions may
 # reject it; fail the build loudly rather than silently change the artifact.
 RUSTFLAGS="${RUSTFLAGS--Cllvm-args=-inline-threshold=2000}"; export RUSTFLAGS
+# EX120: DWARF is 10 MB of wire bytes V8 never executes; drop it, keep the `name` section for profiles.
+CARGO_PROFILE_RELEASE_DEBUG="${CARGO_PROFILE_RELEASE_DEBUG-0}"; export CARGO_PROFILE_RELEASE_DEBUG
