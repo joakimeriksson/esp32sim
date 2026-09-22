@@ -51,6 +51,13 @@ def validate_timing_build(record):
         validate_timing_build(record['artifactBuild'])
 
 
+def clear_release_overrides(env):
+    # Source-tree profile settings define each arm; ambient shell exports do not.
+    for key in list(env):
+        if key.startswith('CARGO_PROFILE_RELEASE_'):
+            del env[key]
+
+
 def prepare(out, name, tree, wasm, assets, rustflags=None):
     tree = tree.resolve()
     arm = out / name
@@ -75,6 +82,12 @@ def prepare(out, name, tree, wasm, assets, rustflags=None):
         # Ignore ambient profiling/instrumentation flags for comparable production builds.
         env.pop('RUSTFLAGS', None)
         env.pop('CARGO_ENCODED_RUSTFLAGS', None)
+        clear_release_overrides(env)
+        record['releaseProfile'] = {
+            'source': 'Cargo.toml; ambient CARGO_PROFILE_RELEASE_* removed',
+            'workspaceSettings': workspace.get('profile', {}).get('release', {}),
+            'environmentOverrides': {},
+        }
         if rustflags is not None:
             env['RUSTFLAGS'] = rustflags
         argv = [cargo, 'build', '--release', '--target', 'wasm32-unknown-unknown', '-p', 'esp32sim-wasm']
