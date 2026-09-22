@@ -1,0 +1,149 @@
+{
+  "originals": [
+    {
+      "path": "runner.sh",
+      "sha256": "a0321630dcf71d25bb6cb08dd006ac2cd2d3ed6a3136a0904bfb09672bc1b428",
+      "bytes": 3473
+    },
+    {
+      "path": "runner.log",
+      "sha256": "49441ec6fb9a300b0b478919ec90217e83d1716c1087613d40f0212701955040",
+      "bytes": 8675
+    },
+    {
+      "path": "exact.mjs",
+      "sha256": "2dec0ef2c918d69b4507b135e414bce2d43648d3eba64878798ad6651ebe9e55",
+      "bytes": 4508
+    },
+    {
+      "path": "lab/queue/jobs.jsonl",
+      "sha256": "c1ef53be5de666f8815ae3219203a72518450c00f8c45af6c99dee16f2f84337",
+      "bytes": 17124
+    }
+  ],
+  "notes": [
+    {
+      "original": {
+        "path": "lab/notes/edges.md",
+        "sha256": "fa48d721a2c115853c1e4df8a45333018474e7ee63b00bafc633e32f1f8b07aa",
+        "bytes": 12355
+      },
+      "sanitizedPath": "notes/edges.md",
+      "sanitizedSha256": "b0739e52139121873a605f67f9741498de9165fb2df31492819119c052c6698a",
+      "sanitizedBytes": 12553
+    },
+    {
+      "original": {
+        "path": "lab/notes/helpers.md",
+        "sha256": "ddae67199969cc24518d855b8bfd72c1daa1d1ba7b0ac180aaddc10b00c6dcfa",
+        "bytes": 16690
+      },
+      "sanitizedPath": "notes/helpers.md",
+      "sanitizedSha256": "809d6fe796dd5aa7a7b9ed68614d6bc5823197d50c71ed5585774a67ebbbd79e",
+      "sanitizedBytes": 16888
+    },
+    {
+      "original": {
+        "path": "lab/notes/host.md",
+        "sha256": "b4ad4ca9cbca6d156bbfcc308c58895b1ce488ed25ae4afbbc6925594f833192",
+        "bytes": 19400
+      },
+      "sanitizedPath": "notes/host.md",
+      "sanitizedSha256": "2937ab332889b8cbf31116ebe32017813ddb994f6281e15f5db8556459682b98",
+      "sanitizedBytes": 19604
+    },
+    {
+      "original": {
+        "path": "lab/notes/tails.md",
+        "sha256": "7cfc0fc56a8808aff0702df8f45c93d224d69084898cf429357b21493251e43d",
+        "bytes": 11327
+      },
+      "sanitizedPath": "notes/tails.md",
+      "sanitizedSha256": "99a5ccb10be29657861d4bee02be5ce89fa74d2c665beeb56cc8681df3cd4444",
+      "sanitizedBytes": 11596
+    },
+    {
+      "original": {
+        "path": "lab/notes/pie.md",
+        "sha256": "2981a359bb063d8121b89c86f82332c1f4d2e216105d0365782670a6987a1ed7",
+        "bytes": 918
+      },
+      "sanitizedPath": "notes/pie.md",
+      "sanitizedSha256": "dd771b73f80cdeecfcad1e5fef85c5507f64834923279a217303162cfb3b8bd3",
+      "sanitizedBytes": 1116
+    },
+    {
+      "original": {
+        "path": "lab/notes/host-sections.mjs",
+        "sha256": "e06f1cb0f35497a04561439c5cb42a1754635abb801817d49298a65ca0d7ce72",
+        "bytes": 2848
+      },
+      "sanitizedPath": "notes/host-sections.mjs",
+      "sanitizedSha256": "e06f1cb0f35497a04561439c5cb42a1754635abb801817d49298a65ca0d7ce72",
+      "sanitizedBytes": 2848
+    },
+    {
+      "original": {
+        "path": "lab/notes/host-operands.mjs",
+        "sha256": "7df95058bec454ef49e069f6a15e89ae4b381d8769d39d8e69f1b86a847806b3",
+        "bytes": 2866
+      },
+      "sanitizedPath": "notes/host-operands.mjs",
+      "sanitizedSha256": "7df95058bec454ef49e069f6a15e89ae4b381d8769d39d8e69f1b86a847806b3",
+      "sanitizedBytes": 2866
+    },
+    {
+      "original": {
+        "path": "lab/notes/host-strip-dwarf.mjs",
+        "sha256": "af8446d3a6ef0cc3103946969d54d56d83d5fbcf155849580728ae3778b414fa",
+        "bytes": 1102
+      },
+      "sanitizedPath": "notes/host-strip-dwarf.mjs",
+      "sanitizedSha256": "af8446d3a6ef0cc3103946969d54d56d83d5fbcf155849580728ae3778b414fa",
+      "sanitizedBytes": 1102
+    },
+    {
+      "original": {
+        "path": "lab/notes/host-profsplit.mjs",
+        "sha256": "7c0428e80f63b067f20a275f552ee9f007fdfdeeb0e4051db90b701f966e6666",
+        "bytes": 1332
+      },
+      "sanitizedPath": "notes/host-profsplit.mjs",
+      "sanitizedSha256": "7c0428e80f63b067f20a275f552ee9f007fdfdeeb0e4051db90b701f966e6666",
+      "sanitizedBytes": 1332
+    },
+    {
+      "original": {
+        "path": "lab/notes/host-attribution.patch",
+        "sha256": "8e748119c167cb263d8d505e52a1be45b0e3b64716657bf9b03378ea5fe2be63",
+        "bytes": 4896
+      },
+      "sanitizedPath": "notes/host-attribution.patch",
+      "sanitizedSha256": "8e748119c167cb263d8d505e52a1be45b0e3b64716657bf9b03378ea5fe2be63",
+      "sanitizedBytes": 4896
+    },
+    {
+      "original": {
+        "path": "lab/notes/host-jitstats.mjs",
+        "sha256": "088e2b3e1333cb052115dc0348deb055313ea39c3da3acef256f91f901d5f815",
+        "bytes": 3127
+      },
+      "sanitizedPath": "notes/host-jitstats.mjs",
+      "sanitizedSha256": "6caee900fba2496684b44e5445a03b08cb9199644add31af731611857f975406",
+      "sanitizedBytes": 3152
+    }
+  ],
+  "redactions": [
+    "Normalize personal home-directory labels to /Users/alice in historical notes.",
+    "Remove personal paths and browser debugging session URLs from original structured captures through field selection.",
+    "Keep per-arm wall times, exact instructions, output checks, frame counts, JIT counters, browser/V8 versions and aggregate load averages.",
+    "Omit duplicated per-arm provenance maps; retain shared hashes in provenance.json and artifact hashes per job.",
+    "Correct tails note claim of identical dispatch counts and map provisional host EX181 references to final EX168.",
+    "Parameterize historical host-jitstats.mjs local paths using caller-supplied TREE and FW_DIR."
+  ],
+  "limitations": [
+    "Original captures remain in private lab and remote runner storage; no public artifact archive has been created. Hashes identify private originals but do not grant public access.",
+    "Browser captures did not record frame-content hashes. Node gates establish exact frame-content equality only for the 30-second Pocket workload.",
+    "Source candidate revisions are external-artifact queue metadata; imported harness tree commit differs and is recorded separately."
+  ]
+}

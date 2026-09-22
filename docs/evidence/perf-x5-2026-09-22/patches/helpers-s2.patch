@@ -1,0 +1,172 @@
+diff --git a/xtensa-lx7/src/jit/wasm_instruction.rs b/xtensa-lx7/src/jit/wasm_instruction.rs
+index 2e10d8cf..3b8d5466 100644
+--- a/xtensa-lx7/src/jit/wasm_instruction.rs
++++ b/xtensa-lx7/src/jit/wasm_instruction.rs
+@@ -358,6 +358,12 @@ pub(super) fn emit(
+             }
+             g.ret(CODE_LEFT);
+         }
++        Retw | RetwN if super::super::PRICED.load(std::sync::atomic::Ordering::Relaxed) => {
++            // EX138 prices a taken return by the alignment of its target's bytes, which only
++            // the interpreter can fetch; `straddle` covers static targets alone.
++            g.fallback(bi, pc, next, last, false);
++        }
++        Retw | RetwN => emit_retw(g, bi, pc, next, last),
+         Beqz | BeqzN | Bnez | BnezN | Bltz | Bgez | Beqi | Bnei | Blti | Bgei | Bltui | Bgeui
+         | Beq | Bne | Blt | Bge | Bltu | Bgeu => {
+             g.ar(s);
+@@ -434,6 +440,74 @@ pub(super) fn emit(
+     true
+ }
+ 
++/// helpers-s2 (EX109): the common windowed return inline, still terminal. PS.WOE clear, an A0
++/// with no call increment and a window underflow all leave exception state behind, so each keeps
++/// the interpreter. `h_exec` deliberately does not set `jit_helped` for returns; neither does this.
++fn emit_retw(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
++    g.cpu(offset_of!(Cpu, ps));
++    g.c(ps::WOE);
++    g.op(0x71);
++    g.op(0x45);
++    g.ar(0);
++    g.c(30);
++    g.op(0x76); // i32.shr_u: the call increment RETW unwinds
++    g.tee(TMP);
++    g.op(0x45);
++    g.op(0x72);
++    g.begin_if();
++    g.fallback(bi, pc, next, last, false);
++    g.end();
++    g.cpu(WINDOWBASE);
++    g.get(TMP);
++    g.op(0x6b);
++    g.c(crate::state::NUM_WINDOWS - 1);
++    g.op(0x71);
++    g.set(REL); // the frame being returned into
++    g.cpu(offset_of!(Cpu, windowstart));
++    g.c(1);
++    g.get(REL);
++    g.op(0x74);
++    g.op(0x71);
++    g.op(0x45);
++    g.begin_if();
++    g.fallback(bi, pc, next, last, false);
++    g.end();
++    g.advance();
++    g.ar(0);
++    g.c(0x3fff_ffff);
++    g.op(0x71);
++    g.c(pc & 0xc000_0000);
++    g.op(0x72);
++    g.set(ADDR);
++    g.spill(); // commit the caller's window before rotating out of it
++    g.get(0);
++    g.cpu(offset_of!(Cpu, windowstart));
++    g.c(1);
++    g.cpu(WINDOWBASE);
++    g.op(0x74);
++    g.c(u32::MAX);
++    g.op(0x73);
++    g.op(0x71);
++    g.store(offset_of!(Cpu, windowstart));
++    g.get(0);
++    g.get(REL);
++    g.store(WINDOWBASE);
++    g.get(0);
++    g.cpu(offset_of!(Cpu, ps));
++    g.c(!ps::CALLINC_MASK);
++    g.op(0x71);
++    g.get(TMP);
++    g.c(ps::CALLINC_SHIFT);
++    g.op(0x74);
++    g.op(0x72);
++    g.store(offset_of!(Cpu, ps));
++    g.get(0);
++    g.get(ADDR);
++    g.store(PC);
++    // A return is a taken transfer: no hardware-loop backedge, and the locals are already spilled.
++    g.ret_value(CODE_LEFT);
++}
++
+ /// QUOU/QUOS/REMU/REMS. A zero divisor raises DIVIDE_BY_ZERO and QUOS of INT_MIN by -1 wraps,
+ /// where wasm's `i32.div_s` would trap, so both re-execute the whole instruction in the
+ /// interpreter; every other operand pair divides inline. (`i32.rem_s` of INT_MIN by -1 is 0 in
+diff --git a/xtensa-lx7/src/jit/wasm_policy.rs b/xtensa-lx7/src/jit/wasm_policy.rs
+index f047e5eb..51fe5aea 100644
+--- a/xtensa-lx7/src/jit/wasm_policy.rs
++++ b/xtensa-lx7/src/jit/wasm_policy.rs
+@@ -142,6 +142,8 @@ pub(in crate::jit) fn supported_opcode(op: crate::Op, fast: bool) -> bool {
+             | Bbc
+             | Bbs
+             | Loop | Loopnez | Loopgtz
++            // helpers-s2: emitted guarded; a failing guard still runs through the helper.
++            | Retw | RetwN
+     ) || floating_point(op) || (fast
+         && matches!(
+             op,
+diff --git a/xtensa-lx7/src/jit/wasm_tests.rs b/xtensa-lx7/src/jit/wasm_tests.rs
+index a9bee9b4..911c0f45 100644
+--- a/xtensa-lx7/src/jit/wasm_tests.rs
++++ b/xtensa-lx7/src/jit/wasm_tests.rs
+@@ -410,6 +410,6 @@ pub fn run_tests() -> u32 {
+     tests += 1;
+     tests + arithmetic::integer_ops() + float::floating_point() + float::floating_point_guard_proof() + float::fma_halfway_fallback()
+         + loops::hardware_loops() + control::window_masks() + control::terminal_helpers()
+-        + control::special_register_blocks() + control::whole_block_guards()
++        + control::special_register_blocks() + control::windowed_return() + control::whole_block_guards()
+         + control::entry_and_shifts() + control::guarded_loop_sites() + control::pie_wide_shifts() + timing::priced_cases()
+ }
+diff --git a/xtensa-lx7/src/jit/wasm_tests/control.rs b/xtensa-lx7/src/jit/wasm_tests/control.rs
+index 5100a28f..7cd7b8ad 100644
+--- a/xtensa-lx7/src/jit/wasm_tests/control.rs
++++ b/xtensa-lx7/src/jit/wasm_tests/control.rs
+@@ -103,6 +103,50 @@ pub(super) fn terminal_helpers() -> u32 {
+     tests
+ }
+ 
++/// helpers-s2: the guarded inline RETW / RETW.N. Sweeps every call increment against a window
++/// where only the returned-into frame is live, plus WOE clear, A0 without an increment and the
++/// underflow, and a hardware loop ending on the return, which a taken transfer must not take.
++pub(super) fn windowed_return() -> u32 {
++    use Op::*;
++    let mut tests = 0;
++    for op in [Retw, RetwN] {
++        let mut block = [insn(Add), insn(MovN), insn(op)];
++        // Dirty A0 before the return reads it: the spill must use the pre-rotation window.
++        block[1].insn.t = 0;
++        block[1].max_ar = crate::exec::max_ar(&block[1].insn);
++        assert!(emitter::supported_insn(&block[2].insn, false), "{op:?} must be emitted inline");
++        for wb in [0, 7, 15] {
++            for flags in [0, ps::WOE, ps::WOE | ps::EXCM] {
++                for inc in 0..4u32 {
++                    for windows in [0, 0xffff, 1 << ((wb + 16 - inc) % 16)] {
++                        for lend in [0, BASE + 9] {
++                            for entry in 0..3 {
++                                for budget in [1, 3] {
++                                    let configure = |c: &mut Cpu| {
++                                        c.ps = flags;
++                                        c.windowbase = wb;
++                                        c.windowstart = windows;
++                                        let ret = (inc << 30) | ((BASE + 0x400) & 0x3fff_ffff);
++                                        c.set_ar(0, ret);
++                                        c.set_ar(4, ret);
++                                        c.lbeg = BASE;
++                                        c.lend = lend;
++                                        c.lcount = 2 * u32::from(lend != 0);
++                                    };
++                                    let case = Case { seed: wb, entry, budget, ..Case::default() };
++                                    compare_hinted(&mut block, case, &configure, lend);
++                                    tests += 1;
++                                }
++                            }
++                        }
++                    }
++                }
++            }
++        }
++    }
++    tests
++}
++
+ pub(super) fn whole_block_guards() -> u32 {
+     let mut tests = 0;
+     for offset in [-3i32, 0, 1, 3, 4, 6, 9, 10, 12] {

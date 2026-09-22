@@ -1,0 +1,429 @@
+diff --git a/xtensa-lx7/src/jit/wasm_instruction.rs b/xtensa-lx7/src/jit/wasm_instruction.rs
+index 2e10d8cf..cbeb0716 100644
+--- a/xtensa-lx7/src/jit/wasm_instruction.rs
++++ b/xtensa-lx7/src/jit/wasm_instruction.rs
+@@ -353,10 +353,100 @@ pub(super) fn emit(
+                 g.get(0);
+                 g.get(TMP);
+                 g.store(PC);
++                g.ret(CODE_LEFT);
++            } else if g.region.is_some() {
++                // EX164: the callee head is a statically known edge. `region_edge` continues
++                // inside this function when the callee is a chunk of it and the credit covers
++                // that chunk, and otherwise leaves exactly as the plain exit below does.
++                super::region::region_edge(g, imm, false);
+             } else {
+                 g.cpu_const(PC, imm);
++                g.ret(CODE_LEFT);
+             }
+-            g.ret(CODE_LEFT);
++        }
++        // EX164: a windowed return to a static call site inside this region. Everything the
++        // interpreter would treat specially reaches `exec_insn` untouched: WOE=0, an A0 without
++        // a call increment, and window underflow. The rotated window is re-proved before any
++        // instruction after the return site runs.
++        Retw | RetwN if g.region.as_ref().is_some_and(|r| r.retw) => {
++            g.ar(0);
++            g.c(30);
++            g.op(0x76); // i32.shr_u: n = A0's call increment
++            g.set(TMP);
++            g.cpu(WINDOWBASE);
++            g.get(TMP);
++            g.op(0x6b);
++            g.c(15);
++            g.op(0x71);
++            g.set(REL); // caller window index, WINDOWBASE - n mod 16
++            g.cpu(offset_of!(Cpu, ps));
++            g.c(ps::WOE);
++            g.op(0x71);
++            g.op(0x45); // PS.WOE == 0
++            g.get(TMP);
++            g.op(0x45); // n == 0
++            g.op(0x72);
++            g.cpu(offset_of!(Cpu, windowstart));
++            g.get(REL);
++            g.op(0x76);
++            g.c(1);
++            g.op(0x71);
++            g.op(0x45); // the caller frame is not live: window underflow
++            g.op(0x72);
++            g.begin_if();
++            g.fallback(bi, pc, next, true, false);
++            g.end();
++            // Dirty locals belong to the callee window: commit them before rotating.
++            g.spill();
++            g.get(0);
++            g.cpu(offset_of!(Cpu, windowstart));
++            g.c(u32::MAX - 1);
++            g.cpu(WINDOWBASE);
++            g.op(0x77); // i32.rotl: clear this window's live bit
++            g.op(0x71);
++            g.store(offset_of!(Cpu, windowstart));
++            g.get(0);
++            g.get(REL);
++            g.store(WINDOWBASE);
++            g.get(0);
++            g.cpu(offset_of!(Cpu, ps));
++            g.c(!ps::CALLINC_MASK);
++            g.op(0x71);
++            g.get(TMP);
++            g.c(ps::CALLINC_SHIFT);
++            g.op(0x74);
++            g.op(0x72);
++            g.store(offset_of!(Cpu, ps));
++            g.ar(0);
++            g.c(0x3fff_ffff);
++            g.op(0x71);
++            g.c(pc & 0xc000_0000);
++            g.op(0x72);
++            g.set(REL); // the computed return PC, kept across the reload below
++            g.get(0);
++            g.get(REL);
++            g.store(PC);
++            g.advance();
++            // The caller window is current: refresh every cached operand and collision bit.
++            g.reload();
++            if g.max_ar >= 4 {
++                // The restored window must be free for everything this region touches.
++                g.window_collision(g.max_ar);
++                g.begin_if();
++                g.ret_value(CODE_LEFT);
++                g.end();
++            }
++            let returns = g.region.as_ref().unwrap().returns.clone();
++            for site in returns {
++                g.get(REL);
++                g.c(site);
++                g.op(0x46);
++                g.begin_if();
++                super::region::region_edge(g, site, false);
++                g.end();
++            }
++            // The reload above left every local equal to its AR slot: no spill is due.
++            g.ret_value(CODE_LEFT);
+         }
+         Beqz | BeqzN | Bnez | BnezN | Bltz | Bgez | Beqi | Bnei | Blti | Bgei | Bltui | Bgeui
+         | Beq | Bne | Blt | Bge | Bltu | Bgeu => {
+diff --git a/xtensa-lx7/src/jit/wasm_region.rs b/xtensa-lx7/src/jit/wasm_region.rs
+index 8abf8615..61137706 100644
+--- a/xtensa-lx7/src/jit/wasm_region.rs
++++ b/xtensa-lx7/src/jit/wasm_region.rs
+@@ -15,6 +15,22 @@ use std::collections::HashMap;
+ pub(super) const MAX_CHUNKS: usize = 64;
+ pub(super) const MAX_INSNS: usize = 512;
+ pub(in crate::jit) const MAX_PAGES: usize = 8;
++/// EX164: follow a direct call into its callee and the static return site back, so that a
++/// call/return round trip between two chunks of one region needs no dispatcher hop.
++pub(super) const CALL_EDGES: bool = true;
++/// Emit a windowed return inline instead of through the interpreter helper, so that it can
++/// resume at a static call site of this region (ablation arm: call edges without return edges).
++pub(super) const RETW_EDGES: bool = true;
++/// Emit it inline even where this region has no static call site to resume at, which only
++/// replaces the helper call on the way out (EX109/EX159 as part of this mechanism).
++pub(super) const RETW_ALL: bool = false;
++/// Instructions one call edge may add to a region. Most direct calls in pocket-tank go to a
++/// short callee (58% of them to 16 instructions or fewer), and generated bytes are the cost of
++/// this mechanism, so a cap keeps the cheap edges and drops the expensive ones.
++pub(super) const CALL_INSNS: usize = 24;
++/// Return sites a windowed return compares against before leaving. Each one costs two
++/// instructions of generated code per return site.
++pub(super) const MAX_RETURNS: usize = 8;
+ 
+ /// One straight-line piece of a region, decoded independently of the block cache.
+ pub(in crate::jit) struct Chunk {
+@@ -51,6 +67,11 @@ pub(super) struct RegionGen {
+     pub page_hi: u32,
+     /// LEND -> LBEG for the region's own hardware loops
+     pub loops: HashMap<u32, u32>,
++    /// EX164: static return sites of the windowed direct calls inside this region, all of them
++    /// chunk heads. An inline RETW branches to one of these instead of leaving.
++    pub returns: Vec<u32>,
++    /// Windowed returns of this region are emitted inline rather than through the helper.
++    pub retw: bool,
+ }
+ 
+ /// Ends a chunk and leaves the region by itself: calls, returns and computed jumps.
+@@ -59,6 +80,30 @@ fn terminal(op: crate::Op) -> bool {
+     terminal_helper(op) || op == crate::Op::Jx
+ }
+ 
++/// EX164: the statically known edges of a direct call, which `form` follows only after the
++/// ordinary closure is complete: the callee, and the return site its windowed return resumes at.
++fn call_successors(chunk: &Chunk) -> Vec<u32> {
++    use crate::Op::*;
++    let last = chunk.instructions.last().unwrap();
++    match last.insn.op {
++        Call0 | Call4 | Call8 | Call12 if CALL_EDGES => vec![last.insn.imm as u32, chunk_end(chunk)],
++        _ => vec![],
++    }
++}
++
++/// Version-page indices of a chunk's instruction bytes, appended to `into`.
++fn chunk_pages<B: Bus>(bus: &mut B, c: &Chunk, into: &mut Vec<u32>) {
++    let mut pc = c.pc;
++    for bi in &c.instructions {
++        let end = pc.wrapping_add(bi.insn.len as u32);
++        for a in [pc, end - 1] {
++            let p = bus.code_page(a);
++            if !into.contains(&p) { into.push(p); }
++        }
++        pc = end;
++    }
++}
++
+ fn conditional(op: crate::Op) -> bool {
+     use crate::Op::*;
+     matches!(
+@@ -79,6 +124,9 @@ fn successors(chunk: &Chunk) -> Vec<u32> {
+     let next = chunk_end(chunk);
+     match last.insn.op {
+         J => vec![last.insn.imm as u32],
++        // EX164: a direct call transfers to a statically known callee, and its return comes back
++        // to the instruction after the call. The continuation comes first: a callee at the
++        // instruction limit must not cost the caller its own straight-line code.
+         op if terminal(op) => vec![],
+         Loopnez | Loopgtz => vec![next, last.insn.imm as u32],
+         op if conditional(op) => vec![last.insn.imm as u32, next],
+@@ -155,6 +203,51 @@ pub(in crate::jit) fn form<B: Bus>(cpu: &Cpu, bus: &mut B, head: u32, block: &[B
+         }
+         q += 1;
+     }
++    // EX164: only now, with the ordinary closure complete, spend what is left of the chunk,
++    // instruction and page budget on direct-call edges. One callee at a time and all or
++    // nothing: a callee that runs into a limit is rolled back, so it neither displaces the
++    // caller's own code, nor half-covers a callee that deserves its own region, nor makes this
++    // formation fail over its code pages. Edges the ordinary rules refuse (probes, unsupported
++    // instructions, unmapped code) leave the region exactly as they do anywhere else.
++    if CALL_EDGES {
++        let mut pidx: Vec<u32> = Vec::new();
++        for c in &chunks { chunk_pages(bus, c, &mut pidx); }
++        let mut k = 0;
++        while k < chunks.len() {
++            let sites = call_successors(&chunks[k]);
++            k += 1;
++            if sites.is_empty() { continue }
++            let (mark, kept_total, kept_bloom, kept_pages) = (chunks.len(), total, bloom, pidx.clone());
++            let mut fits = true;
++            let mut pending = sites;
++            let mut at = chunks.len();
++            while fits {
++                for t in std::mem::take(&mut pending) {
++                    if seen.contains_key(&t) { continue }
++                    if chunks.len() >= MAX_CHUNKS || total >= MAX_INSNS || total - kept_total >= CALL_INSNS { fits = false; break }
++                    let Some(c) = chunk(cpu, bus, head, t, fast, MAX_INSNS - total, &mut bloom) else { continue };
++                    let c = Chunk { pc: t, instructions: c };
++                    let mut pages = pidx.clone();
++                    chunk_pages(bus, &c, &mut pages);
++                    if pages.len() > MAX_PAGES { fits = false; break }
++                    pidx = pages;
++                    total += c.instructions.len();
++                    seen.insert(t, ());
++                    chunks.push(c);
++                }
++                if !fits || at >= chunks.len() { break }
++                pending = successors(&chunks[at]);
++                at += 1;
++            }
++            if !fits {
++                chunks.truncate(mark);
++                total = kept_total;
++                bloom = kept_bloom;
++                pidx = kept_pages;
++                seen = chunks.iter().map(|c| (c.pc, ())).collect();
++            }
++        }
++    }
+     if chunks.len() < 2 { return None }
+     let mut loops: Vec<(u32, u32)> = Vec::new();
+     for c in &chunks {
+@@ -263,13 +356,37 @@ pub(super) fn region_edge(g: &mut Gen, target: u32, direct: bool) {
+     }
+ }
+ 
++/// EX164: a windowed return is emitted inline only where it can resume inside this function.
++/// The timed model prices RETW through the interpreter helper, so it keeps the old path.
++pub(super) fn inline_retw(returns: &[u32]) -> bool {
++    RETW_EDGES && (RETW_ALL || !returns.is_empty())
++        && !super::super::PRICED.load(std::sync::atomic::Ordering::Relaxed)
++}
++
+ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_loops: &[(u32, u32)], fast: bool) -> (Vec<u8>, Vec<ExitSite>) {
+     let page_lo = pages.iter().map(|p| p.0).min().unwrap_or(0);
+     let page_hi = pages.iter().map(|p| p.0).max().unwrap_or(0);
+     let all = || chunks.iter().flat_map(|c| c.instructions.iter());
++    let heads: HashMap<u32, (usize, u32)> = chunks.iter().enumerate().map(|(i, c)| (c.pc, (i, c.instructions.len() as u32))).collect();
++    // EX164: the static return site of every windowed direct call whose continuation is a chunk
++    // of this region. A windowed return inside the region can only resume at one of these.
++    let mut returns: Vec<u32> = Vec::new();
++    if CALL_EDGES {
++        for c in chunks {
++            if matches!(c.instructions.last().unwrap().insn.op, crate::Op::Call4 | crate::Op::Call8 | crate::Op::Call12) {
++                let site = chunk_end(c);
++                if heads.contains_key(&site) && !returns.contains(&site) && returns.len() < MAX_RETURNS {
++                    returns.push(site);
++                }
++            }
++        }
++    }
++    let retw = inline_retw(&returns);
+     // A return helper reads the CPU after the spill and exits: it needs no operands
+-    // loaded, exactly as at the end of a single block.
+-    let emitted = |bi: &BlockInsn| supported_insn(&bi.insn, fast) || !terminal_helper(bi.insn.op);
++    // loaded, exactly as at the end of a single block. EX164: an inline windowed return reads
++    // A0 of the callee window, so it must be loaded like any other emitted operand.
++    let emitted = |bi: &BlockInsn| supported_insn(&bi.insn, fast) || !terminal_helper(bi.insn.op)
++        || (retw && matches!(bi.insn.op, crate::Op::Retw | crate::Op::RetwN));
+     let registers = all().filter(|bi| emitted(bi)).fold(0u16, |m, bi| m | bi.insn.gpr_effects().touched());
+     let written = all().filter(|bi| emitted(bi)).fold(0u16, |m, bi| {
+         let e = bi.insn.gpr_effects();
+@@ -283,14 +400,14 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
+     let guard_max_ar = if entry_head { chunks[0].instructions[0].max_ar } else { max_ar };
+     // Every instruction is emitted, so both coprocessor bits can be proved at entry.
+     let cp = all().fold(0, |mask, bi| mask | policy::required_coprocessors(bi.insn.op));
+-    let heads = chunks.iter().enumerate().map(|(i, c)| (c.pc, (i, c.instructions.len() as u32))).collect();
+     let loops = formed_loops.iter().copied().collect();
++    let returns = if retw { returns } else { Vec::new() };
+     let mut g = Gen {
+         loaded: registers,
+         written,
+         max_ar,
+         dynamic: true,
+-        region: Some(RegionGen { heads, current: 0, loop_depth: 0, chunk_depth: 0, sites: Vec::new(), page_lo, page_hi, loops }),
++        region: Some(RegionGen { heads, current: 0, loop_depth: 0, chunk_depth: 0, sites: Vec::new(), page_lo, page_hi, loops, returns, retw }),
+         ..Gen::default()
+     };
+     // The caller has checked the credit for the entry chunk; window and coprocessor
+diff --git a/xtensa-lx7/src/jit/wasm_tests/regions.rs b/xtensa-lx7/src/jit/wasm_tests/regions.rs
+index ffe90102..35b16efd 100644
+--- a/xtensa-lx7/src/jit/wasm_tests/regions.rs
++++ b/xtensa-lx7/src/jit/wasm_tests/regions.rs
+@@ -594,7 +594,7 @@ pub(super) fn regions() -> u32 {
+         vec![(0, 2), (35, 1), (6, 3), (41, 2), (13, 6), (43, 1)]);
+     assert_eq!(formed.pages, vec![(0, 0)]);
+     assert!(emitter::region::form(&c, &mut ram, BASE + 38, &head, true).is_none(), "RSR head");
+-    cases + 2 + prev_page_store()
++    cases + 2 + prev_page_store() + call_edges()
+ }
+ 
+ /// EX180: a region whose code lives entirely in page 0 stores into the first byte of page
+@@ -621,3 +621,120 @@ fn prev_page_store() -> u32 {
+     }
+     cases
+ }
++
++/// EX164: direct call and windowed return edges inside one region. A driver calls a recursive
++/// function, so one region holds a call edge to a fresh chunk, a call edge back to its own
++/// ENTRY head, two static return sites and three returns. Every case runs against
++/// instruction-by-instruction interpretation under the same credit, probes, timer deadlines and
++/// code writes as every other region program.
++fn call_edges() -> u32 {
++    use Op::*;
++    let mut cases = 0;
++    let mut p = Vec::new();
++    p.extend(asm::movi_n(3, 3));                        // 0  D: depth = 3
++    p.extend(asm::s8i(3, 4, 0));                        // 2  [a4] = depth
++    p.extend(asm::mov_n(10, 4));                        // 5  pass the pointer as the callee's a2
++    p.extend(asm::call8(BASE + 7, BASE + 16));          // 7  call8 F
++    p.extend(asm::j(BASE + 10, BASE));                  // 10 <- return site of the driver's call
++    p.resize(16, 0);                                    // 13 never decoded: no edge reaches it
++    p.extend(asm::entry(1, 32));                        // 16 F: entry a1, 32
++    p.extend(asm::l8ui(3, 2, 0));                       // 19 a3 = [a2]
++    p.extend(asm::bz(0, BASE + 22, 3, BASE + 39));      // 22 beqz a3, 39
++    p.extend(asm::addi_n(3, 3, -1));                    // 25
++    p.extend(asm::s8i(3, 2, 0));                        // 27 [a2] = a3
++    p.extend(asm::mov_n(10, 2));                        // 30
++    p.extend(asm::call8(BASE + 32, BASE + 16));         // 32 call8 F (recursion into the head)
++    p.extend(asm::nop_n());                             // 35 <- return site of the inner call
++    p.extend(asm::retw_n());                            // 37
++    p.extend(asm::retw_n());                            // 39 (beqz target)
++    let calls = [(0, MoviN, 0), (2, S8i, 0), (5, MovN, 0), (7, Call8, 16), (10, J, 0), (16, Entry, 0), (19, L8ui, 0),
++                 (22, Beqz, 39), (25, AddiN, 0), (27, S8i, 0), (30, MovN, 0), (32, Call8, 16), (35, NopN, 0), (37, RetwN, 0), (39, RetwN, 0)];
++    {
++        let mut ram = Ram::new(true, false);
++        ram.ram.mem[..p.len()].copy_from_slice(&p);
++        let c = cpu(0);
++        let head: Vec<BlockInsn> = (0..4).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32;
++            Some(BlockInsn { insn: i, max_ar: crate::exec::max_ar(&i), straddle: false, off: 0 }) }).collect();
++        let formed = emitter::region::form(&c, &mut ram, BASE, &head, true).expect("call-edge region");
++        // The call chunk has no ordinary successor, so the second formation phase adds the
++        // callee head and the return site, then the ordinary closure of both: the early
++        // return, the recursive call and its own continuation.
++        assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(),
++            vec![(0, 4), (16, 3), (10, 1), (39, 1), (25, 4), (35, 2)]);
++        cases += 1;
++        // Guards of the inline windowed return, against the interpreter: a live caller frame,
++        // window underflow, an A0 without a call increment, PS.WOE clear, and a return
++        // address that is no static call site of this region.
++        let (bytes, _) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, true);
++        let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
++        assert!(slot != 0, "call-edge region module");
++        type Run = extern "C" fn(*mut Cpu, *mut Ram, *const Helpers, u32, u32, *const TlbEntry, *mut u32) -> u32;
++        let f: Run = unsafe { std::mem::transmute(slot as usize) };
++        let lone_retw = formed.chunks.iter().position(|c| c.pc == BASE + 39).expect("retw chunk") as u32;
++        for (label, a0, live, woe) in [
++            ("retw-inside", (2u32 << 30) | (BASE + 35), true, true),
++            ("retw-driver-site", (2 << 30) | (BASE + 10), true, true),
++            ("retw-outside", (2 << 30) | (BASE + 0x800), true, true),
++            ("retw-underflow", (2 << 30) | (BASE + 35), false, true),
++            ("retw-n0", BASE + 35, true, true),
++            ("retw-woe-off", (2 << 30) | (BASE + 35), true, false),
++            ("retw-callinc1", (1 << 30) | (BASE + 35), true, true),
++            ("retw-callinc3", (3 << 30) | (BASE + 35), true, true),
++        ] {
++            let (mut a, mut b) = (cpu(3), cpu(3));
++            let (mut ra, mut rb) = (Ram::new(true, false), Ram::new(true, false));
++            for r in [&mut ra, &mut rb] { r.ram.mem[..p.len()].copy_from_slice(&p); }
++            for c in [&mut a, &mut b] {
++                c.pc = BASE + 39;
++                c.windowbase = 4;
++                c.ps = if woe { ps::WOE } else { 0 };
++                let caller = 4u32.wrapping_sub(a0 >> 30) & 15;
++                c.windowstart = (1 << 4) | if live && a0 >> 30 != 0 { 1 << caller } else { 0 };
++                c.set_ar(0, a0);
++                c.set_ar(2, BASE + 0x1000);
++            }
++            CONTEXT.with(|c| *c.borrow_mut() = format!("call-edge {label}"));
++            let fm = rb.fast_mem().unwrap();
++            let result = f(&mut b, &mut rb, &Helpers::new::<Ram>(), 64, lone_retw, fm.tlb, fm.page_ver);
++            let done = result & 0xffff;
++            assert!(done <= 64, "{label}: {result:#x}");
++            assert!(done > 0 || (result >> 16) & 7 == CODE_REJECT, "{label}: {result:#x}");
++            // The module bills no instruction count of its own, so interpret exactly the
++            // instructions it retired, as the other direct-module region tests do.
++            let mut oracle = None;
++            for _ in 0..done {
++                let i = crate::decode::decode(a.pc, ra.fetch(a.pc).unwrap());
++                ra.note_pc(a.pc);
++                if let Err(t) = exec_insn(&mut a, &mut ra, &i) { oracle = Some(t); break; }
++            }
++            assert_eq!(b.jit_trap, oracle, "{label}: trap after {done}");
++            if oracle.is_some() { assert_eq!((result >> 16) & 7, CODE_TRAP, "{label}: {result:#x}"); }
++            same(&a, &b);
++            assert_eq!(ra.ram.mem, rb.ram.mem, "{label}: memory");
++            cases += 1;
++        }
++        unsafe { host_jit_release(slot) };
++    }
++    // The same program through the block scheduler: recursion three deep, nested returns,
++    // budget cuts at every index including ENTRY and RETW, probes on the head and on the
++    // callee head, timer deadlines inside the callee, and a pointer that makes the callee's
++    // own store rewrite the region's code page.
++    for (label, ptr, occupied, turns, least) in [
++        // With the counter in data the region must run past the call into the callee; with the
++        // counter inside its own code every write invalidates it, so only exactness is asserted.
++        ("call-edges", BASE + 0x1000, false, 900, 5),
++        ("call-edges-overflow", BASE + 0x1000, true, 300, 0),
++        ("call-edges-self-modify", BASE + 38, false, 600, 0),
++        ("call-edges-self-modify-head", BASE + 16, false, 600, 0),
++    ] {
++        let max = region_program(label, &p, &calls, &[], 4, 16, move |c| {
++            c.ps = ps::WOE;
++            c.windowstart = (1 << c.windowbase) | if occupied { 1 << ((c.windowbase + 2) % 16) } else { 0 };
++            c.set_ar(1, BASE + 0x4000);
++            c.set_ar(4, ptr);
++        }, turns);
++        assert!(max >= least, "{label}: region retired at most {max} per call");
++        cases += 1;
++    }
++    cases
++}

@@ -1,0 +1,121 @@
+[
+  {
+    "path": "patches/host-s1.patch",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "sourceRevision": "5c8d3237a8b9fb314a2b74c109831b5a8ed79eba",
+    "sha256": "e9d1b6b520354ba25727b9a86def38aa0483d26556e71c5818c1294d6f579718",
+    "bytes": 611
+  },
+  {
+    "path": "patches/edges-s1.patch",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "sourceRevision": "002316d702cc466c4df6c254c5600e066856300f",
+    "sha256": "5c5d66d0368dab02cd0e3f48571b95e9c646555f7bb7b17a83e292f623fcae76",
+    "bytes": 4778
+  },
+  {
+    "path": "patches/edges-s2.patch",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "sourceRevision": "8f6cb6fbad9e48e2709a7619052626915036094a",
+    "sha256": "ec7694058f2ddcaa102f36f2fce6f278c9f0441ece0da3b6bab4e65a5c01796c",
+    "bytes": 10876
+  },
+  {
+    "path": "patches/helpers-s1.patch",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "sourceRevision": "50608d7435187b3cff8a9cf2789f0feb43718f02",
+    "sha256": "5f1ca1a8ec36a3abfc389afa1bbd4298881219e88f8c1e8976deeaa06311605e",
+    "bytes": 9379
+  },
+  {
+    "path": "patches/tails-s1.patch",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "sourceRevision": "d93694e3853ad1709301e80b7d65de7687e5d7ce",
+    "sha256": "dc7acba68c11896b30f44f578add30f678a6f0b688596328fdb9f26368170b10",
+    "bytes": 11658
+  },
+  {
+    "path": "patches/edges-s3.patch",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "sourceRevision": "510cfc20170c27dbfb578ddf97f9280f3f43762a",
+    "sha256": "e26c2f82a80b5f4a61bba0438a371ad88a155c971425de361bb87fef088c163e",
+    "bytes": 13236
+  },
+  {
+    "path": "patches/edges-s4a.patch",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "sourceRevision": "d4b407d11a3977dea535a553cfcbaa71fba6bb42",
+    "sha256": "41292622e0b52a38055c19c11483132c3d2eb084674498b100f33bab2f55c54c",
+    "bytes": 14566
+  },
+  {
+    "path": "patches/helpers-s1s2.patch",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "sourceRevision": "8490fed01522551513b958c9b345fc2f982f3f9f",
+    "sha256": "591b151484aaaabafe75a12fb40b63072c8a24cbd75052bea89370a3eb0dd04d",
+    "bytes": 14792
+  },
+  {
+    "path": "patches/pie-s1.patch",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "sourceRevision": "15e59d5c89458564adb54dd94694d4e02edcdf60",
+    "sha256": "29f0b23453e7d667ab804ea8bec39eebb701b749c0637a9e5eeaccde06cc415e",
+    "bytes": 11926
+  },
+  {
+    "path": "patches/edges-s4b.patch",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "sourceRevision": "a8ec26a22985c151ab0a73015d5b0ef556f488aa",
+    "sha256": "17119be398898c544872f388f585045483908f9e90fe016615fa8ac9dc263c28",
+    "bytes": 14565
+  },
+  {
+    "path": "patches/host-s3.patch",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "sourceRevision": "064144984eac8ab9655e9417e3f29382b82827d0",
+    "sha256": "0341790d439312a5e1f2f5f45fd33085a31120ce370ec1e4505d93c19fb06749",
+    "bytes": 3799
+  },
+  {
+    "path": "patches/helpers-s2.patch",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "sourceRevision": "530e34e2269111d7d6b8d7809a922c19129a15b1",
+    "sha256": "2dd4bc753543fd8e8496eb2a6f3aecce5475d46635fa775899391d51395da4d0",
+    "bytes": 7150
+  },
+  {
+    "path": "patches/tails-s2.patch",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "sourceRevision": "75426fec289652ecd76fef2384624825424117c9",
+    "sha256": "493814d0ee47bbeaa26ecd449eedcf334ab008e8d2b5df38bab62d75b95d655d",
+    "bytes": 20344
+  },
+  {
+    "path": "patches/host-s2.patch",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "sourceRevision": "5d1bc7a7b01ed1a261259f7d872082532973f3c5",
+    "sha256": "69d49793e849f72649e184cd24fdbfa32688b1d55905783094adda99dcbd7eb2",
+    "bytes": 22689
+  },
+  {
+    "path": "patches/helpers-s3.patch",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "sourceRevision": "30b4bdd8b8bdae16450cb3dcfea6f1d85549e8a9",
+    "sha256": "1386bb8a02a083a3bed0cc7f35a9522af9a59a6b830e3b5f01bdfff591039ec2",
+    "bytes": 17231
+  },
+  {
+    "path": "patches/tails-s3.patch",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "sourceRevision": "0ff99486b9ba377014c0ad6d1932f9631abd3447",
+    "sha256": "5d47b4fb266e9c5864c86b95ad308ef8de05e73955e63f2bfa8cf0a214ca611f",
+    "bytes": 21913
+  },
+  {
+    "path": "patches/pie-l32r-unfinished.patch",
+    "status": "Uncommitted unfinished EX185 proposal; not benchmarked",
+    "baseRevision": "15e59d5c89458564adb54dd94694d4e02edcdf60",
+    "sha256": "2f720e72a8fe36bca95394673d5645249a29760c293266d0b20d61729b3f7b07",
+    "bytes": 15330
+  }
+]

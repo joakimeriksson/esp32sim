@@ -1,0 +1,607 @@
+[
+  {
+    "name": "control-aa-1",
+    "workload": "pocket-tank",
+    "sourceRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "pairs": 2,
+    "medianWallSeconds": {
+      "baseline": 25.54857500000298,
+      "candidate": 25.356252499990163
+    },
+    "wallReductionPercent": 0.7527719256858578,
+    "pairsWallReductionPercent": [
+      1.5581863801843454,
+      -0.06039027332849223
+    ]
+  },
+  {
+    "name": "control-aa-td",
+    "workload": "tinydraw",
+    "sourceRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "pairs": 2,
+    "medianWallSeconds": {
+      "baseline": 27.495605000004172,
+      "candidate": 27.30278750000894
+    },
+    "wallReductionPercent": 0.7012666205933771,
+    "pairsWallReductionPercent": [
+      1.6528539653401508,
+      -0.2741840718152977
+    ]
+  },
+  {
+    "name": "host-s1",
+    "workload": "pocket-tank",
+    "sourceRevision": "5c8d3237a8b9fb314a2b74c109831b5a8ed79eba",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "697b164f787080f4d7c253d7d4e62b7d24ae1f064b47a814348941d732f9c977",
+    "pairs": 4,
+    "medianWallSeconds": {
+      "baseline": 24.864872500002384,
+      "candidate": 24.860994999997317
+    },
+    "wallReductionPercent": 0.015594288710174542,
+    "pairsWallReductionPercent": [
+      0.7303758549661032,
+      -0.6367581754856078,
+      0.8225897626159884,
+      0.1917735829531475
+    ]
+  },
+  {
+    "name": "host-s1-td",
+    "workload": "tinydraw",
+    "sourceRevision": "5c8d3237a8b9fb314a2b74c109831b5a8ed79eba",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "697b164f787080f4d7c253d7d4e62b7d24ae1f064b47a814348941d732f9c977",
+    "pairs": 3,
+    "medianWallSeconds": {
+      "baseline": 27.111560000002385,
+      "candidate": 27.137995000004768
+    },
+    "wallReductionPercent": -0.0975045331304436,
+    "pairsWallReductionPercent": [
+      0.18589900706674767,
+      -0.0975045331304436,
+      0.08448963386307184
+    ]
+  },
+  {
+    "name": "edges-s1",
+    "workload": "pocket-tank",
+    "sourceRevision": "002316d702cc466c4df6c254c5600e066856300f",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "5363d953b4f6ea90c3904d92504d9dfd84ccc81733343d0bfcc4aed9c2df2eee",
+    "pairs": 4,
+    "medianWallSeconds": {
+      "baseline": 24.919,
+      "candidate": 24.468125
+    },
+    "wallReductionPercent": 1.809362333962039,
+    "pairsWallReductionPercent": [
+      2.2945578333356087,
+      1.1269728834387593,
+      1.4144848459568315,
+      1.7694998867623157
+    ]
+  },
+  {
+    "name": "host-s1b",
+    "workload": "pocket-tank",
+    "sourceRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "a0c612d25d9f357915c0e3f92242dd7c0f34a480c55ca0955d10e7d25073547d",
+    "pairs": 4,
+    "medianWallSeconds": {
+      "baseline": 24.81950249999762,
+      "candidate": 24.8129525000006
+    },
+    "wallReductionPercent": 0.026390537026355076,
+    "pairsWallReductionPercent": [
+      -0.10546737118934946,
+      -0.47474313501181253,
+      1.257518314643391,
+      -0.3205895211683796
+    ]
+  },
+  {
+    "name": "edges-s2",
+    "workload": "pocket-tank",
+    "sourceRevision": "8f6cb6fbad9e48e2709a7619052626915036094a",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "56d142ed53d9fd716b3ecb8fa531dfeec1dbd661fff5dec43b13d808913b8abc",
+    "pairs": 4,
+    "medianWallSeconds": {
+      "baseline": 24.949859999991954,
+      "candidate": 24.331557499997317
+    },
+    "wallReductionPercent": 2.478180238265215,
+    "pairsWallReductionPercent": [
+      2.362420981510027,
+      2.448105423962721,
+      1.3452375160036056,
+      2.7755909445002502
+    ]
+  },
+  {
+    "name": "helpers-s1",
+    "workload": "pocket-tank",
+    "sourceRevision": "50608d7435187b3cff8a9cf2789f0feb43718f02",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "eaee713c00838775332d660054b4563b6fe60e3619d6713dbf1c991decfde30c",
+    "pairs": 4,
+    "medianWallSeconds": {
+      "baseline": 24.78163750000298,
+      "candidate": 24.737752500005065
+    },
+    "wallReductionPercent": 0.1770867643347218,
+    "pairsWallReductionPercent": [
+      1.4701741159352855,
+      -0.14945296785116025,
+      0.48733961953917326,
+      -0.25658167818369826
+    ]
+  },
+  {
+    "name": "helpers-s1-td",
+    "workload": "tinydraw",
+    "sourceRevision": "50608d7435187b3cff8a9cf2789f0feb43718f02",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "eaee713c00838775332d660054b4563b6fe60e3619d6713dbf1c991decfde30c",
+    "pairs": 3,
+    "medianWallSeconds": {
+      "baseline": 27.140989999994634,
+      "candidate": 26.715939999997616
+    },
+    "wallReductionPercent": 1.5660814141160717,
+    "pairsWallReductionPercent": [
+      1.676003180849961,
+      1.5660814141160717,
+      1.7175680177480723
+    ]
+  },
+  {
+    "name": "tails-s1",
+    "workload": "pocket-tank",
+    "sourceRevision": "d93694e3853ad1709301e80b7d65de7687e5d7ce",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "634a74eab8cc16bbdb72b6e3c0e23f1fbe644dee1c3c6eb6377dad76d2526d3b",
+    "pairs": 4,
+    "medianWallSeconds": {
+      "baseline": 24.814085000008347,
+      "candidate": 31.846554999999704
+    },
+    "wallReductionPercent": -28.34063798842066,
+    "pairsWallReductionPercent": [
+      -27.69792825387185,
+      -29.195036277634312,
+      -28.57546771039159,
+      -28.106204738783937
+    ]
+  },
+  {
+    "name": "tails-s1-td",
+    "workload": "tinydraw",
+    "sourceRevision": "d93694e3853ad1709301e80b7d65de7687e5d7ce",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "634a74eab8cc16bbdb72b6e3c0e23f1fbe644dee1c3c6eb6377dad76d2526d3b",
+    "pairs": 3,
+    "medianWallSeconds": {
+      "baseline": 27.18101999999583,
+      "candidate": 31.10664499999583
+    },
+    "wallReductionPercent": -14.44252276036957,
+    "pairsWallReductionPercent": [
+      -14.487167884082218,
+      -14.232837996646808,
+      -14.680756974647924
+    ]
+  },
+  {
+    "name": "edges-s3",
+    "workload": "pocket-tank",
+    "sourceRevision": "510cfc20170c27dbfb578ddf97f9280f3f43762a",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "502818e35bbdfdc5368f4c2f2c86e28f3d76a0f4a7cc0b9720cbb25496b8c8f4",
+    "pairs": 4,
+    "medianWallSeconds": {
+      "baseline": 24.738432499997316,
+      "candidate": 24.20640500000119
+    },
+    "wallReductionPercent": 2.1506111997847244,
+    "pairsWallReductionPercent": [
+      3.1142375201937855,
+      2.0872756522706704,
+      1.9031770732784614,
+      1.8976280054734729
+    ]
+  },
+  {
+    "name": "edges-s3-td",
+    "workload": "tinydraw",
+    "sourceRevision": "510cfc20170c27dbfb578ddf97f9280f3f43762a",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "502818e35bbdfdc5368f4c2f2c86e28f3d76a0f4a7cc0b9720cbb25496b8c8f4",
+    "pairs": 4,
+    "medianWallSeconds": {
+      "baseline": 27.17507500000298,
+      "candidate": 25.761577500000598
+    },
+    "wallReductionPercent": 5.201448386075203,
+    "pairsWallReductionPercent": [
+      5.539987830304661,
+      5.150073876361239,
+      4.705380058058162,
+      5.1913008450247045
+    ]
+  },
+  {
+    "name": "edges-s4a",
+    "workload": "pocket-tank",
+    "sourceRevision": "d4b407d11a3977dea535a553cfcbaa71fba6bb42",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "d4649157df875e660e82885442a8ba4945936f6845f969f12eaad70c14085b6d",
+    "pairs": 4,
+    "medianWallSeconds": {
+      "baseline": 24.79053249999881,
+      "candidate": 25.269604999996723
+    },
+    "wallReductionPercent": -1.9324816842798187,
+    "pairsWallReductionPercent": [
+      -1.9035787441723961,
+      -1.9085260808286098,
+      -2.169912270585539,
+      -1.7416708073558773
+    ]
+  },
+  {
+    "name": "helpers-s1s2",
+    "workload": "pocket-tank",
+    "sourceRevision": "8490fed01522551513b958c9b345fc2f982f3f9f",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "b1077f5c03b1042032b157201268376101e5e44233c0e6799011e863d5f2dc16",
+    "pairs": 4,
+    "medianWallSeconds": {
+      "baseline": 24.88004499999434,
+      "candidate": 24.42651250000298
+    },
+    "wallReductionPercent": 1.8228765261134594,
+    "pairsWallReductionPercent": [
+      1.7234959487807178,
+      2.351102300348895,
+      1.9219555459100146,
+      1.2565796773629012
+    ]
+  },
+  {
+    "name": "helpers-s1s2-td",
+    "workload": "tinydraw",
+    "sourceRevision": "8490fed01522551513b958c9b345fc2f982f3f9f",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "b1077f5c03b1042032b157201268376101e5e44233c0e6799011e863d5f2dc16",
+    "pairs": 3,
+    "medianWallSeconds": {
+      "baseline": 27.173844999998806,
+      "candidate": 26.361194999992847
+    },
+    "wallReductionPercent": 2.9905594883830156,
+    "pairsWallReductionPercent": [
+      3.193425530487737,
+      2.9142728972911924,
+      3.480013141709948
+    ]
+  },
+  {
+    "name": "pie-s1",
+    "workload": "pocket-tank",
+    "sourceRevision": "15e59d5c89458564adb54dd94694d4e02edcdf60",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "2007dba016d8723b7caa8e1e575ffc806276d2fb448555fb4ea39822557d6168",
+    "pairs": 4,
+    "medianWallSeconds": {
+      "baseline": 24.874712500005963,
+      "candidate": 24.882472499996425
+    },
+    "wallReductionPercent": -0.03119634042185737,
+    "pairsWallReductionPercent": [
+      -0.5928600058556777,
+      0.13354023596104936,
+      -0.19580650577524228,
+      1.4918339672088332
+    ]
+  },
+  {
+    "name": "edges-s4b",
+    "workload": "pocket-tank",
+    "sourceRevision": "a8ec26a22985c151ab0a73015d5b0ef556f488aa",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "ee8a7d108146313c81afcb5a7efd5245bc55be0e79c20e4ac4201748d205d474",
+    "pairs": 4,
+    "medianWallSeconds": {
+      "baseline": 24.80230249999464,
+      "candidate": 26.62773250000179
+    },
+    "wallReductionPercent": -7.359921523445445,
+    "pairsWallReductionPercent": [
+      -7.350840841482054,
+      -7.801641432593365,
+      -7.006471814585646,
+      -7.369015884889718
+    ]
+  },
+  {
+    "name": "host-s3",
+    "workload": "pocket-tank",
+    "sourceRevision": "064144984eac8ab9655e9417e3f29382b82827d0",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "c9c713c6c5d8569efda9e2cae39a44c22e6f7798dc71ef8fba0f6078b58a03f3",
+    "pairs": 4,
+    "medianWallSeconds": {
+      "baseline": 24.992942500002684,
+      "candidate": 24.85422500000149
+    },
+    "wallReductionPercent": 0.5550266840376183,
+    "pairsWallReductionPercent": [
+      0.7194732722717312,
+      0.20272235168897756,
+      1.0253707879421148,
+      -0.29082165094849177
+    ]
+  },
+  {
+    "name": "host-s3-td",
+    "workload": "tinydraw",
+    "sourceRevision": "064144984eac8ab9655e9417e3f29382b82827d0",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "c9c713c6c5d8569efda9e2cae39a44c22e6f7798dc71ef8fba0f6078b58a03f3",
+    "pairs": 3,
+    "medianWallSeconds": {
+      "baseline": 27.149010000005365,
+      "candidate": 27.21853000000119
+    },
+    "wallReductionPercent": -0.2560682691406191,
+    "pairsWallReductionPercent": [
+      -0.22868237187407825,
+      -0.4459080420441186,
+      0.06025348319630419
+    ]
+  },
+  {
+    "name": "helpers-s2",
+    "workload": "pocket-tank",
+    "sourceRevision": "530e34e2269111d7d6b8d7809a922c19129a15b1",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "762d27f7af6f4c6e87784b4ac444a48c0039d09da1a5ad2a95e86919db4048b7",
+    "pairs": 4,
+    "medianWallSeconds": {
+      "baseline": 24.758735000006855,
+      "candidate": 24.60146249999851
+    },
+    "wallReductionPercent": 0.635220256641944,
+    "pairsWallReductionPercent": [
+      1.30619758459809,
+      0.7408041863123827,
+      0.6073853700654164,
+      0.4696117247685816
+    ]
+  },
+  {
+    "name": "helpers-s2-td",
+    "workload": "tinydraw",
+    "sourceRevision": "530e34e2269111d7d6b8d7809a922c19129a15b1",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "762d27f7af6f4c6e87784b4ac444a48c0039d09da1a5ad2a95e86919db4048b7",
+    "pairs": 3,
+    "medianWallSeconds": {
+      "baseline": 27.127935000002385,
+      "candidate": 26.55814499999583
+    },
+    "wallReductionPercent": 2.1003810279201285,
+    "pairsWallReductionPercent": [
+      2.2835626649217677,
+      2.005304849909917,
+      1.8454593023955579
+    ]
+  },
+  {
+    "name": "edges-s4a-td",
+    "workload": "tinydraw",
+    "sourceRevision": "d4b407d11a3977dea535a553cfcbaa71fba6bb42",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "d4649157df875e660e82885442a8ba4945936f6845f969f12eaad70c14085b6d",
+    "pairs": 3,
+    "medianWallSeconds": {
+      "baseline": 27.15065000000596,
+      "candidate": 26.048709999993445
+    },
+    "wallReductionPercent": 4.058613698059799,
+    "pairsWallReductionPercent": [
+      4.163786134050273,
+      3.992205476478883,
+      3.9976823002334183
+    ]
+  },
+  {
+    "name": "tails-s2",
+    "workload": "pocket-tank",
+    "sourceRevision": "75426fec289652ecd76fef2384624825424117c9",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "ecc1cd0281b0cb654fc3246f7c5798afd66b3a1d59114d290566e6b649ed399e",
+    "pairs": 4,
+    "medianWallSeconds": {
+      "baseline": 24.765027500003576,
+      "candidate": 32.64015250000358
+    },
+    "wallReductionPercent": -31.79937918501754,
+    "pairsWallReductionPercent": [
+      -30.43950799059878,
+      -32.06138301509078,
+      -32.31197703941555,
+      -31.63725026488793
+    ]
+  },
+  {
+    "name": "tails-s2-td",
+    "workload": "tinydraw",
+    "sourceRevision": "75426fec289652ecd76fef2384624825424117c9",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "ecc1cd0281b0cb654fc3246f7c5798afd66b3a1d59114d290566e6b649ed399e",
+    "pairs": 3,
+    "medianWallSeconds": {
+      "baseline": 27.172755000010135,
+      "candidate": 31.324865000009538
+    },
+    "wallReductionPercent": -15.280415990199936,
+    "pairsWallReductionPercent": [
+      -15.598988597984654,
+      -15.017008764771923,
+      -14.840541433784216
+    ]
+  },
+  {
+    "name": "host-s2-td",
+    "workload": "tinydraw",
+    "sourceRevision": "5d1bc7a7b01ed1a261259f7d872082532973f3c5",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "813b79d4bd863a7a3f9b00809c6eb1c1a9b7b3517ce4e4bdb08a4b5c16b1f69b",
+    "pairs": 3,
+    "medianWallSeconds": {
+      "baseline": 27.150890000000597,
+      "candidate": 27.557605000004173
+    },
+    "wallReductionPercent": -1.4979803608779152,
+    "pairsWallReductionPercent": [
+      -1.4703767866908635,
+      -1.1680464249623324,
+      -1.7133696238821994
+    ]
+  },
+  {
+    "name": "host-s2",
+    "workload": "pocket-tank",
+    "sourceRevision": "5d1bc7a7b01ed1a261259f7d872082532973f3c5",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "813b79d4bd863a7a3f9b00809c6eb1c1a9b7b3517ce4e4bdb08a4b5c16b1f69b",
+    "pairs": 4,
+    "medianWallSeconds": {
+      "baseline": 24.816592500001192,
+      "candidate": 25.20429999999702
+    },
+    "wallReductionPercent": -1.562291438664709,
+    "pairsWallReductionPercent": [
+      -1.8767296216506413,
+      -1.3054275035463414,
+      -1.6794074655398283,
+      -1.0682002614443187
+    ]
+  },
+  {
+    "name": "helpers-s3",
+    "workload": "pocket-tank",
+    "sourceRevision": "30b4bdd8b8bdae16450cb3dcfea6f1d85549e8a9",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "937a31b72d6027354f08db8d306008bdb8bb3f84f7bb4e81944605713a0f37cb",
+    "pairs": 4,
+    "medianWallSeconds": {
+      "baseline": 24.79667499999702,
+      "candidate": 24.402739999994637
+    },
+    "wallReductionPercent": 1.588660576478218,
+    "pairsWallReductionPercent": [
+      2.5396156900652556,
+      0.831307440472584,
+      0.8383539672316309,
+      1.4732217609042086
+    ]
+  },
+  {
+    "name": "helpers-s3-td",
+    "workload": "tinydraw",
+    "sourceRevision": "30b4bdd8b8bdae16450cb3dcfea6f1d85549e8a9",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "937a31b72d6027354f08db8d306008bdb8bb3f84f7bb4e81944605713a0f37cb",
+    "pairs": 3,
+    "medianWallSeconds": {
+      "baseline": 27.179484999999403,
+      "candidate": 26.20831999999285
+    },
+    "wallReductionPercent": 3.5731545318337554,
+    "pairsWallReductionPercent": [
+      4.341810494676701,
+      3.0062195806984437,
+      3.0617043850868053
+    ]
+  },
+  {
+    "name": "tails-s3",
+    "workload": "pocket-tank",
+    "sourceRevision": "0ff99486b9ba377014c0ad6d1932f9631abd3447",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "5a447ffa2e3ff3b45b77c07b7b9bc10e48d371eba3ec93761dd8bdff8a60b858",
+    "pairs": 4,
+    "medianWallSeconds": {
+      "baseline": 24.814762500002978,
+      "candidate": 31.77360499999672
+    },
+    "wallReductionPercent": -28.043155762594573,
+    "pairsWallReductionPercent": [
+      -28.737223166447844,
+      -28.02762672494916,
+      -28.242474043388242,
+      -27.59288889460343
+    ]
+  },
+  {
+    "name": "tails-s3-td",
+    "workload": "tinydraw",
+    "sourceRevision": "0ff99486b9ba377014c0ad6d1932f9631abd3447",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "5a447ffa2e3ff3b45b77c07b7b9bc10e48d371eba3ec93761dd8bdff8a60b858",
+    "pairs": 3,
+    "medianWallSeconds": {
+      "baseline": 27.105524999991058,
+      "candidate": 30.348340000003578
+    },
+    "wallReductionPercent": -11.963667923840582,
+    "pairsWallReductionPercent": [
+      -12.160322270691037,
+      -12.041419599939761,
+      -11.48870610665349
+    ]
+  }
+]

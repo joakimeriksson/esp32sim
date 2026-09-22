@@ -1,0 +1,265 @@
+{
+  "source": "2c628070",
+  "parent": "80b15535",
+  "experiment": "EX120",
+  "productionCommand": "CARGO_BUILD_JOBS=4 JOBS=4 tools/wasm-build.sh",
+  "debugComparisonCommand": "CARGO_BUILD_JOBS=4 JOBS=4 CARGO_PROFILE_RELEASE_DEBUG=1 tools/wasm-build.sh",
+  "exactCommand": "SECS=30 TREE=<candidate-tree> node <x5-harness>/bin/exact.mjs work/size-validation/nodebug.wasm",
+  "debug": {
+    "bytes": 12219972,
+    "sha256": "e335e97359b2f0f8e9e8beee3db4fdf3cd95559fe2ee598fef748908cbcf5930",
+    "sections": [
+      {
+        "id": 1,
+        "label": null,
+        "bytes": 464,
+        "sha256": "da6c04c64fa336433df203a9dbef6937c1b636bdea9ced2fa2fececb7a7851be"
+      },
+      {
+        "id": 2,
+        "label": null,
+        "bytes": 62,
+        "sha256": "c3ef5d43a4085710cfffb83e88c8dd35169606a854eef748dc2dcba6f243fb59"
+      },
+      {
+        "id": 3,
+        "label": null,
+        "bytes": 1364,
+        "sha256": "2de0fb5fbdf4b0966bbbc17f090402e28220bd84812067ae8c4d17a2eb5a0f9b"
+      },
+      {
+        "id": 4,
+        "label": null,
+        "bytes": 5,
+        "sha256": "178aed5e254d86e623a6f77897b3dd2f518b558fbe293744e7558e7492d0e98b"
+      },
+      {
+        "id": 5,
+        "label": null,
+        "bytes": 3,
+        "sha256": "e3c4e8c4be74ea7897d60436685f5014a88654a4f415f7e08b959984bf15f5d0"
+      },
+      {
+        "id": 6,
+        "label": null,
+        "bytes": 9,
+        "sha256": "da3c74f89a28b8e9a570d349d0f0a216ef8e69818c7226007164845feaceaf63"
+      },
+      {
+        "id": 7,
+        "label": null,
+        "bytes": 1558,
+        "sha256": "4827b4d73e5ae6f83fe6dd0bfccd1f4a338167326fdf8e78b663958f25438475"
+      },
+      {
+        "id": 9,
+        "label": null,
+        "bytes": 962,
+        "sha256": "1b013904a0c393b10672a6e4b060bd07639a92e32ee90be99bcae8dfa7113d7a"
+      },
+      {
+        "id": 10,
+        "label": null,
+        "bytes": 1842463,
+        "sha256": "8a5ac084647e6c67c4cededeb6c5375c80524d74970d4d8bc4ab7e2dfedb64a8"
+      },
+      {
+        "id": 11,
+        "label": null,
+        "bytes": 100835,
+        "sha256": "b40c1dd0a17b490d9f84be2d5b1e6994c3e3224c78297957f04e3a6137a2c600"
+      },
+      {
+        "id": 0,
+        "label": ".debug_abbrev",
+        "bytes": 10271,
+        "sha256": "5ff4d84040511340249fb22a2ef93fe9ee9e12226a4b28cb9246c79e0744cc51"
+      },
+      {
+        "id": 0,
+        "label": ".debug_info",
+        "bytes": 3710960,
+        "sha256": "b574ea425a846fb7747b0700102081604f441a30e4db4dcd8585f61ca508e990"
+      },
+      {
+        "id": 0,
+        "label": ".debug_ranges",
+        "bytes": 841622,
+        "sha256": "216e193c5253cc6735ff08ad6838514fb5fc855d244175c002255c6353997907"
+      },
+      {
+        "id": 0,
+        "label": ".debug_str",
+        "bytes": 3649764,
+        "sha256": "65e872a0a6106f1b62a0bb71a69d716dbdddb43e88c6c64cdf8198cb9a74663b"
+      },
+      {
+        "id": 0,
+        "label": ".debug_line",
+        "bytes": 1918710,
+        "sha256": "e761ea46191ef1460145d41ebe528a78d4b1517762a2c54315227ae282b29b86"
+      },
+      {
+        "id": 0,
+        "label": "name",
+        "bytes": 140629,
+        "sha256": "1208eecbd072d7bb0ef7ff3eaaf0582005ef7c1c53f7fac8a464424c66c6a3aa"
+      },
+      {
+        "id": 0,
+        "label": "producers",
+        "bytes": 77,
+        "sha256": "5d67a49632a1c5b6a451f6db7067a5e4bd58780d933cf33c3e503dca590b5642"
+      },
+      {
+        "id": 0,
+        "label": "target_features",
+        "bytes": 148,
+        "sha256": "97ceea95e0687b14437e21c205ebb40eea27aa5ecaa971f7d87601e3aa213bfd"
+      }
+    ]
+  },
+  "nodebug": {
+    "bytes": 2088105,
+    "sha256": "3539adf718613eff7493e003f4da955191b2898955bfb0130fbd23eb5b444e60",
+    "sections": [
+      {
+        "id": 1,
+        "label": null,
+        "bytes": 464,
+        "sha256": "f20bbaeb55f9207ac59156a7450627b15e33fe84b314e76cea1276e814d7f6d3"
+      },
+      {
+        "id": 2,
+        "label": null,
+        "bytes": 62,
+        "sha256": "c3ef5d43a4085710cfffb83e88c8dd35169606a854eef748dc2dcba6f243fb59"
+      },
+      {
+        "id": 3,
+        "label": null,
+        "bytes": 1364,
+        "sha256": "e47c6dbc6a5214f22bb7a4727a0ee9673fe436d6ac24aa555ce431763625a993"
+      },
+      {
+        "id": 4,
+        "label": null,
+        "bytes": 5,
+        "sha256": "178aed5e254d86e623a6f77897b3dd2f518b558fbe293744e7558e7492d0e98b"
+      },
+      {
+        "id": 5,
+        "label": null,
+        "bytes": 3,
+        "sha256": "e3c4e8c4be74ea7897d60436685f5014a88654a4f415f7e08b959984bf15f5d0"
+      },
+      {
+        "id": 6,
+        "label": null,
+        "bytes": 9,
+        "sha256": "da3c74f89a28b8e9a570d349d0f0a216ef8e69818c7226007164845feaceaf63"
+      },
+      {
+        "id": 7,
+        "label": null,
+        "bytes": 1558,
+        "sha256": "4827b4d73e5ae6f83fe6dd0bfccd1f4a338167326fdf8e78b663958f25438475"
+      },
+      {
+        "id": 9,
+        "label": null,
+        "bytes": 962,
+        "sha256": "4d8ac4195c7fec5d0a5dcd59bb5e18679ca00a6608b496f4518c3741b7a06d70"
+      },
+      {
+        "id": 10,
+        "label": null,
+        "bytes": 1842463,
+        "sha256": "b275bed4049f001541546486e525b963382164654a8248399c66eb8979949805"
+      },
+      {
+        "id": 11,
+        "label": null,
+        "bytes": 100875,
+        "sha256": "e6125250438473e0d594dd43f3af1b9b78835398faad7d0735e33cad2a293fd7"
+      },
+      {
+        "id": 0,
+        "label": "name",
+        "bytes": 140070,
+        "sha256": "9cdd9adf22e215ff822a5a5f142aee1ee5f2c9fabeed9e8e277e50a2760abbf0"
+      },
+      {
+        "id": 0,
+        "label": "producers",
+        "bytes": 77,
+        "sha256": "5d67a49632a1c5b6a451f6db7067a5e4bd58780d933cf33c3e503dca590b5642"
+      },
+      {
+        "id": 0,
+        "label": "target_features",
+        "bytes": 148,
+        "sha256": "97ceea95e0687b14437e21c205ebb40eea27aa5ecaa971f7d87601e3aa213bfd"
+      }
+    ]
+  },
+  "reductionPercent": 82.91235855532238,
+  "nameRetained": true,
+  "dwarfAbsent": true,
+  "explicitDebugOverridesChecked": [
+    1,
+    2
+  ],
+  "exact": {
+    "wasm": "work/size-validation/nodebug.wasm",
+    "secs": 30,
+    "framesSha256": "71a5ccdbf9dccbb35775c0d1ce90a2fad3f46370b901c39e4f3d58798537ca7d",
+    "insns": "10073833775",
+    "consoleSha256": "b9d9966e5d9d73984203c11846eb7f8c86507cb53ffe133c4e7e92dff66319d7",
+    "frames": 737,
+    "panics": 0,
+    "jitFailures": 0,
+    "refInsns": "10073833775",
+    "refSha": "b9d9966e",
+    "refFrames": 737,
+    "refFramesSha": "71a5ccdb",
+    "EXACT": true
+  },
+  "instructionComparison": {
+    "bodies": [
+      1362,
+      1362
+    ],
+    "imports": [
+      3,
+      3
+    ],
+    "matchedIdenticalByName": 740,
+    "differing": 554,
+    "ofWhichSizeDiffer": 0,
+    "differingBytesInSameSizeBodies": 7788,
+    "onlyInA": 29,
+    "onlyInB": 29,
+    "positionsWhereNameOrderDiffers": 209,
+    "examples": []
+  },
+  "immediateHeuristic": {
+    "bodiesCompared": 1323,
+    "bodiesDiffering": 554,
+    "differingBytes": 7788,
+    "notInACallOrConstImmediate": 0,
+    "byPrecedingOpcode": {
+      "i32.const": 5615,
+      "load/store offset": 1934,
+      "call": 239
+    }
+  },
+  "limitations": [
+    "Recompilation changes symbol ordering and address immediates; executable byte identity is not claimed.",
+    "Normalized-name comparison merges some generic names and leaves some names unmatched; byte-classification heuristic is not a semantic equivalence proof.",
+    "Node exactness wall time is excluded and is not performance evidence.",
+    "No startup/download latency measurement; reduction is uncompressed artifact bytes.",
+    "Shared policy also removes line-level DWARF from differential-test builds unless explicitly overridden."
+  ],
+  "recommendation": "Propose only as a size change, preserving explicit debug override and profile name section; x5 timings were flat."
+}

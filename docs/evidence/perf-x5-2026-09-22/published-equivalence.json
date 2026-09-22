@@ -1,0 +1,11 @@
+{
+  "testedRevision": "2c62807023aa37d0321fd53b749e74fb55fd0544",
+  "publishedRevision": "946d1c6bc34e20f4e8a488a057226abe29af91bf",
+  "change": "Correct two comment lines describing fallthrough-first region formation; no executable Rust change.",
+  "diffSha256": "a31cb477d9002942e7ac42d188023aad020fa7d8e39d86be065bf2bec62dd902",
+  "productionBuildCommand": "CARGO_BUILD_JOBS=4 JOBS=4 tools/wasm-build.sh",
+  "frozenSha256": "3539adf718613eff7493e003f4da955191b2898955bfb0130fbd23eb5b444e60",
+  "rebuiltSha256": "3539adf718613eff7493e003f4da955191b2898955bfb0130fbd23eb5b444e60",
+  "byteIdentical": true,
+  "bytes": 2088105
+}

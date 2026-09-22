@@ -1,0 +1,537 @@
+{
+  "name": "edges-s2",
+  "workload": "pocket-tank",
+  "sourceRevision": "8f6cb6fbad9e48e2709a7619052626915036094a",
+  "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+  "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+  "candidateWasmSha256": "56d142ed53d9fd716b3ecb8fa531dfeec1dbd661fff5dec43b13d808913b8abc",
+  "pairs": 4,
+  "medianWallSeconds": {
+    "baseline": 24.949859999991954,
+    "candidate": 24.331557499997317
+  },
+  "wallReductionPercent": 2.478180238265215,
+  "pairsWallReductionPercent": [
+    2.362420981510027,
+    2.448105423962721,
+    1.3452375160036056,
+    2.7755909445002502
+  ],
+  "browser": "Chrome/153.0.8010.53",
+  "v8": "15.3.76.13",
+  "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+  "startedAt": "2026-09-22T00:34:24Z",
+  "runs": [
+    {
+      "pair": 1,
+      "arm": "baseline",
+      "wallSeconds": 24.92295000000298,
+      "guestSeconds": 30.000000229166666,
+      "instructions": 10073833775,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "frames": 737,
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "verdictValidation": {
+        "schema": "pocket-tank-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": [
+        {
+          "name": "model_decisions",
+          "min": 10,
+          "count": 13
+        },
+        {
+          "name": "render_reports",
+          "min": 2,
+          "count": 2
+        }
+      ],
+      "verdict": null,
+      "instrumented": false,
+      "jit": {
+        "compiled": 5168,
+        "failed": 0,
+        "released": 1429,
+        "compileMs": 288.3900001347065,
+        "bytes": 48770076,
+        "liveBytes": 35189223,
+        "peakBytes": 41027052,
+        "peakModules": 4364,
+        "instructions": 10015966469
+      },
+      "loadBefore": [
+        2.2412109375,
+        2.9755859375,
+        2.9794921875
+      ],
+      "loadAfter": [
+        2.38330078125,
+        2.94287109375,
+        2.9677734375
+      ]
+    },
+    {
+      "pair": 1,
+      "arm": "candidate",
+      "wallSeconds": 24.334164999991657,
+      "guestSeconds": 30.000000229166666,
+      "instructions": 10073833775,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "frames": 737,
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "verdictValidation": {
+        "schema": "pocket-tank-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": [
+        {
+          "name": "model_decisions",
+          "min": 10,
+          "count": 13
+        },
+        {
+          "name": "render_reports",
+          "min": 2,
+          "count": 2
+        }
+      ],
+      "verdict": null,
+      "instrumented": false,
+      "jit": {
+        "compiled": 5168,
+        "failed": 0,
+        "released": 1429,
+        "compileMs": 279.9049995839596,
+        "bytes": 48706549,
+        "liveBytes": 35145749,
+        "peakBytes": 40978437,
+        "peakModules": 4364,
+        "instructions": 10015966469
+      },
+      "loadBefore": [
+        2.38330078125,
+        2.94287109375,
+        2.9677734375
+      ],
+      "loadAfter": [
+        2.64404296875,
+        2.94873046875,
+        2.9677734375
+      ]
+    },
+    {
+      "pair": 2,
+      "arm": "candidate",
+      "wallSeconds": 24.318385000005364,
+      "guestSeconds": 30.000000229166666,
+      "instructions": 10073833775,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "frames": 737,
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "verdictValidation": {
+        "schema": "pocket-tank-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": [
+        {
+          "name": "model_decisions",
+          "min": 10,
+          "count": 13
+        },
+        {
+          "name": "render_reports",
+          "min": 2,
+          "count": 2
+        }
+      ],
+      "verdict": null,
+      "instrumented": false,
+      "jit": {
+        "compiled": 5168,
+        "failed": 0,
+        "released": 1429,
+        "compileMs": 278.73499992489815,
+        "bytes": 48706549,
+        "liveBytes": 35145749,
+        "peakBytes": 40978437,
+        "peakModules": 4364,
+        "instructions": 10015966469
+      },
+      "loadBefore": [
+        2.64404296875,
+        2.94873046875,
+        2.9677734375
+      ],
+      "loadAfter": [
+        2.322265625,
+        2.83984375,
+        2.9267578125
+      ]
+    },
+    {
+      "pair": 2,
+      "arm": "baseline",
+      "wallSeconds": 24.928664999991657,
+      "guestSeconds": 30.000000229166666,
+      "instructions": 10073833775,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "frames": 737,
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "verdictValidation": {
+        "schema": "pocket-tank-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": [
+        {
+          "name": "model_decisions",
+          "min": 10,
+          "count": 13
+        },
+        {
+          "name": "render_reports",
+          "min": 2,
+          "count": 2
+        }
+      ],
+      "verdict": null,
+      "instrumented": false,
+      "jit": {
+        "compiled": 5168,
+        "failed": 0,
+        "released": 1429,
+        "compileMs": 281.35000033676624,
+        "bytes": 48770076,
+        "liveBytes": 35189223,
+        "peakBytes": 41027052,
+        "peakModules": 4364,
+        "instructions": 10015966469
+      },
+      "loadBefore": [
+        2.322265625,
+        2.83984375,
+        2.9267578125
+      ],
+      "loadAfter": [
+        3.2158203125,
+        3.048828125,
+        3.0009765625
+      ]
+    },
+    {
+      "pair": 3,
+      "arm": "baseline",
+      "wallSeconds": 24.97105499999225,
+      "guestSeconds": 30.000000229166666,
+      "instructions": 10073833775,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "frames": 737,
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "verdictValidation": {
+        "schema": "pocket-tank-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": [
+        {
+          "name": "model_decisions",
+          "min": 10,
+          "count": 13
+        },
+        {
+          "name": "render_reports",
+          "min": 2,
+          "count": 2
+        }
+      ],
+      "verdict": null,
+      "instrumented": false,
+      "jit": {
+        "compiled": 5168,
+        "failed": 0,
+        "released": 1429,
+        "compileMs": 281.550000295043,
+        "bytes": 48770076,
+        "liveBytes": 35189223,
+        "peakBytes": 41027052,
+        "peakModules": 4364,
+        "instructions": 10015966469
+      },
+      "loadBefore": [
+        3.2158203125,
+        3.048828125,
+        3.0009765625
+      ],
+      "loadAfter": [
+        2.6513671875,
+        2.93115234375,
+        2.95947265625
+      ]
+    },
+    {
+      "pair": 3,
+      "arm": "candidate",
+      "wallSeconds": 24.635134999990463,
+      "guestSeconds": 30.000000229166666,
+      "instructions": 10073833775,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "frames": 737,
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "verdictValidation": {
+        "schema": "pocket-tank-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": [
+        {
+          "name": "model_decisions",
+          "min": 10,
+          "count": 13
+        },
+        {
+          "name": "render_reports",
+          "min": 2,
+          "count": 2
+        }
+      ],
+      "verdict": null,
+      "instrumented": false,
+      "jit": {
+        "compiled": 5168,
+        "failed": 0,
+        "released": 1429,
+        "compileMs": 284.1750004142523,
+        "bytes": 48706549,
+        "liveBytes": 35145749,
+        "peakBytes": 40978437,
+        "peakModules": 4364,
+        "instructions": 10015966469
+      },
+      "loadBefore": [
+        2.6513671875,
+        2.93115234375,
+        2.95947265625
+      ],
+      "loadAfter": [
+        2.57470703125,
+        2.8876953125,
+        2.94189453125
+      ]
+    },
+    {
+      "pair": 4,
+      "arm": "candidate",
+      "wallSeconds": 24.32895000000298,
+      "guestSeconds": 30.000000229166666,
+      "instructions": 10073833775,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "frames": 737,
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "verdictValidation": {
+        "schema": "pocket-tank-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": [
+        {
+          "name": "model_decisions",
+          "min": 10,
+          "count": 13
+        },
+        {
+          "name": "render_reports",
+          "min": 2,
+          "count": 2
+        }
+      ],
+      "verdict": null,
+      "instrumented": false,
+      "jit": {
+        "compiled": 5168,
+        "failed": 0,
+        "released": 1429,
+        "compileMs": 275.9299997240305,
+        "bytes": 48706549,
+        "liveBytes": 35145749,
+        "peakBytes": 40978437,
+        "peakModules": 4364,
+        "instructions": 10015966469
+      },
+      "loadBefore": [
+        2.57470703125,
+        2.8876953125,
+        2.94189453125
+      ],
+      "loadAfter": [
+        3.49365234375,
+        3.060546875,
+        3
+      ]
+    },
+    {
+      "pair": 4,
+      "arm": "baseline",
+      "wallSeconds": 25.0235,
+      "guestSeconds": 30.000000229166666,
+      "instructions": 10073833775,
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd",
+      "frames": 737,
+      "status": "completed",
+      "stopCode": 0,
+      "passed": true,
+      "verdictValidation": {
+        "schema": "pocket-tank-v1",
+        "valid": true,
+        "passed": true,
+        "error": null
+      },
+      "checks": [
+        {
+          "name": "model_decisions",
+          "min": 10,
+          "count": 13
+        },
+        {
+          "name": "render_reports",
+          "min": 2,
+          "count": 2
+        }
+      ],
+      "verdict": null,
+      "instrumented": false,
+      "jit": {
+        "compiled": 5168,
+        "failed": 0,
+        "released": 1429,
+        "compileMs": 278.44499957561493,
+        "bytes": 48770076,
+        "liveBytes": 35189223,
+        "peakBytes": 41027052,
+        "peakModules": 4364,
+        "instructions": 10015966469
+      },
+      "loadBefore": [
+        3.49365234375,
+        3.060546875,
+        3
+      ],
+      "loadAfter": [
+        3.38720703125,
+        3.07080078125,
+        3.00537109375
+      ]
+    }
+  ],
+  "originalReceipts": [
+    {
+      "path": "runs/edges-s2/summary.json",
+      "sha256": "772fb18fca560fbe6fea694b160c940a53da8b978afb4ccde782ff50ed5a5428",
+      "bytes": 27220
+    },
+    {
+      "path": "runs/edges-s2/1-baseline/result.json",
+      "sha256": "deb44eb2e7f6b5645f0c8a46455e532ddd654ca8a889ab0c48ff57956f85d92d",
+      "bytes": 4329
+    },
+    {
+      "path": "runs/edges-s2/1-baseline/capture.json",
+      "sha256": "84b7971d07b94adb7a91cd5db73d807962baed0e5dfee6f9ee0a6334177ca2f4",
+      "bytes": 969
+    },
+    {
+      "path": "runs/edges-s2/1-candidate/result.json",
+      "sha256": "19f33ab16af8657d387fab993f906d6b1587bea1697426d85c510cf996f97782",
+      "bytes": 4331
+    },
+    {
+      "path": "runs/edges-s2/1-candidate/capture.json",
+      "sha256": "c7d1ff9304d2b70a839254d2796a6c1246e43722b811152d7a09d9b1de311a7e",
+      "bytes": 972
+    },
+    {
+      "path": "runs/edges-s2/2-candidate/result.json",
+      "sha256": "49c63ba54c342b0f2bbfb9179f9b36464e367cccee3bb7cf7534ee3abc7d2596",
+      "bytes": 4332
+    },
+    {
+      "path": "runs/edges-s2/2-candidate/capture.json",
+      "sha256": "dc65c62f1fecb97395058911132333e137088a99aed54f0426480107726a04a3",
+      "bytes": 967
+    },
+    {
+      "path": "runs/edges-s2/2-baseline/result.json",
+      "sha256": "23b63518766676a582f8a78ff005a7d6c3c8dd7e6691fc919ee044e3361ce882",
+      "bytes": 4332
+    },
+    {
+      "path": "runs/edges-s2/2-baseline/capture.json",
+      "sha256": "4cd81e9e5a1792db3c60cf4e33bb291b780d3478e8baef8065d5e864dfe3425b",
+      "bytes": 963
+    },
+    {
+      "path": "runs/edges-s2/3-baseline/result.json",
+      "sha256": "8697d01783c9fb34b05f1085c3c6f87b1bd4056c23d9f729a41ea83216016e56",
+      "bytes": 4329
+    },
+    {
+      "path": "runs/edges-s2/3-baseline/capture.json",
+      "sha256": "035115849e1e76fbbb787677c1c81b412e895585f35027ee069633da143fd417",
+      "bytes": 968
+    },
+    {
+      "path": "runs/edges-s2/3-candidate/result.json",
+      "sha256": "a9bacb0b0ef58d3acc345df28381070efb8a0b0d111e1ff3532a0d4b52149743",
+      "bytes": 4331
+    },
+    {
+      "path": "runs/edges-s2/3-candidate/capture.json",
+      "sha256": "5bb75926263d6038453c969f124560e9266d3530d864830ac197537839e06bc7",
+      "bytes": 972
+    },
+    {
+      "path": "runs/edges-s2/4-candidate/result.json",
+      "sha256": "9d44289adad492a6d1f3fe526251e7248d4b45aec7335c7b51a535ccb6745efe",
+      "bytes": 4330
+    },
+    {
+      "path": "runs/edges-s2/4-candidate/capture.json",
+      "sha256": "0cf9019b6b06e813baaca57241f3ccbdda08e56a13624fbda98c6f2a043308a5",
+      "bytes": 961
+    },
+    {
+      "path": "runs/edges-s2/4-baseline/result.json",
+      "sha256": "56121241ea0d7fe9e861079abcc8259cf17b9c4ce800a3b1590a1e9c2a54d96d",
+      "bytes": 4321
+    },
+    {
+      "path": "runs/edges-s2/4-baseline/capture.json",
+      "sha256": "027dc1698f977375709d53682ad2cd4da72317594647832d8b449d089bb496b7",
+      "bytes": 961
+    }
+  ]
+}

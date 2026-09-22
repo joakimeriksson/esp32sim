@@ -1,0 +1,404 @@
+diff --git a/xtensa-lx7/src/jit/wasm_instruction.rs b/xtensa-lx7/src/jit/wasm_instruction.rs
+index 2e10d8cf..75f0c733 100644
+--- a/xtensa-lx7/src/jit/wasm_instruction.rs
++++ b/xtensa-lx7/src/jit/wasm_instruction.rs
+@@ -51,6 +51,10 @@ pub(super) fn emit(
+         g.set_ar(t);
+         return true;
+     }
++    if last && policy::sr_terminal(i) {
++        emit_sr_terminal(g, i, next);
++        return true;
++    }
+     match i.op {
+         Nop | NopN | Memw | Extw | Rsync | Esync | Dsync => {}
+         Movi | MoviN => {
+@@ -358,6 +362,20 @@ pub(super) fn emit(
+             }
+             g.ret(CODE_LEFT);
+         }
++        Ret | RetN | Retw | RetwN if super::super::PRICED.load(std::sync::atomic::Ordering::Relaxed) => {
++            // EX138 prices a taken return by the alignment of its target's bytes, which only
++            // the interpreter can fetch; `straddle` covers static targets alone.
++            g.fallback(bi, pc, next, last, false);
++        }
++        Retw | RetwN => emit_retw(g, bi, pc, next, last),
++        // helpers-s3: `exec_insn` makes RET the indirect jump to A0 and nothing else.
++        Ret | RetN => {
++            g.advance();
++            g.get(0);
++            g.ar(0);
++            g.store(PC);
++            g.ret(CODE_LEFT);
++        }
+         Beqz | BeqzN | Bnez | BnezN | Bltz | Bgez | Beqi | Bnei | Blti | Bgei | Bltui | Bgeui
+         | Beq | Bne | Blt | Bge | Bltu | Bgeu => {
+             g.ar(s);
+@@ -434,6 +452,130 @@ pub(super) fn emit(
+     true
+ }
+ 
++/// helpers-s2 (EX109): the common windowed return inline, still terminal. PS.WOE clear, an A0
++/// with no call increment and a window underflow all leave exception state behind, so each keeps
++/// the interpreter. `h_exec` deliberately does not set `jit_helped` for returns; neither does this.
++fn emit_retw(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
++    g.cpu(offset_of!(Cpu, ps));
++    g.c(ps::WOE);
++    g.op(0x71);
++    g.op(0x45);
++    g.ar(0);
++    g.c(30);
++    g.op(0x76); // i32.shr_u: the call increment RETW unwinds
++    g.tee(TMP);
++    g.op(0x45);
++    g.op(0x72);
++    g.begin_if();
++    g.fallback(bi, pc, next, last, false);
++    g.end();
++    g.cpu(WINDOWBASE);
++    g.get(TMP);
++    g.op(0x6b);
++    g.c(crate::state::NUM_WINDOWS - 1);
++    g.op(0x71);
++    g.set(REL); // the frame being returned into
++    g.cpu(offset_of!(Cpu, windowstart));
++    g.c(1);
++    g.get(REL);
++    g.op(0x74);
++    g.op(0x71);
++    g.op(0x45);
++    g.begin_if();
++    g.fallback(bi, pc, next, last, false);
++    g.end();
++    g.advance();
++    g.ar(0);
++    g.c(0x3fff_ffff);
++    g.op(0x71);
++    g.c(pc & 0xc000_0000);
++    g.op(0x72);
++    g.set(ADDR);
++    g.spill(); // commit the caller's window before rotating out of it
++    g.get(0);
++    g.cpu(offset_of!(Cpu, windowstart));
++    g.c(1);
++    g.cpu(WINDOWBASE);
++    g.op(0x74);
++    g.c(u32::MAX);
++    g.op(0x73);
++    g.op(0x71);
++    g.store(offset_of!(Cpu, windowstart));
++    g.get(0);
++    g.get(REL);
++    g.store(WINDOWBASE);
++    g.get(0);
++    g.cpu(offset_of!(Cpu, ps));
++    g.c(!ps::CALLINC_MASK);
++    g.op(0x71);
++    g.get(TMP);
++    g.c(ps::CALLINC_SHIFT);
++    g.op(0x74);
++    g.op(0x72);
++    g.store(offset_of!(Cpu, ps));
++    g.get(0);
++    g.get(ADDR);
++    g.store(PC);
++    // A return is a taken transfer: no hardware-loop backedge, and the locals are already spilled.
++    g.ret_value(CODE_LEFT);
++}
++
++/// helpers-s1/s3: RSIL and the EX135-exact WSR/XSR inline, still terminal. EX135 made them
++/// terminal helpers; the only thing the helper did besides `exec_insn` is set `jit_helped`, which
++/// stops the EX153 chain so the dispatcher re-derives interrupt state before the next block.
++fn emit_sr_terminal(g: &mut Gen, i: &crate::Insn, next: u32) {
++    use crate::Op::*;
++    let (field, mask) = match i.op {
++        Rsil => (offset_of!(Cpu, ps), 0),
++        _ => (policy::rsr_field(i.imm as u32).unwrap(), policy::wsr_mask(i.imm as u32).unwrap()),
++    };
++    if i.op != Wsr {
++        g.cpu(field); // RSIL and XSR return the old value in AR[t].
++        g.set(TMP);
++    }
++    g.get(0);
++    if i.op == Rsil {
++        g.get(TMP);
++        g.c(!ps::INTLEVEL_MASK);
++        g.op(0x71);
++        g.c(i.imm as u32 & ps::INTLEVEL_MASK);
++        g.op(0x72);
++    } else {
++        g.ar(i.t);
++        if mask != u32::MAX {
++            g.c(mask); // `Cpu::write_sr`'s mask for this register
++            g.op(0x71);
++        }
++    }
++    g.store(field);
++    if i.op != Wsr {
++        g.get(TMP);
++        g.set_ar(i.t);
++    }
++    g.get(0);
++    g.c(1);
++    g.op(0x3a); // i32.store8 of Cpu::jit_helped, exactly what h_exec sets for these ops
++    uleb(&mut g.bytes, 0);
++    uleb(&mut g.bytes, offset_of!(Cpu, jit_helped));
++    g.advance();
++    // exec_insn's epilogue: a hardware loop ending here takes its backedge before the exit.
++    g.cpu(LEND);
++    g.c(next);
++    g.op(0x46);
++    g.begin_if();
++    g.cpu(LCOUNT);
++    g.begin_if();
++    g.decrement_loop();
++    g.get(0);
++    g.cpu(LBEG);
++    g.store(PC);
++    g.ret(CODE_LEFT);
++    g.end();
++    g.end();
++    g.cpu_const(PC, next);
++    g.ret(CODE_END);
++}
++
+ /// QUOU/QUOS/REMU/REMS. A zero divisor raises DIVIDE_BY_ZERO and QUOS of INT_MIN by -1 wraps,
+ /// where wasm's `i32.div_s` would trap, so both re-execute the whole instruction in the
+ /// interpreter; every other operand pair divides inline. (`i32.rem_s` of INT_MIN by -1 is 0 in
+diff --git a/xtensa-lx7/src/jit/wasm_policy.rs b/xtensa-lx7/src/jit/wasm_policy.rs
+index f047e5eb..a2473f6a 100644
+--- a/xtensa-lx7/src/jit/wasm_policy.rs
++++ b/xtensa-lx7/src/jit/wasm_policy.rs
+@@ -10,6 +10,26 @@ pub(in crate::jit) fn supported_insn(i: &crate::Insn, fast: bool) -> bool {
+         // EX155: WUR SAR_BYTE precedes every ee.src.q of the 4-bit unpack kernels.
+         || (i.op == crate::Op::Wur && i.imm == 13)
+         || (i.op == crate::Op::Rsr && rsr_field(i.imm as u32).is_some())
++        || sr_terminal(i)
++}
++
++/// helpers-s1/s3: RSIL and the WSR/XSR that `instruction::emit` lowers as compiled terminals
++/// (EX135 ran them all through the helper). Every other special register keeps the helper.
++pub(in crate::jit) fn sr_terminal(i: &crate::Insn) -> bool {
++    use crate::Op::*;
++    i.op == Rsil || (matches!(i.op, Wsr | Xsr) && wsr_mask(i.imm as u32).is_some())
++}
++
++/// helpers-s3: the mask `Cpu::write_sr` applies to a register whose field `rsr_field` already
++/// proves exact at any instruction of a dispatch, so writing it inline needs no other state.
++/// PRID is excluded because `write_sr` drops its value instead of storing one.
++pub(in crate::jit) fn wsr_mask(n: u32) -> Option<u32> {
++    use crate::state::sr;
++    if n == sr::PRID || rsr_field(n).is_none() { return None; }
++    Some(match n {
++        sr::PS => 0x0007_ff3f, sr::CPENABLE => 0xff, sr::EXCCAUSE => 0x3f, sr::VECBASE => !0x3ff,
++        _ => u32::MAX,
++    })
+ }
+ 
+ /// EX135: special registers whose `Cpu` field is exact at any instruction of a dispatch and that
+@@ -142,6 +162,10 @@ pub(in crate::jit) fn supported_opcode(op: crate::Op, fast: bool) -> bool {
+             | Bbc
+             | Bbs
+             | Loop | Loopnez | Loopgtz
++            // helpers-s2: emitted guarded; a failing guard still runs through the helper.
++            | Retw | RetwN
++            // helpers-s3: a plain indirect jump to A0, as `exec_insn` executes it.
++            | Ret | RetN
+     ) || floating_point(op) || (fast
+         && matches!(
+             op,
+diff --git a/xtensa-lx7/src/jit/wasm_tests.rs b/xtensa-lx7/src/jit/wasm_tests.rs
+index a9bee9b4..2a49301f 100644
+--- a/xtensa-lx7/src/jit/wasm_tests.rs
++++ b/xtensa-lx7/src/jit/wasm_tests.rs
+@@ -399,7 +399,8 @@ pub fn run_tests() -> u32 {
+     scheduler::interior_alias();
+     scheduler::interior_alias_deferred();
+     scheduler::interior_alias_instruction_bytes();
+-    tests += 3;
++    scheduler::ps_terminal_chain();
++    tests += 4;
+     tests += memory::extension_deferral() + memory::flat_ram_bounds() + regions::regions() + pie_accx::run_tests();
+     tests += memory::code_page_flag();
+     scheduler::retention();
+@@ -410,6 +411,6 @@ pub fn run_tests() -> u32 {
+     tests += 1;
+     tests + arithmetic::integer_ops() + float::floating_point() + float::floating_point_guard_proof() + float::fma_halfway_fallback()
+         + loops::hardware_loops() + control::window_masks() + control::terminal_helpers()
+-        + control::special_register_blocks() + control::whole_block_guards()
++        + control::special_register_blocks() + control::sr_terminals() + control::windowed_return() + control::whole_block_guards()
+         + control::entry_and_shifts() + control::guarded_loop_sites() + control::pie_wide_shifts() + timing::priced_cases()
+ }
+diff --git a/xtensa-lx7/src/jit/wasm_tests/control.rs b/xtensa-lx7/src/jit/wasm_tests/control.rs
+index 5100a28f..791a77d4 100644
+--- a/xtensa-lx7/src/jit/wasm_tests/control.rs
++++ b/xtensa-lx7/src/jit/wasm_tests/control.rs
+@@ -61,6 +61,64 @@ pub(super) fn special_register_blocks() -> u32 {
+     tests
+ }
+ 
++/// Entry, budget and hardware-loop coverage of one three-instruction block ending in a terminal:
++/// `lend` on the terminal's own fall-through makes the backedge come out of generated code.
++fn sr_sweep(block: &mut [BlockInsn], ps0: u32, value: u32) -> u32 {
++    let mut tests = 0;
++    for lend in [0, BASE + 6, BASE + 9] {
++        for entry in 0..3 {
++            for budget in [1, 3] {
++                let configure = |c: &mut Cpu| {
++                    c.ps = ps0;
++                    c.set_ar(4, value);
++                    c.set_ar(5, value);
++                    c.lbeg = BASE;
++                    c.lend = lend;
++                    c.lcount = 2 * u32::from(lend != 0);
++                };
++                let case = Case { seed: 15, entry, budget, ..Case::default() };
++                compare_hinted(block, case, &configure, lend);
++                compare_hinted(block, case, &configure, 0);
++                tests += 2;
++            }
++        }
++    }
++    tests
++}
++
++/// helpers-s1/s3: the compiled RSIL and WSR/XSR terminals. Sweeps every register `write_sr` masks
++/// differently, the old value returned in AR[t], and the registers that must keep the helper.
++pub(super) fn sr_terminals() -> u32 {
++    use crate::state::sr;
++    use Op::*;
++    let mut tests = 0;
++    for (number, inline) in [(sr::PS, true), (sr::SCOMPARE1, true), (sr::INTENABLE, true),
++        (sr::CPENABLE, true), (sr::VECBASE, true), (sr::EXCCAUSE, true), (sr::EXCVADDR, true),
++        (sr::DEPC, true), (177, true), (183, true), (194, true), (199, true), (209, true),
++        (215, true), (244, true), (247, true),
++        (sr::PRID, false), (sr::WINDOWBASE, false), (sr::WINDOWSTART, false), (sr::LCOUNT, false),
++        (sr::SAR, false), (sr::CCOMPARE0, false)] {
++        for op in [Wsr, Xsr] {
++            let mut block = [insn(Add), insn(MovN), insn(op)];
++            block[2].insn.imm = number as i32;
++            // Falling back to the helper would pass the oracle silently.
++            assert_eq!(emitter::supported_insn(&block[2].insn, false), inline, "{op:?}({number})");
++            for (ps0, value) in [(0u32, 0xffff_ffffu32), (0x1f, 9), (ps::WOE | 3, 0x0007_ff3f)] {
++                tests += sr_sweep(&mut block, ps0, value);
++            }
++        }
++    }
++    for level in [0, 3, 15] {
++        let mut block = [insn(Add), insn(MovN), insn(Rsil)];
++        block[2].insn.imm = level;
++        assert!(emitter::supported_insn(&block[2].insn, false));
++        for (ps0, value) in [(0u32, 0u32), (0x1f, 9), (ps::WOE | 3, 0xffff_ffff)] {
++            tests += sr_sweep(&mut block, ps0, value);
++        }
++    }
++    tests
++}
++
+ pub(super) fn terminal_helpers() -> u32 {
+     use Op::*;
+     let mut tests = 0;
+@@ -75,6 +133,8 @@ pub(super) fn terminal_helpers() -> u32 {
+         block[1].insn.t = 0;
+         block[1].max_ar = crate::exec::max_ar(&block[1].insn);
+         let mut cc = CodeCache::new(0).unwrap();
++        // Every terminal in this list is now emitted inline; a silent fallback would still pass.
++        assert!(emitter::supported_insn(&block[2].insn, false), "{op:?}");
+         assert!(compile(&mut cc, &mut block, BASE, false).is_some());
+         assert!(compile(&mut cc, &mut [insn(op), insn(Add)], BASE, false).is_none());
+         assert!(compile(&mut cc, &mut [insn(op)], BASE, false).is_none());
+@@ -103,6 +163,50 @@ pub(super) fn terminal_helpers() -> u32 {
+     tests
+ }
+ 
++/// helpers-s2: the guarded inline RETW / RETW.N. Sweeps every call increment against a window
++/// where only the returned-into frame is live, plus WOE clear, A0 without an increment and the
++/// underflow, and a hardware loop ending on the return, which a taken transfer must not take.
++pub(super) fn windowed_return() -> u32 {
++    use Op::*;
++    let mut tests = 0;
++    for op in [Retw, RetwN] {
++        let mut block = [insn(Add), insn(MovN), insn(op)];
++        // Dirty A0 before the return reads it: the spill must use the pre-rotation window.
++        block[1].insn.t = 0;
++        block[1].max_ar = crate::exec::max_ar(&block[1].insn);
++        assert!(emitter::supported_insn(&block[2].insn, false), "{op:?} must be emitted inline");
++        for wb in [0, 7, 15] {
++            for flags in [0, ps::WOE, ps::WOE | ps::EXCM] {
++                for inc in 0..4u32 {
++                    for windows in [0, 0xffff, 1 << ((wb + 16 - inc) % 16)] {
++                        for lend in [0, BASE + 9] {
++                            for entry in 0..3 {
++                                for budget in [1, 3] {
++                                    let configure = |c: &mut Cpu| {
++                                        c.ps = flags;
++                                        c.windowbase = wb;
++                                        c.windowstart = windows;
++                                        let ret = (inc << 30) | ((BASE + 0x400) & 0x3fff_ffff);
++                                        c.set_ar(0, ret);
++                                        c.set_ar(4, ret);
++                                        c.lbeg = BASE;
++                                        c.lend = lend;
++                                        c.lcount = 2 * u32::from(lend != 0);
++                                    };
++                                    let case = Case { seed: wb, entry, budget, ..Case::default() };
++                                    compare_hinted(&mut block, case, &configure, lend);
++                                    tests += 1;
++                                }
++                            }
++                        }
++                    }
++                }
++            }
++        }
++    }
++    tests
++}
++
+ pub(super) fn whole_block_guards() -> u32 {
+     let mut tests = 0;
+     for offset in [-3i32, 0, 1, 3, 4, 6, 9, 10, 12] {
+diff --git a/xtensa-lx7/src/jit/wasm_tests/scheduler.rs b/xtensa-lx7/src/jit/wasm_tests/scheduler.rs
+index 2c488044..69c081ba 100644
+--- a/xtensa-lx7/src/jit/wasm_tests/scheduler.rs
++++ b/xtensa-lx7/src/jit/wasm_tests/scheduler.rs
+@@ -148,6 +148,39 @@ pub(super) fn interior_alias() {
+     }
+ }
+ 
++/// helpers-s1: a compiled PS terminal must stop the EX153 wrapper chain exactly where the
++/// helper did, so an interrupt it unmasks is delivered at the same instruction boundary.
++pub(super) fn ps_terminal_chain() {
++    // nop.n; rsil a2,0 | nop.n; j BASE  (RSIL: op0/op1/op2 = 0, r = 6, s = level, t = AR)
++    let mut program = asm::nop_n();
++    program.extend([0x20, 0x60, 0x00]);
++    program.extend(asm::nop_n());
++    program.extend(asm::j(BASE + 7, BASE));
++    let (mut a, mut b) = (cpu(0), cpu(0));
++    let (mut ra, mut rb) = (Ram::new(true, false), Ram::new(true, false));
++    for r in [&mut ra, &mut rb] { r.ram.mem[..program.len()].copy_from_slice(&program); }
++    let rsil = crate::decode::decode(BASE + 2, ra.fetch(BASE + 2).unwrap());
++    assert_eq!((rsil.op, rsil.imm, rsil.t), (Op::Rsil, 0, 2));
++    let check = |a: &mut Cpu, b: &mut Cpu, ra: &mut Ram, rb: &mut Ram, budget| {
++        let (done, trap) = crate::block::run_block(b, rb, budget);
++        let mut oracle = None;
++        for _ in 0..done { if let Err(t) = crate::step(a, ra) { oracle = Some(t); break; } }
++        assert_eq!(trap, oracle);
++        same(a, b);
++        (done, trap)
++    };
++    for c in [&mut a, &mut b] { c.pc = BASE; c.ps = 0; }
++    for _ in 0..200 { check(&mut a, &mut b, &mut ra, &mut rb, 4); }
++    assert!(b.blocks.jit_instructions > 100);
++    // PS.INTLEVEL 15 masks the pending interrupt; the RSIL unmasks it.
++    for c in [&mut a, &mut b] { c.pc = BASE; c.ps = 15; c.intenable = 1 << 6; c.interrupt = 1 << 6; }
++    assert_eq!(check(&mut a, &mut b, &mut ra, &mut rb, 32), (2, None), "chain must stop at the PS terminal");
++    assert_eq!(b.ps, 0);
++    let (done, trap) = check(&mut a, &mut b, &mut ra, &mut rb, 32);
++    assert_eq!(done, 1);
++    assert!(matches!(trap, Some(Trap::Interrupt(_))), "unmasked interrupt must be delivered next");
++}
++
+ pub(super) fn interior_alias_instruction_bytes() {
+     // A three-byte ADDI between narrow instructions. RFE may target any byte;
+     // only its first byte is an instruction boundary in the existing owner.
