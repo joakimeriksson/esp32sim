@@ -26,6 +26,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Build the wasm module
         run: tools/wasm-build.sh
+      - name: Production WASM sections (no DWARF, profile names retained)
+        run: node tools/check-wasm-sections.mjs web/wasm/esp32sim.wasm
       - name: Fetch the demo assets (mask ROM ELFs, xterm.js, the Linux-on-esp32-S3 image)
         run: tools/fetch-demo-assets.sh
       # pocket-tank's bootloader, partition table and app are committed under web/wasm/fw/public/ (its

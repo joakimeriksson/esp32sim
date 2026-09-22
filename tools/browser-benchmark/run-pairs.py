@@ -51,6 +51,29 @@ def validate_timing_build(record):
         validate_timing_build(record['artifactBuild'])
 
 
+def clear_release_overrides(env):
+    # Source-tree profile settings define each arm; ambient shell exports do not.
+    for key in list(env):
+        if key.startswith('CARGO_PROFILE_RELEASE_'):
+            del env[key]
+
+
+def production_environment(env, rustflags=None):
+    # Use the harness checkout's shipped policy for both arms, including old trees.
+    env = env.copy()
+    env.pop('RUSTFLAGS', None)
+    env.pop('CARGO_ENCODED_RUSTFLAGS', None)
+    clear_release_overrides(env)
+    if rustflags is not None:
+        env['RUSTFLAGS'] = rustflags
+    policy = HERE.parent / 'wasm-rustflags.sh'
+    values = subprocess.check_output(['sh', '-c', '. "$1"; printf "%s\\n" "$RUSTFLAGS" "$CARGO_PROFILE_RELEASE_DEBUG" "$CARGO_PROFILE_RELEASE_STRIP"',
+                      'production-policy', str(policy)], env=env, text=True).splitlines()
+    for key, value in zip(('RUSTFLAGS', 'CARGO_PROFILE_RELEASE_DEBUG', 'CARGO_PROFILE_RELEASE_STRIP'), values, strict=True):
+        env[key] = value
+    return env
+
+
 def prepare(out, name, tree, wasm, assets, rustflags=None):
     tree = tree.resolve()
     arm = out / name
@@ -72,11 +95,15 @@ def prepare(out, name, tree, wasm, assets, rustflags=None):
         env['RUSTC'] = rustc
         env['DYLD_FALLBACK_LIBRARY_PATH'] = str(Path(rustc).parent.parent / 'lib') + ':' + env.get('DYLD_FALLBACK_LIBRARY_PATH', '')
         env['CARGO_TARGET_DIR'] = str(arm / 'target')
-        # Ignore ambient profiling/instrumentation flags for comparable production builds.
-        env.pop('RUSTFLAGS', None)
-        env.pop('CARGO_ENCODED_RUSTFLAGS', None)
-        if rustflags is not None:
-            env['RUSTFLAGS'] = rustflags
+        env = production_environment(env, rustflags)
+        record['rustflags'] = env['RUSTFLAGS']
+        record['releaseProfile'] = {
+            'source': 'Cargo.toml plus harness tools/wasm-rustflags.sh; ambient overrides removed',
+            'policySha256': sha(HERE.parent / 'wasm-rustflags.sh'),
+            'workspaceSettings': workspace.get('profile', {}).get('release', {}),
+            'environmentOverrides': {key: env[key] for key in
+                                     ('CARGO_PROFILE_RELEASE_DEBUG', 'CARGO_PROFILE_RELEASE_STRIP')},
+        }
         argv = [cargo, 'build', '--release', '--target', 'wasm32-unknown-unknown', '-p', 'esp32sim-wasm']
         record['buildCommand'] = argv
         record['rustc'] = command([rustc, '-Vv'])
