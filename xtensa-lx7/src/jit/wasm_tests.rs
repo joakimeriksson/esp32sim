@@ -358,6 +358,7 @@ pub fn run_tests() -> u32 {
     tests += memory::page_boundary_stores() + memory::straddling_instruction_rewrite();
     tests += arithmetic::basic_ops() + arithmetic::division()
         + memory::loads_and_stores() + control::helper_continuation();
+    tests += control::interpreted_bridges();
     scheduler::scheduler();
     scheduler::wrapper_chain();
     tests += 1;

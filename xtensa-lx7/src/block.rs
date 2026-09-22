@@ -162,7 +162,21 @@ impl BlockCache {
     #[inline(always)]
     pub(crate) fn bridge_target(&self, pc: u32, pv: &[u32], room: u32) -> Option<(u32, u32)> {
         let e = &self.entries[Self::index(pc)];
-        (e.pc == pc && e.bridge.wrapping_sub(1) < BRIDGE_CLASS && e.n as u32 <= room && Self::valid(e, pv)).then_some((e.start, e.n as u32))
+        (e.pc == pc && e.chain && e.bridge.wrapping_sub(1) < BRIDGE_CLASS && e.n as u32 <= room && Self::valid(e, pv)).then_some((e.start, e.n as u32))
+    }
+    #[cfg(all(target_arch = "wasm32", feature = "wasm-jit-tests"))]
+    pub(crate) fn install_test_bridge(&mut self, pc: u32, ops: &[BlockInsn]) {
+        let start = self.arena.len() as u32;
+        self.arena.extend_from_slice(ops);
+        let e = Entry { pc, start, n: ops.len() as u16, chain: !must_start_block(&ops[0].insn),
+            bridge: bridge_block_class(ops), ..Entry::EMPTY };
+        self.entries[Self::index(pc)] = e;
+        assert_eq!(self.bridge_target(pc, &[0], ops.len() as u32), Some((start, ops.len() as u32)));
+        assert!(self.bridge_target(pc, &[0], ops.len() as u32 - 1).is_none());
+        self.entries[Self::index(pc)].chain = false;
+        assert!(self.bridge_target(pc, &[0], ops.len() as u32).is_none());
+        self.entries[Self::index(pc)].chain = e.chain;
+        assert!(self.bridge_target(pc, &[1], ops.len() as u32).is_none());
     }
     pub fn jit_active(&self) -> bool { self.jit_enabled && self.code.is_some() }
     #[inline(always)]
