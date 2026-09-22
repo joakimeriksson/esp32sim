@@ -178,6 +178,8 @@ impl BlockCache {
         self.entries[Self::index(pc)].chain = e.chain;
         assert!(self.bridge_target(pc, &[1], ops.len() as u32).is_none());
     }
+    #[cfg(all(target_arch = "wasm32", feature = "wasm-jit-tests"))]
+    pub(crate) fn test_code(&self) -> &crate::jit::CodeCache { self.code.as_ref().unwrap() }
     pub fn jit_active(&self) -> bool { self.jit_enabled && self.code.is_some() }
     #[inline(always)]
     fn index(pc: u32) -> usize { ((pc >> 1) ^ (pc >> 16)) as usize & (ENTRIES - 1) }

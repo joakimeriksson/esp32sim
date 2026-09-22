@@ -399,11 +399,15 @@ pub(super) fn wrapper_bridge_guards() {
             same(a, b);
             (done, trap)
         };
+        b.blocks.observed = true; // warm single blocks, without forming a region
         for _ in 0..40 {
             for c in [&mut a, &mut b] { c.pc = BASE; c.ps = 0; c.price_control = mode == 2; c.set_ar(4, BASE + 64); c.set_ar(5, BASE + 128); }
             check(&mut a, &mut b, &mut ra, &mut rb, 2);
         }
         assert!(b.blocks.jit_instructions > 0, "predecessor must compile");
+        b.blocks.observed = false;
+        // Keep the direct-J pricing case in the wrapper, not a compiled region.
+        for block in &b.blocks.test_code().blocks { block.region_tries.set(REGION_TRIES); }
         let mut ops = Vec::new();
         for offset in [64, 66, 68] {
             let i = crate::decode::decode(BASE + offset, rb.fetch(BASE + offset).unwrap());
