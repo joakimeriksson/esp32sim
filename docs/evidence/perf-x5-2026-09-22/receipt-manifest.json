@@ -1,13 +1,23 @@
 [
   {
     "path": "README.md",
-    "sha256": "0bc5a8ed19d36d94d176bc2c7fbc7155d5618f5070c966f1a7683b44796ec14d",
-    "bytes": 7406
+    "sha256": "85a3b80a1f995a1e50ad54c7849084767341216a1c503fef22155752302d0077",
+    "bytes": 9231
   },
   {
     "path": "exact-gates.json",
-    "sha256": "66812d511180b5abc674663be7e0a5ae9b9b949a2cc079acc285dc71f01a42e7",
-    "bytes": 12634
+    "sha256": "f7d1837e807b48f10b2aed305d3dcdf26f55c1d1efc0db7fbecfe0b89c182af9",
+    "bytes": 15772
+  },
+  {
+    "path": "exact-harness.json",
+    "sha256": "edfd4d7c4960ffc2037793d9e3e3b439d055760fcf5f7c6b6a4f575359a1fbcb",
+    "bytes": 3954
+  },
+  {
+    "path": "exact.mjs",
+    "sha256": "cf58ec6f5182d5c340d2fb0af9e692d6699b2ecf9e741bfd90c1c58d9c6773a5",
+    "bytes": 4472
   },
   {
     "path": "final-size-tests.json",
@@ -21,13 +31,13 @@
   },
   {
     "path": "patches.json",
-    "sha256": "b432229597a65e42f2984f38cc53226501080d1c195b5ec2222ca5c10bb3f181",
-    "bytes": 4747
+    "sha256": "c7d6c935c62cc0005e496f4470e8646811d3ca1db8b3e0bd8682ee8fbaf98b51",
+    "bytes": 5311
   },
   {
     "path": "provenance.json",
-    "sha256": "393a50156c2fb413cd3d0b9c4ca52ab4a4d20ff1e8891f47c2a3203215d49ecb",
-    "bytes": 7645
+    "sha256": "d8cf575e5b37ff9afb07a6e43557f34bb2089608ae7f901a7ea9c3f0ddda24e1",
+    "bytes": 8325
   },
   {
     "path": "published-equivalence.json",
@@ -36,8 +46,8 @@
   },
   {
     "path": "results.json",
-    "sha256": "3e8a3f5505e8f2cc03615c14b30f87a3487b48c425a00bcd72e8a5b84b15ccd0",
-    "bytes": 21359
+    "sha256": "520c303070e08f0ba694c1be877a8ce9876ea84f65893fa2d8b559c4e5dcb3fc",
+    "bytes": 25427
   },
   {
     "path": "size-validation.json",
@@ -46,8 +56,18 @@
   },
   {
     "path": "source-manifest.json",
-    "sha256": "13a1bfe6477b971881cd050d5497ae5a785201eb9fc11170db6cf34a8c62aa0d",
-    "bytes": 5828
+    "sha256": "5d756f4025df8ea2d7d16bb8c78e3783bd4fe3d5f0b3caf8a093dd18a67b6a8b",
+    "bytes": 6315
+  },
+  {
+    "path": "verification.json",
+    "sha256": "f65a6d40bab55222de0e7b7ce9a3db76a742f3bf83e2668294255a96d002f45c",
+    "bytes": 287
+  },
+  {
+    "path": "verify-results.mjs",
+    "sha256": "bdea6d5d325b4ab8212576af8721e2920dad8911b91e5fc600d739335573fdce",
+    "bytes": 2513
   },
   {
     "path": "notes/edges.md",
@@ -56,8 +76,8 @@
   },
   {
     "path": "notes/helpers.md",
-    "sha256": "809d6fe796dd5aa7a7b9ed68614d6bc5823197d50c71ed5585774a67ebbbd79e",
-    "bytes": 16888
+    "sha256": "60d7342fc8a93abebfacba7083844431bb4b95cb45be6befec5b7a865c91a4fd",
+    "bytes": 17063
   },
   {
     "path": "notes/host-attribution.patch",
@@ -103,6 +123,16 @@
     "path": "notes/tails.md",
     "sha256": "99a5ccb10be29657861d4bee02be5ce89fa74d2c665beeb56cc8681df3cd4444",
     "bytes": 11596
+  },
+  {
+    "path": "patches/combined-s1.patch",
+    "sha256": "c521cf80fda3bcd96a1f95c0ff2c721b75bfdc48d076356a684b1795e29181eb",
+    "bytes": 28028
+  },
+  {
+    "path": "patches/combined-size.patch",
+    "sha256": "1a27cd25981c8b541501690e0fde1f9aeccfc0c3cba46535878272af93258f1b",
+    "bytes": 28604
   },
   {
     "path": "patches/edges-s1.patch",
@@ -190,9 +220,39 @@
     "bytes": 21913
   },
   {
+    "path": "runs/combined-s1-td.json",
+    "sha256": "43f1abc8477662a94522caaf783323812935d796a7084499fbfc75f0b9df6be0",
+    "bytes": 12807
+  },
+  {
+    "path": "runs/combined-s1.json",
+    "sha256": "00cee351d3be1eb3bd0f522bcd9c1f4ded7a7c4daaf99cc9517379e22b9b72db",
+    "bytes": 13873
+  },
+  {
+    "path": "runs/combined-size-td.json",
+    "sha256": "08714ed9dc4b0b15bcedc80fb9e4760ee5e51ccef9e81e3331124e316ec4fa28",
+    "bytes": 12835
+  },
+  {
+    "path": "runs/combined-size.json",
+    "sha256": "c40cd4768c245adb369c07b9f655a48ef5d97cd31afbe33ed489070aa7be8101",
+    "bytes": 13925
+  },
+  {
     "path": "runs/control-aa-1.json",
     "sha256": "b2c4b48c4affa106f53e5eefec15b602d49032175f8d148d5ac21544790e9ea5",
     "bytes": 7407
+  },
+  {
+    "path": "runs/control-aa-final-td.json",
+    "sha256": "e68b6c68581766dc8583d4f0d208e16755e448451b7e921a0581f01342258bf5",
+    "bytes": 8911
+  },
+  {
+    "path": "runs/control-aa-final.json",
+    "sha256": "5a3080098352b6a3c92bed423bfa417e4965c46dc5656e012518555749f23660",
+    "bytes": 7463
   },
   {
     "path": "runs/control-aa-td.json",

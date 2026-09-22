@@ -117,5 +117,19 @@
     "baseRevision": "15e59d5c89458564adb54dd94694d4e02edcdf60",
     "sha256": "2f720e72a8fe36bca95394673d5645249a29760c293266d0b20d61729b3f7b07",
     "bytes": 15330
+  },
+  {
+    "path": "patches/combined-s1.patch",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "sourceRevision": "80b155350b602c112bcc80642c64f9a7a0abec0c",
+    "sha256": "c521cf80fda3bcd96a1f95c0ff2c721b75bfdc48d076356a684b1795e29181eb",
+    "bytes": 28028
+  },
+  {
+    "path": "patches/combined-size.patch",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "sourceRevision": "946d1c6bc34e20f4e8a488a057226abe29af91bf",
+    "sha256": "1a27cd25981c8b541501690e0fde1f9aeccfc0c3cba46535878272af93258f1b",
+    "bytes": 28604
   }
 ]

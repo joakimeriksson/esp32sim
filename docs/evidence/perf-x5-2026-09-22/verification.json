@@ -1,0 +1,14 @@
+{
+  "status": "passed",
+  "jobs": 37,
+  "timedArms": 254,
+  "checks": [
+    "pair counts",
+    "median and paired reductions",
+    "pinned instructions",
+    "successful verdicts",
+    "equal console hashes and frame counts",
+    "zero JIT failures",
+    "uninstrumented captures"
+  ]
+}

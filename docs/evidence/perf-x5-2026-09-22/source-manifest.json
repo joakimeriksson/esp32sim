@@ -39,8 +39,8 @@
         "bytes": 16690
       },
       "sanitizedPath": "notes/helpers.md",
-      "sanitizedSha256": "809d6fe796dd5aa7a7b9ed68614d6bc5823197d50c71ed5585774a67ebbbd79e",
-      "sanitizedBytes": 16888
+      "sanitizedSha256": "60d7342fc8a93abebfacba7083844431bb4b95cb45be6befec5b7a865c91a4fd",
+      "sanitizedBytes": 17063
     },
     {
       "original": {
@@ -139,11 +139,24 @@
     "Keep per-arm wall times, exact instructions, output checks, frame counts, JIT counters, browser/V8 versions and aggregate load averages.",
     "Omit duplicated per-arm provenance maps; retain shared hashes in provenance.json and artifact hashes per job.",
     "Correct tails note claim of identical dispatch counts and map provisional host EX181 references to final EX168.",
-    "Parameterize historical host-jitstats.mjs local paths using caller-supplied TREE and FW_DIR."
+    "Parameterize historical host-jitstats.mjs local paths using caller-supplied TREE and FW_DIR.",
+    "Fix historical relative note links and clarify that the suggested direct helpers-s3 versus helpers-s1s2 comparison was never executed."
   ],
   "limitations": [
     "Original captures remain in private lab and remote runner storage; no public artifact archive has been created. Hashes identify private originals but do not grant public access.",
     "Browser captures did not record frame-content hashes. Node gates establish exact frame-content equality only for the 30-second Pocket workload.",
     "Source candidate revisions are external-artifact queue metadata; imported harness tree commit differs and is recorded separately."
+  ],
+  "followupOriginals": [
+    {
+      "path": "followup/runner.log",
+      "sha256": "eab4633171c41f56c50d8faece472203bc740945e51245b744dcb9dc1fe4fee6",
+      "bytes": 10266
+    },
+    {
+      "path": "followup/queue/jobs.jsonl",
+      "sha256": "e04ecd766b7e212cd3f9efa3804518227f71d1eedd50d7393f9b2397cc442a17",
+      "bytes": 19106
+    }
   ]
 }

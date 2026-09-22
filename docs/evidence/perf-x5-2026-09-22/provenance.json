@@ -82,5 +82,22 @@
     "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
     "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
     "web/wasm/worker.js": "7ee25b3bb9036587685bafc92f7951f892ea63e0202e3cceac84201d8eca7e89"
+  },
+  "reportedMachine": {
+    "model": "Apple M3 Pro",
+    "source": "Original lab BRIEF.md",
+    "originalSha256": "122a1e356c8b75102b4865d6d4b09c7ca642748e78c5341970786d700a04c990",
+    "originalBytes": 6760,
+    "limitation": "Machine model reported by lab setup; no independent hardware inventory retained."
+  },
+  "timingBuild": {
+    "package": "esp32sim-wasm",
+    "target": "wasm32-unknown-unknown",
+    "profile": "release",
+    "rustflags": "-Cllvm-args=-inline-threshold=2000",
+    "wasmOpt": false,
+    "debugDefaultOriginal": 1,
+    "debugDefaultSizeCandidate": 0,
+    "originalBuildScriptSha256": "3f22992cf202312a8efcaa85aa3839615aaaba8574ee759571e10fa1397475e6"
   }
 }

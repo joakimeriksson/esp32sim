@@ -603,5 +603,119 @@
       -12.041419599939761,
       -11.48870610665349
     ]
+  },
+  {
+    "name": "combined-s1",
+    "workload": "pocket-tank",
+    "sourceRevision": "80b155350b602c112bcc80642c64f9a7a0abec0c",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "b4a59ceb17a2714ae5a78a5e38710b7adb93a07582f48737d544314f3e01654f",
+    "pairs": 4,
+    "medianWallSeconds": {
+      "baseline": 24.766362500011923,
+      "candidate": 23.668277500003576
+    },
+    "wallReductionPercent": 4.433775852258548,
+    "pairsWallReductionPercent": [
+      2.614565130261093,
+      4.474931351941802,
+      4.392694756578319,
+      4.77609105454958
+    ]
+  },
+  {
+    "name": "combined-s1-td",
+    "workload": "tinydraw",
+    "sourceRevision": "80b155350b602c112bcc80642c64f9a7a0abec0c",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "b4a59ceb17a2714ae5a78a5e38710b7adb93a07582f48737d544314f3e01654f",
+    "pairs": 3,
+    "medianWallSeconds": {
+      "baseline": 27.16997499999404,
+      "candidate": 25.017855000019072
+    },
+    "wallReductionPercent": 7.920949503911723,
+    "pairsWallReductionPercent": [
+      7.920949503911723,
+      8.281560659008747,
+      7.518640827562894
+    ]
+  },
+  {
+    "name": "control-aa-final",
+    "workload": "pocket-tank",
+    "sourceRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "pairs": 2,
+    "medianWallSeconds": {
+      "baseline": 24.877444999992846,
+      "candidate": 24.965964999988675
+    },
+    "wallReductionPercent": -0.3558243219746071,
+    "pairsWallReductionPercent": [
+      -0.5080528781951754,
+      -0.2047011986675562
+    ]
+  },
+  {
+    "name": "control-aa-final-td",
+    "workload": "tinydraw",
+    "sourceRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "pairs": 2,
+    "medianWallSeconds": {
+      "baseline": 27.163980000004173,
+      "candidate": 27.203689999997614
+    },
+    "wallReductionPercent": -0.14618623630791028,
+    "pairsWallReductionPercent": [
+      -0.3400785031725251,
+      0.04718680610704684
+    ]
+  },
+  {
+    "name": "combined-size",
+    "workload": "pocket-tank",
+    "sourceRevision": "2c62807023aa37d0321fd53b749e74fb55fd0544",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "3539adf718613eff7493e003f4da955191b2898955bfb0130fbd23eb5b444e60",
+    "pairs": 4,
+    "medianWallSeconds": {
+      "baseline": 24.827677499994635,
+      "candidate": 23.82011249999702
+    },
+    "wallReductionPercent": 4.058232994197031,
+    "pairsWallReductionPercent": [
+      4.306352825161053,
+      3.511600521294378,
+      3.7745612040704812,
+      4.050128173190792
+    ]
+  },
+  {
+    "name": "combined-size-td",
+    "workload": "tinydraw",
+    "sourceRevision": "2c62807023aa37d0321fd53b749e74fb55fd0544",
+    "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+    "baselineWasmSha256": "0a5e09eb1d1e6e5cfce401a64e2ee62cf9241029df5e7e938adae724ca0f01c5",
+    "candidateWasmSha256": "3539adf718613eff7493e003f4da955191b2898955bfb0130fbd23eb5b444e60",
+    "pairs": 3,
+    "medianWallSeconds": {
+      "baseline": 27.252090000003577,
+      "candidate": 25.022935000002384
+    },
+    "wallReductionPercent": 8.179757956182076,
+    "pairsWallReductionPercent": [
+      8.179757956182076,
+      7.948146026729852,
+      8.45188425726805
+    ]
   }
 ]
