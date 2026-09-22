@@ -594,7 +594,55 @@ pub(super) fn regions() -> u32 {
         vec![(0, 2), (35, 1), (6, 3), (41, 2), (13, 6), (43, 1)]);
     assert_eq!(formed.pages, vec![(0, 0)]);
     assert!(emitter::region::form(&c, &mut ram, BASE + 38, &head, true).is_none(), "RSR head");
-    cases + 2 + prev_page_store() + forward_edges()
+    cases + 2 + prev_page_store() + forward_edges() + self_loops()
+}
+
+/// EX181 s2: the two shapes whose backedge stays inside one chunk — a `bnez` back to the
+/// chunk head, and a hardware loop body that is exactly one chunk after the LEND split.
+/// Both are wrapped in a WASM loop, so their backedge is a `br` instead of a br_table hop;
+/// the harness cuts credit at every index and probes the head.
+fn self_loops() -> u32 {
+    use Op::*;
+    let mut p = Vec::new();
+    p.extend(asm::movi_n(3, 5));                 // 0
+    p.extend(asm::addi_n(2, 2, 1));              // 2  the self-looping chunk starts here
+    p.extend(asm::addi_n(3, 3, -1));             // 4
+    p.extend(asm::bz(1, BASE + 6, 3, BASE + 2)); // 6  bnez a3, 2
+    p.extend(asm::addi_n(6, 6, 1));              // 9
+    p.extend(asm::j(BASE + 11, BASE));           // 11
+    let shape = [(0, MoviN, 0), (2, AddiN, 0), (4, AddiN, 0), (6, Bnez, 2), (9, AddiN, 0), (11, J, 0)];
+    {
+        let mut ram = Ram::new(true, false);
+        ram.ram.mem[..p.len()].copy_from_slice(&p);
+        let head: Vec<BlockInsn> = (0..4).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, straddle: false, off: 0 }) }).collect();
+        let formed = emitter::region::form(&cpu(0), &mut ram, BASE, &head, true).expect("bnez self-loop region");
+        assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(), vec![(0, 4), (2, 3), (9, 2)]);
+    }
+    let max = region_program("bnez-self-loop", &p, &shape, &[], 4, 2, |_| {}, 900);
+    assert!(max > 4, "bnez self-loop region never passed its head ({max})");
+
+    let mut p = Vec::new();
+    p.extend(asm::lp(9, BASE, 3, BASE + 9));        // 0  loopnez a3, 9
+    p.extend(asm::addi_n(2, 2, 1));                 // 3  LBEG: the whole body is one chunk
+    p.extend(asm::addi_n(4, 4, 1));                 // 5
+    p.extend(asm::addi_n(5, 5, 1));                 // 7  ends exactly at LEND
+    p.extend(asm::addi_n(6, 6, 1));                 // 9  loop exit
+    p.extend(asm::j(BASE + 11, BASE));              // 11
+    let shape = [(0, Loopnez, 9), (3, AddiN, 0), (7, AddiN, 0), (9, AddiN, 0), (11, J, 0)];
+    {
+        let mut ram = Ram::new(true, false);
+        ram.ram.mem[..p.len()].copy_from_slice(&p);
+        let head: Vec<BlockInsn> = (0..1).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, straddle: false, off: 0 }) }).collect();
+        let formed = emitter::region::form(&cpu(0), &mut ram, BASE, &head, true).expect("hardware self-loop region");
+        assert_eq!(formed.loops, vec![(BASE + 9, BASE + 3)]);
+        assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(), vec![(0, 1), (3, 3), (9, 2)]);
+    }
+    // a3 is never written, so the count is the same on every pass; 0 makes LOOPNEZ skip.
+    for count in [4, 1, 0] {
+        let max = region_program("hw-self-loop", &p, &shape, &[], 1, 3, move |c| { c.set_ar(3, count); }, 900);
+        assert!(max > 1, "hardware self-loop region never passed its head ({max})");
+    }
+    2
 }
 
 /// EX181: a graph whose internal forward edges skip chunks, so the emitted `br` labels are

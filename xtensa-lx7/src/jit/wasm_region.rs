@@ -44,6 +44,8 @@ pub(super) struct RegionGen {
     pub loop_depth: usize,
     /// control depth at the top level of the current chunk's code
     pub chunk_depth: usize,
+    /// EX181 s2: the current chunk's code is wrapped in a WASM loop at `chunk_depth - 1`
+    pub self_loop: bool,
     /// last retired PC for each exit site, indexed by the tag in the result
     pub sites: Vec<ExitSite>,
     /// version-page index range covering every chunk (stores inside it set DIRTY)
@@ -214,6 +216,8 @@ pub(super) fn region_edge(g: &mut Gen, target: u32, direct: bool) {
     g.flush();
     let r = g.region.as_ref().unwrap();
     let (current, loop_depth, chunk_depth) = (r.current, r.loop_depth, r.chunk_depth);
+    // Depth just inside every dispatch block, where the br_table sits.
+    let (blocks, self_loop) = (loop_depth + r.heads.len(), r.self_loop);
     match r.heads.get(&target).copied() {
         Some((index, len)) => {
             g.get(DONE);
@@ -245,10 +249,13 @@ pub(super) fn region_edge(g: &mut Gen, target: u32, direct: bool) {
             g.end();
             if !direct || index != current + 1 || g.depth() != chunk_depth {
                 // EX181: chunk `index` starts after the end of the block at ctl index
-                // `loop_depth + n - 1 - index`, which is still open for any forward target,
-                // so a plain `br` reaches it without re-dispatching through the br_table.
+                // `blocks - 1 - index`, which is still open for any forward target, and s2
+                // wraps a self-looping chunk in its own loop: both are a plain `br`, only a
+                // backward edge to another chunk re-dispatches through the br_table.
                 let label = if index > current {
-                    index - current - 1 + g.depth() - chunk_depth
+                    g.depth() + index - blocks
+                } else if index == current && self_loop {
+                    g.depth() - chunk_depth
                 } else {
                     g.c(index as u32);
                     g.set(NEXT);
@@ -297,7 +304,7 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
         written,
         max_ar,
         dynamic: true,
-        region: Some(RegionGen { heads, current: 0, loop_depth: 0, chunk_depth: 0, sites: Vec::new(), page_lo, page_hi, loops }),
+        region: Some(RegionGen { heads, current: 0, loop_depth: 0, chunk_depth: 0, self_loop: false, sites: Vec::new(), page_lo, page_hi, loops }),
         ..Gen::default()
     };
     // The caller has checked the credit for the entry chunk; window and coprocessor
@@ -354,13 +361,25 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
     for (k, chunk) in chunks.iter().enumerate() {
         g.end();
         g.pending = 0;
+        // EX181 s2: a chunk that branches back to its own head (a conditional or J to it, or
+        // a hardware loop body that is exactly this chunk) keeps that edge inside the
+        // function as a WASM loop; every other arrival still comes through the br_table.
+        let self_loop = successors(chunk).contains(&chunk.pc)
+            || formed_loops.iter().any(|&(lend, lbeg)| lbeg == chunk.pc && lend == chunk_end(chunk));
+        if self_loop {
+            g.begin_loop();
+        }
         {
             let r = g.region.as_mut().unwrap();
             r.current = k;
             r.loop_depth = loop_depth;
             r.chunk_depth = g.ctl.len();
+            r.self_loop = self_loop;
         }
         emit_body(&mut g, chunk.pc, &chunk.instructions, fast, false, true, cp);
+        if self_loop {
+            g.end();
+        }
     }
     g.op(0x00); // every chunk leaves or branches; no fallthrough out of the last one
     g.end(); // dispatch loop
