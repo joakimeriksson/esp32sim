@@ -141,6 +141,8 @@ pub struct WaveshareAmoled18V2 {
     pub gpio_events: u64,
     pub panel: Co5300,
     pub touch_state: std::sync::Arc<std::sync::Mutex<crate::i2c::TouchState>>,
+    /// Board clock and handling-script selection seen by the QMI8658.
+    pub imu: std::sync::Arc<crate::i2c::ImuMotion>,
     smooth_display: bool,
     cycle: VirtualCycle,
     next_te_cycle: Option<VirtualCycle>,
@@ -162,6 +164,7 @@ impl WaveshareAmoled18V2 {
             gpio_events: 0,
             panel: Co5300::new(),
             touch_state: Default::default(),
+            imu: Default::default(),
             smooth_display: false,
             cycle: 0,
             next_te_cycle: Some(Self::APPROXIMATE_TE_HALF_PERIOD),
@@ -217,7 +220,7 @@ impl BoardModel for WaveshareAmoled18V2 {
             (0, 0x20, Box::new(Tca9554::register_ram_stub())),
             (0, 0x34, Box::new(Reg8Device::new("axp2101-pmic-initialization-stub", &[(0x03, 0x4a)]))),
             (0, 0x51, Box::new(Reg8Device::new("pcf85063a-rtc-initialization-stub", &[]))),
-            (0, 0x6b, Box::new(Reg8Device::new("qmi8658-imu-initialization-stub", &[(0x00, 0x05)]))),
+            (0, 0x6b, Box::new(Qmi8658::new(self.imu.clone()))),
         ]
     }
     fn display(&self) -> Option<(u32, u32, Vec<u16>, u64)> {
@@ -228,6 +231,7 @@ impl BoardModel for WaveshareAmoled18V2 {
     fn display_quiet_push(&self) -> bool { !self.smooth_display }
     fn display_push_hz(&self) -> u64 { if self.smooth_display { 120 } else { 50 } }
     fn set_smooth_display(&mut self, on: bool) -> bool { self.smooth_display = on; true }
+    fn set_imu_motion(&mut self, mode: u32) -> bool { self.imu.mode.store(mode, std::sync::atomic::Ordering::Relaxed); true }
     fn input_levels(&self) -> Vec<(u8, bool)> {
         vec![(PIN_AMOLED_TE, self.te_level), (PIN_AMOLED_TOUCH_INT, self.touch_irq_level)]
     }
@@ -263,6 +267,7 @@ impl BoardModel for WaveshareAmoled18V2 {
             }
         }
         self.cycle = cycle;
+        self.imu.cycle.store(cycle, std::sync::atomic::Ordering::Relaxed);
     }
     fn take_edges(&mut self) -> Vec<BoardEdge> { std::mem::take(&mut self.edges) }
 }

@@ -54,6 +54,8 @@ pub trait BoardModel {
     fn display_push_hz(&self) -> u64 { 50 }
     /// Opt in to interactive host publication before execution. Returns false if unsupported.
     fn set_smooth_display(&mut self, _on: bool) -> bool { false }
+    /// Select a scripted IMU motion (0 = still) before execution. Returns false if unsupported.
+    fn set_imu_motion(&mut self, _mode: u32) -> bool { false }
     /// Raw display memory for a debug PNG: (pixels, columns, rows).
     fn gram(&self) -> Option<(Vec<u16>, usize, usize)> { None }
     /// LED ring / strip: colours and a change counter.
