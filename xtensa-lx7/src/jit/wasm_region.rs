@@ -18,6 +18,8 @@ use std::collections::HashMap;
 pub(in crate::jit) static FORWARD_BRANCHES: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 #[cfg(feature = "wasm-jit-tests")]
 pub(in crate::jit) static SELF_LOOP_BRANCHES: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+#[cfg(feature = "wasm-jit-tests")]
+pub(in crate::jit) static JX_EDGES: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 
 pub(super) const MAX_CHUNKS: usize = 64;
 pub(super) const MAX_INSNS: usize = 512;
@@ -27,6 +29,8 @@ pub(in crate::jit) const MAX_PAGES: usize = 8;
 pub(in crate::jit) struct Chunk {
     pub pc: u32,
     pub instructions: Vec<BlockInsn>,
+    /// coverage-s2: the target of a final `l32r aN; jx aN`, read at formation.
+    pub jx: Option<u32>,
 }
 
 pub(in crate::jit) struct Formed {
@@ -60,6 +64,8 @@ pub(super) struct RegionGen {
     pub page_hi: u32,
     /// LEND -> LBEG for the region's own hardware loops
     pub loops: HashMap<u32, u32>,
+    /// the current chunk's predicted JX target
+    pub jx: Option<u32>,
 }
 
 /// Ends a chunk and leaves the region by itself: calls, returns and computed jumps.
@@ -88,6 +94,7 @@ fn successors(chunk: &Chunk) -> Vec<u32> {
     let next = chunk_end(chunk);
     match last.insn.op {
         J => vec![last.insn.imm as u32],
+        Jx => chunk.jx.into_iter().collect(),
         op if terminal(op) => vec![],
         Loopnez | Loopgtz => vec![next, last.insn.imm as u32],
         // EX181 s3: fallthrough first favors placing the straight-line successor at
@@ -117,6 +124,15 @@ fn chunk<B: Bus>(cpu: &Cpu, bus: &mut B, head: u32, pc0: u32, fast: bool, room: 
     (!v.is_empty()).then_some(v)
 }
 
+/// coverage-s2: `l32r aN, lit; jx aN` (the ROM `__call_*` trampolines) goes where the literal
+/// says. The JX compares its register with this value, so a changed literal only exits. Priced
+/// runs keep the exit, like every other dynamic transfer.
+fn jx_target<B: Bus>(cpu: &Cpu, bus: &mut B, v: &[BlockInsn]) -> Option<u32> {
+    let [.., l, j] = v else { return None };
+    if cpu.price_control || j.insn.op != crate::Op::Jx || l.insn.op != crate::Op::L32r || l.insn.t != j.insn.s { return None }
+    bus.fetch(l.insn.imm as u32).ok().map(u32::from_le_bytes)
+}
+
 /// A hardware loop's last instruction ends exactly at LEND; make that a chunk boundary
 /// so the backedge can be an ordinary edge to the LBEG chunk. Each split adds at most
 /// one chunk per loop, so the total stays within MAX_CHUNKS plus the loop count.
@@ -133,11 +149,12 @@ fn split_at_loop_ends(chunks: &mut Vec<Chunk>, loops: &[(u32, u32)]) {
             }
         }
         if let Some((at, pc)) = split {
+            let jx = chunks[k].jx.take();
             let mut tail = chunks[k].instructions.split_off(at);
             // The loop exit is usually a chunk head already (the LOOPNEZ skip target).
             if !chunks.iter().any(|c| c.pc == pc) {
                 for (n, bi) in tail.iter_mut().enumerate() { bi.off = n as u32; }
-                chunks.push(Chunk { pc, instructions: tail });
+                chunks.push(Chunk { pc, instructions: tail, jx });
             }
         }
         k += 1;
@@ -152,7 +169,8 @@ pub(in crate::jit) fn form<B: Bus>(cpu: &Cpu, bus: &mut B, head: u32, block: &[B
     let n = first.len().min(block.len());
     if first[..n].iter().zip(&block[..n]).any(|(a, b)| a.insn != b.insn) { return None }
     let mut total = first.len();
-    let mut chunks = vec![Chunk { pc: head, instructions: first }];
+    let jx = jx_target(cpu, bus, &first);
+    let mut chunks = vec![Chunk { pc: head, instructions: first, jx }];
     let mut seen: HashMap<u32, ()> = HashMap::from([(head, ())]);
     let mut q = 0;
     while q < chunks.len() && chunks.len() < MAX_CHUNKS && total < MAX_INSNS {
@@ -161,7 +179,8 @@ pub(in crate::jit) fn form<B: Bus>(cpu: &Cpu, bus: &mut B, head: u32, block: &[B
             if let Some(c) = chunk(cpu, bus, head, t, fast, MAX_INSNS - total, &mut bloom) {
                 total += c.len();
                 seen.insert(t, ());
-                chunks.push(Chunk { pc: t, instructions: c });
+                let jx = jx_target(cpu, bus, &c);
+                chunks.push(Chunk { pc: t, instructions: c, jx });
             }
         }
         q += 1;
@@ -325,7 +344,7 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
         written,
         max_ar,
         dynamic: true,
-        region: Some(RegionGen { heads, current: 0, loop_depth: 0, chunk_depth: 0, self_loop: false, sites: Vec::new(), page_lo, page_hi, loops }),
+        region: Some(RegionGen { heads, current: 0, loop_depth: 0, chunk_depth: 0, self_loop: false, sites: Vec::new(), page_lo, page_hi, loops, jx: None }),
         ..Gen::default()
     };
     // The caller has checked the credit for the entry chunk; window and coprocessor
@@ -396,6 +415,7 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
             r.loop_depth = loop_depth;
             r.chunk_depth = g.ctl.len();
             r.self_loop = self_loop;
+            r.jx = chunk.jx;
         }
         emit_body(&mut g, chunk.pc, &chunk.instructions, fast, false, true, cp);
         if self_loop {

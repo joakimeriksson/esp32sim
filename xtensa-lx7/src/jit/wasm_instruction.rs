@@ -311,6 +311,20 @@ pub(super) fn emit(
         Jx => {
             g.price(5);
             g.advance();
+            // coverage-s2: a formation-time prediction is a guarded internal edge; the edge
+            // spills ACCX on its own path only, so the exit below still holds it.
+            if let Some(target) = g.region.as_ref().and_then(|r| r.jx) {
+                #[cfg(feature = "wasm-jit-tests")]
+                super::region::JX_EDGES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                let accx_live = g.accx_live;
+                g.ar(s);
+                g.c(target);
+                g.op(0x46);
+                g.begin_if();
+                super::region::region_edge(g, target, false);
+                g.end();
+                g.accx_live = accx_live;
+            }
             g.get(0);
             g.ar(s);
             g.store(PC);

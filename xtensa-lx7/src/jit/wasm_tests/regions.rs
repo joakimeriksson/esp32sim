@@ -680,7 +680,7 @@ pub(super) fn regions() -> u32 {
         vec![(0, 2), (6, 3), (35, 1), (13, 6), (41, 2), (43, 1)]);
     assert_eq!(formed.pages, vec![(0, 0)]);
     assert!(emitter::region::form(&c, &mut ram, BASE + 38, &head, true).is_none(), "RSR head");
-    cases + 2 + prev_page_store() + forward_edges() + self_loops() + outside_loops()
+    cases + 2 + prev_page_store() + forward_edges() + self_loops() + outside_loops() + jx_literal()
 }
 
 /// EX181 s2: the two shapes whose backedge stays inside one chunk — a `bnez` back to the
@@ -770,6 +770,43 @@ fn outside_loops() -> u32 {
         }
     }
     2
+}
+
+/// coverage-s2: `l32r a9; jx a9` with its literal on a page no chunk occupies. The region
+/// predicts the literal it saw at formation; every pass flips the literal between two targets,
+/// so the guarded edge runs both matched and mismatched without a page-version drop.
+fn jx_literal() -> u32 {
+    use Op::*;
+    let (a, b) = (BASE + 262, BASE + 274);
+    let mut p = a.to_le_bytes().to_vec();         // 0    the literal, alone on page 0
+    p.resize(256, 0);
+    p.extend(asm::l32r(9, BASE + 256, BASE));      // 256  head
+    p.extend(asm::jx(9));                          // 259
+    for (at, r) in [(262, 2), (274, 3)] {
+        p.resize(at, 0);
+        p.extend(asm::addi_n(r, r, 1));            // A 262 / B 274
+        p.extend(asm::xor(10, 10, 12));            // flip the stored target
+        p.extend(asm::s32i_n(10, 11, 0));
+        p.extend(asm::j(BASE + at as u32 + 7, BASE + 256));
+    }
+    let shape = [(256, L32r, 0), (259, Jx, 0), (262, AddiN, 0), (264, Xor, 0), (267, S32iN, 0), (269, J, 256),
+                 (274, AddiN, 0), (276, Xor, 0), (279, S32iN, 0), (281, J, 256)];
+    {
+        let mut ram = Ram::new(true, false);
+        ram.ram.mem[..p.len()].copy_from_slice(&p);
+        let head: Vec<BlockInsn> = (0..2).scan(BASE + 256, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, straddle: false, off: 0 }) }).collect();
+        let formed = emitter::region::form(&cpu(0), &mut ram, BASE + 256, &head, true).expect("jx literal region");
+        assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.jx)).collect::<Vec<_>>(), vec![(256, Some(a)), (262, None)]);
+    }
+    let before = emitter::region::JX_EDGES.load(std::sync::atomic::Ordering::Relaxed);
+    region_program("jx-literal", &p, &shape, &[], 2, 262, move |c| {
+        c.pc = BASE + 256;
+        c.set_ar(10, a);
+        c.set_ar(11, BASE);
+        c.set_ar(12, a ^ b);
+    }, 900);
+    assert!(emitter::region::JX_EDGES.load(std::sync::atomic::Ordering::Relaxed) > before, "jx literal emitted no guarded edge");
+    1
 }
 
 /// EX181: a graph whose internal forward edges skip chunks, so the emitted `br` labels are
