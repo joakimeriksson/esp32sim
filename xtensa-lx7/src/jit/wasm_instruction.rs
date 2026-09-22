@@ -362,6 +362,12 @@ pub(super) fn emit(
             }
             g.ret(CODE_LEFT);
         }
+        Retw | RetwN if super::super::PRICED.load(std::sync::atomic::Ordering::Relaxed) => {
+            // EX138 prices a taken return by the alignment of its target's bytes, which only
+            // the interpreter can fetch; `straddle` covers static targets alone.
+            g.fallback(bi, pc, next, last, false);
+        }
+        Retw | RetwN => emit_retw(g, bi, pc, next, last),
         Beqz | BeqzN | Bnez | BnezN | Bltz | Bgez | Beqi | Bnei | Blti | Bgei | Bltui | Bgeui
         | Beq | Bne | Blt | Bge | Bltu | Bgeu => {
             g.ar(s);
@@ -436,6 +442,74 @@ pub(super) fn emit(
         _ => return false,
     }
     true
+}
+
+/// helpers-s2 (EX109): the common windowed return inline, still terminal. PS.WOE clear, an A0
+/// with no call increment and a window underflow all leave exception state behind, so each keeps
+/// the interpreter. `h_exec` deliberately does not set `jit_helped` for returns; neither does this.
+fn emit_retw(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
+    g.cpu(offset_of!(Cpu, ps));
+    g.c(ps::WOE);
+    g.op(0x71);
+    g.op(0x45);
+    g.ar(0);
+    g.c(30);
+    g.op(0x76); // i32.shr_u: the call increment RETW unwinds
+    g.tee(TMP);
+    g.op(0x45);
+    g.op(0x72);
+    g.begin_if();
+    g.fallback(bi, pc, next, last, false);
+    g.end();
+    g.cpu(WINDOWBASE);
+    g.get(TMP);
+    g.op(0x6b);
+    g.c(crate::state::NUM_WINDOWS - 1);
+    g.op(0x71);
+    g.set(REL); // the frame being returned into
+    g.cpu(offset_of!(Cpu, windowstart));
+    g.c(1);
+    g.get(REL);
+    g.op(0x74);
+    g.op(0x71);
+    g.op(0x45);
+    g.begin_if();
+    g.fallback(bi, pc, next, last, false);
+    g.end();
+    g.advance();
+    g.ar(0);
+    g.c(0x3fff_ffff);
+    g.op(0x71);
+    g.c(pc & 0xc000_0000);
+    g.op(0x72);
+    g.set(ADDR);
+    g.spill(); // commit the caller's window before rotating out of it
+    g.get(0);
+    g.cpu(offset_of!(Cpu, windowstart));
+    g.c(1);
+    g.cpu(WINDOWBASE);
+    g.op(0x74);
+    g.c(u32::MAX);
+    g.op(0x73);
+    g.op(0x71);
+    g.store(offset_of!(Cpu, windowstart));
+    g.get(0);
+    g.get(REL);
+    g.store(WINDOWBASE);
+    g.get(0);
+    g.cpu(offset_of!(Cpu, ps));
+    g.c(!ps::CALLINC_MASK);
+    g.op(0x71);
+    g.get(TMP);
+    g.c(ps::CALLINC_SHIFT);
+    g.op(0x74);
+    g.op(0x72);
+    g.store(offset_of!(Cpu, ps));
+    g.get(0);
+    g.get(ADDR);
+    g.store(PC);
+    // A return is a taken transfer: no hardware-loop backedge, and the locals are already spilled.
+    g.ret_value(CODE_LEFT);
 }
 
 /// helpers-s1: RSIL / WSR PS / XSR PS inline, still terminal. EX135 made them terminal helpers;

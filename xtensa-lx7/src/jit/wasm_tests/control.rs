@@ -140,6 +140,50 @@ pub(super) fn terminal_helpers() -> u32 {
     tests
 }
 
+/// helpers-s2: the guarded inline RETW / RETW.N. Sweeps every call increment against a window
+/// where only the returned-into frame is live, plus WOE clear, A0 without an increment and the
+/// underflow, and a hardware loop ending on the return, which a taken transfer must not take.
+pub(super) fn windowed_return() -> u32 {
+    use Op::*;
+    let mut tests = 0;
+    for op in [Retw, RetwN] {
+        let mut block = [insn(Add), insn(MovN), insn(op)];
+        // Dirty A0 before the return reads it: the spill must use the pre-rotation window.
+        block[1].insn.t = 0;
+        block[1].max_ar = crate::exec::max_ar(&block[1].insn);
+        assert!(emitter::supported_insn(&block[2].insn, false), "{op:?} must be emitted inline");
+        for wb in [0, 7, 15] {
+            for flags in [0, ps::WOE, ps::WOE | ps::EXCM] {
+                for inc in 0..4u32 {
+                    for windows in [0, 0xffff, 1 << ((wb + 16 - inc) % 16)] {
+                        for lend in [0, BASE + 9] {
+                            for entry in 0..3 {
+                                for budget in [1, 3] {
+                                    let configure = |c: &mut Cpu| {
+                                        c.ps = flags;
+                                        c.windowbase = wb;
+                                        c.windowstart = windows;
+                                        let ret = (inc << 30) | ((BASE + 0x400) & 0x3fff_ffff);
+                                        c.set_ar(0, ret);
+                                        c.set_ar(4, ret);
+                                        c.lbeg = BASE;
+                                        c.lend = lend;
+                                        c.lcount = 2 * u32::from(lend != 0);
+                                    };
+                                    let case = Case { seed: wb, entry, budget, ..Case::default() };
+                                    compare_hinted(&mut block, case, &configure, lend);
+                                    tests += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    tests
+}
+
 pub(super) fn whole_block_guards() -> u32 {
     let mut tests = 0;
     for offset in [-3i32, 0, 1, 3, 4, 6, 9, 10, 12] {

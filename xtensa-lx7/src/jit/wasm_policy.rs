@@ -151,6 +151,8 @@ pub(in crate::jit) fn supported_opcode(op: crate::Op, fast: bool) -> bool {
             | Bbc
             | Bbs
             | Loop | Loopnez | Loopgtz
+            // helpers-s2: emitted guarded; a failing guard still runs through the helper.
+            | Retw | RetwN
     ) || floating_point(op) || (fast
         && matches!(
             op,
