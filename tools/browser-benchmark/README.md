@@ -70,7 +70,13 @@ is recorded separately.
 `--pairs` sets the number of balanced pairs. `--baseline-wasm` and `--candidate-wasm` reuse existing artifacts; check
 their build provenance before interpreting results. Explicit compiler experiments
 can use `--candidate-rustflags='-Ctarget-feature=+simd128'`; ambient `RUSTFLAGS` are
-otherwise cleared. Use `--chrome /path/to/chrome` if Chrome is not installed at the
+otherwise cleared. Builds source the harness checkout's `tools/wasm-rustflags.sh`
+for both arms: inline threshold 2000, debug=0 and strip=debuginfo. Ambient
+`CARGO_PROFILE_RELEASE_*` overrides are removed first; build receipts record the
+resolved flags, profile overrides and shared policy hash. This applies the same
+production policy even when an arm is an older checkout. Existing supplied WASM
+artifacts retain their recorded build identity and are not rebuilt.
+Use `--chrome /path/to/chrome` if Chrome is not installed at the
 standard macOS location. `--archive /path/to/extracted-review-bundle` can supply its
 firmware assets instead of `--assets`. These timings exclude canvas rendering and
 do not establish input latency or hardware clock accuracy.
@@ -132,8 +138,21 @@ DevTools profile, browser version, battery result and console events. It uses th
 Profiler domain without enabling the source debugger. Import the `.cpuprofile` into
 Chrome's profiler for call-tree inspection.
 
-For additional attribution, build `esp32sim-wasm` for `wasm32-unknown-unknown` in release
-mode with `--features cpu-profile`, and point the asset map at that binary. This feature
+For a hand-built production artifact, source the shared policy in a subshell so its
+exports do not affect later native builds:
+
+```sh
+( . ./tools/wasm-rustflags.sh
+  cargo build --release --target wasm32-unknown-unknown -p esp32sim-wasm )
+node tools/check-wasm-sections.mjs target/wasm32-unknown-unknown/release/esp32sim_wasm.wasm
+```
+
+Plain `cargo build --release` without that policy still uses the workspace's
+native-friendly `debug = 1` profile. For additional attribution, use the same
+subshell command with `--features cpu-profile` and point the asset map at that
+binary. To retain DWARF intentionally, set `CARGO_PROFILE_RELEASE_DEBUG=1` and
+`CARGO_PROFILE_RELEASE_STRIP=none` before sourcing the policy; that diagnostic
+artifact is expected to fail the production section check. The cpu-profile feature
 marks the machine block wrapper, Xtensa block runner and JIT invocation function as
 non-inline at Rust compilation. Browser optimization can still inline functions.
 It adds no per-block clocks, but changes code layout and execution cost; do not use

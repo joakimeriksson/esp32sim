@@ -21,6 +21,26 @@ class ValidationTests(unittest.TestCase):
         runner.clear_release_overrides(env)
         self.assertEqual(env, {'CARGO_BUILD_JOBS': '4'})
 
+    def test_production_policy_overrides_ambient_instrumentation(self):
+        env = runner.production_environment({
+            'RUSTFLAGS': '--cfg profiling', 'CARGO_ENCODED_RUSTFLAGS': '-g',
+            'CARGO_PROFILE_RELEASE_DEBUG': '2', 'CARGO_PROFILE_RELEASE_STRIP': 'none',
+            'CARGO_PROFILE_RELEASE_LTO': 'false', 'CARGO_BUILD_JOBS': '4'})
+        self.assertEqual(env['RUSTFLAGS'], '-Cllvm-args=-inline-threshold=2000')
+        self.assertEqual(env['CARGO_PROFILE_RELEASE_DEBUG'], '0')
+        self.assertEqual(env['CARGO_PROFILE_RELEASE_STRIP'], 'debuginfo')
+        self.assertNotIn('CARGO_PROFILE_RELEASE_LTO', env)
+        self.assertNotIn('CARGO_ENCODED_RUSTFLAGS', env)
+        self.assertEqual(env['CARGO_BUILD_JOBS'], '4')
+
+    def test_explicit_rustflags_experiments_survive_policy(self):
+        for flags in ('', '-Ctarget-feature=+simd128'):
+            with self.subTest(flags=flags):
+                env = runner.production_environment({}, flags)
+                self.assertEqual(env['RUSTFLAGS'], flags)
+                self.assertEqual(env['CARGO_PROFILE_RELEASE_DEBUG'], '0')
+                self.assertEqual(env['CARGO_PROFILE_RELEASE_STRIP'], 'debuginfo')
+
     def test_accepts_completed_run(self):
         self.assertEqual(runner.validate(self.raw, 100)['instructions'], 100)
 
