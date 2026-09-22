@@ -40,9 +40,9 @@ pub struct BlockInsn { pub insn: Insn, pub max_ar: u8, /// EX141: a static trans
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 #[derive(Clone, Copy)]
 struct Entry { pc: u32, start: u32, n: u16, /// EX168 s6: the first instruction needs no exact block-boundary state (fits the padding)
- chain: bool, /** EX171 bridge class of a block without code (0: never) */ bridge: u8, vidx: [u32; 2], ver: [u32; 2], code: u32 }
+ chain: bool, /** EX171 bridge class of a block without code (0: never) */ #[cfg(target_arch = "wasm32")] bridge: u8, vidx: [u32; 2], ver: [u32; 2], code: u32 }
 const _: () = assert!(std::mem::size_of::<Entry>() == 32);
-impl Entry { const EMPTY: Entry = Entry { pc: 1, start: 0, n: 0, chain: false, bridge: 0, vidx: [0; 2], ver: [0; 2], code: crate::jit::NONE }; }
+impl Entry { const EMPTY: Entry = Entry { pc: 1, start: 0, n: 0, chain: false, #[cfg(target_arch = "wasm32")] bridge: 0, vidx: [0; 2], ver: [0; 2], code: crate::jit::NONE }; }
 
 #[cfg(not(target_arch = "wasm32"))] const ENTRIES: usize = 1 << 17;
 #[cfg(target_arch = "wasm32")] const ENTRIES: usize = 1 << 15;
@@ -318,9 +318,7 @@ fn build<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc0: u32) -> Result<(u32, u32, u16)
     // EX171: a block the emitter refused may still be interpretable inside a wrapper chain.
     #[cfg(target_arch = "wasm32")]
     let bridge = if code == crate::jit::NONE { bridge_block_class(&cpu.blocks.arena[start as usize..start as usize + n as usize]) } else { 0 };
-    #[cfg(not(target_arch = "wasm32"))]
-    let bridge = 0;
-    cpu.blocks.entries[ei] = Entry { pc: pc0, start, n, chain, bridge, vidx: [vidx0, vidx1], ver, code };
+    cpu.blocks.entries[ei] = Entry { pc: pc0, start, n, chain, #[cfg(target_arch = "wasm32")] bridge, vidx: [vidx0, vidx1], ver, code };
     cpu.blocks.builds += 1;
     Ok((ei as u32, start, n))
 }
