@@ -130,7 +130,9 @@
     "baseRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
     "sourceRevision": "946d1c6bc34e20f4e8a488a057226abe29af91bf",
     "sha256": "1a27cd25981c8b541501690e0fde1f9aeccfc0c3cba46535878272af93258f1b",
-    "bytes": 28604
+    "bytes": 28604,
+    "measuredSourceRevision": "2c62807023aa37d0321fd53b749e74fb55fd0544",
+    "note": "Comment-only rebuild of the measured source; see published-equivalence.json. sourceRevision identifies the tree reconstructed by this patch."
   },
   {
     "path": "patches/final-upstream-merge-code.patch",

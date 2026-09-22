@@ -3,11 +3,15 @@
   "jobs": 37,
   "timedArms": 254,
   "checks": [
-    "pair counts",
+    "finite numeric timings and summaries",
+    "index metadata agreement",
+    "alternating pair order",
+    "exact-gated artifact hashes",
+    "A/A artifact identity",
     "median and paired reductions",
-    "pinned instructions",
+    "pinned instructions and frames",
     "successful verdicts",
-    "equal console hashes and frame counts",
+    "equal console hashes",
     "zero JIT failures",
     "uninstrumented captures"
   ]

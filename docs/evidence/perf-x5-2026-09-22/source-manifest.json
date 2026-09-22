@@ -29,8 +29,15 @@
         "bytes": 12355
       },
       "sanitizedPath": "notes/edges.md",
-      "sanitizedSha256": "b0739e52139121873a605f67f9741498de9165fb2df31492819119c052c6698a",
-      "sanitizedBytes": 12553
+      "sanitizedSha256": "1980d91e28dbb3e3a744881bd7a0c103c2ffc2c6d1e6d4806c6b50329e545972",
+      "sanitizedBytes": 12642,
+      "sanitizationHistory": [
+        {
+          "sha256": "b0739e52139121873a605f67f9741498de9165fb2df31492819119c052c6698a",
+          "bytes": 12553,
+          "note": "Original public sanitized worker note before removal of the duplicate EX181 anchor and clarification of superseded catalog status."
+        }
+      ]
     },
     {
       "original": {
@@ -49,8 +56,15 @@
         "bytes": 19400
       },
       "sanitizedPath": "notes/host.md",
-      "sanitizedSha256": "2937ab332889b8cbf31116ebe32017813ddb994f6281e15f5db8556459682b98",
-      "sanitizedBytes": 19604
+      "sanitizedSha256": "6104f186ee8aba8ea3b8f7985cdb02321da420817659fc158c3c95d15b8d755a",
+      "sanitizedBytes": 19826,
+      "sanitizationHistory": [
+        {
+          "sha256": "2937ab332889b8cbf31116ebe32017813ddb994f6281e15f5db8556459682b98",
+          "bytes": 19604,
+          "note": "Original public sanitized worker note before removal of the duplicate EX181 anchor and clarification of superseded catalog status."
+        }
+      ]
     },
     {
       "original": {
@@ -140,12 +154,15 @@
     "Omit duplicated per-arm provenance maps; retain shared hashes in provenance.json and artifact hashes per job.",
     "Correct tails note claim of identical dispatch counts and map provisional host EX181 references to final EX168.",
     "Parameterize historical host-jitstats.mjs local paths using caller-supplied TREE and FW_DIR.",
-    "Fix historical relative note links and clarify that the suggested direct helpers-s3 versus helpers-s1s2 comparison was never executed."
+    "Fix historical relative note links and clarify that the suggested direct helpers-s3 versus helpers-s1s2 comparison was never executed.",
+    "Remove duplicate EX181 anchors from historical worker notes and explicitly mark the edges proposed catalog row as superseded. Preserve its original queued status as history; prior sanitized hashes and bytes remain in sanitizationHistory.",
+    "Clarify the historical empty debug-override behavior in the host note and identify the review correction; numerical samples remain unchanged."
   ],
   "limitations": [
     "Original captures remain in private lab and remote runner storage; no public artifact archive has been created. Hashes identify private originals but do not grant public access.",
     "Browser captures did not record frame-content hashes. Node gates establish exact frame-content equality only for the 30-second Pocket workload.",
-    "Source candidate revisions are external-artifact queue metadata; imported harness tree commit differs and is recorded separately."
+    "Source candidate revisions are external-artifact queue metadata; imported harness tree commit differs and is recorded separately.",
+    "The sanitized historical scheduler is retained with its original hash and explicit portability changes. Source inspection establishes its intended serialization and wait checks, not an idle machine, exhaustive process exclusion or thermal control during historical runs."
   ],
   "followupOriginals": [
     {
@@ -158,5 +175,21 @@
       "sha256": "e04ecd766b7e212cd3f9efa3804518227f71d1eedd50d7393f9b2397cc442a17",
       "bytes": 19106
     }
-  ]
+  ],
+  "runner": {
+    "original": {
+      "path": "runner.sh",
+      "sha256": "a0321630dcf71d25bb6cb08dd006ac2cd2d3ed6a3136a0904bfb09672bc1b428",
+      "bytes": 3473
+    },
+    "sanitizedPath": "harness/runner.sh",
+    "sanitizedSha256": "05ae6daf8fc8a50c78dac28e996961eb23db1ee6ee9c480c750414746f2f1100",
+    "sanitizedBytes": 4594,
+    "changes": [
+      "Replace private home-relative campaign/shared roots with required caller-supplied absolute X5_ROOT and X5_SHARED_ROOT.",
+      "Require portable exact gate input paths TREE, FW_DIR and BASE_WASM and caller-supplied persistent TMPDIR; create .venv via uv only when absent.",
+      "Preserve incomplete run directories under timestamp/PID suffixes instead of deleting them. Scheduling loop, process wait patterns, four-way gate batching and serial timed-job execution are otherwise retained."
+    ],
+    "validation": "bash -n harness/runner.sh; no new browser timing or end-to-end scheduler run performed."
+  }
 }

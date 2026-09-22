@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
+import { matchesReference } from './exact-contract.mjs';
 const { TREE, FW_DIR, BASE_WASM } = process.env;
 const fwDir = FW_DIR;
 const [wasmPath, name = 'pocket-tank'] = process.argv.slice(2);
@@ -42,7 +43,7 @@ async function run(path) {
 }
 const ref = await run(BASE_WASM);
 const got = await run(wasmPath);
-const same = got.insns === ref.insns && got.consoleSha256 === ref.consoleSha256 && got.frames === ref.frames && got.framesSha256 === ref.framesSha256 && got.panics === 0 && !got.jitFailures;
+const same = matchesReference(got, ref);
 console.log(JSON.stringify({ wasm: wasmPath, secs, ...got, refInsns: ref.insns, refSha: ref.consoleSha256.slice(0, 8), refFrames: ref.frames, refFramesSha: ref.framesSha256.slice(0, 8), EXACT: same }, null, 1));
 console.log(same ? `EXACT ok (${name}, ${secs} guest s; Node wall time is NOT a benchmark)` : 'EXACT FAIL: instruction total, console hash, frame count or frame-content hash differs from base (or a panic / JIT failure)');
 process.exit(same ? 0 : 1);
