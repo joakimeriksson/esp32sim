@@ -14,8 +14,9 @@ pub(in crate::jit) fn supported_insn(i: &crate::Insn, fast: bool) -> bool {
 }
 
 /// helpers-s1: RSIL and WSR/XSR of PS, which `instruction::emit` lowers as compiled terminals
-/// (EX135 ran them through the helper). Every other special register keeps the helper: only PS
-/// is a plain `Cpu` field that `write_sr` masks and that no other state is derived from.
+/// (EX135 ran them through the helper). Other special-register writes keep the helper.
+/// PS writes stay terminal and set `jit_helped`: the next entry recomputes derived interrupt
+/// and window state rather than continuing with cached values from before the write.
 pub(in crate::jit) fn ps_terminal(i: &crate::Insn) -> bool {
     use crate::Op::*;
     i.op == Rsil || (matches!(i.op, Wsr | Xsr) && i.imm as u32 == crate::state::sr::PS)
