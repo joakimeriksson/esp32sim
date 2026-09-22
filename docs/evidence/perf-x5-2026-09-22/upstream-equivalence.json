@@ -16,6 +16,6 @@
     "upstream-comparison-recheck.json",
     "upstream-tests.json"
   ],
-  "performanceInference": "Apply the measured timing result to the final source based on unchanged executable sections and nondiagnostic data. Final artifact was not rebenchmarked. Changed source-location line values may alter diagnostics on error paths.",
+  "performanceInference": "The comparison supports carrying the measured timing result only to historical source 2f3c2d6c with the earlier x4 integration b8155937. It does not include the x4 correctness review fixes beginning at 6a13ddf0 and recorded through 5cc58493. Those fixes change generated WASM, so this receipt does not establish performance of corrected source. The compared final artifact was not rebenchmarked; diagnostic source-line changes may alter error paths.",
   "historicalReceipt": "published-equivalence.json remains the earlier byte-identical 946d1c6b build receipt."
 }
