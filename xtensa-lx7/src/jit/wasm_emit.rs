@@ -932,10 +932,14 @@ fn emit_body(
                 g.c(0);
                 g.op(0x47);
                 g.op(0x71);
+                // Emitting the taken arm spills ACCX and clears its compile-time
+                // liveness. The untaken arm still holds that value in the local.
+                let accx_live = g.accx_live;
                 g.begin_if();
                 g.decrement_loop();
                 region_edge(g, lbeg, false);
                 g.end();
+                g.accx_live = accx_live;
             }
             region_edge(g, pc, true);
         }

@@ -14,7 +14,7 @@ Pocket Tank, 30 guest seconds, release WASM with inline threshold 4000 and no wa
 - Two-pair identical-build controls before and after: −0.87% and +0.34%; individual control pairs ranged from −0.98% to +1.00%.
 - Generated WASM: **83,786,506→49,478,716 bytes**.
 
-All 16 benchmark arms preserve pinned instructions, console output and input identities, with zero JIT failures. The result supports this integration for the tested workload; general firmware/device improvement was not measured.
+All 16 benchmark arms preserve pinned instructions, console output and input identities, with zero JIT failures. The result supports this integration for the tested workload; no confidence interval or general firmware/device improvement is claimed.
 
 ## Validation
 

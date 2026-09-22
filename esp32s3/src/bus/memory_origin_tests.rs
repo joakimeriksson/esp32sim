@@ -219,3 +219,22 @@ fn dma_run_copy_matches_the_word_loop() {
     }
     assert!(fast > 1000 && faults > 300, "{fast} {faults}");
 }
+
+/// EX110/EX180: the first bytes of the next 64 KiB block overlap the previous
+/// page's fetch window. Watching that page must also revoke an existing data TLB.
+#[test]
+fn next_block_prefix_stores_invalidate_the_watched_previous_page() {
+    for offset in 0..=2 {
+        let mut bus = SocBus::new(65536, 65536, [0; 6]);
+        let address = IRAM_LOW + 0x1_0000 + offset;
+        bus.write8(address, 1).unwrap(); // Publish an unwatched mapping first.
+        let previous = bus.code_page(IRAM_LOW + 0xffff);
+        let current = bus.code_page(address);
+        bus.note_code_page(previous);
+        let before = bus.page_ver.clone();
+        bus.write8(address, 2).unwrap();
+        assert_eq!(bus.page_ver[previous as usize], before[previous as usize] + 1, "offset {offset}");
+        assert_eq!(bus.page_ver[current as usize], before[current as usize] + 1, "offset {offset}");
+        assert_eq!(bus.read8(address).unwrap(), 2);
+    }
+}

@@ -408,3 +408,52 @@ pub(super) fn wrapper_chain() {
     }
 
 }
+
+/// EX171: the wrapper must reject a successor that exceeds remaining credit, or
+/// needs dispatcher pricing. Warm only the compiled predecessor so the successor
+/// is definitely interpreted, and compare the actual scheduler with step().
+pub(super) fn wrapper_bridge_guards() {
+    for mode in 0..4 {
+        PRICED.store(mode == 2, std::sync::atomic::Ordering::Relaxed);
+        let (mut a, mut b) = (cpu(0), cpu(0));
+        let (mut ra, mut rb) = (Ram::new(true, false), Ram::new(true, false));
+        for r in [&mut ra, &mut rb] {
+            r.ram.mem[..5].copy_from_slice(&[0x3d, 0xf0, 0xa0, 0x04, 0x00]); // nop.n; jx a4
+            r.ram.mem[64..71].copy_from_slice(&[0x3d, 0xf0, 0x3d, 0xf0, 0xa0, 0x05, 0x00]);
+        }
+        let check = |a: &mut Cpu, b: &mut Cpu, ra: &mut Ram, rb: &mut Ram, budget| {
+            let (done, trap) = crate::block::run_block(b, rb, budget);
+            assert!(done <= budget, "bridge exceeded caller budget");
+            let mut oracle = None;
+            for _ in 0..done { if let Err(t) = crate::step(a, ra) { oracle = Some(t); break; } }
+            assert_eq!(trap, oracle);
+            same(a, b);
+            (done, trap)
+        };
+        for _ in 0..40 {
+            for c in [&mut a, &mut b] { c.pc = BASE; c.ps = 0; c.price_control = mode == 2; c.set_ar(4, BASE + 64); c.set_ar(5, BASE + 128); }
+            check(&mut a, &mut b, &mut ra, &mut rb, 2);
+        }
+        assert!(b.blocks.jit_instructions > 0, "predecessor must compile");
+        let mut ops = Vec::new();
+        for offset in [64, 66, 68] {
+            let i = crate::decode::decode(BASE + offset, rb.fetch(BASE + offset).unwrap());
+            ops.push(BlockInsn { insn: i, max_ar: crate::exec::max_ar(&i), straddle: false, off: 0 });
+        }
+        b.blocks.install_test_bridge(BASE + 64, &ops);
+        for c in [&mut a, &mut b] {
+            c.pc = BASE;
+            if mode == 1 { c.ccompare[0] = c.ccount + 3; c.intenable = 1 << 6; }
+            if mode == 2 { c.price_control = true; }
+        }
+        let budget = if mode == 0 { 3 } else { 5 };
+        let (done, trap) = check(&mut a, &mut b, &mut ra, &mut rb, budget);
+        assert!(trap.is_none());
+        assert_eq!(done, if mode == 3 { 5 } else { 2 });
+        assert_eq!(b.blocks.bridged, if mode == 3 { 3 } else { 0 }, "bridge admission mode {mode}");
+        if mode == 1 {
+            assert_eq!(check(&mut a, &mut b, &mut ra, &mut rb, 5).0, 1);
+            assert!(matches!(check(&mut a, &mut b, &mut ra, &mut rb, 5).1, Some(Trap::Interrupt(_))));
+        }
+    }
+}

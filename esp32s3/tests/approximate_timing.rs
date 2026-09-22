@@ -75,3 +75,22 @@ fn frontier_reset_preserves_prior_control_cycles_without_counting_them_as_instru
         assert_eq!(machine.cores[0].timing_extra, 0);
     }
 }
+
+/// EX110: priced execution wraps the real bus, including decoded-code watching.
+#[test]
+fn modeled_self_modifying_code_invalidates_through_the_dram_alias() {
+    let mut machine = esp32s3::machine([0; 6]);
+    let pc = 0x4038_0000;
+    // addi a2,a2,1; s8i a4,a3,0; j back. Rewrite the ADDI immediate via DRAM.
+    esp_soc::SocBus::load_bytes(&mut machine.bus, pc,
+        &[0x22, 0xc2, 1, 0x42, 0x43, 0, 0x86, 0xfd, 0xff]).unwrap();
+    machine.cores[0].pc = pc;
+    machine.cores[0].set_ar(2, 0);
+    machine.cores[0].set_ar(3, 0x3fc9_0002);
+    machine.cores[0].set_ar(4, 5);
+    machine.set_cost_model(Box::new(esp32s3::ApproximateCostModel::default())).unwrap();
+    assert!(matches!(machine.run(4), esp_soc::Stop::MaxInsns));
+    assert_eq!(machine.cores[0].pc, pc + 3);
+    assert_eq!(machine.cores[0].get_ar(2), 6, "the second ADDI must use the rewritten immediate");
+    assert_eq!(machine.cores[0].insn_count, 4);
+}
