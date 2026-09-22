@@ -387,6 +387,8 @@ pub(super) fn wrapper_bridge_guards() {
         for r in [&mut ra, &mut rb] {
             r.ram.mem[..5].copy_from_slice(&[0x3d, 0xf0, 0xa0, 0x04, 0x00]); // nop.n; jx a4
             r.ram.mem[64..71].copy_from_slice(&[0x3d, 0xf0, 0x3d, 0xf0, 0xa0, 0x05, 0x00]);
+            // Priced JX uses a helper, which would mask the pricing guard with jit_helped.
+            if mode == 2 { r.ram.mem[2..5].copy_from_slice(&asm::j(BASE + 2, BASE + 64)); }
         }
         let check = |a: &mut Cpu, b: &mut Cpu, ra: &mut Ram, rb: &mut Ram, budget| {
             let (done, trap) = crate::block::run_block(b, rb, budget);
