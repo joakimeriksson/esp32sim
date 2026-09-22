@@ -1,0 +1,33 @@
+{
+  "status": "passed",
+  "node": "v26.9.0",
+  "regressionTests": {
+    "passed": 83,
+    "failed": 0,
+    "existingM3": 21,
+    "existingM1": 32,
+    "historical": 30,
+    "command": "node --test docs/evidence/perf-x5-2026-09-22/verify-results.test.mjs docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.test.mjs docs/evidence/perf-x5-2026-09-22/historical-before-after/verify.test.mjs",
+    "logSha256": "47679bfd39ae66df6f670575a07cb77a985545e835aa4c4db70953144c5a6dcb"
+  },
+  "receiptVerifiers": [
+    {
+      "script": "docs/evidence/perf-x5-2026-09-22/verify-results.mjs",
+      "jobs": 37,
+      "timedArms": 254,
+      "status": "passed"
+    },
+    {
+      "script": "docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.mjs",
+      "jobs": 18,
+      "timedArms": 84,
+      "status": "passed"
+    },
+    {
+      "script": "docs/evidence/perf-x5-2026-09-22/historical-before-after/verify.mjs",
+      "jobs": 3,
+      "timedArms": 24,
+      "status": "passed"
+    }
+  ]
+}

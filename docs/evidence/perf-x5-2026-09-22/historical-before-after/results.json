@@ -1,0 +1,14 @@
+{
+  "experiment": "EX094",
+  "relatedExperiments": [
+    "EX019"
+  ],
+  "jobs": 3,
+  "timedArms": 24,
+  "jobFiles": [
+    "control-current.json",
+    "earliest-vs-current.json",
+    "first-jit-vs-current.json"
+  ],
+  "scope": "Rebuilt historical sources and current source running the same TinyDraw firmware task, with separately qualified work/output contracts. Not equal retired work or isolated JIT attribution."
+}

@@ -1,0 +1,1357 @@
+{
+  "scope": "Same firmware inputs and validated per-artifact output contracts; instruction totals, frame cadence and console text may differ across historical versions. Not equal-retired-work speedup or isolated JIT attribution.",
+  "pairs": 4,
+  "warmupPairs": 1,
+  "medianWallSeconds": {
+    "baseline": 118.73401750000566,
+    "candidate": 35.0945549999997
+  },
+  "wallReductionPercent": 70.44271242653942,
+  "throughputRatioForFirmwareTask": 3.3832603804210275,
+  "pairsWallReductionPercent": [
+    70.4774976995376,
+    71.54338245750085,
+    70.04523607098243,
+    68.7197351805657
+  ],
+  "contracts": {
+    "baseline": {
+      "qualified": true,
+      "workload": "tinydraw",
+      "mode": "current-jit",
+      "wasmSha256": "11a781893f89f598fbbf36933a703a82e3771f65a26e743ef0da56838996e042",
+      "instructions": 9820325756,
+      "frames": 101,
+      "consoleSha256": "2496efdf2a12f86ea13f1b29de0991de5c71a2955f58c8ff4add72434221209f",
+      "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+      "inputSha256": {
+        "rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+        "bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+        "ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+        "app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+        "elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e"
+      },
+      "qualification": {
+        "pilotResultSha256": "b729a13bbafc9d1c62361a29a9069f4d90f0b9ccc26aa79e9841f26f3c3d6a4c",
+        "finalFrame": {
+          "present": true,
+          "lcdFrames": 101,
+          "width": 368,
+          "height": 448,
+          "uniqueColors": 16,
+          "nonuniform": true,
+          "minChannel": 0,
+          "maxChannel": 255,
+          "outputIndex": 101,
+          "rgbaFile": "final-frame.rgba",
+          "rgbaSha256": "dbf0d387a05232f38dc694f81ea871e448e2dc112c90d0fd94d9ecaef1fa41d0",
+          "rgb565File": "final-frame.rgb565le",
+          "rgb565Sha256": "cbd7fda3c28fbe7127fac2e60eada6ffa5c08fef4be3830677d1417e9aecfad4",
+          "layout": "Full unrotated row-major panel; RGB565 little-endian decoded using Uint8ClampedArray exactly as web/run.html drawFrame; alpha 255",
+          "limits": "Last published LCD output, not an independent framebuffer read. Different publication cadence or guest stopping point can change the final image. Nonuniform pixels are a sanity check, not proof of correct rendering."
+        },
+        "matchedCurrentFinalFrame": true
+      }
+    },
+    "candidate": {
+      "qualified": true,
+      "workload": "tinydraw",
+      "mode": "current-jit",
+      "wasmSha256": "eb754176f3100563da93b5269a54af1b93ff611abcf09fbae5026fd110b8409a",
+      "instructions": 9819885134,
+      "frames": 428,
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+      "inputSha256": {
+        "rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+        "bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+        "ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+        "app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+        "elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e"
+      },
+      "qualification": {
+        "pilotResultSha256": "4884ba4ca6cc187f6b585e483888dfcb5bc1e30d61b0c3d5e876ca490d8d27d7",
+        "finalFrame": {
+          "present": true,
+          "lcdFrames": 428,
+          "width": 368,
+          "height": 448,
+          "uniqueColors": 16,
+          "nonuniform": true,
+          "minChannel": 0,
+          "maxChannel": 255,
+          "outputIndex": 428,
+          "rgbaFile": "final-frame.rgba",
+          "rgbaSha256": "dbf0d387a05232f38dc694f81ea871e448e2dc112c90d0fd94d9ecaef1fa41d0",
+          "rgb565File": "final-frame.rgb565le",
+          "rgb565Sha256": "cbd7fda3c28fbe7127fac2e60eada6ffa5c08fef4be3830677d1417e9aecfad4",
+          "layout": "Full unrotated row-major panel; RGB565 little-endian decoded using Uint8ClampedArray exactly as web/run.html drawFrame; alpha 255",
+          "limits": "Last published LCD output, not an independent framebuffer read. Different publication cadence or guest stopping point can change the final image. Nonuniform pixels are a sanity check, not proof of correct rendering."
+        },
+        "limits": "Pilot validates each historical firmware execution and final published pixels; retired instructions and publication counts differ across versions."
+      }
+    }
+  },
+  "runs": [
+    {
+      "stage": "warmup",
+      "pair": 1,
+      "arm": "baseline",
+      "consoleSha256": "2496efdf2a12f86ea13f1b29de0991de5c71a2955f58c8ff4add72434221209f",
+      "browser": "Chrome/153.0.8010.53",
+      "v8": "15.3.76.13",
+      "provenance": {
+        "sha256": {
+          "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+          "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+          "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+          "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+          "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+          "asset/wasm": "11a781893f89f598fbbf36933a703a82e3771f65a26e743ef0da56838996e042",
+          "harness/80c43cae-tinydraw-contract.json": "02efb6a0fbc3edc356190e025b2893479d800da58759b050a6f168fbaaa8d428",
+          "harness/a2db66cf-tinydraw-contract.json": "637d537c560442f09e9b01776ffc1e8c4062bf19ab3342b0ec16a92035497c89",
+          "harness/battery-worker.mjs": "ef39d40eacb07fa5b9a359937abd2a09d3fc3a47b5b26a95d29525c6a6e415ed",
+          "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+          "harness/battery.mjs": "fb67887fcb06636db602f87dc803c246c2055334fb4452c515871a428a491aca",
+          "harness/capture-battery.mjs": "31faf6bc1e480e01cfcfcc7c84778d11c84d215c36b7fa58cea0eb95996982e8",
+          "harness/current-tinydraw-contract.json": "0647cfce29d6173fed61de186d938c349e68774672d8fa0fa0d4e1e45cf492c1",
+          "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+          "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+          "harness/workloads.json": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+          "web/wasm/experiments.mjs": "29c4b556b0c7e25a529a9c4b1c3b5132aee06bb4884de684ba6c78a10ac4716b",
+          "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+          "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+          "web/wasm/worker.js": "7ee25b3bb9036587685bafc92f7951f892ea63e0202e3cceac84201d8eca7e89"
+        }
+      },
+      "wallSeconds": 122.24096999999881,
+      "guestSeconds": 47.75085146666667,
+      "realtimeRatio": 0.3906288658104327,
+      "instructions": 9820325756,
+      "frames": 101,
+      "passed": true,
+      "jitFailed": 0,
+      "jitBytes": 63104875,
+      "capabilities": {
+        "mode": "current-jit",
+        "hasJitSetter": true,
+        "hasJitCounter": true,
+        "executionMode": "jit",
+        "missingCountersAreZero": false
+      },
+      "jitCompiled": 10634,
+      "result": {
+        "capabilities": {
+          "mode": "current-jit",
+          "hasJitSetter": true,
+          "hasJitCounter": true,
+          "executionMode": "jit",
+          "missingCountersAreZero": false
+        },
+        "workload": "tinydraw",
+        "workloadAlias": "tinydraw",
+        "appliedExports": [],
+        "checks": null,
+        "status": "completed",
+        "stopCode": 0,
+        "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+        "verdictValidation": {
+          "schema": "tinydraw-gate1-v1",
+          "valid": true,
+          "passed": true,
+          "error": null
+        },
+        "instrumented": false,
+        "passed": true,
+        "guestSeconds": 47.75085146666667,
+        "wallSeconds": 122.24096999999881,
+        "setupSeconds": 0.13039000000059606,
+        "instructions": 9820325756,
+        "frames": 101,
+        "chainedBackedges": null,
+        "jit": {
+          "compiled": 10634,
+          "failed": 0,
+          "released": 6978,
+          "compileMs": 821.8200010806322,
+          "bytes": 63104875,
+          "liveBytes": 21020531,
+          "peakBytes": 23662609,
+          "peakModules": 4337,
+          "instructions": 6023686459
+        },
+        "provenance": {
+          "sha256": {
+            "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+            "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+            "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+            "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+            "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+            "asset/wasm": "11a781893f89f598fbbf36933a703a82e3771f65a26e743ef0da56838996e042",
+            "harness/80c43cae-tinydraw-contract.json": "02efb6a0fbc3edc356190e025b2893479d800da58759b050a6f168fbaaa8d428",
+            "harness/a2db66cf-tinydraw-contract.json": "637d537c560442f09e9b01776ffc1e8c4062bf19ab3342b0ec16a92035497c89",
+            "harness/battery-worker.mjs": "ef39d40eacb07fa5b9a359937abd2a09d3fc3a47b5b26a95d29525c6a6e415ed",
+            "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+            "harness/battery.mjs": "fb67887fcb06636db602f87dc803c246c2055334fb4452c515871a428a491aca",
+            "harness/capture-battery.mjs": "31faf6bc1e480e01cfcfcc7c84778d11c84d215c36b7fa58cea0eb95996982e8",
+            "harness/current-tinydraw-contract.json": "0647cfce29d6173fed61de186d938c349e68774672d8fa0fa0d4e1e45cf492c1",
+            "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+            "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+            "harness/workloads.json": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+            "web/wasm/experiments.mjs": "29c4b556b0c7e25a529a9c4b1c3b5132aee06bb4884de684ba6c78a10ac4716b",
+            "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+            "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+            "web/wasm/worker.js": "7ee25b3bb9036587685bafc92f7951f892ea63e0202e3cceac84201d8eca7e89"
+          }
+        }
+      },
+      "captureMode": "timing",
+      "conditions": {
+        "loadBefore": [
+          15.525390625,
+          17.974609375,
+          16.32666015625
+        ],
+        "loadAfter": [
+          11.5439453125,
+          15.94287109375,
+          15.767578125
+        ]
+      }
+    },
+    {
+      "stage": "warmup",
+      "pair": 1,
+      "arm": "candidate",
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "browser": "Chrome/153.0.8010.53",
+      "v8": "15.3.76.13",
+      "provenance": {
+        "sha256": {
+          "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+          "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+          "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+          "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+          "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+          "asset/wasm": "eb754176f3100563da93b5269a54af1b93ff611abcf09fbae5026fd110b8409a",
+          "harness/80c43cae-tinydraw-contract.json": "02efb6a0fbc3edc356190e025b2893479d800da58759b050a6f168fbaaa8d428",
+          "harness/a2db66cf-tinydraw-contract.json": "637d537c560442f09e9b01776ffc1e8c4062bf19ab3342b0ec16a92035497c89",
+          "harness/battery-worker.mjs": "ef39d40eacb07fa5b9a359937abd2a09d3fc3a47b5b26a95d29525c6a6e415ed",
+          "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+          "harness/battery.mjs": "fb67887fcb06636db602f87dc803c246c2055334fb4452c515871a428a491aca",
+          "harness/capture-battery.mjs": "31faf6bc1e480e01cfcfcc7c84778d11c84d215c36b7fa58cea0eb95996982e8",
+          "harness/current-tinydraw-contract.json": "0647cfce29d6173fed61de186d938c349e68774672d8fa0fa0d4e1e45cf492c1",
+          "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+          "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+          "harness/workloads.json": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+          "web/wasm/experiments.mjs": "29c4b556b0c7e25a529a9c4b1c3b5132aee06bb4884de684ba6c78a10ac4716b",
+          "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+          "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+          "web/wasm/worker.js": "7ee25b3bb9036587685bafc92f7951f892ea63e0202e3cceac84201d8eca7e89"
+        }
+      },
+      "wallSeconds": 35.999444999992846,
+      "guestSeconds": 47.750049575,
+      "realtimeRatio": 1.326410714804339,
+      "instructions": 9819885134,
+      "frames": 428,
+      "passed": true,
+      "jitFailed": 0,
+      "jitBytes": 110349616,
+      "capabilities": {
+        "mode": "current-jit",
+        "hasJitSetter": true,
+        "hasJitCounter": true,
+        "executionMode": "jit",
+        "missingCountersAreZero": false
+      },
+      "jitCompiled": 10797,
+      "result": {
+        "capabilities": {
+          "mode": "current-jit",
+          "hasJitSetter": true,
+          "hasJitCounter": true,
+          "executionMode": "jit",
+          "missingCountersAreZero": false
+        },
+        "workload": "tinydraw",
+        "workloadAlias": "tinydraw",
+        "appliedExports": [],
+        "checks": null,
+        "status": "completed",
+        "stopCode": 0,
+        "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+        "verdictValidation": {
+          "schema": "tinydraw-gate1-v1",
+          "valid": true,
+          "passed": true,
+          "error": null
+        },
+        "instrumented": false,
+        "passed": true,
+        "guestSeconds": 47.750049575,
+        "wallSeconds": 35.999444999992846,
+        "setupSeconds": 0.18289500001072884,
+        "instructions": 9819885134,
+        "frames": 428,
+        "chainedBackedges": null,
+        "jit": {
+          "compiled": 10797,
+          "failed": 0,
+          "released": 3259,
+          "compileMs": 1012.4450003355742,
+          "bytes": 110349616,
+          "liveBytes": 74808962,
+          "peakBytes": 74808962,
+          "peakModules": 7538,
+          "instructions": 9637501306
+        },
+        "provenance": {
+          "sha256": {
+            "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+            "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+            "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+            "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+            "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+            "asset/wasm": "eb754176f3100563da93b5269a54af1b93ff611abcf09fbae5026fd110b8409a",
+            "harness/80c43cae-tinydraw-contract.json": "02efb6a0fbc3edc356190e025b2893479d800da58759b050a6f168fbaaa8d428",
+            "harness/a2db66cf-tinydraw-contract.json": "637d537c560442f09e9b01776ffc1e8c4062bf19ab3342b0ec16a92035497c89",
+            "harness/battery-worker.mjs": "ef39d40eacb07fa5b9a359937abd2a09d3fc3a47b5b26a95d29525c6a6e415ed",
+            "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+            "harness/battery.mjs": "fb67887fcb06636db602f87dc803c246c2055334fb4452c515871a428a491aca",
+            "harness/capture-battery.mjs": "31faf6bc1e480e01cfcfcc7c84778d11c84d215c36b7fa58cea0eb95996982e8",
+            "harness/current-tinydraw-contract.json": "0647cfce29d6173fed61de186d938c349e68774672d8fa0fa0d4e1e45cf492c1",
+            "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+            "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+            "harness/workloads.json": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+            "web/wasm/experiments.mjs": "29c4b556b0c7e25a529a9c4b1c3b5132aee06bb4884de684ba6c78a10ac4716b",
+            "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+            "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+            "web/wasm/worker.js": "7ee25b3bb9036587685bafc92f7951f892ea63e0202e3cceac84201d8eca7e89"
+          }
+        }
+      },
+      "captureMode": "timing",
+      "conditions": {
+        "loadBefore": [
+          11.5439453125,
+          15.94287109375,
+          15.767578125
+        ],
+        "loadAfter": [
+          21.47119140625,
+          18.47509765625,
+          16.734375
+        ]
+      }
+    },
+    {
+      "stage": "primary",
+      "pair": 1,
+      "arm": "baseline",
+      "consoleSha256": "2496efdf2a12f86ea13f1b29de0991de5c71a2955f58c8ff4add72434221209f",
+      "browser": "Chrome/153.0.8010.53",
+      "v8": "15.3.76.13",
+      "provenance": {
+        "sha256": {
+          "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+          "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+          "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+          "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+          "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+          "asset/wasm": "11a781893f89f598fbbf36933a703a82e3771f65a26e743ef0da56838996e042",
+          "harness/80c43cae-tinydraw-contract.json": "02efb6a0fbc3edc356190e025b2893479d800da58759b050a6f168fbaaa8d428",
+          "harness/a2db66cf-tinydraw-contract.json": "637d537c560442f09e9b01776ffc1e8c4062bf19ab3342b0ec16a92035497c89",
+          "harness/battery-worker.mjs": "ef39d40eacb07fa5b9a359937abd2a09d3fc3a47b5b26a95d29525c6a6e415ed",
+          "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+          "harness/battery.mjs": "fb67887fcb06636db602f87dc803c246c2055334fb4452c515871a428a491aca",
+          "harness/capture-battery.mjs": "31faf6bc1e480e01cfcfcc7c84778d11c84d215c36b7fa58cea0eb95996982e8",
+          "harness/current-tinydraw-contract.json": "0647cfce29d6173fed61de186d938c349e68774672d8fa0fa0d4e1e45cf492c1",
+          "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+          "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+          "harness/workloads.json": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+          "web/wasm/experiments.mjs": "29c4b556b0c7e25a529a9c4b1c3b5132aee06bb4884de684ba6c78a10ac4716b",
+          "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+          "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+          "web/wasm/worker.js": "7ee25b3bb9036587685bafc92f7951f892ea63e0202e3cceac84201d8eca7e89"
+        }
+      },
+      "wallSeconds": 117.92716500000655,
+      "guestSeconds": 47.75085146666667,
+      "realtimeRatio": 0.4049181667910359,
+      "instructions": 9820325756,
+      "frames": 101,
+      "passed": true,
+      "jitFailed": 0,
+      "jitBytes": 63104875,
+      "capabilities": {
+        "mode": "current-jit",
+        "hasJitSetter": true,
+        "hasJitCounter": true,
+        "executionMode": "jit",
+        "missingCountersAreZero": false
+      },
+      "jitCompiled": 10634,
+      "result": {
+        "capabilities": {
+          "mode": "current-jit",
+          "hasJitSetter": true,
+          "hasJitCounter": true,
+          "executionMode": "jit",
+          "missingCountersAreZero": false
+        },
+        "workload": "tinydraw",
+        "workloadAlias": "tinydraw",
+        "appliedExports": [],
+        "checks": null,
+        "status": "completed",
+        "stopCode": 0,
+        "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+        "verdictValidation": {
+          "schema": "tinydraw-gate1-v1",
+          "valid": true,
+          "passed": true,
+          "error": null
+        },
+        "instrumented": false,
+        "passed": true,
+        "guestSeconds": 47.75085146666667,
+        "wallSeconds": 117.92716500000655,
+        "setupSeconds": 0.11225,
+        "instructions": 9820325756,
+        "frames": 101,
+        "chainedBackedges": null,
+        "jit": {
+          "compiled": 10634,
+          "failed": 0,
+          "released": 6978,
+          "compileMs": 787.3049994111061,
+          "bytes": 63104875,
+          "liveBytes": 21020531,
+          "peakBytes": 23662609,
+          "peakModules": 4337,
+          "instructions": 6023686459
+        },
+        "provenance": {
+          "sha256": {
+            "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+            "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+            "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+            "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+            "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+            "asset/wasm": "11a781893f89f598fbbf36933a703a82e3771f65a26e743ef0da56838996e042",
+            "harness/80c43cae-tinydraw-contract.json": "02efb6a0fbc3edc356190e025b2893479d800da58759b050a6f168fbaaa8d428",
+            "harness/a2db66cf-tinydraw-contract.json": "637d537c560442f09e9b01776ffc1e8c4062bf19ab3342b0ec16a92035497c89",
+            "harness/battery-worker.mjs": "ef39d40eacb07fa5b9a359937abd2a09d3fc3a47b5b26a95d29525c6a6e415ed",
+            "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+            "harness/battery.mjs": "fb67887fcb06636db602f87dc803c246c2055334fb4452c515871a428a491aca",
+            "harness/capture-battery.mjs": "31faf6bc1e480e01cfcfcc7c84778d11c84d215c36b7fa58cea0eb95996982e8",
+            "harness/current-tinydraw-contract.json": "0647cfce29d6173fed61de186d938c349e68774672d8fa0fa0d4e1e45cf492c1",
+            "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+            "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+            "harness/workloads.json": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+            "web/wasm/experiments.mjs": "29c4b556b0c7e25a529a9c4b1c3b5132aee06bb4884de684ba6c78a10ac4716b",
+            "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+            "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+            "web/wasm/worker.js": "7ee25b3bb9036587685bafc92f7951f892ea63e0202e3cceac84201d8eca7e89"
+          }
+        }
+      },
+      "captureMode": "timing",
+      "conditions": {
+        "loadBefore": [
+          21.47119140625,
+          18.47509765625,
+          16.734375
+        ],
+        "loadAfter": [
+          12.34619140625,
+          16.330078125,
+          16.14794921875
+        ]
+      }
+    },
+    {
+      "stage": "primary",
+      "pair": 1,
+      "arm": "candidate",
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "browser": "Chrome/153.0.8010.53",
+      "v8": "15.3.76.13",
+      "provenance": {
+        "sha256": {
+          "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+          "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+          "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+          "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+          "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+          "asset/wasm": "eb754176f3100563da93b5269a54af1b93ff611abcf09fbae5026fd110b8409a",
+          "harness/80c43cae-tinydraw-contract.json": "02efb6a0fbc3edc356190e025b2893479d800da58759b050a6f168fbaaa8d428",
+          "harness/a2db66cf-tinydraw-contract.json": "637d537c560442f09e9b01776ffc1e8c4062bf19ab3342b0ec16a92035497c89",
+          "harness/battery-worker.mjs": "ef39d40eacb07fa5b9a359937abd2a09d3fc3a47b5b26a95d29525c6a6e415ed",
+          "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+          "harness/battery.mjs": "fb67887fcb06636db602f87dc803c246c2055334fb4452c515871a428a491aca",
+          "harness/capture-battery.mjs": "31faf6bc1e480e01cfcfcc7c84778d11c84d215c36b7fa58cea0eb95996982e8",
+          "harness/current-tinydraw-contract.json": "0647cfce29d6173fed61de186d938c349e68774672d8fa0fa0d4e1e45cf492c1",
+          "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+          "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+          "harness/workloads.json": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+          "web/wasm/experiments.mjs": "29c4b556b0c7e25a529a9c4b1c3b5132aee06bb4884de684ba6c78a10ac4716b",
+          "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+          "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+          "web/wasm/worker.js": "7ee25b3bb9036587685bafc92f7951f892ea63e0202e3cceac84201d8eca7e89"
+        }
+      },
+      "wallSeconds": 34.81504999999702,
+      "guestSeconds": 47.750049575,
+      "realtimeRatio": 1.3715347119996693,
+      "instructions": 9819885134,
+      "frames": 428,
+      "passed": true,
+      "jitFailed": 0,
+      "jitBytes": 110349616,
+      "capabilities": {
+        "mode": "current-jit",
+        "hasJitSetter": true,
+        "hasJitCounter": true,
+        "executionMode": "jit",
+        "missingCountersAreZero": false
+      },
+      "jitCompiled": 10797,
+      "result": {
+        "capabilities": {
+          "mode": "current-jit",
+          "hasJitSetter": true,
+          "hasJitCounter": true,
+          "executionMode": "jit",
+          "missingCountersAreZero": false
+        },
+        "workload": "tinydraw",
+        "workloadAlias": "tinydraw",
+        "appliedExports": [],
+        "checks": null,
+        "status": "completed",
+        "stopCode": 0,
+        "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+        "verdictValidation": {
+          "schema": "tinydraw-gate1-v1",
+          "valid": true,
+          "passed": true,
+          "error": null
+        },
+        "instrumented": false,
+        "passed": true,
+        "guestSeconds": 47.750049575,
+        "wallSeconds": 34.81504999999702,
+        "setupSeconds": 0.13492000000178814,
+        "instructions": 9819885134,
+        "frames": 428,
+        "chainedBackedges": null,
+        "jit": {
+          "compiled": 10797,
+          "failed": 0,
+          "released": 3259,
+          "compileMs": 963.1149998605251,
+          "bytes": 110349616,
+          "liveBytes": 74808962,
+          "peakBytes": 74808962,
+          "peakModules": 7538,
+          "instructions": 9637501306
+        },
+        "provenance": {
+          "sha256": {
+            "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+            "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+            "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+            "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+            "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+            "asset/wasm": "eb754176f3100563da93b5269a54af1b93ff611abcf09fbae5026fd110b8409a",
+            "harness/80c43cae-tinydraw-contract.json": "02efb6a0fbc3edc356190e025b2893479d800da58759b050a6f168fbaaa8d428",
+            "harness/a2db66cf-tinydraw-contract.json": "637d537c560442f09e9b01776ffc1e8c4062bf19ab3342b0ec16a92035497c89",
+            "harness/battery-worker.mjs": "ef39d40eacb07fa5b9a359937abd2a09d3fc3a47b5b26a95d29525c6a6e415ed",
+            "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+            "harness/battery.mjs": "fb67887fcb06636db602f87dc803c246c2055334fb4452c515871a428a491aca",
+            "harness/capture-battery.mjs": "31faf6bc1e480e01cfcfcc7c84778d11c84d215c36b7fa58cea0eb95996982e8",
+            "harness/current-tinydraw-contract.json": "0647cfce29d6173fed61de186d938c349e68774672d8fa0fa0d4e1e45cf492c1",
+            "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+            "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+            "harness/workloads.json": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+            "web/wasm/experiments.mjs": "29c4b556b0c7e25a529a9c4b1c3b5132aee06bb4884de684ba6c78a10ac4716b",
+            "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+            "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+            "web/wasm/worker.js": "7ee25b3bb9036587685bafc92f7951f892ea63e0202e3cceac84201d8eca7e89"
+          }
+        }
+      },
+      "captureMode": "timing",
+      "conditions": {
+        "loadBefore": [
+          12.34619140625,
+          16.330078125,
+          16.14794921875
+        ],
+        "loadAfter": [
+          11.47412109375,
+          15.73779296875,
+          15.9423828125
+        ]
+      }
+    },
+    {
+      "stage": "primary",
+      "pair": 2,
+      "arm": "candidate",
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "browser": "Chrome/153.0.8010.53",
+      "v8": "15.3.76.13",
+      "provenance": {
+        "sha256": {
+          "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+          "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+          "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+          "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+          "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+          "asset/wasm": "eb754176f3100563da93b5269a54af1b93ff611abcf09fbae5026fd110b8409a",
+          "harness/80c43cae-tinydraw-contract.json": "02efb6a0fbc3edc356190e025b2893479d800da58759b050a6f168fbaaa8d428",
+          "harness/a2db66cf-tinydraw-contract.json": "637d537c560442f09e9b01776ffc1e8c4062bf19ab3342b0ec16a92035497c89",
+          "harness/battery-worker.mjs": "ef39d40eacb07fa5b9a359937abd2a09d3fc3a47b5b26a95d29525c6a6e415ed",
+          "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+          "harness/battery.mjs": "fb67887fcb06636db602f87dc803c246c2055334fb4452c515871a428a491aca",
+          "harness/capture-battery.mjs": "31faf6bc1e480e01cfcfcc7c84778d11c84d215c36b7fa58cea0eb95996982e8",
+          "harness/current-tinydraw-contract.json": "0647cfce29d6173fed61de186d938c349e68774672d8fa0fa0d4e1e45cf492c1",
+          "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+          "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+          "harness/workloads.json": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+          "web/wasm/experiments.mjs": "29c4b556b0c7e25a529a9c4b1c3b5132aee06bb4884de684ba6c78a10ac4716b",
+          "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+          "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+          "web/wasm/worker.js": "7ee25b3bb9036587685bafc92f7951f892ea63e0202e3cceac84201d8eca7e89"
+        }
+      },
+      "wallSeconds": 34.77722500000894,
+      "guestSeconds": 47.750049575,
+      "realtimeRatio": 1.3730264440301871,
+      "instructions": 9819885134,
+      "frames": 428,
+      "passed": true,
+      "jitFailed": 0,
+      "jitBytes": 110349616,
+      "capabilities": {
+        "mode": "current-jit",
+        "hasJitSetter": true,
+        "hasJitCounter": true,
+        "executionMode": "jit",
+        "missingCountersAreZero": false
+      },
+      "jitCompiled": 10797,
+      "result": {
+        "capabilities": {
+          "mode": "current-jit",
+          "hasJitSetter": true,
+          "hasJitCounter": true,
+          "executionMode": "jit",
+          "missingCountersAreZero": false
+        },
+        "workload": "tinydraw",
+        "workloadAlias": "tinydraw",
+        "appliedExports": [],
+        "checks": null,
+        "status": "completed",
+        "stopCode": 0,
+        "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+        "verdictValidation": {
+          "schema": "tinydraw-gate1-v1",
+          "valid": true,
+          "passed": true,
+          "error": null
+        },
+        "instrumented": false,
+        "passed": true,
+        "guestSeconds": 47.750049575,
+        "wallSeconds": 34.77722500000894,
+        "setupSeconds": 0.18026999999582768,
+        "instructions": 9819885134,
+        "frames": 428,
+        "chainedBackedges": null,
+        "jit": {
+          "compiled": 10797,
+          "failed": 0,
+          "released": 3259,
+          "compileMs": 950.4350003153086,
+          "bytes": 110349616,
+          "liveBytes": 74808962,
+          "peakBytes": 74808962,
+          "peakModules": 7538,
+          "instructions": 9637501306
+        },
+        "provenance": {
+          "sha256": {
+            "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+            "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+            "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+            "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+            "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+            "asset/wasm": "eb754176f3100563da93b5269a54af1b93ff611abcf09fbae5026fd110b8409a",
+            "harness/80c43cae-tinydraw-contract.json": "02efb6a0fbc3edc356190e025b2893479d800da58759b050a6f168fbaaa8d428",
+            "harness/a2db66cf-tinydraw-contract.json": "637d537c560442f09e9b01776ffc1e8c4062bf19ab3342b0ec16a92035497c89",
+            "harness/battery-worker.mjs": "ef39d40eacb07fa5b9a359937abd2a09d3fc3a47b5b26a95d29525c6a6e415ed",
+            "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+            "harness/battery.mjs": "fb67887fcb06636db602f87dc803c246c2055334fb4452c515871a428a491aca",
+            "harness/capture-battery.mjs": "31faf6bc1e480e01cfcfcc7c84778d11c84d215c36b7fa58cea0eb95996982e8",
+            "harness/current-tinydraw-contract.json": "0647cfce29d6173fed61de186d938c349e68774672d8fa0fa0d4e1e45cf492c1",
+            "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+            "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+            "harness/workloads.json": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+            "web/wasm/experiments.mjs": "29c4b556b0c7e25a529a9c4b1c3b5132aee06bb4884de684ba6c78a10ac4716b",
+            "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+            "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+            "web/wasm/worker.js": "7ee25b3bb9036587685bafc92f7951f892ea63e0202e3cceac84201d8eca7e89"
+          }
+        }
+      },
+      "captureMode": "timing",
+      "conditions": {
+        "loadBefore": [
+          11.47412109375,
+          15.73779296875,
+          15.9423828125
+        ],
+        "loadAfter": [
+          8.8544921875,
+          14.63671875,
+          15.533203125
+        ]
+      }
+    },
+    {
+      "stage": "primary",
+      "pair": 2,
+      "arm": "baseline",
+      "consoleSha256": "2496efdf2a12f86ea13f1b29de0991de5c71a2955f58c8ff4add72434221209f",
+      "browser": "Chrome/153.0.8010.53",
+      "v8": "15.3.76.13",
+      "provenance": {
+        "sha256": {
+          "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+          "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+          "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+          "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+          "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+          "asset/wasm": "11a781893f89f598fbbf36933a703a82e3771f65a26e743ef0da56838996e042",
+          "harness/80c43cae-tinydraw-contract.json": "02efb6a0fbc3edc356190e025b2893479d800da58759b050a6f168fbaaa8d428",
+          "harness/a2db66cf-tinydraw-contract.json": "637d537c560442f09e9b01776ffc1e8c4062bf19ab3342b0ec16a92035497c89",
+          "harness/battery-worker.mjs": "ef39d40eacb07fa5b9a359937abd2a09d3fc3a47b5b26a95d29525c6a6e415ed",
+          "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+          "harness/battery.mjs": "fb67887fcb06636db602f87dc803c246c2055334fb4452c515871a428a491aca",
+          "harness/capture-battery.mjs": "31faf6bc1e480e01cfcfcc7c84778d11c84d215c36b7fa58cea0eb95996982e8",
+          "harness/current-tinydraw-contract.json": "0647cfce29d6173fed61de186d938c349e68774672d8fa0fa0d4e1e45cf492c1",
+          "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+          "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+          "harness/workloads.json": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+          "web/wasm/experiments.mjs": "29c4b556b0c7e25a529a9c4b1c3b5132aee06bb4884de684ba6c78a10ac4716b",
+          "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+          "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+          "web/wasm/worker.js": "7ee25b3bb9036587685bafc92f7951f892ea63e0202e3cceac84201d8eca7e89"
+        }
+      },
+      "wallSeconds": 122.21137999999523,
+      "guestSeconds": 47.75085146666667,
+      "realtimeRatio": 0.3907234454489306,
+      "instructions": 9820325756,
+      "frames": 101,
+      "passed": true,
+      "jitFailed": 0,
+      "jitBytes": 63104875,
+      "capabilities": {
+        "mode": "current-jit",
+        "hasJitSetter": true,
+        "hasJitCounter": true,
+        "executionMode": "jit",
+        "missingCountersAreZero": false
+      },
+      "jitCompiled": 10634,
+      "result": {
+        "capabilities": {
+          "mode": "current-jit",
+          "hasJitSetter": true,
+          "hasJitCounter": true,
+          "executionMode": "jit",
+          "missingCountersAreZero": false
+        },
+        "workload": "tinydraw",
+        "workloadAlias": "tinydraw",
+        "appliedExports": [],
+        "checks": null,
+        "status": "completed",
+        "stopCode": 0,
+        "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+        "verdictValidation": {
+          "schema": "tinydraw-gate1-v1",
+          "valid": true,
+          "passed": true,
+          "error": null
+        },
+        "instrumented": false,
+        "passed": true,
+        "guestSeconds": 47.75085146666667,
+        "wallSeconds": 122.21137999999523,
+        "setupSeconds": 0.0982800000011921,
+        "instructions": 9820325756,
+        "frames": 101,
+        "chainedBackedges": null,
+        "jit": {
+          "compiled": 10634,
+          "failed": 0,
+          "released": 6978,
+          "compileMs": 825.0549994856119,
+          "bytes": 63104875,
+          "liveBytes": 21020531,
+          "peakBytes": 23662609,
+          "peakModules": 4337,
+          "instructions": 6023686459
+        },
+        "provenance": {
+          "sha256": {
+            "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+            "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+            "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+            "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+            "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+            "asset/wasm": "11a781893f89f598fbbf36933a703a82e3771f65a26e743ef0da56838996e042",
+            "harness/80c43cae-tinydraw-contract.json": "02efb6a0fbc3edc356190e025b2893479d800da58759b050a6f168fbaaa8d428",
+            "harness/a2db66cf-tinydraw-contract.json": "637d537c560442f09e9b01776ffc1e8c4062bf19ab3342b0ec16a92035497c89",
+            "harness/battery-worker.mjs": "ef39d40eacb07fa5b9a359937abd2a09d3fc3a47b5b26a95d29525c6a6e415ed",
+            "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+            "harness/battery.mjs": "fb67887fcb06636db602f87dc803c246c2055334fb4452c515871a428a491aca",
+            "harness/capture-battery.mjs": "31faf6bc1e480e01cfcfcc7c84778d11c84d215c36b7fa58cea0eb95996982e8",
+            "harness/current-tinydraw-contract.json": "0647cfce29d6173fed61de186d938c349e68774672d8fa0fa0d4e1e45cf492c1",
+            "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+            "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+            "harness/workloads.json": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+            "web/wasm/experiments.mjs": "29c4b556b0c7e25a529a9c4b1c3b5132aee06bb4884de684ba6c78a10ac4716b",
+            "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+            "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+            "web/wasm/worker.js": "7ee25b3bb9036587685bafc92f7951f892ea63e0202e3cceac84201d8eca7e89"
+          }
+        }
+      },
+      "captureMode": "timing",
+      "conditions": {
+        "loadBefore": [
+          8.8544921875,
+          14.63671875,
+          15.533203125
+        ],
+        "loadAfter": [
+          23.982421875,
+          19.6044921875,
+          17.42138671875
+        ]
+      }
+    },
+    {
+      "stage": "primary",
+      "pair": 3,
+      "arm": "baseline",
+      "consoleSha256": "2496efdf2a12f86ea13f1b29de0991de5c71a2955f58c8ff4add72434221209f",
+      "browser": "Chrome/153.0.8010.53",
+      "v8": "15.3.76.13",
+      "provenance": {
+        "sha256": {
+          "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+          "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+          "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+          "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+          "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+          "asset/wasm": "11a781893f89f598fbbf36933a703a82e3771f65a26e743ef0da56838996e042",
+          "harness/80c43cae-tinydraw-contract.json": "02efb6a0fbc3edc356190e025b2893479d800da58759b050a6f168fbaaa8d428",
+          "harness/a2db66cf-tinydraw-contract.json": "637d537c560442f09e9b01776ffc1e8c4062bf19ab3342b0ec16a92035497c89",
+          "harness/battery-worker.mjs": "ef39d40eacb07fa5b9a359937abd2a09d3fc3a47b5b26a95d29525c6a6e415ed",
+          "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+          "harness/battery.mjs": "fb67887fcb06636db602f87dc803c246c2055334fb4452c515871a428a491aca",
+          "harness/capture-battery.mjs": "31faf6bc1e480e01cfcfcc7c84778d11c84d215c36b7fa58cea0eb95996982e8",
+          "harness/current-tinydraw-contract.json": "0647cfce29d6173fed61de186d938c349e68774672d8fa0fa0d4e1e45cf492c1",
+          "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+          "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+          "harness/workloads.json": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+          "web/wasm/experiments.mjs": "29c4b556b0c7e25a529a9c4b1c3b5132aee06bb4884de684ba6c78a10ac4716b",
+          "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+          "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+          "web/wasm/worker.js": "7ee25b3bb9036587685bafc92f7951f892ea63e0202e3cceac84201d8eca7e89"
+        }
+      },
+      "wallSeconds": 118.09160000000894,
+      "guestSeconds": 47.75085146666667,
+      "realtimeRatio": 0.4043543441418615,
+      "instructions": 9820325756,
+      "frames": 101,
+      "passed": true,
+      "jitFailed": 0,
+      "jitBytes": 63104875,
+      "capabilities": {
+        "mode": "current-jit",
+        "hasJitSetter": true,
+        "hasJitCounter": true,
+        "executionMode": "jit",
+        "missingCountersAreZero": false
+      },
+      "jitCompiled": 10634,
+      "result": {
+        "capabilities": {
+          "mode": "current-jit",
+          "hasJitSetter": true,
+          "hasJitCounter": true,
+          "executionMode": "jit",
+          "missingCountersAreZero": false
+        },
+        "workload": "tinydraw",
+        "workloadAlias": "tinydraw",
+        "appliedExports": [],
+        "checks": null,
+        "status": "completed",
+        "stopCode": 0,
+        "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+        "verdictValidation": {
+          "schema": "tinydraw-gate1-v1",
+          "valid": true,
+          "passed": true,
+          "error": null
+        },
+        "instrumented": false,
+        "passed": true,
+        "guestSeconds": 47.75085146666667,
+        "wallSeconds": 118.09160000000894,
+        "setupSeconds": 0.10446500000357628,
+        "instructions": 9820325756,
+        "frames": 101,
+        "chainedBackedges": null,
+        "jit": {
+          "compiled": 10634,
+          "failed": 0,
+          "released": 6978,
+          "compileMs": 852.6249997615814,
+          "bytes": 63104875,
+          "liveBytes": 21020531,
+          "peakBytes": 23662609,
+          "peakModules": 4337,
+          "instructions": 6023686459
+        },
+        "provenance": {
+          "sha256": {
+            "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+            "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+            "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+            "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+            "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+            "asset/wasm": "11a781893f89f598fbbf36933a703a82e3771f65a26e743ef0da56838996e042",
+            "harness/80c43cae-tinydraw-contract.json": "02efb6a0fbc3edc356190e025b2893479d800da58759b050a6f168fbaaa8d428",
+            "harness/a2db66cf-tinydraw-contract.json": "637d537c560442f09e9b01776ffc1e8c4062bf19ab3342b0ec16a92035497c89",
+            "harness/battery-worker.mjs": "ef39d40eacb07fa5b9a359937abd2a09d3fc3a47b5b26a95d29525c6a6e415ed",
+            "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+            "harness/battery.mjs": "fb67887fcb06636db602f87dc803c246c2055334fb4452c515871a428a491aca",
+            "harness/capture-battery.mjs": "31faf6bc1e480e01cfcfcc7c84778d11c84d215c36b7fa58cea0eb95996982e8",
+            "harness/current-tinydraw-contract.json": "0647cfce29d6173fed61de186d938c349e68774672d8fa0fa0d4e1e45cf492c1",
+            "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+            "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+            "harness/workloads.json": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+            "web/wasm/experiments.mjs": "29c4b556b0c7e25a529a9c4b1c3b5132aee06bb4884de684ba6c78a10ac4716b",
+            "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+            "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+            "web/wasm/worker.js": "7ee25b3bb9036587685bafc92f7951f892ea63e0202e3cceac84201d8eca7e89"
+          }
+        }
+      },
+      "captureMode": "timing",
+      "conditions": {
+        "loadBefore": [
+          23.982421875,
+          19.6044921875,
+          17.42138671875
+        ],
+        "loadAfter": [
+          7.2744140625,
+          14.8251953125,
+          15.8232421875
+        ]
+      }
+    },
+    {
+      "stage": "primary",
+      "pair": 3,
+      "arm": "candidate",
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "browser": "Chrome/153.0.8010.53",
+      "v8": "15.3.76.13",
+      "provenance": {
+        "sha256": {
+          "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+          "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+          "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+          "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+          "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+          "asset/wasm": "eb754176f3100563da93b5269a54af1b93ff611abcf09fbae5026fd110b8409a",
+          "harness/80c43cae-tinydraw-contract.json": "02efb6a0fbc3edc356190e025b2893479d800da58759b050a6f168fbaaa8d428",
+          "harness/a2db66cf-tinydraw-contract.json": "637d537c560442f09e9b01776ffc1e8c4062bf19ab3342b0ec16a92035497c89",
+          "harness/battery-worker.mjs": "ef39d40eacb07fa5b9a359937abd2a09d3fc3a47b5b26a95d29525c6a6e415ed",
+          "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+          "harness/battery.mjs": "fb67887fcb06636db602f87dc803c246c2055334fb4452c515871a428a491aca",
+          "harness/capture-battery.mjs": "31faf6bc1e480e01cfcfcc7c84778d11c84d215c36b7fa58cea0eb95996982e8",
+          "harness/current-tinydraw-contract.json": "0647cfce29d6173fed61de186d938c349e68774672d8fa0fa0d4e1e45cf492c1",
+          "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+          "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+          "harness/workloads.json": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+          "web/wasm/experiments.mjs": "29c4b556b0c7e25a529a9c4b1c3b5132aee06bb4884de684ba6c78a10ac4716b",
+          "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+          "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+          "web/wasm/worker.js": "7ee25b3bb9036587685bafc92f7951f892ea63e0202e3cceac84201d8eca7e89"
+        }
+      },
+      "wallSeconds": 35.37406000000239,
+      "guestSeconds": 47.750049575,
+      "realtimeRatio": 1.3498605920552171,
+      "instructions": 9819885134,
+      "frames": 428,
+      "passed": true,
+      "jitFailed": 0,
+      "jitBytes": 110349616,
+      "capabilities": {
+        "mode": "current-jit",
+        "hasJitSetter": true,
+        "hasJitCounter": true,
+        "executionMode": "jit",
+        "missingCountersAreZero": false
+      },
+      "jitCompiled": 10797,
+      "result": {
+        "capabilities": {
+          "mode": "current-jit",
+          "hasJitSetter": true,
+          "hasJitCounter": true,
+          "executionMode": "jit",
+          "missingCountersAreZero": false
+        },
+        "workload": "tinydraw",
+        "workloadAlias": "tinydraw",
+        "appliedExports": [],
+        "checks": null,
+        "status": "completed",
+        "stopCode": 0,
+        "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+        "verdictValidation": {
+          "schema": "tinydraw-gate1-v1",
+          "valid": true,
+          "passed": true,
+          "error": null
+        },
+        "instrumented": false,
+        "passed": true,
+        "guestSeconds": 47.750049575,
+        "wallSeconds": 35.37406000000239,
+        "setupSeconds": 0.1314150000065565,
+        "instructions": 9819885134,
+        "frames": 428,
+        "chainedBackedges": null,
+        "jit": {
+          "compiled": 10797,
+          "failed": 0,
+          "released": 3259,
+          "compileMs": 975.5999999791384,
+          "bytes": 110349616,
+          "liveBytes": 74808962,
+          "peakBytes": 74808962,
+          "peakModules": 7538,
+          "instructions": 9637501306
+        },
+        "provenance": {
+          "sha256": {
+            "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+            "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+            "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+            "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+            "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+            "asset/wasm": "eb754176f3100563da93b5269a54af1b93ff611abcf09fbae5026fd110b8409a",
+            "harness/80c43cae-tinydraw-contract.json": "02efb6a0fbc3edc356190e025b2893479d800da58759b050a6f168fbaaa8d428",
+            "harness/a2db66cf-tinydraw-contract.json": "637d537c560442f09e9b01776ffc1e8c4062bf19ab3342b0ec16a92035497c89",
+            "harness/battery-worker.mjs": "ef39d40eacb07fa5b9a359937abd2a09d3fc3a47b5b26a95d29525c6a6e415ed",
+            "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+            "harness/battery.mjs": "fb67887fcb06636db602f87dc803c246c2055334fb4452c515871a428a491aca",
+            "harness/capture-battery.mjs": "31faf6bc1e480e01cfcfcc7c84778d11c84d215c36b7fa58cea0eb95996982e8",
+            "harness/current-tinydraw-contract.json": "0647cfce29d6173fed61de186d938c349e68774672d8fa0fa0d4e1e45cf492c1",
+            "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+            "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+            "harness/workloads.json": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+            "web/wasm/experiments.mjs": "29c4b556b0c7e25a529a9c4b1c3b5132aee06bb4884de684ba6c78a10ac4716b",
+            "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+            "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+            "web/wasm/worker.js": "7ee25b3bb9036587685bafc92f7951f892ea63e0202e3cceac84201d8eca7e89"
+          }
+        }
+      },
+      "captureMode": "timing",
+      "conditions": {
+        "loadBefore": [
+          7.2744140625,
+          14.8251953125,
+          15.8232421875
+        ],
+        "loadAfter": [
+          8.1220703125,
+          14.2197265625,
+          15.5634765625
+        ]
+      }
+    },
+    {
+      "stage": "primary",
+      "pair": 4,
+      "arm": "candidate",
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "browser": "Chrome/153.0.8010.53",
+      "v8": "15.3.76.13",
+      "provenance": {
+        "sha256": {
+          "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+          "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+          "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+          "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+          "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+          "asset/wasm": "eb754176f3100563da93b5269a54af1b93ff611abcf09fbae5026fd110b8409a",
+          "harness/80c43cae-tinydraw-contract.json": "02efb6a0fbc3edc356190e025b2893479d800da58759b050a6f168fbaaa8d428",
+          "harness/a2db66cf-tinydraw-contract.json": "637d537c560442f09e9b01776ffc1e8c4062bf19ab3342b0ec16a92035497c89",
+          "harness/battery-worker.mjs": "ef39d40eacb07fa5b9a359937abd2a09d3fc3a47b5b26a95d29525c6a6e415ed",
+          "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+          "harness/battery.mjs": "fb67887fcb06636db602f87dc803c246c2055334fb4452c515871a428a491aca",
+          "harness/capture-battery.mjs": "31faf6bc1e480e01cfcfcc7c84778d11c84d215c36b7fa58cea0eb95996982e8",
+          "harness/current-tinydraw-contract.json": "0647cfce29d6173fed61de186d938c349e68774672d8fa0fa0d4e1e45cf492c1",
+          "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+          "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+          "harness/workloads.json": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+          "web/wasm/experiments.mjs": "29c4b556b0c7e25a529a9c4b1c3b5132aee06bb4884de684ba6c78a10ac4716b",
+          "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+          "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+          "web/wasm/worker.js": "7ee25b3bb9036587685bafc92f7951f892ea63e0202e3cceac84201d8eca7e89"
+        }
+      },
+      "wallSeconds": 37.3412650000006,
+      "guestSeconds": 47.750049575,
+      "realtimeRatio": 1.278747508286054,
+      "instructions": 9819885134,
+      "frames": 428,
+      "passed": true,
+      "jitFailed": 0,
+      "jitBytes": 110349616,
+      "capabilities": {
+        "mode": "current-jit",
+        "hasJitSetter": true,
+        "hasJitCounter": true,
+        "executionMode": "jit",
+        "missingCountersAreZero": false
+      },
+      "jitCompiled": 10797,
+      "result": {
+        "capabilities": {
+          "mode": "current-jit",
+          "hasJitSetter": true,
+          "hasJitCounter": true,
+          "executionMode": "jit",
+          "missingCountersAreZero": false
+        },
+        "workload": "tinydraw",
+        "workloadAlias": "tinydraw",
+        "appliedExports": [],
+        "checks": null,
+        "status": "completed",
+        "stopCode": 0,
+        "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+        "verdictValidation": {
+          "schema": "tinydraw-gate1-v1",
+          "valid": true,
+          "passed": true,
+          "error": null
+        },
+        "instrumented": false,
+        "passed": true,
+        "guestSeconds": 47.750049575,
+        "wallSeconds": 37.3412650000006,
+        "setupSeconds": 0.13192000000178813,
+        "instructions": 9819885134,
+        "frames": 428,
+        "chainedBackedges": null,
+        "jit": {
+          "compiled": 10797,
+          "failed": 0,
+          "released": 3259,
+          "compileMs": 1001.8700002580881,
+          "bytes": 110349616,
+          "liveBytes": 74808962,
+          "peakBytes": 74808962,
+          "peakModules": 7538,
+          "instructions": 9637501306
+        },
+        "provenance": {
+          "sha256": {
+            "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+            "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+            "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+            "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+            "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+            "asset/wasm": "eb754176f3100563da93b5269a54af1b93ff611abcf09fbae5026fd110b8409a",
+            "harness/80c43cae-tinydraw-contract.json": "02efb6a0fbc3edc356190e025b2893479d800da58759b050a6f168fbaaa8d428",
+            "harness/a2db66cf-tinydraw-contract.json": "637d537c560442f09e9b01776ffc1e8c4062bf19ab3342b0ec16a92035497c89",
+            "harness/battery-worker.mjs": "ef39d40eacb07fa5b9a359937abd2a09d3fc3a47b5b26a95d29525c6a6e415ed",
+            "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+            "harness/battery.mjs": "fb67887fcb06636db602f87dc803c246c2055334fb4452c515871a428a491aca",
+            "harness/capture-battery.mjs": "31faf6bc1e480e01cfcfcc7c84778d11c84d215c36b7fa58cea0eb95996982e8",
+            "harness/current-tinydraw-contract.json": "0647cfce29d6173fed61de186d938c349e68774672d8fa0fa0d4e1e45cf492c1",
+            "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+            "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+            "harness/workloads.json": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+            "web/wasm/experiments.mjs": "29c4b556b0c7e25a529a9c4b1c3b5132aee06bb4884de684ba6c78a10ac4716b",
+            "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+            "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+            "web/wasm/worker.js": "7ee25b3bb9036587685bafc92f7951f892ea63e0202e3cceac84201d8eca7e89"
+          }
+        }
+      },
+      "captureMode": "timing",
+      "conditions": {
+        "loadBefore": [
+          8.1220703125,
+          14.2197265625,
+          15.5634765625
+        ],
+        "loadAfter": [
+          10.3330078125,
+          14.26611328125,
+          15.5322265625
+        ]
+      }
+    },
+    {
+      "stage": "primary",
+      "pair": 4,
+      "arm": "baseline",
+      "consoleSha256": "2496efdf2a12f86ea13f1b29de0991de5c71a2955f58c8ff4add72434221209f",
+      "browser": "Chrome/153.0.8010.53",
+      "v8": "15.3.76.13",
+      "provenance": {
+        "sha256": {
+          "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+          "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+          "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+          "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+          "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+          "asset/wasm": "11a781893f89f598fbbf36933a703a82e3771f65a26e743ef0da56838996e042",
+          "harness/80c43cae-tinydraw-contract.json": "02efb6a0fbc3edc356190e025b2893479d800da58759b050a6f168fbaaa8d428",
+          "harness/a2db66cf-tinydraw-contract.json": "637d537c560442f09e9b01776ffc1e8c4062bf19ab3342b0ec16a92035497c89",
+          "harness/battery-worker.mjs": "ef39d40eacb07fa5b9a359937abd2a09d3fc3a47b5b26a95d29525c6a6e415ed",
+          "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+          "harness/battery.mjs": "fb67887fcb06636db602f87dc803c246c2055334fb4452c515871a428a491aca",
+          "harness/capture-battery.mjs": "31faf6bc1e480e01cfcfcc7c84778d11c84d215c36b7fa58cea0eb95996982e8",
+          "harness/current-tinydraw-contract.json": "0647cfce29d6173fed61de186d938c349e68774672d8fa0fa0d4e1e45cf492c1",
+          "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+          "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+          "harness/workloads.json": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+          "web/wasm/experiments.mjs": "29c4b556b0c7e25a529a9c4b1c3b5132aee06bb4884de684ba6c78a10ac4716b",
+          "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+          "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+          "web/wasm/worker.js": "7ee25b3bb9036587685bafc92f7951f892ea63e0202e3cceac84201d8eca7e89"
+        }
+      },
+      "wallSeconds": 119.37643500000239,
+      "guestSeconds": 47.75085146666667,
+      "realtimeRatio": 0.4000023243001495,
+      "instructions": 9820325756,
+      "frames": 101,
+      "passed": true,
+      "jitFailed": 0,
+      "jitBytes": 63104875,
+      "capabilities": {
+        "mode": "current-jit",
+        "hasJitSetter": true,
+        "hasJitCounter": true,
+        "executionMode": "jit",
+        "missingCountersAreZero": false
+      },
+      "jitCompiled": 10634,
+      "result": {
+        "capabilities": {
+          "mode": "current-jit",
+          "hasJitSetter": true,
+          "hasJitCounter": true,
+          "executionMode": "jit",
+          "missingCountersAreZero": false
+        },
+        "workload": "tinydraw",
+        "workloadAlias": "tinydraw",
+        "appliedExports": [],
+        "checks": null,
+        "status": "completed",
+        "stopCode": 0,
+        "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+        "verdictValidation": {
+          "schema": "tinydraw-gate1-v1",
+          "valid": true,
+          "passed": true,
+          "error": null
+        },
+        "instrumented": false,
+        "passed": true,
+        "guestSeconds": 47.75085146666667,
+        "wallSeconds": 119.37643500000239,
+        "setupSeconds": 0.10713499999046326,
+        "instructions": 9820325756,
+        "frames": 101,
+        "chainedBackedges": null,
+        "jit": {
+          "compiled": 10634,
+          "failed": 0,
+          "released": 6978,
+          "compileMs": 801.4750005602837,
+          "bytes": 63104875,
+          "liveBytes": 21020531,
+          "peakBytes": 23662609,
+          "peakModules": 4337,
+          "instructions": 6023686459
+        },
+        "provenance": {
+          "sha256": {
+            "asset/app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+            "asset/bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+            "asset/elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e",
+            "asset/ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+            "asset/rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+            "asset/wasm": "11a781893f89f598fbbf36933a703a82e3771f65a26e743ef0da56838996e042",
+            "harness/80c43cae-tinydraw-contract.json": "02efb6a0fbc3edc356190e025b2893479d800da58759b050a6f168fbaaa8d428",
+            "harness/a2db66cf-tinydraw-contract.json": "637d537c560442f09e9b01776ffc1e8c4062bf19ab3342b0ec16a92035497c89",
+            "harness/battery-worker.mjs": "ef39d40eacb07fa5b9a359937abd2a09d3fc3a47b5b26a95d29525c6a6e415ed",
+            "harness/battery.html": "d911a9b465fb8a424bef7b669ecbce6dc6268c6b73560417389c04237053c27f",
+            "harness/battery.mjs": "fb67887fcb06636db602f87dc803c246c2055334fb4452c515871a428a491aca",
+            "harness/capture-battery.mjs": "31faf6bc1e480e01cfcfcc7c84778d11c84d215c36b7fa58cea0eb95996982e8",
+            "harness/current-tinydraw-contract.json": "0647cfce29d6173fed61de186d938c349e68774672d8fa0fa0d4e1e45cf492c1",
+            "harness/verdict-schema.json": "911a3e54e5d9e82212eea0cb7f13888c659bda90231838c5471921523e35c810",
+            "harness/verdict.mjs": "27214d78fe7a6f3d6f2fd2fde925c58df4cbdd339e5289205c4bc169772ec12c",
+            "harness/workloads.json": "cae1c457d055a0cb8233ae35cfc7dbc6a74fccf2d9b979eceff71d6cd3b5af0c",
+            "web/wasm/experiments.mjs": "29c4b556b0c7e25a529a9c4b1c3b5132aee06bb4884de684ba6c78a10ac4716b",
+            "web/wasm/jit.mjs": "a759ae4a3d1ca6ddd91259ede39e34ebda45ff7ccb9c4ceeff0d1423f44ac294",
+            "web/wasm/pacing.mjs": "be891e5cd99e47791f4fdafb9d1cabb0f42ed09b8f1758d890884f41dc83d6cf",
+            "web/wasm/worker.js": "7ee25b3bb9036587685bafc92f7951f892ea63e0202e3cceac84201d8eca7e89"
+          }
+        }
+      },
+      "captureMode": "timing",
+      "conditions": {
+        "loadBefore": [
+          10.3330078125,
+          14.26611328125,
+          15.5322265625
+        ],
+        "loadAfter": [
+          16.8642578125,
+          14.56640625,
+          15.4306640625
+        ]
+      }
+    }
+  ]
+}

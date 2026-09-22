@@ -20,6 +20,8 @@ jobs:
           node docs/evidence/perf-x5-2026-09-22/verify-results.mjs
           node --test docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.test.mjs
           node docs/evidence/perf-x5-2026-09-22/m1-before-after/verify.mjs
+          node --test docs/evidence/perf-x5-2026-09-22/historical-before-after/verify.test.mjs
+          node docs/evidence/perf-x5-2026-09-22/historical-before-after/verify.mjs
       - name: Fetch the ESP32-S3, ESP32-C3 and ESP32-C6 mask ROM ELFs
         env:
           GH_TOKEN: ${{ github.token }}

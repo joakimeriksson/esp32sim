@@ -1,0 +1,38 @@
+{
+  "qualified": true,
+  "workload": "tinydraw",
+  "mode": "current-jit",
+  "wasmSha256": "11a781893f89f598fbbf36933a703a82e3771f65a26e743ef0da56838996e042",
+  "instructions": 9820325756,
+  "frames": 101,
+  "consoleSha256": "2496efdf2a12f86ea13f1b29de0991de5c71a2955f58c8ff4add72434221209f",
+  "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+  "inputSha256": {
+    "rom": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+    "bootloader": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288",
+    "ptable": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d",
+    "app": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1",
+    "elf": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e"
+  },
+  "qualification": {
+    "pilotResultSha256": "b729a13bbafc9d1c62361a29a9069f4d90f0b9ccc26aa79e9841f26f3c3d6a4c",
+    "finalFrame": {
+      "present": true,
+      "lcdFrames": 101,
+      "width": 368,
+      "height": 448,
+      "uniqueColors": 16,
+      "nonuniform": true,
+      "minChannel": 0,
+      "maxChannel": 255,
+      "outputIndex": 101,
+      "rgbaFile": "final-frame.rgba",
+      "rgbaSha256": "dbf0d387a05232f38dc694f81ea871e448e2dc112c90d0fd94d9ecaef1fa41d0",
+      "rgb565File": "final-frame.rgb565le",
+      "rgb565Sha256": "cbd7fda3c28fbe7127fac2e60eada6ffa5c08fef4be3830677d1417e9aecfad4",
+      "layout": "Full unrotated row-major panel; RGB565 little-endian decoded using Uint8ClampedArray exactly as web/run.html drawFrame; alpha 255",
+      "limits": "Last published LCD output, not an independent framebuffer read. Different publication cadence or guest stopping point can change the final image. Nonuniform pixels are a sanity check, not proof of correct rendering."
+    },
+    "matchedCurrentFinalFrame": true
+  }
+}

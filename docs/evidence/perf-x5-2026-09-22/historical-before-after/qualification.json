@@ -1,0 +1,541 @@
+{
+  "scope": "Node pilots, not browser timing. Final decoded LCD equality qualifies selected checkpoints; whole frame streams and retired work differ. The first failed board run and parent wrong-image run are retained.",
+  "pilots": [
+    {
+      "name": "31037b26-tinydraw",
+      "label": "first-board-timeout",
+      "accepted": false,
+      "timingComparable": false,
+      "runtime": {
+        "node": "v24.16.0",
+        "v8": "13.6.233.17-node.49"
+      },
+      "mode": "historical-interpreter",
+      "inputs": {
+        "wasm": {
+          "bytes": 1148047,
+          "sha256": "df73f99ee7f4efe94f3816fdb5c823913423395ae9aa37bf16b50c9ad2e47abe"
+        },
+        "rom": {
+          "bytes": 949552,
+          "sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd"
+        },
+        "bootloader": {
+          "bytes": 22496,
+          "sha256": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288"
+        },
+        "ptable": {
+          "bytes": 3072,
+          "sha256": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d"
+        },
+        "app": {
+          "bytes": 726752,
+          "sha256": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1"
+        },
+        "elf": {
+          "bytes": 15019752,
+          "sha256": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e"
+        }
+      },
+      "result": {
+        "capabilities": {
+          "mode": "historical-interpreter",
+          "hasJitSetter": false,
+          "hasJitCounter": false,
+          "executionMode": "interpreter",
+          "missingCountersAreZero": false
+        },
+        "workload": "tinydraw",
+        "workloadAlias": "tinydraw",
+        "appliedExports": [],
+        "checks": null,
+        "status": "timeout",
+        "stopCode": 0,
+        "verdict": null,
+        "verdictValidation": {
+          "schema": "tinydraw-gate1-v1",
+          "valid": false,
+          "passed": false,
+          "error": "missing or incomplete verdict"
+        },
+        "instrumented": false,
+        "passed": false,
+        "guestSeconds": 480.0073168,
+        "wallSeconds": 62.274027249999996,
+        "setupSeconds": 0.062414167000000007,
+        "instructions": 1262796821,
+        "frames": 0,
+        "chainedBackedges": null,
+        "jit": {
+          "compiled": 0,
+          "failed": 0,
+          "released": 0,
+          "compileMs": 0,
+          "bytes": 0,
+          "liveBytes": 0,
+          "peakBytes": 0,
+          "peakModules": 0,
+          "instructions": null
+        }
+      },
+      "consoleSha256": "0d45dfc467e04666c2c5a604d72059f8e32b6c479eb18000c5aa2546bd6676c7",
+      "binaryFrames": {
+        "count": 0,
+        "framing": "uint32le index, kind, length followed by raw bytes per output",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "finalFrame": {
+        "present": false
+      },
+      "checks": {
+        "verdictPassed": false,
+        "zeroStopCode": true,
+        "pinnedInstructions": false,
+        "pinnedFrames": false,
+        "jitFailedZero": true,
+        "productionJitObserved": null
+      },
+      "compatibleCurrentContract": false
+    },
+    {
+      "name": "e7a16784-tinydraw",
+      "label": "parent-final-image-mismatch",
+      "accepted": false,
+      "timingComparable": false,
+      "runtime": {
+        "node": "v24.16.0",
+        "v8": "13.6.233.17-node.49"
+      },
+      "mode": "historical-interpreter",
+      "inputs": {
+        "wasm": {
+          "bytes": 1146230,
+          "sha256": "1e9dbdb9f072eb11767bb60003c308a346f5d8127de8fb122ed2d037df77479d"
+        },
+        "rom": {
+          "bytes": 949552,
+          "sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd"
+        },
+        "bootloader": {
+          "bytes": 22496,
+          "sha256": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288"
+        },
+        "ptable": {
+          "bytes": 3072,
+          "sha256": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d"
+        },
+        "app": {
+          "bytes": 726752,
+          "sha256": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1"
+        },
+        "elf": {
+          "bytes": 15019752,
+          "sha256": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e"
+        }
+      },
+      "result": {
+        "capabilities": {
+          "mode": "historical-interpreter",
+          "hasJitSetter": false,
+          "hasJitCounter": false,
+          "executionMode": "interpreter",
+          "missingCountersAreZero": false
+        },
+        "workload": "tinydraw",
+        "workloadAlias": "tinydraw",
+        "appliedExports": [],
+        "checks": null,
+        "status": "completed",
+        "stopCode": 0,
+        "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+        "verdictValidation": {
+          "schema": "tinydraw-gate1-v1",
+          "valid": true,
+          "passed": true,
+          "error": null
+        },
+        "instrumented": false,
+        "passed": true,
+        "guestSeconds": 47.75085146666667,
+        "wallSeconds": 162.93613624999998,
+        "setupSeconds": 0.047241459000000006,
+        "instructions": 9820325756,
+        "frames": 101,
+        "chainedBackedges": null,
+        "jit": {
+          "compiled": 0,
+          "failed": 0,
+          "released": 0,
+          "compileMs": 0,
+          "bytes": 0,
+          "liveBytes": 0,
+          "peakBytes": 0,
+          "peakModules": 0,
+          "instructions": null
+        }
+      },
+      "consoleSha256": "2496efdf2a12f86ea13f1b29de0991de5c71a2955f58c8ff4add72434221209f",
+      "binaryFrames": {
+        "count": 101,
+        "framing": "uint32le index, kind, length followed by raw bytes per output",
+        "sha256": "5e92a3c95082f030dc92bb6d4f9c0be2cf189f45df2baa1296d64261a9efa1df"
+      },
+      "finalFrame": {
+        "present": true,
+        "lcdFrames": 101,
+        "width": 368,
+        "height": 448,
+        "uniqueColors": 16,
+        "nonuniform": true,
+        "minChannel": 0,
+        "maxChannel": 255,
+        "outputIndex": 101,
+        "rgbaFile": "final-frame.rgba",
+        "rgbaSha256": "0e1696d9c858ee9f3faa1df2425db658c3ea6d3b21f955b9dacd8fd1a87dfbc1",
+        "rgb565File": "final-frame.rgb565le",
+        "rgb565Sha256": "ca2ce92ab6f1f0cd5b05deacfe7e703abde72439f6c2cd1e57a8169f1a3edd7c",
+        "layout": "Full unrotated row-major panel; RGB565 little-endian decoded using Uint8ClampedArray exactly as web/run.html drawFrame; alpha 255",
+        "limits": "Last published LCD output, not an independent framebuffer read. Different publication cadence or guest stopping point can change the final image. Nonuniform pixels are a sanity check, not proof of correct rendering."
+      },
+      "checks": {
+        "verdictPassed": true,
+        "zeroStopCode": true,
+        "pinnedInstructions": false,
+        "pinnedFrames": false,
+        "jitFailedZero": true,
+        "productionJitObserved": null
+      },
+      "compatibleCurrentContract": false
+    },
+    {
+      "name": "a2db66cf-tinydraw",
+      "label": "earliest-qualified-final-image",
+      "accepted": true,
+      "timingComparable": false,
+      "runtime": {
+        "node": "v24.16.0",
+        "v8": "13.6.233.17-node.49"
+      },
+      "mode": "historical-interpreter",
+      "inputs": {
+        "wasm": {
+          "bytes": 1156788,
+          "sha256": "22c3df896b739ee12dce71408d3f3f77a63125ad943007d44e1e9105035020a4"
+        },
+        "rom": {
+          "bytes": 949552,
+          "sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd"
+        },
+        "bootloader": {
+          "bytes": 22496,
+          "sha256": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288"
+        },
+        "ptable": {
+          "bytes": 3072,
+          "sha256": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d"
+        },
+        "app": {
+          "bytes": 726752,
+          "sha256": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1"
+        },
+        "elf": {
+          "bytes": 15019752,
+          "sha256": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e"
+        }
+      },
+      "result": {
+        "capabilities": {
+          "mode": "historical-interpreter",
+          "hasJitSetter": false,
+          "hasJitCounter": false,
+          "executionMode": "interpreter",
+          "missingCountersAreZero": false
+        },
+        "workload": "tinydraw",
+        "workloadAlias": "tinydraw",
+        "appliedExports": [],
+        "checks": null,
+        "status": "completed",
+        "stopCode": 0,
+        "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+        "verdictValidation": {
+          "schema": "tinydraw-gate1-v1",
+          "valid": true,
+          "passed": true,
+          "error": null
+        },
+        "instrumented": false,
+        "passed": true,
+        "guestSeconds": 47.75085146666667,
+        "wallSeconds": 163.875879167,
+        "setupSeconds": 0.041896916,
+        "instructions": 9820325756,
+        "frames": 101,
+        "chainedBackedges": null,
+        "jit": {
+          "compiled": 0,
+          "failed": 0,
+          "released": 0,
+          "compileMs": 0,
+          "bytes": 0,
+          "liveBytes": 0,
+          "peakBytes": 0,
+          "peakModules": 0,
+          "instructions": null
+        }
+      },
+      "consoleSha256": "2496efdf2a12f86ea13f1b29de0991de5c71a2955f58c8ff4add72434221209f",
+      "binaryFrames": {
+        "count": 101,
+        "framing": "uint32le index, kind, length followed by raw bytes per output",
+        "sha256": "a2a0ab135b510de288017335804d6bba608f42cecb30c0b0fd4b3219e41a97e3"
+      },
+      "finalFrame": {
+        "present": true,
+        "lcdFrames": 101,
+        "width": 368,
+        "height": 448,
+        "uniqueColors": 16,
+        "nonuniform": true,
+        "minChannel": 0,
+        "maxChannel": 255,
+        "outputIndex": 101,
+        "rgbaFile": "final-frame.rgba",
+        "rgbaSha256": "dbf0d387a05232f38dc694f81ea871e448e2dc112c90d0fd94d9ecaef1fa41d0",
+        "rgb565File": "final-frame.rgb565le",
+        "rgb565Sha256": "cbd7fda3c28fbe7127fac2e60eada6ffa5c08fef4be3830677d1417e9aecfad4",
+        "layout": "Full unrotated row-major panel; RGB565 little-endian decoded using Uint8ClampedArray exactly as web/run.html drawFrame; alpha 255",
+        "limits": "Last published LCD output, not an independent framebuffer read. Different publication cadence or guest stopping point can change the final image. Nonuniform pixels are a sanity check, not proof of correct rendering."
+      },
+      "checks": {
+        "verdictPassed": true,
+        "zeroStopCode": true,
+        "pinnedInstructions": false,
+        "pinnedFrames": false,
+        "jitFailedZero": true,
+        "productionJitObserved": null
+      },
+      "compatibleCurrentContract": false
+    },
+    {
+      "name": "80c43cae-tinydraw",
+      "label": "first-shipped-jit",
+      "accepted": true,
+      "timingComparable": false,
+      "runtime": {
+        "node": "v24.16.0",
+        "v8": "13.6.233.17-node.49"
+      },
+      "mode": "current-jit",
+      "inputs": {
+        "wasm": {
+          "bytes": 1460243,
+          "sha256": "11a781893f89f598fbbf36933a703a82e3771f65a26e743ef0da56838996e042"
+        },
+        "rom": {
+          "bytes": 949552,
+          "sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd"
+        },
+        "bootloader": {
+          "bytes": 22496,
+          "sha256": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288"
+        },
+        "ptable": {
+          "bytes": 3072,
+          "sha256": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d"
+        },
+        "app": {
+          "bytes": 726752,
+          "sha256": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1"
+        },
+        "elf": {
+          "bytes": 15019752,
+          "sha256": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e"
+        }
+      },
+      "result": {
+        "capabilities": {
+          "mode": "current-jit",
+          "hasJitSetter": true,
+          "hasJitCounter": true,
+          "executionMode": "jit",
+          "missingCountersAreZero": false
+        },
+        "workload": "tinydraw",
+        "workloadAlias": "tinydraw",
+        "appliedExports": [],
+        "checks": null,
+        "status": "completed",
+        "stopCode": 0,
+        "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+        "verdictValidation": {
+          "schema": "tinydraw-gate1-v1",
+          "valid": true,
+          "passed": true,
+          "error": null
+        },
+        "instrumented": false,
+        "passed": true,
+        "guestSeconds": 47.75085146666667,
+        "wallSeconds": 135.936060583,
+        "setupSeconds": 0.056623875,
+        "instructions": 9820325756,
+        "frames": 101,
+        "chainedBackedges": null,
+        "jit": {
+          "compiled": 10634,
+          "failed": 0,
+          "released": 6978,
+          "compileMs": 824.3544719992209,
+          "bytes": 63104875,
+          "liveBytes": 21020531,
+          "peakBytes": 23662609,
+          "peakModules": 4337,
+          "instructions": 6023686459
+        }
+      },
+      "consoleSha256": "2496efdf2a12f86ea13f1b29de0991de5c71a2955f58c8ff4add72434221209f",
+      "binaryFrames": {
+        "count": 101,
+        "framing": "uint32le index, kind, length followed by raw bytes per output",
+        "sha256": "384e6ab8b1eb8ae53cdea69f2c938be4302b371d3571ff261592f7aa01ebf8f4"
+      },
+      "finalFrame": {
+        "present": true,
+        "lcdFrames": 101,
+        "width": 368,
+        "height": 448,
+        "uniqueColors": 16,
+        "nonuniform": true,
+        "minChannel": 0,
+        "maxChannel": 255,
+        "outputIndex": 101,
+        "rgbaFile": "final-frame.rgba",
+        "rgbaSha256": "dbf0d387a05232f38dc694f81ea871e448e2dc112c90d0fd94d9ecaef1fa41d0",
+        "rgb565File": "final-frame.rgb565le",
+        "rgb565Sha256": "cbd7fda3c28fbe7127fac2e60eada6ffa5c08fef4be3830677d1417e9aecfad4",
+        "layout": "Full unrotated row-major panel; RGB565 little-endian decoded using Uint8ClampedArray exactly as web/run.html drawFrame; alpha 255",
+        "limits": "Last published LCD output, not an independent framebuffer read. Different publication cadence or guest stopping point can change the final image. Nonuniform pixels are a sanity check, not proof of correct rendering."
+      },
+      "checks": {
+        "verdictPassed": true,
+        "zeroStopCode": true,
+        "pinnedInstructions": false,
+        "pinnedFrames": false,
+        "jitFailedZero": true,
+        "productionJitObserved": true
+      },
+      "compatibleCurrentContract": false
+    },
+    {
+      "name": "current-tinydraw",
+      "label": "current",
+      "accepted": true,
+      "timingComparable": false,
+      "runtime": {
+        "node": "v24.16.0",
+        "v8": "13.6.233.17-node.49"
+      },
+      "mode": "current-jit",
+      "inputs": {
+        "wasm": {
+          "bytes": 2088105,
+          "sha256": "eb754176f3100563da93b5269a54af1b93ff611abcf09fbae5026fd110b8409a"
+        },
+        "rom": {
+          "bytes": 949552,
+          "sha256": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd"
+        },
+        "bootloader": {
+          "bytes": 22496,
+          "sha256": "5f5111980c1c8aeae76e08706eee6df49424bac759e703c78662946de4a12288"
+        },
+        "ptable": {
+          "bytes": 3072,
+          "sha256": "f53268312c8caffe6c7f4e6c66d4092aeca3435c142db3116466f84a6a608d2d"
+        },
+        "app": {
+          "bytes": 726752,
+          "sha256": "f4702138f5f4012938274a96aa18e9d1ffbb35f4d3139bc87a4e03038ac904c1"
+        },
+        "elf": {
+          "bytes": 15019752,
+          "sha256": "d8e9be336ff6b12cd84580c69fc182ccfee8da7a3cc3813571ba6c25013a850e"
+        }
+      },
+      "result": {
+        "capabilities": {
+          "mode": "current-jit",
+          "hasJitSetter": true,
+          "hasJitCounter": true,
+          "executionMode": "jit",
+          "missingCountersAreZero": false
+        },
+        "workload": "tinydraw",
+        "workloadAlias": "tinydraw",
+        "appliedExports": [],
+        "checks": null,
+        "status": "completed",
+        "stopCode": 0,
+        "verdict": "TINYDRAW_GATE1_AUTOMATED_DONE native_kernels=1 minimap_navigation=1 color_dialog=1 cooperative_compose=1 stress=1 stress_100=1 stress_400=1 overlap_ready=1 overlap_cold=1 general_cold_ready=1 general_cold=1 owner_document=1 workload=1 paced_cold=1 hard_100=1 hard_400=1 pan_100=1 pan_400=1 ring_local=1 pan_seq=1 pan_boundary=1 live_overlay=1 draw_fill=1 cache=1 full_world_cache=1 cache_tour=1 mixed_draw=1 idle_repair=1 ink_trace=1 hairline_capacity=1 long_gesture=1 history_latency=1 settle_timing=1 export_encode=1 export_reserve=1 return=1 ssaa_receipt=yellow",
+        "verdictValidation": {
+          "schema": "tinydraw-gate1-v1",
+          "valid": true,
+          "passed": true,
+          "error": null
+        },
+        "instrumented": false,
+        "passed": true,
+        "guestSeconds": 47.750049575,
+        "wallSeconds": 43.79668637500001,
+        "setupSeconds": 0.05660616599999999,
+        "instructions": 9819885134,
+        "frames": 428,
+        "chainedBackedges": null,
+        "jit": {
+          "compiled": 10797,
+          "failed": 0,
+          "released": 3259,
+          "compileMs": 1031.2381280000218,
+          "bytes": 110349616,
+          "liveBytes": 74808962,
+          "peakBytes": 74808962,
+          "peakModules": 7538,
+          "instructions": 9637501306
+        }
+      },
+      "consoleSha256": "f4e7e4f3be2f988b8b52d2797d373208b49e86e70b9c2b6618910a90c7e36291",
+      "binaryFrames": {
+        "count": 428,
+        "framing": "uint32le index, kind, length followed by raw bytes per output",
+        "sha256": "addc0af9e57b62f531d93564443964baea76ee92518fe12b9680bcddce0a0931"
+      },
+      "finalFrame": {
+        "present": true,
+        "lcdFrames": 428,
+        "width": 368,
+        "height": 448,
+        "uniqueColors": 16,
+        "nonuniform": true,
+        "minChannel": 0,
+        "maxChannel": 255,
+        "outputIndex": 428,
+        "rgbaFile": "final-frame.rgba",
+        "rgbaSha256": "dbf0d387a05232f38dc694f81ea871e448e2dc112c90d0fd94d9ecaef1fa41d0",
+        "rgb565File": "final-frame.rgb565le",
+        "rgb565Sha256": "cbd7fda3c28fbe7127fac2e60eada6ffa5c08fef4be3830677d1417e9aecfad4",
+        "layout": "Full unrotated row-major panel; RGB565 little-endian decoded using Uint8ClampedArray exactly as web/run.html drawFrame; alpha 255",
+        "limits": "Last published LCD output, not an independent framebuffer read. Different publication cadence or guest stopping point can change the final image. Nonuniform pixels are a sanity check, not proof of correct rendering."
+      },
+      "checks": {
+        "verdictPassed": true,
+        "zeroStopCode": true,
+        "pinnedInstructions": true,
+        "pinnedFrames": true,
+        "jitFailedZero": true,
+        "productionJitObserved": true
+      },
+      "compatibleCurrentContract": true
+    }
+  ]
+}
