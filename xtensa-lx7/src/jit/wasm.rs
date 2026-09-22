@@ -29,7 +29,7 @@ const SHORT_SAMPLE: u32 = if cfg!(feature = "wasm-jit-tests") { 2 } else { 1024 
 /// Formation attempts per block, including re-formation after a code page changed.
 const REGION_TRIES: u8 = 8;
 #[cfg(feature = "wasm-jit-tests")]
-pub(crate) static REGION_STATS: [std::sync::atomic::AtomicU32; 13] = [const { std::sync::atomic::AtomicU32::new(0) }; 13];
+pub(crate) static REGION_STATS: [std::sync::atomic::AtomicU32; 14] = [const { std::sync::atomic::AtomicU32::new(0) }; 14];
 
 #[cfg(not(feature = "wasm-jit-profile"))]
 type ExitSite = u32;
@@ -158,14 +158,15 @@ const LOOP_UNKNOWN: (u32, u32, [u32; 2]) = (0, u32::MAX, [0; 2]);
 /// Entry facts of one region chunk. `sites` points into the owning region's vector, which
 /// lives until that region is dropped, and every drop moves `CodeCache::region_epoch` on.
 #[derive(Clone, Copy)]
-struct Hot { epoch: u64, bloom: u64, slot: u32, k: u32, len: u32, lo: u32, span: u32, pages: [(u32, u32); emitter::region::MAX_PAGES], npages: u32, nsites: u32, sites: *const ExitSite,
+/// `copy`: tails-s2, dispatch index of this chunk's guarded copy, or 0.
+struct Hot { epoch: u64, bloom: u64, slot: u32, k: u32, len: u32, lo: u32, span: u32, pages: [(u32, u32); emitter::region::MAX_PAGES], npages: u32, nsites: u32, sites: *const ExitSite, copy: u32,
     /// shell-s2: `Bus::stable_pages` epoch at the refill; `pages` leaves out the pages it vouches for.
     fepoch: u64 }
-impl Hot { const NONE: Hot = Hot { epoch: 0, bloom: 0, slot: 0, k: 0, len: 0, lo: 0, span: 0, pages: [(0, 0); emitter::region::MAX_PAGES], npages: 0, nsites: 0, sites: std::ptr::null(), fepoch: 0 }; }
+impl Hot { const NONE: Hot = Hot { epoch: 0, bloom: 0, slot: 0, k: 0, len: 0, lo: 0, span: 0, pages: [(0, 0); emitter::region::MAX_PAGES], npages: 0, nsites: 0, sites: std::ptr::null(), copy: 0, fepoch: 0 }; }
 #[cfg(any(debug_assertions, feature = "wasm-jit-tests"))]
 impl Hot {
     fn assert_matches(&self, r: &Region, k: u32, (lo, hi, _): (u32, u32, u64)) {
-        assert_eq!((self.slot, self.k, self.len), (r.slot, k, r.lens[k as usize]));
+        assert_eq!((self.slot, self.k, self.len, self.copy), (r.slot, k, r.lens[k as usize], r.copies[k as usize]));
         assert_eq!((self.bloom, self.lo, self.span), (r.bloom, r.lo, r.hi.wrapping_sub(r.lo)));
         assert!(self.pages[..self.npages as usize].iter().eq(r.pages.iter().filter(|&&(i, _)| i < lo || i >= hi)));
         assert_eq!((self.sites, self.nsites), (r.sites.as_ptr(), r.sites.len() as u32));
@@ -190,6 +191,8 @@ struct Region {
     /// tails-s1: credit-short exits per target chunk while counting; empty once the copies
     /// are chosen, so a region is regenerated at most once per formation.
     short: Vec<u32>,
+    /// tails-s2: dispatch index of each chunk's guarded copy, or 0.
+    copies: Vec<u32>,
 }
 // Compiled instructions own their backing storage, independently of the decoder arena.
 // A decoder flush invalidates every handle before reset may compact this cache.
@@ -637,12 +640,12 @@ unsafe fn run_inner<B: Bus>(
         .map(|m| (m.tlb, m.page_ver))
         .unwrap_or((NO_FAST_MEM.as_ptr(), std::ptr::null_mut()));
     let rec = &cc.recs[code as usize];
-    if entry == 0 && !cpu.blocks.observed {
+    if !cpu.blocks.observed {
         // EX136: the facts the checks below would fetch through the owning block, its region and
         // three of its vectors are cached in this block while no region has been dropped.
         // Read cached admission facts in place instead of copying the entire descriptor.
         // End the borrow before entering generated code or updating the cached descriptor.
-        let mut rejected = false;
+        let mut rejected;
         {
             // SAFETY: the only writer, the refill below, runs after this reference's scope.
             let hot = unsafe { &*rec.hot.as_ptr() };
@@ -657,16 +660,27 @@ unsafe fn run_inner<B: Bus>(
             // EX168 s1: `fits` false with current pages is a proven rejection: while the epoch holds,
             // the slow lookup below selects this same live chunk and fails the same budget/bloom test.
             let fits = budget >= hot.len && cpu.boundary_bloom & hot.bloom == 0;
-            if hot.epoch == cc.region_epoch.get() && hot.fepoch == stable.2
-                && (!fits || cpu.lcount == 0 || cpu.lend.wrapping_sub(hot.lo) > hot.span)
-            {
+            let unlooped = cpu.lcount == 0 || cpu.lend.wrapping_sub(hot.lo) > hot.span;
+            let live = hot.epoch == cc.region_epoch.get() && hot.fepoch == stable.2;
+            // tails-s2 (EX182 s2): a resume inside a chunk with a guarded copy enters the copy at
+            // `entry`, whose STOP cuts wherever the credit ends. A resume never forms or enters a
+            // region on the slow path below; that only re-stamps stale facts of a covered head.
+            let enter = if entry == 0 { !fits || unlooped } else { hot.copy != 0 && entry < hot.len && cpu.boundary_bloom & hot.bloom == 0 && unlooped };
+            rejected = entry != 0 && (live || {
+                let b = &cc.blocks[code as usize];
+                b.covered_by.get().0 == NONE && b.region.borrow().is_none()
+            });
+            if live && enter {
                 let pv = bus.page_versions();
                 if hot.pages[..hot.npages as usize].iter().all(|&(i, v)| pv.get(i as usize).copied().unwrap_or(0) == v) {
-                  if !fits { rejected = true; } else {
+                  if entry == 0 && !fits { rejected = true; } else {
                     // SAFETY: as for the region call below; the epoch proves slot and sites are live.
-                    let (slot, k, sites, nsites) = (hot.slot, hot.k, hot.sites, hot.nsites);
+                    let (slot, sites, nsites) = (hot.slot, hot.sites, hot.nsites);
+                    let param = if entry == 0 { hot.k } else { hot.copy | entry << 16 };
+                    #[cfg(feature = "wasm-jit-tests")]
+                    if entry != 0 { REGION_STATS[13].fetch_add(1, std::sync::atomic::Ordering::Relaxed); }
                     let f: Run<B> = unsafe { std::mem::transmute(slot as usize) };
-                    let mut result = f(cpu, bus, h, budget.min(0xffff), k, tlb, versions);
+                    let mut result = f(cpu, bus, h, budget.min(0xffff), param, tlb, versions);
                     // SAFETY: the epoch proves the owning region, and so this vector, is live.
                     let short = private_exit(&mut result, budget, cpu, unsafe { std::slice::from_raw_parts(sites, nsites as usize) });
                     let site = if (result >> 16) & 7 != CODE_REJECT {
@@ -715,7 +729,7 @@ unsafe fn run_inner<B: Bus>(
                 #[cfg(feature = "wasm-jit-tests")]
                 REGION_STATS[10].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 found
-            } else if b.region_tries.get() < REGION_TRIES {
+            } else if entry == 0 && b.region_tries.get() < REGION_TRIES {
                 b.region_tries.set(b.region_tries.get() + 1);
                 let formed = emitter::region::form(cpu, bus, b.pc, &b.instructions, b.fast).and_then(|f| {
                     let (bytes, sites) = emitter::region::generate(&f.chunks, &f.pages, &f.loops, b.fast, None);
@@ -724,6 +738,7 @@ unsafe fn run_inner<B: Bus>(
                     (slot != 0).then(|| Region {
                         lens: f.chunks.iter().map(|c| c.instructions.len() as u32).collect(),
                         short: vec![0; f.chunks.len()],
+                        copies: vec![0; f.chunks.len()],
                         chunks: f.chunks, slot, bytes: bytes.len(), bloom: f.bloom, lo: f.lo, hi: f.hi, loops: f.loops, pages: f.pages, sites,
                     })
                 });
@@ -766,7 +781,25 @@ unsafe fn run_inner<B: Bus>(
                     cc.region_stats.dropped.set(cc.region_stats.dropped.get() + 1);
                     #[cfg(feature = "wasm-jit-tests")]
                     REGION_STATS[9].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                } else if budget >= r.lens[k as usize]
+                } else {
+                // EX168 t3: facts stamped with the current epoch were copied from this same live
+                // (owner, chunk) and a region's facts never change: nothing to rewrite. tails-s2:
+                // stamped before the entry test, so a later resume finds them.
+                let (lo, hi, fepoch) = bus.stable_pages();
+                // SAFETY: a copied field; no reference into `hot` is live here.
+                let old = unsafe { ((*rec.hot.as_ptr()).epoch, (*rec.hot.as_ptr()).fepoch) };
+                if r.pages.len() <= emitter::region::MAX_PAGES && old != (cc.region_epoch.get(), fepoch) {
+                    // shell-s2: every page was compared just above; the pages the bus vouches for stay
+                    // current while its epoch holds, so only the others are compared from now on.
+                    let mut pages = [(0, 0); emitter::region::MAX_PAGES];
+                    let mut npages = 0;
+                    for &(i, v) in &r.pages { if i < lo || i >= hi { pages[npages] = (i, v); npages += 1; } }
+                    rec.hot.set(Hot { epoch: cc.region_epoch.get(), bloom: r.bloom, slot: r.slot, k, len: r.lens[k as usize], lo: r.lo,
+                        span: r.hi.wrapping_sub(r.lo), pages, npages: npages as u32, nsites: r.sites.len() as u32, sites: r.sites.as_ptr(),
+                        copy: r.copies[k as usize], fepoch });
+                }
+                if entry == 0
+                    && budget >= r.lens[k as usize]
                     && cpu.boundary_bloom & r.bloom == 0
                     && (cpu.lcount == 0
                         || cpu.lend.wrapping_sub(r.lo) > r.hi.wrapping_sub(r.lo)
@@ -775,20 +808,6 @@ unsafe fn run_inner<B: Bus>(
                     // SAFETY: the region was installed with the block signature; its
                     // entry parameter is the chunk index.
                     let f: Run<B> = unsafe { std::mem::transmute(r.slot as usize) };
-                    // EX168 t3: facts stamped with the current epoch were copied from this same live
-                    // (owner, chunk) and a region's facts never change: nothing to rewrite.
-                    let (lo, hi, fepoch) = bus.stable_pages();
-                    // SAFETY: a copied field; no reference into `hot` is live here.
-                    let old = unsafe { ((*rec.hot.as_ptr()).epoch, (*rec.hot.as_ptr()).fepoch) };
-                    if r.pages.len() <= emitter::region::MAX_PAGES && old != (cc.region_epoch.get(), fepoch) {
-                        // shell-s2: every page was compared just above; the pages the bus vouches for stay
-                        // current while its epoch holds, so only the others are compared from now on.
-                        let mut pages = [(0, 0); emitter::region::MAX_PAGES];
-                        let mut npages = 0;
-                        for &(i, v) in &r.pages { if i < lo || i >= hi { pages[npages] = (i, v); npages += 1; } }
-                        rec.hot.set(Hot { epoch: cc.region_epoch.get(), bloom: r.bloom, slot: r.slot, k, len: r.lens[k as usize], lo: r.lo,
-                            span: r.hi.wrapping_sub(r.lo), pages, npages: npages as u32, nsites: r.sites.len() as u32, sites: r.sites.as_ptr(), fepoch });
-                    }
                     #[cfg(any(debug_assertions, feature = "wasm-jit-tests"))]
                     unsafe { &*rec.hot.as_ptr() }.assert_matches(r, k, (lo, hi, fepoch));
                     let mut result = f(cpu, bus, h, budget.min(0xffff), k, tlb, versions);
@@ -809,6 +828,7 @@ unsafe fn run_inner<B: Bus>(
                         crate::block::note_sequential(cpu, site_pc(site));
                         return result & 0x7ffff;
                     }
+                }
                 }
             }
         }
@@ -857,11 +877,12 @@ fn note_short(cc: &CodeCache, code: u32, slot: u32, target: u32) {
     r.short.clear();
     if hot.is_empty() { return; }
     let (bytes, sites) = emitter::region::generate(&r.chunks, &r.pages, &r.loops, rb.fast, Some(&hot));
+    let copies = emitter::region::copy_indices(&r.chunks, &hot).iter().map(|c| c.unwrap_or(0)).collect();
     // SAFETY: as for ready(): the host copies and installs the module; the old one is not running.
     let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
     if slot == 0 { return; }
     unsafe { host_jit_release(r.slot) };
-    (r.slot, r.bytes, r.sites) = (slot, bytes.len(), sites);
+    (r.slot, r.bytes, r.sites, r.copies) = (slot, bytes.len(), sites, copies);
     cc.region_epoch.set(cc.region_epoch.get() + 1);
     #[cfg(feature = "wasm-jit-profile")]
     {

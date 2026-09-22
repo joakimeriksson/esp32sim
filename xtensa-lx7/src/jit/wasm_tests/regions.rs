@@ -156,6 +156,36 @@ pub(super) fn regions() -> u32 {
                 }
             }
         }
+        // tails-s2: resume at every index of every copied chunk. The entry parameter carries the
+        // copy's dispatch index and the index to start at; no store lands in the region's own
+        // pages, so with every chunk copied the whole credit is spent inside one call.
+        for (entry, copy) in copies.map(|c| emitter::region::copy_indices(&formed.chunks, c)).unwrap_or_default().into_iter().enumerate() {
+            let Some(copy) = copy else { continue };
+            let mut pc = formed.chunks[entry].pc;
+            for (idx, bi) in formed.chunks[entry].instructions.iter().enumerate() {
+                for budget in [1u32, 2, 7, 63].into_iter().filter(|_| idx > 0) {
+                    let (mut a, mut b) = (cpu(0), cpu(0));
+                    let (mut ra, mut rb) = (Ram::new(true, false), Ram::new(true, false));
+                    for r in [&mut ra, &mut rb] { r.ram.mem[..large.len()].copy_from_slice(&large); }
+                    for c in [&mut a, &mut b] { c.pc = pc; c.ps = 0; c.set_ar(3, 0x42); c.set_ar(4, BASE + 0x2000); }
+                    CONTEXT.with(|c| *c.borrow_mut() = format!("large region resume {entry}:{idx} budget {budget}"));
+                    let fm = rb.fast_mem().unwrap();
+                    let result = f(&mut b, &mut rb, &Helpers::new::<Ram>(), budget, copy | ((idx as u32) << 16), fm.tlb, fm.page_ver);
+                    let done = result & 0xffff;
+                    assert!(done > 0 && done <= budget);
+                    if copies.is_some_and(|c| c.len() == 40) { assert_eq!(done, budget); }
+                    for _ in 0..done {
+                        let i = crate::decode::decode(a.pc, ra.fetch(a.pc).unwrap());
+                        exec_insn(&mut a, &mut ra, &i).unwrap();
+                    }
+                    same(&a, &b);
+                    assert_eq!(ra.ram.mem, rb.ram.mem);
+                    assert_eq!(ra.versions, rb.versions);
+                    cases += 1;
+                }
+                pc = pc.wrapping_add(bi.insn.len as u32);
+            }
+        }
         unsafe { host_jit_release(slot) };
         }
     }
@@ -693,6 +723,8 @@ pub(super) fn regions() -> u32 {
     assert!(emitter::region::form(&c, &mut ram, BASE + 38, &head, true).is_none(), "RSR head");
     // tails-s1: the region programs above choose guarded copies and run through them.
     assert!(REGION_STATS[12].load(std::sync::atomic::Ordering::Relaxed) > 20, "too few regions chose guarded copies");
+    // tails-s2: and resume inside them.
+    assert!(REGION_STATS[13].load(std::sync::atomic::Ordering::Relaxed) > 200, "too few resumes into guarded copies: {}", REGION_STATS[13].load(std::sync::atomic::Ordering::Relaxed));
     cases + 2 + prev_page_store() + forward_edges() + self_loops() + outside_loops() + jx_literal() + deferred_in_guarded_copy()
 }
 
@@ -865,6 +897,11 @@ fn jx_literal() -> u32 {
         let head: Vec<BlockInsn> = (0..2).scan(BASE + 256, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, straddle: false, off: 0 }) }).collect();
         let formed = emitter::region::form(&cpu(0), &mut ram, BASE + 256, &head, true).expect("jx literal region");
         assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.jx)).collect::<Vec<_>>(), vec![(256, Some(a)), (262, None)]);
+        // x6 integrate: a tails guarded copy of the trampoline chunk keeps its own prediction
+        // (the copies are emitted after the last chunk, whose target is None).
+        let edges = emitter::region::JX_EDGES.load(std::sync::atomic::Ordering::Relaxed);
+        emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, true, Some(&[0]));
+        assert_eq!(emitter::region::JX_EDGES.load(std::sync::atomic::Ordering::Relaxed), edges + 2, "the guarded copy lost its JX edge");
     }
     let before = emitter::region::JX_EDGES.load(std::sync::atomic::Ordering::Relaxed);
     region_program("jx-literal", &p, &shape, &[], 2, 262, move |c| {

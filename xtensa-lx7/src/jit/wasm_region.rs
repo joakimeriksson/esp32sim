@@ -280,6 +280,8 @@ pub(super) fn region_edge(g: &mut Gen, target: u32, direct: bool) {
                 g.get(DONE);
                 g.op(0x6b);
                 g.set(STOP);
+                g.c(0); // tails-s2: enter the copy at its head, not at this call's resume index
+                g.set(4);
                 g.c(label);
                 g.set(NEXT);
                 let back = g.depth() - loop_depth;
@@ -348,6 +350,14 @@ pub(super) fn region_edge(g: &mut Gen, target: u32, direct: bool) {
     }
 }
 
+/// tails-s1: dispatch index of each chunk's guarded copy for the chosen chunks: after the ordinary
+/// chunks, in chunk order. A chunk of one instruction is never entered short of credit (r < 1
+/// means r = 0) nor resumed at a later index, and gets none.
+pub(in crate::jit) fn copy_indices(chunks: &[Chunk], copies: &[usize]) -> Vec<Option<u32>> {
+    let mut n = chunks.len() as u32;
+    chunks.iter().enumerate().map(|(k, c)| (c.instructions.len() > 1 && copies.contains(&k)).then(|| { n += 1; n - 1 })).collect()
+}
+
 /// `copies`: the chunks given a guarded copy (tails-s1), or `None` for a fresh region that
 /// reports its credit-short exits as CODE_SHORT so the dispatcher can choose them.
 pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_loops: &[(u32, u32)], fast: bool, copies: Option<&[usize]>) -> (Vec<u8>, Vec<ExitSite>) {
@@ -374,10 +384,9 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
     // Forward labels use the head count; the dispatch nesting uses the chunk count.
     assert_eq!(heads.len(), chunks.len(), "region chunk heads must be unique");
     let loops = formed_loops.iter().copied().collect();
-    // tails-s1: copies are dispatched after the ordinary chunks, in chunk order. A chunk of one
-    // instruction is never entered short of credit (r < 1 means r = 0) and gets none.
-    let mut n = chunks.len();
-    let copies = copies.map(|c| chunks.iter().enumerate().map(|(k, ch)| (ch.instructions.len() > 1 && c.contains(&k)).then(|| { n += 1; n as u32 - 1 })).collect::<Vec<_>>());
+    let copies = copies.map(|c| copy_indices(chunks, c));
+    let ncopies = copies.iter().flatten().flatten().count();
+    let n = chunks.len() + ncopies;
     let mut g = Gen {
         loaded: registers,
         written,
@@ -424,6 +433,25 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
     g.c(0);
     g.set(DIRTY);
     g.get(4); // the entry chunk
+    if ncopies > 0 {
+        // tails-s2 (EX182 s2): the entry holds the dispatch index in its low half and, for a
+        // resume into a guarded copy, the instruction index in its high half. DONE counts from
+        // minus that index, so DONE plus a body's static index is the retired count, and STOP
+        // cuts the copy where the credit runs out. Both are zero for an ordinary chunk entry.
+        g.c(0xffff);
+        g.op(0x71);
+        g.get(4);
+        g.c(16);
+        g.op(0x76);
+        g.tee(4);
+        g.get(3);
+        g.op(0x6a);
+        g.set(STOP);
+        g.c(0);
+        g.get(4);
+        g.op(0x6b);
+        g.set(DONE);
+    }
     g.set(NEXT);
     g.begin_loop();
     let loop_depth = g.depth();
@@ -460,9 +488,9 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
             g.end();
         }
     }
-    // tails-s1: the guarded copies (EX156's form). Entered at index 0 with STOP = the remaining
-    // credit, a copy retires the quantum's tail and cuts between instructions; reaching the
-    // chunk end takes the ordinary edges. Every cut shares one spill-and-return (EX182 s3).
+    // tails-s1: the guarded copies (EX156's form). Entered with STOP = the remaining credit, a
+    // copy retires the quantum's tail and cuts between instructions; reaching the chunk end takes
+    // the ordinary edges. Every cut shares one spill-and-return (EX182 s3).
     let copied: Vec<usize> = g.region.as_ref().unwrap().copies.iter().flatten().enumerate().filter_map(|(k, c)| c.map(|_| k)).collect();
     for k in copied {
         let chunk = &chunks[k];
@@ -470,8 +498,16 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
         g.pending = 0;
         g.begin_block();
         g.cut_target = Some(g.depth());
-        for _ in 0..chunk.instructions.len() {
+        let len = chunk.instructions.len();
+        for _ in 0..len {
             g.begin_block();
+        }
+        // tails-s2: a credit-short edge enters at index 0, a resume at its entry index.
+        g.get(4);
+        g.op(0x0e);
+        uleb(&mut g.bytes, len - 1);
+        for i in 0..len {
+            uleb(&mut g.bytes, i);
         }
         {
             let r = g.region.as_mut().unwrap();
