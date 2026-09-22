@@ -55,7 +55,6 @@ fn compiled_access(opcode: u8, op: Op) -> (Cpu, MemoryBus) {
         vbase: 1, writable: 1, off: 0, src: 0,
         // EX110: decoded code depends on this mapping, so generated stores bump its versions.
         code: 1,
-        span: 0,
     }
     .with_span();
     let mut cpu = Cpu::new(0);

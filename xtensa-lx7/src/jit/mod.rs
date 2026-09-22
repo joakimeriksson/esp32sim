@@ -224,7 +224,6 @@ mod native {
     const TLB_BASE: u32 = std::mem::offset_of!(TlbEntry, base) as u32;
     const TLB_VBASE: u32 = std::mem::offset_of!(TlbEntry, vbase) as u32;
     const TLB_WRITABLE: u32 = std::mem::offset_of!(TlbEntry, writable) as u32;
-    const TLB_CODE: u32 = std::mem::offset_of!(TlbEntry, code) as u32;
     // Generated instructions require power-of-two indexing and encodable shifts/offsets.
     const _: () = {
         assert!(TLB_ENTRIES.is_power_of_two() && TLB_INDEX_BITS > 0 && TLB_INDEX_BITS < 32);
@@ -235,7 +234,6 @@ mod native {
         assert!(TLB_BASE.is_multiple_of(8) && TLB_BASE < 32768);
         assert!(TLB_VBASE.is_multiple_of(4) && TLB_VBASE < 16384);
         assert!(TLB_WRITABLE.is_multiple_of(2) && TLB_WRITABLE < 8192);
-        assert!(TLB_CODE.is_multiple_of(2) && TLB_CODE < 8192);
     };
 
     const CPU: Reg = 19; const BUS: Reg = 20; const AR: Reg = 21; const WB4: Reg = 22; const LEFT: Reg = 23;
@@ -459,12 +457,10 @@ mod native {
                         // and not its first three bytes (an instruction may straddle into it)
                         g.a.and_mask(13, 10, VPAGE_SHIFT, 0); g.a.sub_imm(13, 13, 3); g.a.cmp_imm(13, (1 << VPAGE_SHIFT) - 3 - size); g.a.b_cond(Cond::Hi, slow);
                         match i.op { S8i => g.a.strb_u(2, 12, 10), S16i => g.a.strh_u(2, 12, 10), _ => g.a.str_u(2, 12, 10) }
-                        // EX110: no decoded consumer depends on any page this mapping could bump.
-                        let nobump = g.a.label();
-                        g.a.ldrh(11, 9, TLB_CODE); g.a.cbz(11, nobump);
+                        // Retain unconditional native version bumps; watched-code gating is
+                        // used by the WASM backend.
                         g.a.ldr(11, 9, TLB_VBASE); g.a.add_lsr(11, 11, 10, VPAGE_SHIFT);
                         g.a.ldr_idx(13, PVER, 11); g.a.add_imm(13, 13, 1); g.a.str_idx(13, PVER, 11);
-                        g.a.bind(nobump);
                         g.a.movz(12, 0, 0);
                         g.a.b(done);
                     } else { g.a.b(slow); }
