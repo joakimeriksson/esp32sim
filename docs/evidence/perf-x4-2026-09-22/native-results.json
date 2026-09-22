@@ -1,0 +1,268 @@
+{
+  "status": "Final-source comparisons complete; see README for interpretation.",
+  "experiment": "EX027 / EX110 / EX171 / EX173",
+  "baselineRevision": "988eef3066c670aec7debc6613cdf8fc96a30432",
+  "originalCandidateRevision": "8cbe0da483d061e1d008021b913f2c385a93ae65",
+  "shippingRevision": "3d81936a8d453b9930b2f4cc7fec414799824081",
+  "shippingWorkspaceSources": {
+    "files": 201,
+    "sourceSha256": "060be87916fa0ec26403f88cbfba55ab2abd18ae703d9af8aa0fcdddaf74cfbb"
+  },
+  "host": {
+    "cpu": "Apple M3 Pro",
+    "cores": 12,
+    "memoryBytes": 38654705664,
+    "macOS": "27.0",
+    "rustc": "1.98.1 (48a229cea 2026-09-01)",
+    "target": "aarch64-apple-darwin",
+    "node": "24.16.0"
+  },
+  "build": "cargo build --locked --release -j 8 -p esp32sim --bin esp32sim; RUSTUP_TOOLCHAIN=1.98.1; RUSTFLAGS and CARGO_ENCODED_RUSTFLAGS unset",
+  "measurement": "Serial alternating arm order; process lifetime; no ESP32SIM_* or ESP_EMU_* runtime overrides. No independent frame/audio comparison. Final panel preceded by a warm-up pair retained below. Attempts named contended overlapped an x5 browser benchmark and are not usable for performance conclusions. Detailed captures remain local.",
+  "curation": "Home paths normalized; binary paths omitted. Equal work/output checks and per-arm JIT lines deduplicated after equality checks. Numeric samples unchanged. Original summary hashes identify retained local receipts.",
+  "workloads": {
+    "pocket-tank": {
+      "args": [
+        "--rom",
+        "/Users/alice/bench/esp32sim/x4-native/../assets/pocket-tank/rom.elf",
+        "--board",
+        "waveshare-amoled18-v2",
+        "--boot",
+        "rom",
+        "--no-dump",
+        "--console",
+        "uart0",
+        "--flash-mb",
+        "16",
+        "--psram-mb",
+        "8",
+        "--bootloader",
+        "/Users/alice/bench/esp32sim/x4-native/../assets/pocket-tank/bootloader.bin",
+        "--ptable",
+        "/Users/alice/bench/esp32sim/x4-native/../assets/pocket-tank/ptable.bin",
+        "--app",
+        "/Users/alice/bench/esp32sim/x4-native/../assets/pocket-tank/app.bin",
+        "--flash-at",
+        "0x290000=/Users/alice/bench/esp32sim/x4-native/../assets/pocket-tank/model.bin",
+        "--max-seconds",
+        "30"
+      ],
+      "inputs": {
+        "rom.elf": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+        "bootloader.bin": "9556d59f3a10f6b04fa6d75f3142a66034339afafffbd4bbc3d9a127eaa73859",
+        "ptable.bin": "7af5b28608c91167e00778b7f20622f3b47849efebeb3e64117162d73f3e0508",
+        "app.bin": "443dd24aed14a509e6df597eb3a02635cc07e0fbee6f04db85a62f4d4dadb113",
+        "model.bin": "b200bf87c78dc85c4d727f68941ac0b83cced9827037cc169cd2122d71002c2a"
+      },
+      "coreInstructions": [
+        "4446180089",
+        "5627653686"
+      ],
+      "consoleSha256": "9e8a66e483f741c80db1bd20c62bc43943697c2e6a0053a6af1f7d52af8c67dd"
+    },
+    "panel": {
+      "args": [
+        "--rom",
+        "/Users/alice/bench/esp32sim/x4-native/../assets/pocket-tank/rom.elf",
+        "--board",
+        "waveshare-lcd4b",
+        "--boot",
+        "rom",
+        "--no-dump",
+        "--console",
+        "usb",
+        "--flash-mb",
+        "16",
+        "--psram-mb",
+        "8",
+        "--bootloader",
+        "/Users/alice/bench/esp32sim/x4-native/candidate/web/wasm/fw/public/panel-bootloader.bin",
+        "--ptable",
+        "/Users/alice/bench/esp32sim/x4-native/candidate/web/wasm/fw/public/panel-ptable.bin",
+        "--app",
+        "/Users/alice/bench/esp32sim/x4-native/candidate/web/wasm/fw/public/panel-demo.bin",
+        "--flash-at",
+        "0x610000=/Users/alice/bench/esp32sim/x4-native/candidate/web/wasm/fw/public/energydata.json",
+        "--script",
+        "/Users/alice/bench/esp32sim/x4-native/candidate/web/wasm/fw/public/panel-sid.txt",
+        "--max-seconds",
+        "7"
+      ],
+      "inputs": {
+        "rom.elf": "c0ce0f338d1de1bdc6efbef1591779a2a42c1ab7d759d3c6ae8ae63a7dd34cfd",
+        "panel-bootloader.bin": "f804e8ef245d68ee0932650062e8f4d6b14df22d61fb39ba50f5e33977127801",
+        "panel-ptable.bin": "fb462bc675bf6928afe8de87977f72c7dfce38491d32aa89a9204b6d4d5b1066",
+        "panel-demo.bin": "8094e4be95f8d92c7ce41fe1acbbecbcdb3b31725fc292a1eef63cfcc22cf5a0",
+        "energydata.json": "aa8d5326406a83aa254d953d16f18f644c0112d523ef2e2e66b3ab1add4ff0cb",
+        "panel-sid.txt": "bb6e0b1f1d5945265f0310f2a40b59b03602b257b412f52f649fc2c66823f420"
+      },
+      "coreInstructions": [
+        "260026792",
+        "136442769"
+      ],
+      "consoleSha256": "a77aaabb68350611617f518acdf4687b919906b7439ef327d816239c62b683d9"
+    }
+  },
+  "campaigns": [
+    {
+      "name": "pocket-tank",
+      "workload": "pocket-tank",
+      "pairs": 4,
+      "originalSummarySha256": "c0fef34ab762b74db5da1fd19da5d140e01a92f727c0691d4a1de5a01670af26",
+      "binarySha256": {
+        "baseline": "1220cbd0799199618c3d8af6e317b57acd2904d7269bec1a2929c43e25df8fd4",
+        "candidate": "dd0e015dbdecad9d8a8128b2c32a26418cd4ddf96f8e315fc4d52681bd9427c9"
+      },
+      "medianWallSeconds": {
+        "baseline": 47.2940181045,
+        "candidate": 47.94244227049998
+      },
+      "wallReductionPercent": -1.371049007862335,
+      "jitByArm": {
+        "baseline": "[emu] blocks: 25998 built (0 cache flushes) core0, 3200 (0) core1; jit: 29198 compiled, 29616 KB code",
+        "candidate": "[emu] blocks: 25998 built (0 cache flushes) core0, 3200 (0) core1; jit: 29198 compiled, 29693 KB code"
+      },
+      "rows": [
+        {"pair":1,"arm":"baseline","wallSeconds":46.536809083,"loadBefore":[2.19287109375,2.548828125,2.375]},
+        {"pair":1,"arm":"candidate","wallSeconds":49.030898417,"loadBefore":[1.81884765625,2.39794921875,2.3271484375]},
+        {"pair":2,"arm":"candidate","wallSeconds":47.997429665999995,"loadBefore":[2.39794921875,2.47802734375,2.359375]},
+        {"pair":2,"arm":"baseline","wallSeconds":47.421769583999996,"loadBefore":[1.73046875,2.279296875,2.291015625]},
+        {"pair":3,"arm":"baseline","wallSeconds":47.74598975000001,"loadBefore":[2.02978515625,2.2841796875,2.291015625]},
+        {"pair":3,"arm":"candidate","wallSeconds":47.88745487499997,"loadBefore":[1.7568359375,2.17529296875,2.248046875]},
+        {"pair":4,"arm":"candidate","wallSeconds":47.87587395800004,"loadBefore":[1.78369140625,2.119140625,2.22314453125]},
+        {"pair":4,"arm":"baseline","wallSeconds":47.16626662499999,"loadBefore":[1.6025390625,2.02099609375,2.17919921875]}
+      ]
+    },
+    {
+      "name": "panel",
+      "workload": "panel",
+      "pairs": 2,
+      "originalSummarySha256": "40b59b95acef723b6ffd0ef5d223f8cd529b0545394e02d147776280a8581360",
+      "binarySha256": {
+        "baseline": "1220cbd0799199618c3d8af6e317b57acd2904d7269bec1a2929c43e25df8fd4",
+        "candidate": "dd0e015dbdecad9d8a8128b2c32a26418cd4ddf96f8e315fc4d52681bd9427c9"
+      },
+      "medianWallSeconds": {
+        "baseline": 2.6529190420000006,
+        "candidate": 2.7120013955000006
+      },
+      "wallReductionPercent": -2.2270696001133405,
+      "jitByArm": {
+        "baseline": "[emu] blocks: 21269 built (0 cache flushes) core0, 10172 (0) core1; jit: 31441 compiled, 25602 KB code",
+        "candidate": "[emu] blocks: 21269 built (0 cache flushes) core0, 10172 (0) core1; jit: 31441 compiled, 25705 KB code"
+      },
+      "rows": [
+        {"pair":1,"arm":"baseline","wallSeconds":2.64925625,"loadBefore":[1.56591796875,1.94140625,2.14013671875]},
+        {"pair":1,"arm":"candidate","wallSeconds":2.710780208,"loadBefore":[1.5205078125,1.92529296875,2.13330078125]},
+        {"pair":2,"arm":"candidate","wallSeconds":2.7132225830000007,"loadBefore":[1.5205078125,1.92529296875,2.13330078125]},
+        {"pair":2,"arm":"baseline","wallSeconds":2.6565818340000007,"loadBefore":[1.55859375,1.92626953125,2.13232421875]}
+      ]
+    },
+    {
+      "name": "pocket-tank-shipping-exclusive",
+      "workload": "pocket-tank",
+      "pairs": 2,
+      "originalSummarySha256": "84febd864e602379497a1cdf028c826e10e1d4f7ba01e934784ec838f8497d1f",
+      "binarySha256": {
+        "baseline": "1220cbd0799199618c3d8af6e317b57acd2904d7269bec1a2929c43e25df8fd4",
+        "candidate": "b67f04528faf08e50ca0e5a713420c883bdccf92e49795e00258cc7855bd828e"
+      },
+      "medianWallSeconds": {
+        "baseline": 46.479093604,
+        "candidate": 46.18796235449999
+      },
+      "wallReductionPercent": 0.6263703246462526,
+      "jitByArm": {
+        "baseline": "[emu] blocks: 25998 built (0 cache flushes) core0, 3200 (0) core1; jit: 29198 compiled, 29616 KB code",
+        "candidate": "[emu] blocks: 25998 built (0 cache flushes) core0, 3200 (0) core1; jit: 29198 compiled, 29616 KB code"
+      },
+      "rows": [
+        {"pair":1,"arm":"baseline","wallSeconds":45.924409333,"loadBefore":[2.27685546875,2.01953125,1.912109375]},
+        {"pair":1,"arm":"candidate","wallSeconds":46.27431858399999,"loadBefore":[1.9521484375,1.9677734375,1.89892578125]},
+        {"pair":2,"arm":"candidate","wallSeconds":46.10160612499999,"loadBefore":[2.06640625,2,1.9140625]},
+        {"pair":2,"arm":"baseline","wallSeconds":47.033777875,"loadBefore":[1.6376953125,1.890625,1.87744140625]}
+      ]
+    },
+    {
+      "name": "panel-native-bridge",
+      "workload": "panel",
+      "pairs": 4,
+      "originalSummarySha256": "4fa6718494ce2f6a0736a81ee3ff665c1c838d4775168676cd85aa7cb6610f45",
+      "binarySha256": {
+        "baseline": "1220cbd0799199618c3d8af6e317b57acd2904d7269bec1a2929c43e25df8fd4",
+        "candidate": "b67f04528faf08e50ca0e5a713420c883bdccf92e49795e00258cc7855bd828e"
+      },
+      "medianWallSeconds": {
+        "baseline": 2.6557017289999996,
+        "candidate": 2.662240292
+      },
+      "wallReductionPercent": -0.2462084852602242,
+      "jitByArm": {
+        "baseline": "[emu] blocks: 21269 built (0 cache flushes) core0, 10172 (0) core1; jit: 31441 compiled, 25602 KB code",
+        "candidate": "[emu] blocks: 21269 built (0 cache flushes) core0, 10172 (0) core1; jit: 31441 compiled, 25602 KB code"
+      },
+      "rows": [
+        {"pair":1,"arm":"baseline","wallSeconds":2.651183791,"loadBefore":[1.3671875,1.6455078125,1.80517578125]},
+        {"pair":1,"arm":"candidate","wallSeconds":2.6631100840000004,"loadBefore":[1.33740234375,1.634765625,1.80029296875]},
+        {"pair":2,"arm":"candidate","wallSeconds":2.6613705,"loadBefore":[1.33740234375,1.634765625,1.80029296875]},
+        {"pair":2,"arm":"baseline","wallSeconds":2.6511165830000007,"loadBefore":[1.31005859375,1.6240234375,1.79541015625]},
+        {"pair":3,"arm":"baseline","wallSeconds":2.6602196669999993,"loadBefore":[1.31005859375,1.6240234375,1.79541015625]},
+        {"pair":3,"arm":"candidate","wallSeconds":2.6594122079999996,"loadBefore":[1.28515625,1.61328125,1.79052734375]},
+        {"pair":4,"arm":"candidate","wallSeconds":2.667824749999998,"loadBefore":[1.28515625,1.61328125,1.79052734375]},
+        {"pair":4,"arm":"baseline","wallSeconds":2.6658707920000015,"loadBefore":[1.42236328125,1.63623046875,1.79736328125]}
+      ]
+    },
+    {
+      "name": "panel-control-exclusive",
+      "workload": "panel",
+      "pairs": 4,
+      "originalSummarySha256": "183a81e938a39d9b3baf2d3f392c804f634a0c48420d1356eaf2c6fac9ce7c94",
+      "binarySha256": {
+        "baseline": "1220cbd0799199618c3d8af6e317b57acd2904d7269bec1a2929c43e25df8fd4",
+        "candidate": "1220cbd0799199618c3d8af6e317b57acd2904d7269bec1a2929c43e25df8fd4"
+      },
+      "medianWallSeconds": {
+        "baseline": 2.5999444169999992,
+        "candidate": 2.6003555
+      },
+      "wallReductionPercent": -0.01581122262894752,
+      "jitByArm": {
+        "baseline": "[emu] blocks: 21269 built (0 cache flushes) core0, 10172 (0) core1; jit: 31441 compiled, 25602 KB code",
+        "candidate": "[emu] blocks: 21269 built (0 cache flushes) core0, 10172 (0) core1; jit: 31441 compiled, 25602 KB code"
+      },
+      "rows": [
+        {"pair":1,"arm":"baseline","wallSeconds":2.599790834,"loadBefore":[1.77294921875,1.89013671875,1.87646484375]},
+        {"pair":1,"arm":"candidate","wallSeconds":2.588471125,"loadBefore":[1.77294921875,1.89013671875,1.87646484375]},
+        {"pair":2,"arm":"candidate","wallSeconds":2.6028648750000003,"loadBefore":[1.951171875,1.9248046875,1.888671875]},
+        {"pair":2,"arm":"baseline","wallSeconds":2.5977803330000007,"loadBefore":[1.951171875,1.9248046875,1.888671875]},
+        {"pair":3,"arm":"baseline","wallSeconds":2.6055564579999992,"loadBefore":[1.955078125,1.92578125,1.88916015625]},
+        {"pair":3,"arm":"candidate","wallSeconds":2.5978461250000002,"loadBefore":[1.955078125,1.92578125,1.88916015625]},
+        {"pair":4,"arm":"candidate","wallSeconds":2.666204167000002,"loadBefore":[1.87841796875,1.91015625,1.8837890625]},
+        {"pair":4,"arm":"baseline","wallSeconds":2.6000979999999982,"loadBefore":[1.87841796875,1.91015625,1.8837890625]}
+      ]
+    }
+  ],
+  "attempts": [
+    {"name":"pocket-tank-native32","pairs":2,"medianWallSeconds":{"baseline":47.37957724999998,"candidate":48.26232193800001},"wallReductionPercent":-1.8631333144704776,"candidateSha256":"51fe55ea20970db2b087b40083f3b222ed853da12cbab10d5ef2caf611c15df1","originalSummarySha256":"9f3e02269f4c5c150a3024fb9ff52e2768b175b684f5d54d5c190c552a9fef94"},
+    {"name":"panel-native32","pairs":2,"medianWallSeconds":{"baseline":2.6568348749999995,"candidate":2.7356866459999996},"wallReductionPercent":-2.9678837680870096,"candidateSha256":"51fe55ea20970db2b087b40083f3b222ed853da12cbab10d5ef2caf611c15df1","originalSummarySha256":"a3c67de6adce411b73d55a388ffb04730fa91d780f7170a0a6596fae97480905"},
+    {"name":"pocket-tank-native-store","pairs":2,"medianWallSeconds":{"baseline":47.309302021,"candidate":48.182869792},"wallReductionPercent":-1.8465031900327666,"candidateSha256":"4b287b093b46b842f7d45474a547d253e9167da26e5e535da0059f5fca5bdd2d","originalSummarySha256":"b7d33355b0be0f84068983f095d41bcb4f6c8334fd2dc20d13c18c8d0e8d57dd"},
+    {"name":"panel-native-store","pairs":2,"medianWallSeconds":{"baseline":2.6502212295000005,"candidate":2.723805937},"wallReductionPercent":-2.776549620873814,"candidateSha256":"4b287b093b46b842f7d45474a547d253e9167da26e5e535da0059f5fca5bdd2d","originalSummarySha256":"77da07a2bb6eeca454805ab5869e166a01f8deffc338a6002920d109677c03fb"},
+    {"name":"pocket-tank-pre-rounds","pairs":1,"medianWallSeconds":{"baseline":47.311689165999994,"candidate":48.161474790999996},"wallReductionPercent":-1.7961430673472778,"candidateSha256":"221294362cf3c379ea957bbc94be9e3515e29ff912c0391adf870892221dae3c","originalSummarySha256":"3cab84ad8c85e1ec8bbdca2bbf35001dc78ad0e6f6e8f8866b6c357c5c45276f"},
+    {"name":"panel-pre-rounds","pairs":1,"medianWallSeconds":{"baseline":2.779912208,"candidate":2.7762389589999996},"wallReductionPercent":0.1321354318107426,"candidateSha256":"221294362cf3c379ea957bbc94be9e3515e29ff912c0391adf870892221dae3c","originalSummarySha256":"8a963dfecf4d21d54ae27f8404c7bb7b815e5c6c23e677673bae6f31cbdaf125"},
+    {"name":"pocket-tank-native-align","pairs":2,"medianWallSeconds":{"baseline":47.224481854000004,"candidate":47.6773118335},"wallReductionPercent":-0.9588881904516677,"candidateSha256":"2c2be9687bb06209c9084b3e970ca4e4ace61ee648742c229f111293e6b141f4","originalSummarySha256":"e25936b655e1064ea4116db154c4fb50e5df0651694dcb37fb763c903011a7ba"},
+    {"name":"panel-native-align","pairs":2,"medianWallSeconds":{"baseline":2.6621370215,"candidate":2.6987220415},"wallReductionPercent":-1.3742726127367266,"candidateSha256":"2c2be9687bb06209c9084b3e970ca4e4ace61ee648742c229f111293e6b141f4","originalSummarySha256":"c77bf6829337424e5d49d4bb3cc9b88c6718116f8f8b27b3c0e41e36948979fd"},
+    {"name":"panel-inchain","pairs":2,"medianWallSeconds":{"baseline":2.6768087705000005,"candidate":2.8406342710000008},"wallReductionPercent":-6.120179457922181,"candidateSha256":"4a1019675b54ae94d17b499e78b057e36c9b94bf375ca1a32cf8c924db58c79c","originalSummarySha256":"9c85af053302951c6b6d9b8c73e6296d741abaa7be793842ae58d558535734c3"},
+    {"name":"panel-inchain-warm","pairs":2,"medianWallSeconds":{"baseline":2.6572363125000003,"candidate":2.6786976665000006},"wallReductionPercent":-0.807656959188896,"candidateSha256":"4a1019675b54ae94d17b499e78b057e36c9b94bf375ca1a32cf8c924db58c79c","originalSummarySha256":"d71642208b2a0de8bda286b270517cf6cb4c980e53a70b6a67891393e6b589aa"},
+    {"name":"panel-dispatch-warmup","pairs":1,"medianWallSeconds":{"baseline":2.6527941669999997,"candidate":2.918660375},"wallReductionPercent":-10.022119744807178,"candidateSha256":"265e2e09b8316436d9a9140a6360ac24fdc8413804ad0ff216e7ed88d809035a","originalSummarySha256":"313c614783bb6be726854e3648571ed6105ef1e4886b3e179730cb6c02431521"},
+    {"name":"panel-dispatch","pairs":2,"medianWallSeconds":{"baseline":2.6618403749999997,"candidate":2.6053807289999997},"wallReductionPercent":2.121075573511799,"candidateSha256":"265e2e09b8316436d9a9140a6360ac24fdc8413804ad0ff216e7ed88d809035a","originalSummarySha256":"0589540453c7ad188d764b28557d682591e21e57a92c3a1b24b48e1a62371a15"},
+    {"name":"panel-native-decoded-warmup","pairs":1,"medianWallSeconds":{"baseline":2.660488625,"candidate":3.0184988749999997},"wallReductionPercent":-13.456560070802759,"candidateSha256":"b984f6864513af4b34de1d0e517ac181be4f0870bd01d0b89248d7b488e24b4e","originalSummarySha256":"38b8658aa2e0dfd8ebb620ac99a95847f50fbe2e9e110ea4d8c0ab273327f890"},
+    {"name":"panel-native-decoded","pairs":2,"medianWallSeconds":{"baseline":2.6554238540000004,"candidate":2.7021475000000006},"wallReductionPercent":-1.7595551056611258,"candidateSha256":"b984f6864513af4b34de1d0e517ac181be4f0870bd01d0b89248d7b488e24b4e","originalSummarySha256":"5f29eacac04f033481d3cc5aff3360b4c9d50e7e89aa26a09e7710f4a99a4187"},
+    {"name":"panel-decoded-inline-warmup","pairs":1,"medianWallSeconds":{"baseline":2.664209708,"candidate":2.977259333},"wallReductionPercent":-11.750187083996622,"candidateSha256":"6e1a780af1e0c7aec9576cde97bd095ea45f41362b93609625a164ba6665cfe1","originalSummarySha256":"2595d8334993a0db8c78303af0e813e7b370a7fe2f83ce1b32c4a18acdc934f8"},
+    {"name":"panel-decoded-inline","pairs":2,"medianWallSeconds":{"baseline":2.66062125,"candidate":2.662861542},"wallReductionPercent":-0.08420183819848326,"candidateSha256":"6e1a780af1e0c7aec9576cde97bd095ea45f41362b93609625a164ba6665cfe1","originalSummarySha256":"448f855acc4b3dce75865cef84aaae92f31f54df41bca1786fb040836360c9c1"},
+    {"name":"pocket-tank-final","pairs":2,"medianWallSeconds":{"baseline":47.2451386875,"candidate":47.147046354000004},"wallReductionPercent":0.20762418361987,"candidateSha256":"6e1a780af1e0c7aec9576cde97bd095ea45f41362b93609625a164ba6665cfe1","originalSummarySha256":"d941d4bd8236059718740330bdde4438c719ad27d296ae5c7cf8041695f91960"},
+    {"name":"panel-final","pairs":4,"medianWallSeconds":{"baseline":2.6542669789999995,"candidate":2.6758342710000007},"wallReductionPercent":-0.8125517203294574,"candidateSha256":"6e1a780af1e0c7aec9576cde97bd095ea45f41362b93609625a164ba6665cfe1","originalSummarySha256":"a3b51e6f457e016fde646269d30f7d1cbac8da391fb7cd4d6d91c499d21739b7"},
+    {"name":"panel-native-bridge-warmup","pairs":1,"medianWallSeconds":{"baseline":2.6658965,"candidate":2.992225709},"wallReductionPercent":-12.240880656844698,"candidateSha256":"b67f04528faf08e50ca0e5a713420c883bdccf92e49795e00258cc7855bd828e","originalSummarySha256":"b3903b106d5e1183c19397ddf61c8e3f5d77ebbfa1a618f073f22e505f744e25"},
+    {"name":"pocket-tank-shipping-contended","pairs":2,"medianWallSeconds":{"baseline":49.12769160450001,"candidate":49.41271400000001},"wallReductionPercent":-0.5801664726984512,"candidateSha256":"b67f04528faf08e50ca0e5a713420c883bdccf92e49795e00258cc7855bd828e","originalSummarySha256":"1a8945072b10613f5319fbe9d0d17c39b62fea9c7602f3742a0825d20c73b820"},
+    {"name":"panel-control-contended","pairs":4,"medianWallSeconds":{"baseline":2.7973682085,"candidate":2.8453883955000006},"wallReductionPercent":-1.716620173707839,"candidateSha256":"1220cbd0799199618c3d8af6e317b57acd2904d7269bec1a2929c43e25df8fd4","originalSummarySha256":"cfd637e089fa1d11e3232f9e04722707b04b85d7a04b9ebd26b3e1f254355855"}
+  ]
+}
