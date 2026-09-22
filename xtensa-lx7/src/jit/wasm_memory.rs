@@ -1,14 +1,8 @@
 //! Shared scalar and PIE memory probes, version tracking and optional cache pricing.
 use super::*;
-use emu_core::bus::{TLB_ENTRIES, TLB_INDEX_SHIFT, TLB_XOR_SHIFT, VPAGE_SHIFT};
+use emu_core::bus::{PREV_PAGE_BYTES, TLB_ENTRIES, TLB_INDEX_SHIFT, TLB_XOR_SHIFT, VPAGE_SHIFT};
 
 const VPAGE_MASK: u32 = (1 << VPAGE_SHIFT) - 1;
-/// An instruction can begin up to three bytes before a page boundary and still keep bytes
-/// in it, because PIE encodings are four bytes long (`pie::decode`). A write into the first
-/// three bytes of a page therefore also changes instructions whose code page is the
-/// previous one, and the bus bumps that page as well (`esp32s3/src/bus.rs` `bump` and
-/// `note_written`, `esp32s3/src/bus/dma.rs` for the DMA run copy).
-const PREV_PAGE_BYTES: u32 = 3;
 
 /// log2 of one entry's size: scaling the hash into a byte offset folds into its shifts.
 const ENTRY_SHIFT: u32 = size_of::<TlbEntry>().ilog2();
@@ -222,6 +216,14 @@ pub(super) fn probe(g: &mut Gen, width: u32, store: bool) {
     }
 }
 
+/// x4 pack: `writable` and `code` are u16 fields.
+fn load16(g: &mut Gen, offset: usize) {
+    g.op(0x2f); // i32.load16_u
+    uleb(&mut g.bytes, 1);
+    uleb(&mut g.bytes, offset);
+}
+
+
 /// Match the interpreter's number of word writes, including version increments.
 ///
 /// EX110: a mapping whose `code` is zero has no decoded consumer for any page a version bump
@@ -237,13 +239,7 @@ pub(super) fn probe(g: &mut Gen, width: u32, store: bool) {
 /// `wasm_region.rs`; the decode cache records `pc + 3`, `exec.rs`), and `watch_code_page` marks
 /// the 64 KiB blocks containing the watched page and its neighboring pages, so watching `p - 1` alone
 /// already forces `code != 0` on any mapping covering `p`.
-/// x4 pack: `writable` and `code` are u16 fields.
-fn load16(g: &mut Gen, offset: usize) {
-    g.op(0x2f); // i32.load16_u
-    uleb(&mut g.bytes, 1);
-    uleb(&mut g.bytes, offset);
-}
-
+/// Clobbers TMP; it may finish pointing at the preceding version page.
 pub(super) fn record_store(g: &mut Gen, writes: u32) {
     g.get(TLB);
     load16(g, offset_of!(TlbEntry, code));

@@ -1,0 +1,86 @@
+[
+  {
+    "file": "x4/control-aa-1.json",
+    "originalSha256": "99af9bfa94cb8bb85902497506804cfc3b81f1c68f2b27c2f5c9f0fdcbb365b1",
+    "curatedSha256": "46c8356e35f4e0795b1699270f54784bea7b3cbab5b4c3a7ff70b09797e75b87",
+    "originalBytes": 13746,
+    "curatedBytes": 7685,
+    "omitted": [
+      "runs[].run",
+      "screeningOnly (when present)"
+    ],
+    "deduplicated": "runs[].provenance moved to provenanceByArm after checking equality within each arm"
+  },
+  {
+    "file": "x4/control-aa-td.json",
+    "originalSha256": "289fa744c67c637ca9490271d8f26b439adb02738b14b8c2d0b0cd7b770f5c84",
+    "curatedSha256": "682fa430ffcd1d1e0cbdacd0c7af464196713fe56dc3d90024cdcb97767b1749",
+    "originalBytes": 13715,
+    "curatedBytes": 7652,
+    "omitted": [
+      "runs[].run",
+      "screeningOnly (when present)"
+    ],
+    "deduplicated": "runs[].provenance moved to provenanceByArm after checking equality within each arm"
+  },
+  {
+    "file": "x4/everything-accx-k128-pack32.json",
+    "originalSha256": "6b31ebc99a69f34daa126eb8767433058593b6faeff868817de99a8bc1f02bc1",
+    "curatedSha256": "3b21c7ca1d00007775a567ad7bcc78fdaeaced750e59645d4c191d8462fe9439",
+    "originalBytes": 27385,
+    "curatedBytes": 9415,
+    "omitted": [
+      "runs[].run",
+      "screeningOnly (when present)"
+    ],
+    "deduplicated": "runs[].provenance moved to provenanceByArm after checking equality within each arm"
+  },
+  {
+    "file": "x4/everything-accx-k128-pack32-r2.json",
+    "originalSha256": "e0deef031775ca361f80d97fb52a17cf42b0d514f95427bdc1161d634735b6ea",
+    "curatedSha256": "a307cf0027f4b520e0b2df99720d20b255fb4dd83c88a3c08a4cc424e81d8c54",
+    "originalBytes": 27409,
+    "curatedBytes": 9418,
+    "omitted": [
+      "runs[].run",
+      "screeningOnly (when present)"
+    ],
+    "deduplicated": "runs[].provenance moved to provenanceByArm after checking equality within each arm"
+  },
+  {
+    "file": "x4/final-pack32-default128-td.json",
+    "originalSha256": "2f1ad6e815a5f216dedb67e48ecdfe85ea0ba4355d81ef395c96c04080631bc8",
+    "curatedSha256": "6b1493eda9c34d6feb27713667446f68a32c398bd429832a5bc823c56cb1bc56",
+    "originalBytes": 20532,
+    "curatedBytes": 8504,
+    "omitted": [
+      "runs[].run",
+      "screeningOnly (when present)"
+    ],
+    "deduplicated": "runs[].provenance moved to provenanceByArm after checking equality within each arm"
+  },
+  {
+    "file": "x4/probe-s1s2.json",
+    "originalSha256": "18bfed71ac308a5565d49e206478a0a95e8924e744d6dc187e52016b4c1af1b6",
+    "curatedSha256": "01cb9cf4182181eb2cf16ee09955b6055f536162bafc82001ad517447e654b48",
+    "originalBytes": 27251,
+    "curatedBytes": 9400,
+    "omitted": [
+      "runs[].run",
+      "screeningOnly (when present)"
+    ],
+    "deduplicated": "runs[].provenance moved to provenanceByArm after checking equality within each arm"
+  },
+  {
+    "file": "x4/storever-s1.json",
+    "originalSha256": "d1b53546ea7b1407f2982e2403e50d479a9cd4be015b74126f5082f31e300714",
+    "curatedSha256": "8e7d01ed5fab97e16ce4e94b290c1af5e67e7e09d6eeb43f2c7d8de15d37c56c",
+    "originalBytes": 27260,
+    "curatedBytes": 9402,
+    "omitted": [
+      "runs[].run",
+      "screeningOnly (when present)"
+    ],
+    "deduplicated": "runs[].provenance moved to provenanceByArm after checking equality within each arm"
+  }
+]
