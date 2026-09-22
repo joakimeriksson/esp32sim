@@ -66,7 +66,7 @@ impl Ram {
         for p in off / 256..=(off + n - 1) / 256 {
             self.versions[p as usize] += 1;
         }
-        if off & 255 < 3 && off >= 256 {
+        if off & 255 < emu_core::bus::PREV_PAGE_BYTES && off >= 256 {
             self.versions[(off / 256 - 1) as usize] += 1;
         }
     }

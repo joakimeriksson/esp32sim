@@ -141,6 +141,15 @@ struct Block {
 #[derive(Clone, Copy)]
 struct Hot { epoch: u64, bloom: u64, slot: u32, k: u32, len: u32, lo: u32, span: u32, pages: [(u32, u32); emitter::region::MAX_PAGES], npages: u32, nsites: u32, sites: *const ExitSite }
 impl Hot { const NONE: Hot = Hot { epoch: 0, bloom: 0, slot: 0, k: 0, len: 0, lo: 0, span: 0, pages: [(0, 0); emitter::region::MAX_PAGES], npages: 0, nsites: 0, sites: std::ptr::null() }; }
+#[cfg(any(debug_assertions, feature = "wasm-jit-tests"))]
+impl Hot {
+    fn assert_matches(&self, r: &Region, k: u32) {
+        assert_eq!((self.slot, self.k, self.len), (r.slot, k, r.lens[k as usize]));
+        assert_eq!((self.bloom, self.lo, self.span), (r.bloom, r.lo, r.hi.wrapping_sub(r.lo)));
+        assert_eq!(&self.pages[..self.npages as usize], r.pages.as_slice());
+        assert_eq!((self.sites, self.nsites), (r.sites.as_ptr(), r.sites.len() as u32));
+    }
+}
 /// Several chunks compiled as one function; see wasm_region.rs.
 struct Region {
     /// The generated code holds pointers to these instructions for its helper calls,
@@ -171,7 +180,9 @@ pub struct CodeCache {
     covered: RefCell<HashMap<u32, (u32, u32)>>,
     /// Advances whenever a previously absent PC might acquire a region.
     coverage_epoch: Cell<u64>,
-    /// EX136: moves on whenever a region is dropped or block indices change; never zero.
+    /// EX136: never zero; advance on drops, index changes or any change to a live block's
+    /// owning region/chunk. Live region facts are immutable and insertion must not replace
+    /// an existing owner: both rejection caching and skipped refills rely on this.
     region_epoch: Cell<u64>,
     #[cfg(feature = "wasm-jit-profile")]
     pub region_stats: RegionStats,
@@ -482,7 +493,8 @@ fn loop_len_at_head(cc: &CodeCache, code: u32, cpu: &Cpu) -> Option<usize> {
 ///
 /// # Safety
 /// `code` must be ready in this cache; `entry` must be its recorded instruction index.
-/// `h` must have been created for B. FastMem must describe this bus and remain valid.
+/// `h` must have been created for B and be undecorated (its cache pointer is null).
+/// FastMem must describe this bus and remain valid.
 #[cfg_attr(feature = "wasm-cpu-profile", inline(never))]
 pub unsafe fn run<B: Bus>(
     cc: &CodeCache,
@@ -579,6 +591,8 @@ unsafe fn run_inner<B: Bus>(
     #[cfg(feature = "wasm-cache-inline")]
     let hinted;
     #[cfg(feature = "wasm-cache-inline")]
+    debug_assert!(h.cache.is_null(), "run_inner requires an undecorated helper table");
+    #[cfg(feature = "wasm-cache-inline")]
     let h = if let Some(cache) = cache_view.as_ref() { hinted = Helpers { cache, ..*h }; &hinted } else { h };
     let (tlb, versions) = fm
         .map(|m| (m.tlb, m.page_ver))
@@ -592,6 +606,13 @@ unsafe fn run_inner<B: Bus>(
         let mut rejected = false;
         {
             let hot = b.hot.borrow();
+            #[cfg(any(debug_assertions, feature = "wasm-jit-tests"))]
+            if hot.epoch == cc.region_epoch.get() {
+                let (owner, k) = if b.region.borrow().is_some() { (code, 0) }
+                    else { *cc.covered.borrow().get(&b.pc).expect("live hot owner") };
+                let region = cc.blocks[owner as usize].region.borrow();
+                hot.assert_matches(region.as_ref().expect("live hot region"), k);
+            }
             // EX168 s1: `fits` false with current pages is a proven rejection: while the epoch holds,
             // the slow lookup below selects this same live chunk and fails the same budget/bloom test.
             let fits = budget >= hot.len && cpu.boundary_bloom & hot.bloom == 0;
@@ -717,6 +738,8 @@ unsafe fn run_inner<B: Bus>(
                         *b.hot.borrow_mut() = Hot { epoch: cc.region_epoch.get(), bloom: r.bloom, slot: r.slot, k, len: r.lens[k as usize], lo: r.lo,
                             span: r.hi.wrapping_sub(r.lo), pages, npages: r.pages.len() as u32, nsites: r.sites.len() as u32, sites: r.sites.as_ptr() };
                     }
+                    #[cfg(any(debug_assertions, feature = "wasm-jit-tests"))]
+                    b.hot.borrow().assert_matches(r, k);
                     let result = f(cpu, bus, h, budget.min(0xffff), k, tlb, versions);
                     let site = if (result >> 16) & 7 != CODE_REJECT {
                         assert!(((result >> 19) as usize) < r.sites.len(), "region {:x}: result {result:#x} sites {}", rb.pc, r.sites.len());

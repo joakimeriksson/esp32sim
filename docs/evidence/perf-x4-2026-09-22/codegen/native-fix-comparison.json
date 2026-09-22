@@ -1,0 +1,117 @@
+{
+  "beforeSha256": "9766e5164a94a318d63208b27078a4f2dab46a126bfec610fde3ba74c8645a5e",
+  "afterSha256": "df1941163acd52e1873079c55e47500808ed7bce94bb8ae83f52fe51f0c36ac9",
+  "beforeFunctions": 1356,
+  "afterFunctions": 1356,
+  "changedBodies": [],
+  "sections": [
+    {
+      "id": 1,
+      "beforeBytes": 446,
+      "afterBytes": 446,
+      "identical": true
+    },
+    {
+      "id": 2,
+      "beforeBytes": 62,
+      "afterBytes": 62,
+      "identical": true
+    },
+    {
+      "id": 3,
+      "beforeBytes": 1358,
+      "afterBytes": 1358,
+      "identical": true
+    },
+    {
+      "id": 4,
+      "beforeBytes": 5,
+      "afterBytes": 5,
+      "identical": true
+    },
+    {
+      "id": 5,
+      "beforeBytes": 3,
+      "afterBytes": 3,
+      "identical": true
+    },
+    {
+      "id": 6,
+      "beforeBytes": 9,
+      "afterBytes": 9,
+      "identical": true
+    },
+    {
+      "id": 7,
+      "beforeBytes": 1558,
+      "afterBytes": 1558,
+      "identical": true
+    },
+    {
+      "id": 9,
+      "beforeBytes": 962,
+      "afterBytes": 962,
+      "identical": true
+    },
+    {
+      "id": 10,
+      "beforeBytes": 2053126,
+      "afterBytes": 2053126,
+      "identical": true
+    },
+    {
+      "id": 11,
+      "beforeBytes": 101155,
+      "afterBytes": 101155,
+      "identical": false
+    },
+    {
+      "id": 0,
+      "beforeBytes": 10313,
+      "afterBytes": 10313,
+      "identical": true
+    },
+    {
+      "id": 0,
+      "beforeBytes": 4027337,
+      "afterBytes": 4027337,
+      "identical": false
+    },
+    {
+      "id": 0,
+      "beforeBytes": 943070,
+      "afterBytes": 943070,
+      "identical": true
+    },
+    {
+      "id": 0,
+      "beforeBytes": 3646745,
+      "afterBytes": 3646745,
+      "identical": true
+    },
+    {
+      "id": 0,
+      "beforeBytes": 2103433,
+      "afterBytes": 2103433,
+      "identical": false
+    },
+    {
+      "id": 0,
+      "beforeBytes": 139530,
+      "afterBytes": 139530,
+      "identical": true
+    },
+    {
+      "id": 0,
+      "beforeBytes": 77,
+      "afterBytes": 77,
+      "identical": true
+    },
+    {
+      "id": 0,
+      "beforeBytes": 148,
+      "afterBytes": 148,
+      "identical": true
+    }
+  ]
+}
