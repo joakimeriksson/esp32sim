@@ -29,7 +29,7 @@ jobs:
         run: cargo build --release --workspace
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: Clippy for the wasm32 JIT emitter and differential tests
+      - name: Clippy (WASM JIT and differential tests)
         run: cargo clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings
       - name: Test (hermetic + golden outputs)
         run: ESP32SIM_ROM_DIR=$PWD/roms cargo test --release --workspace -- --include-ignored --skip external_

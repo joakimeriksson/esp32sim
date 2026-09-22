@@ -1163,3 +1163,27 @@ fn gdma_m2m_productive_copy_resumes_after_work_budget() {
     assert!(!bus.periph.gdma.out[0].running);
     for i in 0..COUNT { assert_eq!(bus.read8(M2M_DST + i).unwrap(), i as u8); }
 }
+
+/// Pin the public bus contract independently of the differential test bus.
+#[test]
+fn cpu_store_versions_cover_instruction_overlap() {
+    for width in [1u32, 2, 4] {
+        for off in [0u32, 1, 2, 3, 252, 253, 254, 255] {
+            if off % width != 0 { continue; }
+            let mut bus = SocBus::new(1024, 1024, [0; 6]);
+            let addr = DRAM_LOW + 256 + off;
+            let page = bus.code_page(addr) as usize;
+            bus.note_code_page(page as u32);
+            let before = bus.page_versions().to_vec();
+            match width {
+                1 => bus.write8(addr, 1).unwrap(),
+                2 => bus.write16(addr, 1).unwrap(),
+                _ => bus.write32(addr, 1).unwrap(),
+            }
+            for (i, (&old, &new)) in before.iter().zip(bus.page_versions()).enumerate() {
+                let expected = u32::from(i == page || (off < 3 && i + 1 == page));
+                assert_eq!(new.wrapping_sub(old), expected, "width={width} offset={off} page={i}");
+            }
+        }
+    }
+}

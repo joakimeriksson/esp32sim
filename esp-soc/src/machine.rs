@@ -115,7 +115,7 @@ pub struct Machine<S: Soc> {
     /// work.
     pub bb_max: u64,
     /// EX177 counters: batches, whole rounds they covered, batches stopped at a device register,
-    /// at waiti, batches that ran the whole cap, requested rounds, rounds the bound refused.
+    /// at waiti, batches that ran the whole grant, granted rounds, batches the bound refused, reserved.
     pub bb_stats: [u64; 8],
     run_steps: u64,
 }
@@ -139,7 +139,7 @@ impl<S: Soc> Machine<S> {
         Machine {
             web_restart: false, button_reset: false, mac, reboots: 0, stubs: HashMap::new(), stub_bloom: 0, probe_bloom: 0, stub_hits: 0, fn_probes: HashMap::new(),
             cores: (0..S::CORES).map(|i| S::new_core_with_bus(i, &bus)).collect(), core_held: (0..S::CORES).map(|i| i > 0).collect(), quantum: QUANTUM, run_steps: 0, vq_stats: [0; 4], vq_skip: 0, vq_penalty: 0, vq_max: std::env::var("ESP32SIM_VQ").ok().and_then(|v| v.parse().ok()).unwrap_or(VQ_DEFAULT),
-            bb_max: std::env::var("ESP32SIM_BB").ok().and_then(|v| v.parse().ok()).unwrap_or(BB_DEFAULT), bb_stats: [0; 8],
+            bb_max: std::env::var("ESP32SIM_BB").ok().and_then(|v| v.parse().ok()).unwrap_or(BB_DEFAULT).min(4096), bb_stats: [0; 8],
             bus, symbols: BTreeMap::new(),
             dbg: Debug { stop_on_unimplemented: true, stop_after_exceptions: u64::MAX },
             observers: Vec::new(), probes: Wants::NONE, prev_irq: vec![0; S::CORES],
@@ -787,7 +787,8 @@ impl<S: Soc> Machine<S> {
         let mut cut: Option<(usize, u64, Option<Stop>)> = None;
         self.bus.set_defer(true);
         'batch: while done < k {
-            // EX177: indexing avoids extra iterator bookkeeping in the release WASM loop.
+            // EX177: preserve the indexed form used by the measured artifact (see
+            // docs/evidence/perf-x4-2026-09-22/codegen/default128-comparison.json).
             #[allow(clippy::needless_range_loop)]
             for i in 0..S::CORES {
                 if !on[i] { continue; }
@@ -797,7 +798,7 @@ impl<S: Soc> Machine<S> {
                     left -= used.min(left);
                     if stop.is_some() { cut = Some((i, q - u64::from(left), stop)); break 'batch; }
                     if self.bus.take_deferred() { self.bb_stats[2] += 1; cut = Some((i, q - u64::from(left), None)); break 'batch; }
-                    // Unreachable while deferral holds — a reset is a device-register write — but
+                    // Defensive for future buses: a reset is a deferred device-register write today, but
                     // the ordinary path ends the round at that instruction, so end the batch too.
                     if self.bus.sw_reset() { cut = Some((i, q - u64::from(left), Some(Stop::SwReset))); break 'batch; }
                 }

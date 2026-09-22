@@ -174,10 +174,10 @@ fn both_busy_rounds() -> u32 {
                             }
                             code.extend(SPIN);
                             SocBus::load_bytes(&mut m.bus, VECTORS + xtensa_lx7::state::vec::KERNEL, &SPIN).unwrap();
-                            for (i, &pc) in CODE.iter().enumerate() {
-                                SocBus::load_bytes(&mut m.bus, pc, if i == cut { &code } else { &peer }).unwrap();
+                            for (i, &entry) in CODE.iter().enumerate() {
+                                SocBus::load_bytes(&mut m.bus, entry, if i == cut { &code } else { &peer }).unwrap();
                                 let c = &mut m.cores[i];
-                                c.pc = pc; c.ps = 0; c.waiting = false;
+                                c.pc = entry; c.ps = 0; c.waiting = false;
                                 c.intenable = 0; c.interrupt = 0; c.vecbase = VECTORS;
                                 c.set_ar(3, 0x6002_3000);
                             }
@@ -195,9 +195,9 @@ fn both_busy_rounds() -> u32 {
                             }
                             if kind == 5 { m.dbg.stop_after_exceptions = 1; }
                             m.vq_max = vq;
-                            m.max_cycles = m.bus.cycles + 512;
+                            m.max_cycles = m.bus.cycles + if kind == 0 || kind == 3 { 32768 } else { 512 };
                         }
-                        b.bb_max = 16;
+                        b.bb_max = 128;
                         let label = format!("jit={jit} vq={vq} kind={kind} at={at} cut={cut}");
                         for m in [&mut a, &mut b] {
                             let stop = m.run(u64::MAX);
@@ -206,6 +206,7 @@ fn both_busy_rounds() -> u32 {
                             assert_eq!(m.bus.vq_violations, 0, "{label}: undeferred device access");
                         }
                         assert!(b.bb_stats[0] > 0, "{label}: no batch ran");
+                        if kind == 0 { assert!(b.bb_stats[1] / b.bb_stats[0] > 8, "{label}: shallow batches"); }
                         if kind == 1 { assert!(b.bb_stats[2] > 0, "{label}: no device-register cut"); }
                         if kind == 2 { assert!(b.bb_stats[3] > 0, "{label}: no waiti cut"); }
                         if kind == 3 { assert!(b.interrupts > 0, "{label}: timer never fired"); }
@@ -258,6 +259,7 @@ fn architectural_stops() -> u32 {
 }
 
 pub fn run() -> u32 {
+    crate::browser_jit::code_page_watch_test();
     let (mut a, mut b) = (machine(false), machine(true));
     for m in [&mut a, &mut b] {
         m.bus.periph.uart[0].tx_out.extend(b"compiled stop\n");

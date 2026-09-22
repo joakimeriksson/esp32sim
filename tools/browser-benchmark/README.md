@@ -67,7 +67,8 @@ separate baseline/candidate median wall times, the reduction `100 × (1 − cand
 median / baseline median)`, and each matched pair's percentage reduction. Setup time
 is recorded separately.
 
-`--pairs` sets the number of balanced pairs. `--baseline-wasm` and `--candidate-wasm` reuse existing artifacts; check
+Use `--pairs 1` for screening only. Three pairs are a starting point, not a confidence
+guarantee. `--baseline-wasm` and `--candidate-wasm` reuse existing artifacts; check
 their build provenance before interpreting results. Explicit compiler experiments
 can use `--candidate-rustflags='-Ctarget-feature=+simd128'`; ambient `RUSTFLAGS` are
 otherwise cleared. Use `--chrome /path/to/chrome` if Chrome is not installed at the
@@ -204,9 +205,11 @@ Chrome versions and V8 versions. It also requires an explicit timing capture mod
 zero JIT failures, stable build hashes within each arm, and matching firmware and
 harness hashes. Only the WASM may differ by default; declare other intended differences
 with `--allow-change` followed by the exact provenance key. `--legacy` permits inspection
-of older receipts without certifying their capture mode or build identity. Verify ordinary, unprofiled build settings from the
+of older receipts without certifying their capture mode or build identity. `--screening`
+permits fewer than three pairs. Verify ordinary, unprofiled build settings from the
 retained build records too. Run comparisons serially with other builds and
-simulator workloads stopped.
+simulator workloads stopped; three samples per build are a starting point, not a
+statistical confidence guarantee.
 
 ## Select a candidate worker
 

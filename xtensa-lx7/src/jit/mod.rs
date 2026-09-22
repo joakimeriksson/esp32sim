@@ -455,7 +455,7 @@ mod native {
                         g.a.ldrh(11, 9, TLB_WRITABLE); g.a.cbz(11, slow);
                         // stay on the fast path only when the write-version bump touches one page
                         // and not its first three bytes (an instruction may straddle into it)
-                        g.a.and_mask(13, 10, VPAGE_SHIFT, 0); g.a.sub_imm(13, 13, 3); g.a.cmp_imm(13, (1 << VPAGE_SHIFT) - 3 - size); g.a.b_cond(Cond::Hi, slow);
+                        g.a.and_mask(13, 10, VPAGE_SHIFT, 0); g.a.sub_imm(13, 13, emu_core::bus::PREV_PAGE_BYTES); g.a.cmp_imm(13, (1 << VPAGE_SHIFT) - emu_core::bus::PREV_PAGE_BYTES - size); g.a.b_cond(Cond::Hi, slow);
                         match i.op { S8i => g.a.strb_u(2, 12, 10), S16i => g.a.strh_u(2, 12, 10), _ => g.a.str_u(2, 12, 10) }
                         // Retain unconditional native version bumps; watched-code gating is
                         // used by the WASM backend.

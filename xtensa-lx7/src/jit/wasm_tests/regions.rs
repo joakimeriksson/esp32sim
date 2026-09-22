@@ -699,8 +699,8 @@ fn forward_edges() -> u32 {
     1
 }
 
-/// EX180: a region whose code lives entirely in page 0 stores into the first byte of page
-/// page 1. The bumped page is outside the region's page range, so `region_store_check` does not
+/// EX180: a region whose code lives entirely in page 0 stores into page 1 at offset zero.
+/// The bumped page is outside the region's page range, so `region_store_check` does not
 /// see it, but the bus also bumps page 0 — a code page of this very region. Both engines
 /// must record the same pages and retire the same instructions.
 fn prev_page_store() -> u32 {
