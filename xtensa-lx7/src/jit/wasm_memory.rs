@@ -188,7 +188,7 @@ pub(super) fn probe(g: &mut Gen, width: u32, store: bool) {
     g.op(0x71);
     g.op(0x6a);
     g.set(TLB);
-    // EX173 s2: one unsigned compare decides the whole access. REL = ADDR - lo is the offset
+    // EX173 s2: for scalar/vector widths, one unsigned compare decides the whole access. REL = ADDR - lo is the offset
     // within the entry and the access is inside it exactly when REL + width - 1 < span:
     //  - ADDR below lo wraps REL to at least 2^32 - lo, and span <= 2^32 - lo, so it fails;
     //  - an empty slot has span 0, which no offset can beat;
@@ -200,14 +200,31 @@ pub(super) fn probe(g: &mut Gen, width: u32, store: bool) {
     g.load(offset_of!(TlbEntry, lo));
     g.op(0x6b);
     g.tee(REL);
-    if width > 1 {
-        g.c(width - 1);
-        g.op(0x6a);
+    if width > 16 {
+        // Coalesced runs are only 16-byte aligned, not aligned to their full width.
+        // Reject an offset outside the entry first, then compare the remaining length.
+        // Neither subtraction can wrap and no endpoint addition is needed.
+        g.get(TLB);
+        g.load(offset_of!(TlbEntry, span));
+        g.op(0x4f); // i32.ge_u
+        g.bytes.extend([0x0d, 0]);
+        g.get(TLB);
+        g.load(offset_of!(TlbEntry, span));
+        g.get(REL);
+        g.op(0x6b); // i32.sub
+        g.c(width);
+        g.op(0x49); // i32.lt_u
+        g.bytes.extend([0x0d, 0]);
+    } else {
+        if width > 1 {
+            g.c(width - 1);
+            g.op(0x6a);
+        }
+        g.get(TLB);
+        g.load(offset_of!(TlbEntry, span));
+        g.op(0x4f);
+        g.bytes.extend([0x0d, 0]);
     }
-    g.get(TLB);
-    g.load(offset_of!(TlbEntry, span));
-    g.op(0x4f);
-    g.bytes.extend([0x0d, 0]);
     if store {
         g.get(TLB);
         load16(g, offset_of!(TlbEntry, writable));

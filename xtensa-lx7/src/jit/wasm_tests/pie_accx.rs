@@ -97,3 +97,99 @@ pub(super) fn run_tests() -> u32 {
     }
     tests
 }
+
+fn decoded(name: &str, operands: &[(crate::pie::Role, i32)]) -> BlockInsn {
+    let encoded = asm::pie(name, operands);
+    let mut bytes = [0; 4];
+    bytes[..encoded.len()].copy_from_slice(&encoded);
+    let i = crate::decode::decode(BASE, bytes);
+    BlockInsn { insn: i, max_ar: crate::exec::max_ar(&i), straddle: false, off: 0 }
+}
+
+/// Keep the backing allocation valid while limiting only the published fast mapping.
+/// The slow bus can still serve every load, so these cases check fallback without an
+/// out-of-allocation access even if a range check regresses.
+fn whole_block(mut block: Vec<BlockInsn>, span: u32, setup: impl Fn(&mut Cpu)) -> (Cpu, u32) {
+    let n = block.len() as u32;
+    let mut cc = CodeCache::new(0).unwrap();
+    let code = compile(&mut cc, &mut block, BASE, true).expect("PIE block must compile");
+    for _ in 0..HOT { ready(&cc, code, 0); }
+    assert!(ready(&cc, code, 0));
+    let (mut reference, mut actual) = (cpu(0), cpu(0));
+    for c in [&mut reference, &mut actual] {
+        c.cpenable = 1 << 3;
+        c.blocks.observed = true; // Exercise the emitted whole block, without region formation.
+        setup(c);
+    }
+    let (mut ra, mut rb) = (Ram::new(true, false), Ram::new(true, false));
+    rb.tlb[tlb_index(BASE)].hi = BASE + span;
+    rb.tlb[tlb_index(BASE)].span = span;
+    let mut retired = 0;
+    while retired < n {
+        let fm = rb.fast_mem();
+        // SAFETY: this is a sequential instruction boundary in the ready block and the
+        // helper table belongs to this live test bus. Memory helpers may return early.
+        let result = unsafe { run(&cc, code, &mut actual, &mut rb, &Helpers::new::<Ram>(), n - retired, retired, fm) };
+        let done = result & 0xffff;
+        assert!(done > 0 && done <= n - retired);
+        assert!(actual.jit_trap.is_none());
+        retired += done;
+    }
+    for bi in &block {
+        let mut i = bi.insn;
+        i.r = 0; // Independent table executor, rather than packed PIE operands.
+        exec_insn(&mut reference, &mut ra, &i).unwrap();
+    }
+    same(&reference, &actual);
+    assert_eq!(ra.ram.mem, rb.ram.mem);
+    (actual, rb.slow_reads)
+}
+
+pub(super) fn held_and_coalesced() -> u32 {
+    use crate::pie::Role::{As, Imm, Qu, Qx, Qy};
+    let mut cases = 0;
+    for w in [8, 16] {
+        for preceding in [10, 62, 63, 64] {
+            for loads in [1, 2] {
+                for span in [0, 65536] {
+                    let mut block = vec![decoded("ee.zero.accx", &[])];
+                    for _ in 0..preceding {
+                        block.push(decoded(&format!("ee.vmulas.s{w}.accx"), &[(Qx, 0), (Qy, 1)]));
+                    }
+                    for _ in 0..loads {
+                        block.push(decoded(&format!("ee.vmulas.s{w}.accx.ld.ip"),
+                            &[(Qx, 0), (Qy, 1), (Qu, 2), (As, 4), (Imm, 16)]));
+                    }
+                    let (actual, reads) = whole_block(block, span, |c| {
+                        c.accx = [0xaabb_ccdd, 0x77];
+                        let lanes = if w == 8 { [100u8; 16] } else {
+                            let mut lanes = [0; 16];
+                            for lane in lanes.chunks_exact_mut(2) { lane.copy_from_slice(&100i16.to_le_bytes()); }
+                            lanes
+                        };
+                        c.qr[0] = u128::from_le_bytes(lanes);
+                        c.qr[1] = c.qr[0];
+                        c.set_ar(4, BASE + 0x1000);
+                    });
+                    let expected = (128 / w) * 10000 * (preceding + loads);
+                    assert_eq!(actual.accx, [expected, 0]);
+                    if span == 0 { assert!(reads > 0, "must execute the slow load path"); }
+                    cases += 1;
+                }
+            }
+        }
+    }
+    for loads in [2, 3, 4] {
+        for inside in 1..loads {
+            let mut block = vec![decoded("ee.zero.accx", &[])];
+            for q in 0..loads {
+                block.push(decoded("ee.vld.128.ip", &[(Qu, q), (As, 4), (Imm, 16)]));
+            }
+            let (_, reads) = whole_block(block, 0x1000 + inside as u32 * 16,
+                |c| c.set_ar(4, BASE + 0x1000));
+            assert!(reads > 0, "a run beyond the fast mapping must use the slow bus");
+            cases += 1;
+        }
+    }
+    cases
+}
