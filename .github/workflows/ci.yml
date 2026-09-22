@@ -33,12 +33,16 @@ jobs:
         run: cargo build --release --workspace
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Clippy for the wasm32 JIT emitter and differential tests
+        run: cargo clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings
       - name: Test (hermetic + golden outputs)
         run: ESP32SIM_ROM_DIR=$PWD/roms cargo test --release --workspace -- --include-ignored --skip external_
       - name: Virtual-quantum scheduler (native opt-in)
         run: ESP32SIM_VQ_NATIVE=1 cargo test --release -p esp32s3 --test machine --test virtual_stops
       - name: Build the wasm module
         run: tools/wasm-build.sh
+      - name: Production WASM sections (no DWARF, profile names retained)
+        run: node tools/check-wasm-sections.mjs web/wasm/esp32sim.wasm
       - name: Test the wasm module (the real build, under Node, through the page's manifests)
         run: ESP32SIM_ROM_DIR=$PWD/roms node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel
       - name: Timing configuration ABI (real wasm exports)
@@ -50,6 +54,7 @@ jobs:
           node --test tools/touch-input-test.mjs
       - name: Browser benchmark verdict, configuration and receipt tests
         run: |
+          node --test tools/wasm-build-policy.test.mjs
           node --test tools/browser-benchmark/*.test.mjs
           python3 -m unittest discover -s tools/browser-benchmark -p 'test_*.py'
       - name: Differential tests for generated WASM blocks

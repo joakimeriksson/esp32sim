@@ -12,6 +12,12 @@ use crate::decode::decode;
 use crate::exec::max_ar;
 use std::collections::HashMap;
 
+// Compile-time emission probes: absent from production and profile builds.
+#[cfg(feature = "wasm-jit-tests")]
+pub(in crate::jit) static FORWARD_BRANCHES: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+#[cfg(feature = "wasm-jit-tests")]
+pub(in crate::jit) static SELF_LOOP_BRANCHES: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
 pub(super) const MAX_CHUNKS: usize = 64;
 pub(super) const MAX_INSNS: usize = 512;
 pub(in crate::jit) const MAX_PAGES: usize = 8;
@@ -249,8 +255,12 @@ pub(super) fn region_edge(g: &mut Gen, target: u32, direct: bool) {
                 // wraps a self-looping chunk in its own loop: both are a plain `br`, only a
                 // backward edge to another chunk re-dispatches through the br_table.
                 let label = if index > current {
+                    #[cfg(feature = "wasm-jit-tests")]
+                    FORWARD_BRANCHES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     g.depth() + index - blocks
                 } else if index == current && self_loop {
+                    #[cfg(feature = "wasm-jit-tests")]
+                    SELF_LOOP_BRANCHES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     g.depth() - chunk_depth
                 } else {
                     g.c(index as u32);
@@ -293,7 +303,9 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
     let guard_max_ar = if entry_head { chunks[0].instructions[0].max_ar } else { max_ar };
     // Every instruction is emitted, so both coprocessor bits can be proved at entry.
     let cp = all().fold(0, |mask, bi| mask | policy::required_coprocessors(bi.insn.op));
-    let heads = chunks.iter().enumerate().map(|(i, c)| (c.pc, (i, c.instructions.len() as u32))).collect();
+    let heads: HashMap<_, _> = chunks.iter().enumerate().map(|(i, c)| (c.pc, (i, c.instructions.len() as u32))).collect();
+    // Forward labels use the head count; the dispatch nesting uses the chunk count.
+    assert_eq!(heads.len(), chunks.len(), "region chunk heads must be unique");
     let loops = formed_loops.iter().copied().collect();
     let mut g = Gen {
         loaded: registers,

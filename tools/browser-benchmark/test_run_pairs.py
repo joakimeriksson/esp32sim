@@ -15,6 +15,12 @@ class ValidationTests(unittest.TestCase):
                               'instructions': 100, 'jit': {'failed': 0, 'compiled': 1},
                               'provenance': {'sha256': {'asset/wasm': 'hash'}}}}
 
+    def test_clears_ambient_release_profile_overrides(self):
+        env = {'CARGO_PROFILE_RELEASE_DEBUG': '2', 'CARGO_PROFILE_RELEASE_STRIP': 'none',
+               'CARGO_PROFILE_RELEASE_LTO': 'false', 'CARGO_BUILD_JOBS': '4'}
+        runner.clear_release_overrides(env)
+        self.assertEqual(env, {'CARGO_BUILD_JOBS': '4'})
+
     def test_accepts_completed_run(self):
         self.assertEqual(runner.validate(self.raw, 100)['instructions'], 100)
 

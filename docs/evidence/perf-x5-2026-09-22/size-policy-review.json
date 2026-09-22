@@ -1,0 +1,127 @@
+{
+  "experiment": "EX120",
+  "baseRevision": "2f3c2d6c",
+  "validation": "Review fixes to explicit stripping, overrides and production section guard; no timing experiment",
+  "toolchain": {
+    "rustc": "1.98.1 (48a229cea 2026-09-01)",
+    "node": "v26.9.0",
+    "wasmOpt": "132"
+  },
+  "artifacts": [
+    {
+      "name": "default",
+      "environment": {},
+      "command": "CARGO_BUILD_JOBS=4 JOBS=4 tools/wasm-build.sh",
+      "bytes": 2088105,
+      "sha256": "1656179f3e9eebed72fd649b58c874922e7ea813a3dde699c5a96b8b50a5a245",
+      "gzip9Bytes": 581068,
+      "brotli11Bytes": 382435,
+      "sectionGuard": {
+        "result": "pass",
+        "dwarfAbsent": true,
+        "nameRetained": true,
+        "bytes": 2088105
+      }
+    },
+    {
+      "name": "empty",
+      "environment": {
+        "CARGO_PROFILE_RELEASE_DEBUG": "",
+        "CARGO_PROFILE_RELEASE_STRIP": ""
+      },
+      "command": "CARGO_BUILD_JOBS=4 JOBS=4 tools/wasm-build.sh",
+      "bytes": 2088105,
+      "sha256": "1656179f3e9eebed72fd649b58c874922e7ea813a3dde699c5a96b8b50a5a245",
+      "gzip9Bytes": 581068,
+      "brotli11Bytes": 382435,
+      "sectionGuard": {
+        "result": "pass",
+        "dwarfAbsent": true,
+        "nameRetained": true,
+        "bytes": 2088105
+      }
+    },
+    {
+      "name": "strip-none",
+      "environment": {
+        "CARGO_PROFILE_RELEASE_STRIP": "none"
+      },
+      "command": "CARGO_BUILD_JOBS=4 JOBS=4 tools/wasm-build.sh",
+      "bytes": 3683289,
+      "sha256": "9f90c96011aa4733d2aebeb221c984530b8aa453fe72728ee399084cf5ab6a43",
+      "gzip9Bytes": 920004,
+      "brotli11Bytes": 648708,
+      "sectionGuard": {
+        "result": "reject",
+        "reason": "Production WASM contains DWARF: .debug_abbrev, .debug_info, .debug_ranges, .debug_str, .debug_line"
+      }
+    },
+    {
+      "name": "debug1",
+      "environment": {
+        "CARGO_PROFILE_RELEASE_DEBUG": "1"
+      },
+      "command": "CARGO_BUILD_JOBS=4 JOBS=4 tools/wasm-build.sh",
+      "bytes": 12219979,
+      "sha256": "f928a4ea74be53f4c15c9c3fcac53f6c1ad5bb431d22a426ba443e56a48fcd16",
+      "gzip9Bytes": 2846126,
+      "brotli11Bytes": 1821579,
+      "sectionGuard": {
+        "result": "reject",
+        "reason": "Production WASM contains DWARF: .debug_abbrev, .debug_info, .debug_ranges, .debug_str, .debug_line"
+      }
+    },
+    {
+      "name": "debug2",
+      "environment": {
+        "CARGO_PROFILE_RELEASE_DEBUG": "2"
+      },
+      "command": "CARGO_BUILD_JOBS=4 JOBS=4 tools/wasm-build.sh",
+      "bytes": 21625132,
+      "sha256": "2ad5a1bf7f44a6080a8301fdcc1a3b98ac7d60f3898418bfb617439520a7006e",
+      "gzip9Bytes": 5186229,
+      "brotli11Bytes": 3464908,
+      "sectionGuard": {
+        "result": "reject",
+        "reason": "Production WASM contains DWARF: .debug_loc, .debug_abbrev, .debug_info, .debug_ranges, .debug_str, .debug_line"
+      }
+    },
+    {
+      "name": "wasm-opt",
+      "environment": {
+        "WASM_OPT": "1"
+      },
+      "command": "CARGO_BUILD_JOBS=4 JOBS=4 tools/wasm-build.sh",
+      "bytes": 1854040,
+      "sha256": "795222992f43148e03b8a8361e8816894a8512783813569a536b2d49e77f1ca8",
+      "gzip9Bytes": 576649,
+      "brotli11Bytes": 390954,
+      "sectionGuard": {
+        "result": "pass",
+        "dwarfAbsent": true,
+        "nameRetained": true,
+        "bytes": 1854040
+      }
+    }
+  ],
+  "checks": {
+    "policyFixtureTests": 3,
+    "benchmarkJavaScriptTests": 13,
+    "benchmarkPythonTests": 13,
+    "emptyOverrideByteIdentical": true
+  },
+  "limitations": [
+    "Builds use the reviewed size branch plus the policy changes in this commit. Later stack changes require rebuilding.",
+    "Compression byte counts use Node zlib gzip level 9 and Brotli quality 11; they are not measured download or startup latency.",
+    "Explicit DEBUG=1/2 and STRIP=none builds are intentionally accepted by the build script but rejected by the separate production CI/Pages guard.",
+    "Sourcing the shared file exports policy into the caller shell, affecting later native builds; native host build fingerprints can differ from plain cargo builds.",
+    "Removing DWARF does not remove Rust panic source-location strings from the data section.",
+    "Benchmark builds continue using source Cargo profiles, with ambient CARGO_PROFILE_RELEASE_* removed and workspace profile settings recorded."
+  ],
+  "privacy": "Only source/toolchain identity, build inputs, artifact hashes and aggregate test counts retained. Local paths and full build logs remain outside Git.",
+  "sourceSha256": {
+    "tools/wasm-rustflags.sh": "4efde895b6681de70c855e65afc23c0727eecf845e342c8ae2a0492f7264826c",
+    "tools/wasm-build.sh": "a384ccbad27088ef72e2267b6fb0d9b99754119f188c379aea5a446ea7560036",
+    "tools/check-wasm-sections.mjs": "73af3db7e7dc0b280752c66f12811afb2ab6854307f063ce184cd0183ebdabfd"
+  }
+}

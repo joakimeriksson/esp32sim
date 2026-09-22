@@ -66,6 +66,31 @@ fn region_program_on(name: &str, program: &[u8], expected: &[(u32, Op, u32)], da
 pub(super) fn regions() -> u32 {
     use Op::*;
     let mut cases = 0;
+    // A PS-writing leaf exits the region so interrupt/window proofs are rebuilt.
+    // Count only region lowerings: hot standalone blocks cannot satisfy this check.
+    for (op, word) in [(Rsil, 0x006030u32), (Wsr, 0x130000 | (crate::state::sr::PS << 8) | 0x30),
+        (Xsr, 0x610000 | (crate::state::sr::PS << 8) | 0x30)] {
+        let mut p = asm::addi_n(2, 2, 1);
+        p.extend(asm::bz(1, BASE + 2, 2, BASE + 8));
+        p.extend(asm::j(BASE + 5, BASE + 11));
+        p.extend([word as u8, (word >> 8) as u8, (word >> 16) as u8]);
+        p.extend(asm::movi_n(2, 0));
+        p.extend(asm::j(BASE + 13, BASE));
+        for flags in [0, ps::WOE] {
+            let before = PS_REGION_TAKEN.load(std::sync::atomic::Ordering::Relaxed);
+            region_program("PS-terminal-leaf", &p,
+                &[(0, AddiN, 0), (2, Bnez, 8), (5, J, 11), (8, op, 0), (11, MoviN, 0), (13, J, 0)],
+                &[], 2, 8, |c| {
+                    c.ps = flags;
+                    c.windowstart = 1 << c.windowbase;
+                    c.set_ar(2, 0);
+                    c.set_ar(3, flags);
+                }, 600);
+            assert!(PS_REGION_TAKEN.load(std::sync::atomic::Ordering::Relaxed) > before,
+                "{op:?} PS={flags:x} must execute inline inside a region");
+            cases += 1;
+        }
+    }
     // Forty non-contiguous chunks exercise a large br_table and five version pages.
     // Enter every chunk with both short credit and hundreds of instructions of credit.
     let mut large = vec![0; 40 * 32];
@@ -274,7 +299,7 @@ pub(super) fn regions() -> u32 {
         cases += 1;
     }
     // Calls and returns end chunks and leave; a function entry heads a region whose
-    // window proof is redone after ENTRY; RETW.N runs through the terminal helper.
+    // window proof is redone after ENTRY; RETW.N uses its guarded inline path.
     let mut p = Vec::new();
     p.extend(asm::call8(BASE, BASE + 12));          // 0  call8 F
     p.extend(asm::addi_n(2, 2, 1));                 // 3  (return address)
@@ -618,8 +643,10 @@ fn self_loops() -> u32 {
         let formed = emitter::region::form(&cpu(0), &mut ram, BASE, &head, true).expect("bnez self-loop region");
         assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(), vec![(0, 4), (9, 2), (2, 3)]);
     }
+    let before = emitter::region::SELF_LOOP_BRANCHES.load(std::sync::atomic::Ordering::Relaxed);
     let max = region_program("bnez-self-loop", &p, &shape, &[], 4, 2, |_| {}, 900);
     assert!(max > 4, "bnez self-loop region never passed its head ({max})");
+    assert!(emitter::region::SELF_LOOP_BRANCHES.load(std::sync::atomic::Ordering::Relaxed) > before, "bnez self-loop emitted no direct backedge");
 
     let mut p = Vec::new();
     p.extend(asm::lp(9, BASE, 3, BASE + 9));        // 0  loopnez a3, 9
@@ -628,7 +655,7 @@ fn self_loops() -> u32 {
     p.extend(asm::addi_n(5, 5, 1));                 // 7  ends exactly at LEND
     p.extend(asm::addi_n(6, 6, 1));                 // 9  loop exit
     p.extend(asm::j(BASE + 11, BASE));              // 11
-    let shape = [(0, Loopnez, 9), (3, AddiN, 0), (7, AddiN, 0), (9, AddiN, 0), (11, J, 0)];
+    let shape = [(0, Loopnez, 9), (3, AddiN, 0), (5, AddiN, 0), (7, AddiN, 0), (9, AddiN, 0), (11, J, 0)];
     {
         let mut ram = Ram::new(true, false);
         ram.ram.mem[..p.len()].copy_from_slice(&p);
@@ -639,8 +666,10 @@ fn self_loops() -> u32 {
     }
     // a3 is never written, so the count is the same on every pass; 0 makes LOOPNEZ skip.
     for count in [4, 1, 0] {
+        let before = emitter::region::SELF_LOOP_BRANCHES.load(std::sync::atomic::Ordering::Relaxed);
         let max = region_program("hw-self-loop", &p, &shape, &[], 1, 3, move |c| { c.set_ar(3, count); }, 900);
         assert!(max > 1, "hardware self-loop region never passed its head ({max})");
+        assert!(emitter::region::SELF_LOOP_BRANCHES.load(std::sync::atomic::Ordering::Relaxed) > before, "hardware self-loop emitted no direct backedge (count {count})");
     }
     2
 }
@@ -686,15 +715,17 @@ fn forward_edges() -> u32 {
         // Breadth first from the head: fallthrough, then taken target (EX181 s3).
         assert_eq!(formed.chunks.iter().map(|c| c.pc - BASE).collect::<Vec<_>>(), vec![0, 8, 23, 14, 32, 39, 46, 52]);
     }
+    let before = emitter::region::FORWARD_BRANCHES.load(std::sync::atomic::Ordering::Relaxed);
     let max = region_program("forward-edges", &p, &shape, &[], 3, 8, |c| {
         c.set_ar(12, 1); c.set_ar(13, 2);
     }, 1200);
     assert!(max > 3, "forward-edge region never passed its head ({max})");
+    assert!(emitter::region::FORWARD_BRANCHES.load(std::sync::atomic::Ordering::Relaxed) > before, "forward-edge region emitted no direct forward branch");
     1
 }
 
 /// EX180: a region whose code lives entirely in page 0 stores into the first byte of page
-/// 1. The bumped page is outside the region's page range, so `region_store_check` does not
+/// page 1. The bumped page is outside the region's page range, so `region_store_check` does not
 /// see it, but the bus also bumps page 0 — a code page of this very region. Both engines
 /// must record the same pages and retire the same instructions.
 fn prev_page_store() -> u32 {
