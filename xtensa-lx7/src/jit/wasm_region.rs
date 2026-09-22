@@ -83,7 +83,9 @@ fn successors(chunk: &Chunk) -> Vec<u32> {
         J => vec![last.insn.imm as u32],
         op if terminal(op) => vec![],
         Loopnez | Loopgtz => vec![next, last.insn.imm as u32],
-        op if conditional(op) => vec![last.insn.imm as u32, next],
+        // EX181 s3: fallthrough first favors placing the straight-line successor at
+        // `current + 1`, where its edge needs no branch.
+        op if conditional(op) => vec![next, last.insn.imm as u32],
         _ => vec![next],
     }
 }

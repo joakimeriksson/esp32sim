@@ -270,7 +270,7 @@ pub(super) fn regions() -> u32 {
         let formed = emitter::region::form(&c, &mut ram, BASE, &head, true).expect("hwloop region");
         assert_eq!(formed.loops, vec![(BASE + 17, BASE + 7)]);
         assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(),
-            vec![(0, 3), (7, 2), (17, 1), (15, 1), (13, 2)]);
+            vec![(0, 3), (7, 2), (17, 1), (13, 2), (15, 1)]);
         cases += 1;
     }
     // Calls and returns end chunks and leave; a function entry heads a region whose
@@ -304,7 +304,7 @@ pub(super) fn regions() -> u32 {
         let head: Vec<BlockInsn> = (0..4).scan(BASE + 12, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, straddle: false, off: 0 }) }).collect();
         let formed = emitter::region::form(&c, &mut ram, BASE + 12, &head, true).expect("entry region");
         assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(),
-            vec![(12, 4), (24, 2), (22, 1)]);
+            vec![(12, 4), (22, 1), (24, 2)]);
         assert!(emitter::region::form(&c, &mut ram, BASE, &head[..1], true).is_none(), "a lone call is not a region");
         cases += 1;
     }
@@ -591,7 +591,7 @@ pub(super) fn regions() -> u32 {
     let head: Vec<BlockInsn> = (0..2).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, straddle: false, off: 0 }) }).collect();
     let formed = emitter::region::form(&c, &mut ram, BASE, &head, true).expect("tile region");
     assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(),
-        vec![(0, 2), (35, 1), (6, 3), (41, 2), (13, 6), (43, 1)]);
+        vec![(0, 2), (6, 3), (35, 1), (13, 6), (41, 2), (43, 1)]);
     assert_eq!(formed.pages, vec![(0, 0)]);
     assert!(emitter::region::form(&c, &mut ram, BASE + 38, &head, true).is_none(), "RSR head");
     cases + 2 + prev_page_store() + forward_edges() + self_loops()
@@ -616,7 +616,7 @@ fn self_loops() -> u32 {
         ram.ram.mem[..p.len()].copy_from_slice(&p);
         let head: Vec<BlockInsn> = (0..4).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, straddle: false, off: 0 }) }).collect();
         let formed = emitter::region::form(&cpu(0), &mut ram, BASE, &head, true).expect("bnez self-loop region");
-        assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(), vec![(0, 4), (2, 3), (9, 2)]);
+        assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(), vec![(0, 4), (9, 2), (2, 3)]);
     }
     let max = region_program("bnez-self-loop", &p, &shape, &[], 4, 2, |_| {}, 900);
     assert!(max > 4, "bnez self-loop region never passed its head ({max})");
@@ -683,8 +683,8 @@ fn forward_edges() -> u32 {
         ram.ram.mem[..p.len()].copy_from_slice(&p);
         let head: Vec<BlockInsn> = (0..3).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, straddle: false, off: 0 }) }).collect();
         let formed = emitter::region::form(&cpu(0), &mut ram, BASE, &head, true).expect("forward-edge region");
-        // Breadth first from the head: taken target, then fallthrough.
-        assert_eq!(formed.chunks.iter().map(|c| c.pc - BASE).collect::<Vec<_>>(), vec![0, 23, 8, 39, 32, 14, 46, 52]);
+        // Breadth first from the head: fallthrough, then taken target (EX181 s3).
+        assert_eq!(formed.chunks.iter().map(|c| c.pc - BASE).collect::<Vec<_>>(), vec![0, 8, 23, 14, 32, 39, 46, 52]);
     }
     let max = region_program("forward-edges", &p, &shape, &[], 3, 8, |c| {
         c.set_ar(12, 1); c.set_ar(13, 2);
