@@ -1,0 +1,47 @@
+{
+  "baseRevision": "aa991c7a",
+  "sourceIdentity": "Base revision plus SHA-256 of each modified source file below; documentation-only edits do not affect this identity.",
+  "environment": {
+    "rustc": "1.98.1 (48a229cea 2026-09-01)",
+    "node": "26.9.0",
+    "target": "wasm32-unknown-unknown",
+    "cargoBuildJobs": 4,
+    "niceOverride": false
+  },
+  "sourceSha256": {
+    "xtensa-lx7/src/jit/wasm_region.rs": "186fcf0a342feb1b4ebe184cf3351ff47f8b530ede75161b85093008e7a4de7d",
+    "xtensa-lx7/src/jit/wasm_tests/regions.rs": "7d94bb7f61e194d0cea587d30f4827fdef252d559c110e5e2a2601c32f28d8c3",
+    "xtensa-lx7/src/jit/wasm_memory.rs": "1510112b2bb26def3b07eb8520f9aa95cc15c1ff33534113a698694254e2e65d",
+    "wasm/src/jit_tests.rs": "e4673700ac184094aa66b80994fa09c0467f622853b57e9ebdd85c77e34da461"
+  },
+  "checks": [
+    {
+      "command": "CARGO_BUILD_JOBS=4 tools/wasm-jit-test.sh",
+      "exitCode": 0,
+      "cases": 81629,
+      "compiledModulesReleased": 84309
+    },
+    {
+      "command": "CARGO_BUILD_JOBS=4 cargo clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+      "exitCode": 0
+    }
+  ],
+  "mutations": [
+    {
+      "replace": "if index > current {",
+      "with": "if false && index > current {",
+      "exitCode": 1,
+      "message": "forward-edge region emitted no direct forward branch"
+    },
+    {
+      "replace": "} else if index == current && self_loop {",
+      "with": "} else if false && index == current && self_loop {",
+      "exitCode": 1,
+      "message": "bnez self-loop emitted no direct backedge"
+    }
+  ],
+  "mutationCommand": "CARGO_BUILD_JOBS=4 tools/wasm-jit-test.sh",
+  "mutationLimit": "Each mutation retains correct dispatcher fallback. These are emission-presence tests, not timing measurements. Hardware-loop emission is asserted separately in the unmutated suite.",
+  "unchangedNit": "The optional two-byte dead hardware-loop wrapper cleanup is not included; it does not affect correctness.",
+  "privacy": "Raw logs remain outside Git and include build paths. This compact receipt retains commands, numeric outcomes and source hashes only; no host or process inventory was collected."
+}

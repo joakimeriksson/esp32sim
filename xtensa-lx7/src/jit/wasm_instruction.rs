@@ -448,6 +448,7 @@ pub(super) fn emit(
 /// with no call increment and a window underflow all leave exception state behind, so each keeps
 /// the interpreter. `h_exec` deliberately does not set `jit_helped` for returns; neither does this.
 fn emit_retw(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
+    debug_assert!(last, "windowed returns must terminate the block");
     g.cpu(offset_of!(Cpu, ps));
     g.c(ps::WOE);
     g.op(0x71);
@@ -476,6 +477,8 @@ fn emit_retw(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
     g.begin_if();
     g.fallback(bi, pc, next, last, false);
     g.end();
+    #[cfg(feature = "wasm-jit-tests")]
+    g.test_hit(&super::tests::RETW_INLINE_TAKEN);
     g.advance();
     g.ar(0);
     g.c(0x3fff_ffff);
@@ -513,10 +516,17 @@ fn emit_retw(g: &mut Gen, bi: &BlockInsn, pc: u32, next: u32, last: bool) {
 }
 
 /// helpers-s1: RSIL / WSR PS / XSR PS inline, still terminal. EX135 made them terminal helpers;
-/// the only thing the helper did besides `exec_insn` is set `jit_helped`, which stops the EX153
-/// chain so the dispatcher re-derives the interrupt masking this instruction just changed.
+/// `jit_helped` stops EX153 chaining so the next entry re-derives interrupt and window state.
+/// These ops are not deferred and have no control/alignment price. Exit handling reissues
+/// `note_pc`; the helper's block-break exit-code distinction affects only profiling because
+/// `jit_helped` stops chaining for either exit code.
 fn emit_ps_terminal(g: &mut Gen, i: &crate::Insn, next: u32) {
     use crate::Op::*;
+    #[cfg(feature = "wasm-jit-tests")]
+    {
+        g.test_hit(&super::tests::PS_INLINE_TAKEN);
+        if g.region.is_some() { g.test_hit(&super::tests::PS_REGION_TAKEN); }
+    }
     let ps_field = offset_of!(Cpu, ps);
     if i.op != Wsr {
         g.cpu(ps_field); // RSIL and XSR return the old PS in AR[t].

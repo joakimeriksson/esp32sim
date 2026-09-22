@@ -70,7 +70,8 @@ pub(super) fn priced_cases() -> u32 {
     compare(&mut [producer, store], Case { budget: 2, fast: true, readonly: true, ..Case::default() }, |c| { c.set_ar(4, BASE + 0x1000); c.cpenable = 1; });
     cases += 1;
     cases += arithmetic::integer_ops() + float::floating_point() + float::floating_point_guard_proof()
-        + control::entry_and_shifts() + control::terminal_helpers() + control::special_register_blocks();
+        + control::entry_and_shifts() + control::terminal_helpers() + control::special_register_blocks()
+        + control::ps_terminals();
     PRICED.store(false, Relaxed);
     cases
 }
