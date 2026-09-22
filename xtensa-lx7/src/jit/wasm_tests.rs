@@ -5,6 +5,8 @@ use super::*;
 use crate::bus::{tlb_index, TLB_ENTRIES};
 use crate::{Fault, FlatRam, Insn, Op, Trap};
 pub(super) static GUARDED_TAKEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+#[path = "wasm_tests/pie_accx.rs"]
+mod pie_accx;
 const BASE: u32 = 0x4037_0000;
 /// A small window above the fast mapping that only the slow bus path can reach.
 const SLOW: u32 = BASE + 0x1_0000;
@@ -21,6 +23,7 @@ struct Ram {
     noted: u32,
     slow: [u8; 256],
     slow_writes: u32,
+    slow_reads: u32,
     defer_armed: bool,
     deferred: bool,
     #[cfg(feature = "wasm-cache-inline")]
@@ -57,6 +60,7 @@ impl Ram {
             noted: 0,
             slow: [0x5a; 256],
             slow_writes: 0,
+            slow_reads: 0,
             defer_armed: false,
             deferred: false,
             #[cfg(feature = "wasm-cache-inline")]
@@ -94,6 +98,7 @@ impl Bus for Ram {
         self.ram.read16(a)
     }
     fn read32(&mut self, a: u32) -> Result<u32, Fault> {
+        self.slow_reads += 1;
         #[cfg(feature = "wasm-cache-inline")]
         if self.inline_cache.is_some() { self.helper_accesses += 1; }
         self.ram.read32(a)
@@ -401,7 +406,7 @@ pub fn run_tests() -> u32 {
     scheduler::interior_alias_deferred();
     scheduler::interior_alias_instruction_bytes();
     tests += 3;
-    tests += memory::extension_deferral() + memory::flat_ram_bounds() + regions::regions();
+    tests += memory::extension_deferral() + memory::flat_ram_bounds() + regions::regions() + pie_accx::run_tests() + pie_accx::held_and_coalesced();
     tests += memory::code_page_flag();
     scheduler::retention();
     tests += 1;

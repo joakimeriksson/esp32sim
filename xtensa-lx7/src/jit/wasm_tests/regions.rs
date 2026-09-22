@@ -479,6 +479,129 @@ pub(super) fn regions() -> u32 {
         assert!(!whole || max >= 20, "{label}: region retired at most {max} per call");
         cases += 1;
     }
+    // EX178: the reset and final accumulate share a chunk ending at LEND.
+    // The conditional backedge's spill must not suppress the fall-through spill.
+    let mut held = Vec::new();
+    held.extend(asm::movi_n(10, 3));
+    held.extend(asm::lp(9, BASE + 2, 10, BASE + 12));
+    held.extend(asm::pie("ee.zero.accx", &[]));
+    held.extend(asm::pie("ee.vmulas.s8.accx.ld.ip", &[(Qu, 0), (As, 8), (Imm, 16), (Qx, 0), (Qy, 0)]));
+    held.extend(asm::rur(11, 0));
+    held.extend(asm::mov_n(8, 12));
+    held.extend(asm::j(BASE + 17, BASE));
+    let expected = [(0, MoviN, 0), (2, Loopnez, 12), (5, Pie, 0), (8, Pie, 0), (12, Rur, 0), (15, MovN, 0), (17, J, 0)];
+    let max = region_program("held-accx-lend", &held, &expected, &mixed, 2, 5, |c| {
+        c.cpenable = 8;
+        c.set_ar(8, BASE + 0x1000); c.set_ar(12, BASE + 0x1000);
+    }, 600);
+    assert!(max > 2, "held ACCX loop never passed its head");
+    cases += 1;
+    // Enter the compiled body directly to exercise each false backedge predicate:
+    // exhausted LCOUNT and an unrelated active loop with a different LEND.
+    {
+        let mut ram = Ram::new(true, false);
+        ram.ram.mem[..held.len()].copy_from_slice(&held);
+        let head: Vec<BlockInsn> = (0..2).scan(BASE, |pc, _| {
+            let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap());
+            *pc += i.len as u32;
+            Some(BlockInsn { insn: i, max_ar: crate::exec::max_ar(&i), straddle: false, off: 0 })
+        }).collect();
+        let formed = emitter::region::form(&cpu(0), &mut ram, BASE, &head, true).expect("held ACCX region");
+        let entry = formed.chunks.iter().position(|c| c.pc == BASE + 5).expect("held ACCX body") as u32;
+        let (bytes, _) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, true);
+        let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
+        assert_ne!(slot, 0);
+        type Run = extern "C" fn(*mut Cpu, *mut Ram, *const Helpers, u32, u32, *const TlbEntry, *mut u32) -> u32;
+        let f: Run = unsafe { std::mem::transmute(slot as usize) };
+        for (lend, lcount) in [(BASE + 12, 0), (BASE + 100, 2)] {
+            let (mut a, mut b) = (cpu(3), cpu(3));
+            let (mut ra, mut rb) = (Ram::new(true, false), Ram::new(true, false));
+            for r in [&mut ra, &mut rb] {
+                r.ram.mem[..held.len()].copy_from_slice(&held);
+                r.ram.mem[0x1000..0x1100].copy_from_slice(&mixed);
+            }
+            for c in [&mut a, &mut b] {
+                c.pc = BASE + 5; c.ps = 0; c.cpenable = 8;
+                c.lbeg = BASE + 5; c.lend = lend; c.lcount = lcount;
+                c.accx = [123456, 0];
+                c.set_ar(8, BASE + 0x1000);
+            }
+            CONTEXT.with(|c| *c.borrow_mut() = format!("held ACCX exit lend {lend:x} lcount {lcount}"));
+            let fm = rb.fast_mem().unwrap();
+            let result = f(&mut b, &mut rb, &Helpers::new::<Ram>(), 2, entry, fm.tlb, fm.page_ver);
+            assert_eq!(result & 0xffff, 2, "held ACCX body must execute");
+            for _ in 0..2 {
+                let i = crate::decode::decode(a.pc, ra.fetch(a.pc).unwrap());
+                exec_insn(&mut a, &mut ra, &i).unwrap();
+            }
+            same(&a, &b);
+            assert_eq!(ra.ram.mem, rb.ram.mem);
+            cases += 1;
+        }
+        unsafe { host_jit_release(slot) };
+    }
+    // EX178: pocket-tank's q4 matmul group, the shape that lets the emitter hold ACCX in a
+    // local: `ee.zero.accx` dominating a straight-line run of accumulates in one chunk, a
+    // 128-bit store and an `ee.vld.128.ip` inside the run (neither reads the accumulator),
+    // the s16 accumulate with its larger per-step bound, and the `rur.accx_0` that ends the
+    // run by forcing the spill. Variants drive an exit from every position of the run: a
+    // load fault, a slow-window miss that re-executes in the interpreter, a read-only
+    // mapping, a store into the region's own code page (DIRTY), and CP3 disabled.
+    // `a7` counts iterations into lane 0 of Q0, an accumulate operand, so every pass
+    // produces a different ACCX: a run that wrongly kept the local across `rur.accx_0`,
+    // a chunk edge or a miss would read the previous pass's value and be caught.
+    // Twenty-seven NOPs put instruction 32 (the chunk length limit) in the middle of the
+    // run, so the region's internal edge cuts it and the held accumulator has to be
+    // written back on an edge that does not leave.
+    let mut q4 = Vec::new();
+    q4.extend(asm::addi_n(7, 7, 1));                                                                   // 0
+    for _ in 0..27 { q4.extend(asm::nop_n()); }                                                        // 2..56
+    q4.extend(asm::pie("ee.movi.32.q", &[(Qu, 0), (As, 7), (Sel, 0)]));                                // 56
+    q4.extend(asm::pie("ee.zero.accx", &[]));                                                          // 59
+    q4.extend(asm::pie("ee.vld.128.ip", &[(Qu, 4), (As, 8), (Imm, 16)]));                              // 62
+    q4.extend(asm::pie("ee.vmulas.s8.accx.ld.ip", &[(Qu, 5), (As, 8), (Imm, 16), (Qx, 0), (Qy, 4)]));  // 65
+    q4.extend(asm::pie("ee.vmulas.s8.accx.ld.ip", &[(Qu, 4), (As, 8), (Imm, 16), (Qx, 1), (Qy, 5)]));  // 69 chunk 1 head
+    q4.extend(asm::pie("ee.vld.128.ip", &[(Qu, 7), (As, 8), (Imm, 16)]));                              // 73
+    q4.extend(asm::pie("ee.vmulas.s8.accx.ld.ip", &[(Qu, 5), (As, 8), (Imm, 16), (Qx, 2), (Qy, 7)]));  // 76
+    q4.extend(asm::pie("ee.vmulas.s8.accx", &[(Qx, 2), (Qy, 4)]));                                     // 80
+    q4.extend(asm::pie("ee.vst.128.ip", &[(Qv, 3), (As, 10), (Imm, 16)]));                             // 83
+    q4.extend(asm::pie("ee.vmulas.s16.accx", &[(Qx, 0), (Qy, 4)]));                                    // 86
+    q4.extend(asm::rur(11, 0));                                                                        // 89 rur.accx_0 a11
+    q4.extend(asm::pie("ee.zero.accx", &[]));                                                          // 92
+    q4.extend(asm::pie("ee.vmulas.s16.accx.ld.ip", &[(Qu, 6), (As, 9), (Imm, 16), (Qx, 0), (Qy, 1)])); // 95
+    q4.extend(asm::rur(15, 1));                                                                        // 99 rur.accx_1 a15
+    q4.extend(asm::mov_n(8, 12));                                                                      // 102
+    q4.extend(asm::mov_n(9, 13));                                                                      // 104
+    q4.extend(asm::mov_n(10, 14));                                                                     // 106
+    q4.extend(asm::j(BASE + 108, BASE));                                                               // 108
+    let group = [(0, AddiN, 0), (56, Pie, 0), (59, Pie, 0), (62, Pie, 0), (65, Pie, 0), (69, Pie, 0), (73, Pie, 0),
+                 (76, Pie, 0), (80, Pie, 0), (83, Pie, 0), (86, Pie, 0), (89, Rur, 0), (92, Pie, 0), (95, Pie, 0),
+                 (99, Rur, 0), (102, MovN, 0), (108, J, 0)];
+    for (label, cp3, data, src, dst, readonly, turns, whole) in [
+        ("q4", 8, &mixed, BASE + 0x1000, BASE + 0x2000, false, 600, true),
+        ("q4-extreme", 8, &positive, BASE + 0x1000, BASE + 0x2000, false, 600, true),
+        ("q4-cp3-off", 0, &mixed, BASE + 0x1000, BASE + 0x2000, false, 40, false),
+        ("q4-readonly", 8, &mixed, BASE + 0x1000, BASE + 0x2000, true, 300, false),
+        // The coalesced range leaves the mapping: the shared probe fails and the
+        // per-access copy must fault on exactly the access that leaves it.
+        ("q4-off-end", 8, &mixed, BASE + 65536 - 48, BASE + 0x2000, false, 40, false),
+        ("q4-off-end2", 8, &mixed, BASE + 65536 - 64, BASE + 0x2000, false, 40, false),
+        // The base is not 16-aligned: every address is masked but the post-increments
+        // are not, so the coalesced copy must keep the low bits of the base register.
+        ("q4-unaligned", 8, &mixed, BASE + 0x1000 + 5, BASE + 0x2000, false, 300, false),
+        ("q4-slow", 8, &mixed, SLOW, BASE + 0x2000, false, 300, false),
+        // Past the 111-byte program but inside its version page: DIRTY, no rewritten code.
+        ("q4-self-modify", 8, &mixed, BASE + 0x1000, BASE + 128, false, 300, false),
+    ] {
+        let max = region_program_on(label, &q4, &group, data, 32, 69, readonly, |c| {
+            c.cpenable = cp3;
+            c.set_ar(7, 0x0100_0000);
+            c.set_ar(8, src); c.set_ar(9, src + 0x80); c.set_ar(10, dst);
+            c.set_ar(12, src); c.set_ar(13, src + 0x80); c.set_ar(14, dst);
+        }, turns);
+        assert!(!whole || max >= 40, "{label}: region retired at most {max} per call");
+        cases += 1;
+    }
     // EX155: the 4-bit weight unpack of pocket-tank's matmul: WUR/RUR SAR_BYTE, the byte shift
     // across two Q registers (every count 0..15, with and without QUP, destination aliasing either
     // source), 32-bit lane shifts for SAR 0..32, and saturating/min/max lane arithmetic.
