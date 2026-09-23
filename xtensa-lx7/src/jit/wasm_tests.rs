@@ -8,6 +8,7 @@ pub(super) static PS_INLINE_TAKEN: std::sync::atomic::AtomicU32 = std::sync::ato
 pub(super) static PS_REGION_TAKEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 pub(super) static RETW_INLINE_TAKEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 pub(super) static GUARDED_TAKEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+pub(super) static STORE_RUN_TAKEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 #[path = "wasm_tests/pie_accx.rs"]
 mod pie_accx;
 const BASE: u32 = 0x4037_0000;
@@ -24,6 +25,9 @@ struct Ram {
     /// `note_code_page`, and honored by `wrote` exactly as the generated store honors
     /// `TlbEntry.code`, so both paths must produce the same counters.
     watched: bool,
+    /// store-s1: `note_code_page` leaves an unwatched mapping unwatched (a program that never
+    /// writes its own code, standing in for data in another mapping).
+    pinned: bool,
     noted: u32,
     slow: [u8; 256],
     slow_writes: u32,
@@ -62,6 +66,7 @@ impl Ram {
             fast,
             readonly,
             watched: true,
+            pinned: false,
             noted: 0,
             slow: [0x5a; 256],
             slow_writes: 0,
@@ -160,6 +165,7 @@ impl Bus for Ram {
         self.noted = pc;
     }
     fn note_code_page(&mut self, _vidx: u32) {
+        if self.pinned { return }
         self.watched = true;
         for e in self.tlb.iter_mut() { if e.hi > e.lo { e.code = 1; } }
     }
@@ -423,7 +429,7 @@ pub fn run_tests() -> u32 {
     crate::block::ownership_tests::compiled_helpers_follow_the_current_bus_type();
     tests += 1;
     tests + arithmetic::integer_ops() + float::floating_point() + float::floating_point_guard_proof() + float::fma_halfway_fallback()
-        + loops::hardware_loops() + control::window_masks() + control::terminal_helpers()
+        + loops::hardware_loops() + loops::store_runs() + control::window_masks() + control::terminal_helpers()
         + control::special_register_blocks() + control::ps_terminals() + control::windowed_return() + control::whole_block_guards()
         + control::entry_and_shifts() + control::guarded_loop_sites() + control::pie_wide_shifts() + timing::priced_cases()
 }

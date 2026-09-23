@@ -10,7 +10,7 @@ use region::{region_edge, RegionGen};
 #[path = "wasm_policy.rs"]
 mod policy;
 #[path = "wasm_memory.rs"]
-mod memory;
+pub(super) mod memory;
 #[path = "wasm_instruction.rs"]
 mod instruction;
 pub(super) use policy::{admitted, supported_insn, loop_safe, terminal_helper, rsr_field};
@@ -710,6 +710,28 @@ pub(super) fn generate(block: &Block) -> Vec<u8> {
         g.op(0x6a);
         g.set(STOP);
         if site.is_some() { g.begin_loop(); }
+        if let Some(run) = site.and_then(|n| memory::store_run(&block.instructions[..n], block.fast)) {
+            // store-s1: at the loop head (entry 0: a head entry or a taken backedge) of a loop the
+            // dispatcher admitted (loop_end), STOP is the credit left, budget - DONE; bulk
+            // iterations keep it so.
+            g.get(3);
+            g.get(DONE);
+            g.op(0x6b);
+            g.c(0);
+            g.get(4);
+            g.op(0x45);
+            g.get(2);
+            g.load(offset_of!(Helpers, loop_end));
+            g.c(hint);
+            g.op(0x46);
+            g.op(0x71);
+            g.op(0x1b);
+            memory::store_bulk(&mut g, &run, block.pc, hint);
+            g.get(3);
+            g.get(DONE);
+            g.op(0x6b);
+            g.set(STOP);
+        }
         let loop_depth = g.depth();
         let n = block.instructions.len();
         for _ in 0..n { g.begin_block(); }

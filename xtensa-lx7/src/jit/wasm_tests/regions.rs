@@ -5,14 +5,16 @@ use super::*;
 /// and timer deadlines. Returns the largest single-call retirement, which proves that
 /// a region ran past its head block.
 fn region_program(name: &str, program: &[u8], expected: &[(u32, Op, u32)], data: &[u8], head_len: u32, interior: u32, setup: impl Fn(&mut Cpu), turns: usize) -> u32 {
-    region_program_on(name, program, expected, data, head_len, interior, false, setup, turns)
+    region_program_on(name, program, expected, data, head_len, interior, false, false, setup, turns)
 }
-fn region_program_on(name: &str, program: &[u8], expected: &[(u32, Op, u32)], data: &[u8], head_len: u32, interior: u32, readonly: bool, setup: impl Fn(&mut Cpu), turns: usize) -> u32 {
+fn region_program_on(name: &str, program: &[u8], expected: &[(u32, Op, u32)], data: &[u8], head_len: u32, interior: u32, readonly: bool, unwatched: bool, setup: impl Fn(&mut Cpu), turns: usize) -> u32 {
     let (mut a, mut b) = (cpu(3), cpu(3));
     let (mut ra, mut rb) = (Ram::new(true, readonly), Ram::new(true, readonly));
     for r in [&mut ra, &mut rb] {
         r.ram.mem[..program.len()].copy_from_slice(program);
         r.ram.mem[0x1000..0x1000 + data.len()].copy_from_slice(data);
+        // store-s1: a mapping no decoded code depends on, even after the region forms.
+        if unwatched { r.unwatch(); r.pinned = true; }
     }
     CONTEXT.with(|c| *c.borrow_mut() = format!("region program {name}"));
     for &(off, op, target) in expected {
@@ -491,7 +493,7 @@ pub(super) fn regions() -> u32 {
         ("uniform-slow", 8, SLOW, BASE + 0x2000, false, false, 300, false),
         ("uniform-overflow", 0, BASE + 0x1000, BASE + 0x2000, false, true, 40, false),
     ] {
-        let max = region_program_on(label, &p, &uniform, &data, 9, 25, readonly, |c| {
+        let max = region_program_on(label, &p, &uniform, &data, 9, 25, readonly, false, |c| {
             c.cpenable = cp3;
             if occupied { c.ps = ps::WOE; c.windowstart = (1 << c.windowbase) | (1 << ((c.windowbase + 2) % 16)); }
             c.set_ar(7, 0x0042_0042); c.set_ar(12, src); c.set_ar(13, dst);
@@ -536,7 +538,7 @@ pub(super) fn regions() -> u32 {
         ("dot-off-end", 8, &mixed, 0, BASE + 65536 - 48, false, 40, false),
         ("dot-slow", 8, &mixed, 0, SLOW, false, 300, false),
     ] {
-        let max = region_program_on(label, &dp, &dot, data, 3, 8, readonly, |c| {
+        let max = region_program_on(label, &dp, &dot, data, 3, 8, readonly, false, |c| {
             c.cpenable = cp3;
             c.accx = [accx as u32, ((accx >> 32) & 0xff) as u32];
             if accx != 0 { c.pc = BASE + 3; } // past the reset, so ACCX starts near its bound
@@ -659,7 +661,7 @@ pub(super) fn regions() -> u32 {
         // Past the 111-byte program but inside its version page: DIRTY, no rewritten code.
         ("q4-self-modify", 8, &mixed, BASE + 0x1000, BASE + 128, false, 300, false),
     ] {
-        let max = region_program_on(label, &q4, &group, data, 32, 69, readonly, |c| {
+        let max = region_program_on(label, &q4, &group, data, 32, 69, readonly, false, |c| {
             c.cpenable = cp3;
             c.set_ar(7, 0x0100_0000);
             c.set_ar(8, src); c.set_ar(9, src + 0x80); c.set_ar(10, dst);
@@ -704,7 +706,7 @@ pub(super) fn regions() -> u32 {
                   (74, Rur, 0), (77, MovN, 0), (79, J, 0)];
     let edges: Vec<u8> = (0..0x100u32).map(|i| [0x80u8, 0x7f, 0xff, 0x00, 0x01, 0x81][(i as usize * 7 + i as usize / 16) % 6]).collect();
     for (label, cp3, data, turns) in [("unpack", 8, &mixed, 900), ("unpack-edges", 8, &edges, 900), ("unpack-cp3-off", 0, &mixed, 40)] {
-        let max = region_program_on(label, &up, &unpack, data, 28, 14, false, |c| {
+        let max = region_program_on(label, &up, &unpack, data, 28, 14, false, false, |c| {
             c.cpenable = cp3;
             c.set_ar(8, BASE + 0x1000); c.set_ar(12, BASE + 0x1000); c.set_ar(11, 0xffff_fff0);
         }, turns);
@@ -726,7 +728,7 @@ pub(super) fn regions() -> u32 {
     // tails-s2: and resume inside them.
     assert!(REGION_STATS[13].load(std::sync::atomic::Ordering::Relaxed) > 200, "too few resumes into guarded copies: {}", REGION_STATS[13].load(std::sync::atomic::Ordering::Relaxed));
     cases + 2 + prev_page_store() + forward_edges() + self_loops() + outside_loops() + jx_literal() + deferred_in_guarded_copy()
-        + resumed_head_copy() + head_recovery_long_pie() + resume_memo() + named_tail_resume()
+        + resumed_head_copy() + head_recovery_long_pie() + resume_memo() + named_tail_resume() + looped_resumes() + store_runs()
 }
 
 /// lane-s1: a dispatch at the PC a quantum-ending region exit left enters that region directly.
@@ -862,6 +864,68 @@ fn named_tail_resume() -> u32 {
     arrive(&mut c, &mut ram);
     assert_eq!((c.blocks.alias_hits, c.blocks.builds), (hits, builds + 1), "named-tail: after a flush the arrival is a new head");
     3
+}
+
+
+/// loop-s1: quanta end inside a LOOPNEZ body that is one region chunk, so dispatches start there
+/// with the loop active: fresh entries at the body head and resumes inside its copy continue the
+/// loop in the region. LCOUNT 0, 1 and n; LBEG moved (as by WSR) and LEND moved mid-chunk must be
+/// refused; a window collision rejects at entry. Every turn is compared with the interpreter.
+fn looped_resumes() -> u32 {
+    let stat = |i: usize| REGION_STATS[i].load(std::sync::atomic::Ordering::Relaxed);
+    let mut cases = 0;
+    for (n, perturb, windows) in [(0, false, 0), (1, false, 0), (2, false, 0), (7, false, 0), (40, false, 0), (40, true, 0), (40, false, 0b101)] {
+        let mut p = Vec::new();
+        p.extend(asm::addi_n(3, 3, 1));               // 0  head
+        p.extend(asm::movi_n(7, n));                  // 2
+        p.extend(asm::lp(9, BASE + 4, 7, BASE + 13)); // 4  loopnez a7, 13
+        p.extend(asm::addi_n(5, 5, 1));               // 7  LBEG: the body is one chunk
+        p.extend(asm::addi_n(9, 9, 1));               // 9
+        p.extend(asm::addi_n(4, 4, 1));               // 11 ends at LEND
+        p.extend(asm::j(BASE + 13, BASE));            // 13
+        let (mut a, mut b) = (cpu(3), cpu(3));
+        let (mut ra, mut rb) = (Ram::new(true, false), Ram::new(true, false));
+        for r in [&mut ra, &mut rb] { r.ram.mem[..p.len()].copy_from_slice(&p); }
+        for c in [&mut a, &mut b] {
+            c.pc = BASE;
+            c.ps = if windows != 0 { ps::WOE } else { 0 };
+        }
+        let (looped, resumes) = (stat(16), stat(13));
+        let mut memo_looped = 0;
+        for turn in 0..1500 {
+            let budget = 1 + (turn * 7) as u32 % 71;
+            for c in [&mut a, &mut b] {
+                // Occupied frames above: a9 overflows until the "handler" below frees them.
+                if windows != 0 && turn % 100 == 0 { c.windowstart = (1 << 3) | (windows << 4); }
+                if perturb && turn % 30 == 10 && c.lcount != 0 { c.lbeg = BASE + 9; }
+                if perturb && turn % 30 == 20 && c.lcount != 0 { c.lend = BASE + 11; }
+            }
+            CONTEXT.with(|c| *c.borrow_mut() = format!("looped-resumes n {n} perturb {perturb} turn {turn} pc {:x} budget {budget}", b.pc));
+            // integrate: a memo'd copy resume with the chunk's own loop active (lane-s1c x loop-s1)
+            let (armed, hits) = (b.lcount != 0 && b.blocks.memo.0 == b.pc && b.blocks.memo.2 >> 16 != 0, stat(14));
+            let (done, trap) = crate::block::run_block(&mut b, &mut rb, budget);
+            if armed && stat(14) > hits { memo_looped += 1; }
+            assert!(done <= budget);
+            let mut oracle = None;
+            for _ in 0..done {
+                ra.note_pc(a.pc);
+                if let Err(t) = crate::step(&mut a, &mut ra) { oracle = Some(t); break; }
+            }
+            assert_eq!(trap, oracle, "looped-resumes n {n}: turn {turn}");
+            same(&a, &b);
+            if done > 0 && trap.is_none() { assert_eq!(ra.noted, rb.noted, "looped-resumes n {n}: noted PC after turn {turn}"); }
+            if trap.is_some() {
+                for c in [&mut a, &mut b] { c.pc = c.epc[1]; c.ps = ps::WOE; c.windowbase = 3; c.windowstart = 1 << 3; }
+            }
+            cases += 1;
+        }
+        if n >= 7 && windows == 0 {
+            assert!(stat(16) > looped + 100, "looped-resumes n {n}: too few region entries inside the active loop ({})", stat(16) - looped);
+            assert!(stat(13) > resumes + 50, "looped-resumes n {n}: too few resumes into the looped copy ({})", stat(13) - resumes);
+            assert!(perturb || memo_looped > 20, "looped-resumes n {n}: too few memo'd copy resumes inside the active loop ({memo_looped})");
+        }
+    }
+    cases
 }
 
 /// edge-s1: a head chunk no internal edge reaches. Its quanta end only in dispatches short of its
@@ -1232,6 +1296,53 @@ fn prev_page_store() -> u32 {
         }, 300);
         assert!(max > 8, "prev-page-store: region never passed its head ({max})");
         cases += 1;
+    }
+    cases
+}
+
+/// store-s1: the span-fill and memset loop bodies as region self-loop chunks, from aligned,
+/// misaligned and page-straddling pointers and counts that the credit cuts anywhere, in a
+/// watched mapping (versions moved in bulk, never over the region's own code pages) or not.
+fn store_runs() -> u32 {
+    use std::sync::atomic::Ordering::Relaxed;
+    use Op::*;
+    let mut span = Vec::new();
+    span.extend(asm::lp(9, BASE, 3, BASE + 8));     // 0  loopnez a3, 8
+    span.extend(asm::s16i(6, 4, 0));                // 3  LBEG
+    span.extend(asm::addi_n(4, 4, 2));              // 6  ends at LEND
+    span.extend(asm::addi_n(6, 6, 1));              // 8  the next pattern
+    span.extend(asm::add_n(4, 7, 2));               // 10 the next start
+    span.extend(asm::j(BASE + 12, BASE));           // 12
+    let span_shape = [(0, Loopnez, 8), (3, S16i, 0), (6, AddiN, 0), (8, AddiN, 0), (10, AddN, 0), (12, J, 0)];
+    let mut memset = Vec::new();
+    memset.extend(asm::lp(9, BASE, 3, BASE + 14));  // 0  loopnez a3, 14
+    for (at, off) in [(3, 8), (5, 0), (7, 12), (9, 4)] {
+        assert_eq!(memset.len(), at);
+        memset.extend(asm::s32i_n(6, 4, off));      // 3..9 LBEG
+    }
+    memset.extend(asm::addi(4, 4, 16));             // 11 ends at LEND
+    memset.extend(asm::addi_n(6, 6, 1));            // 14
+    memset.extend(asm::add_n(4, 7, 2));             // 16
+    memset.extend(asm::j(BASE + 18, BASE));         // 18
+    let memset_shape = [(0, Loopnez, 14), (3, S32iN, 0), (11, Addi, 0), (14, AddiN, 0), (16, AddN, 0), (18, J, 0)];
+    let mut cases = 0;
+    for (name, p, shape) in [("span-run", &span, &span_shape[..]), ("memset-run", &memset, &memset_shape[..])] {
+        // Near: the region's own page 0, and page 1, whose first bytes move page 0's version.
+        for (count, start, skew, near) in [(37, BASE + 0x1000, 0, false), (37, BASE + 0x1000, 1, false), (5, BASE + 0x10f8, 0, false),
+            (200, BASE + 0x1000, 0, false), (1, BASE + 0x1000, 0, false), (37, BASE + 0x2fc, 0, false), (12, BASE + 0x40, 0, true), (12, BASE + 0x100, 0, true)] {
+            for unwatched in [true, false] {
+                STORE_RUN_TAKEN.store(0, Relaxed);
+                let max = region_program_on(name, p, shape, &[], 1, 3, false, unwatched, move |c| {
+                    c.set_ar(3, count); c.set_ar(7, start); c.set_ar(2, skew); c.set_ar(4, start + skew);
+                }, 600);
+                assert!(max > 3, "{name} region never passed its head ({max})");
+                let allowed = skew == 0 && (unwatched || !near);
+                let hit = STORE_RUN_TAKEN.load(Relaxed) != 0;
+                assert!(!hit || allowed, "{name}: store run taken outside its proof");
+                assert!(hit || !allowed || count < 3, "{name}: store run never taken (count {count} start {start:x} unwatched {unwatched})");
+                cases += 1;
+            }
+        }
     }
     cases
 }

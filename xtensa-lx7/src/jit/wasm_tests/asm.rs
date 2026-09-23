@@ -8,6 +8,8 @@ pub fn bz(m: u32, pc: u32, s: u32, target: u32) -> Vec<u8> { w24(0x6 | 0x10 | (m
 pub fn l8ui(t: u32, s: u32, imm: u32) -> Vec<u8> { rri8(2, 0, s, t, imm) }
 pub fn l16ui(t: u32, s: u32, imm: u32) -> Vec<u8> { rri8(2, 1, s, t, imm / 2) }
 pub fn s8i(t: u32, s: u32, imm: u32) -> Vec<u8> { rri8(2, 4, s, t, imm) }
+pub fn s16i(t: u32, s: u32, imm: u32) -> Vec<u8> { rri8(2, 5, s, t, imm / 2) }
+pub fn addi(t: u32, s: u32, imm: i32) -> Vec<u8> { rri8(2, 0xc, s, t, imm as u32) }
 pub fn xor(r: u32, s: u32, t: u32) -> Vec<u8> { w24((t << 4) | (s << 8) | (r << 12) | (3 << 20)) }
 pub fn rsr(t: u32, sr: u32) -> Vec<u8> { w24((3 << 16) | (sr << 8) | (t << 4)) }
 /// RUR: op2 = 14, op1 = 3; the user register number is s:t.

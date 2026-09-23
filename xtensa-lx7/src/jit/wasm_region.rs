@@ -474,6 +474,13 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
         // function as a WASM loop; every other arrival still comes through the br_table.
         let self_loop = successors(chunk).contains(&chunk.pc)
             || formed_loops.iter().any(|&(lend, lbeg)| lbeg == chunk.pc && lend == chunk_end(chunk));
+        if let Some(run) = formed_loops.contains(&(chunk_end(chunk), chunk.pc)).then(|| memory::store_run(&chunk.instructions, fast)).flatten() {
+            // store-s1: once per arrival, before the per-iteration loop; the credit admitted it.
+            g.get(3);
+            g.get(DONE);
+            g.op(0x6b);
+            memory::store_bulk(&mut g, &run, chunk.pc, chunk_end(chunk));
+        }
         if self_loop {
             g.begin_loop();
         }

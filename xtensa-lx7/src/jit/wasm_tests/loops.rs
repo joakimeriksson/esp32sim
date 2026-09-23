@@ -243,3 +243,60 @@ pub(super) fn hardware_loop_scheduler() {
         }
     }
 }
+
+/// store-s1: store-run loop bodies (the render span fill and the ROM memset) retire whole
+/// iterations in bulk only at the loop head of an admitted loop, into one writable mapping,
+/// moving exactly the page versions the stores would (the previous page's for stores in a
+/// page's first bytes) and never over the looping block's own code pages (page 0 here, or the
+/// page after it through the previous-page rule, which the runs from 0x40 and 0x104 never leave). A read-only mapping, a misaligned pointer, a
+/// range past the mapping end, a resume inside the body, another loop's LEND or LBEG and short
+/// credit all take the ordinary body, with identical memory, versions, LCOUNT and counts.
+pub(super) fn store_runs() -> u32 {
+    use std::sync::atomic::Ordering::Relaxed;
+    // review B1: a sparse store (offset 32 of a 64-byte step) is declined before any shift, even with overflow checks.
+    let mut sparse = [insn(Op::S8i), insn(Op::Addi)];
+    sparse[0].insn.imm = 32;
+    sparse[0].insn.t = 6;
+    sparse[1].insn.t = 4;
+    sparse[1].insn.imm = 64;
+    for bi in &mut sparse { bi.max_ar = crate::exec::max_ar(&bi.insn); }
+    compare_hinted(&mut sparse, Case { seed: 23, budget: 8, fast: true, unwatched: true, ..Case::default() },
+        &|c: &mut Cpu| { c.set_ar(4, BASE + 0x1000); c.lbeg = BASE; c.lend = BASE + 6; c.lcount = 4; }, BASE + 6);
+    let mut span = [insn(Op::S16i), insn(Op::AddiN), insn(Op::Add)];
+    span[0].insn.imm = 0;
+    span[0].insn.t = 6;
+    span[1].insn.r = 4;
+    span[1].insn.imm = 2;
+    let mut memset = [insn(Op::S32i), insn(Op::S32i), insn(Op::S32i), insn(Op::S32i), insn(Op::Addi), insn(Op::Add)];
+    for (bi, off) in memset.iter_mut().zip([4, 0, 12, 8]) { bi.insn.imm = off; bi.insn.t = 6; }
+    memset[4].insn.t = 4;
+    memset[4].insn.imm = 16;
+    let mut cases = 0;
+    let (mut taken, mut watched) = (0, 0);
+    for (block, lend, width, stride) in [(&mut span[..], BASE + 6, 2, 2), (&mut memset[..], BASE + 15, 4, 16)] {
+        for bi in block.iter_mut() { bi.max_ar = crate::exec::max_ar(&bi.insn); }
+        for (off, lcount) in [(0x1000, 40), (0x1000, 3), (0x1000, 1), (0x1000, u32::MAX), (0x1001, 40), (0x1002, 40),
+            (0xffc0, 40), (0x2f0, 40), (0x2fa, 9), (0x1fe, 9), (0x200, 9), (0x40, 9), (0x104, 9)] {
+            let addr = BASE + off;
+            for (unwatched, readonly) in [(true, false), (false, false), (true, true)] {
+                for entry in [0, 1] {
+                    for budget in [1, 2, 5, 6, 7, 8, 12, 13, 29, 30, 64, 65, 200] {
+                        for (lbeg, end) in [(BASE, lend), (BASE, lend + 3), (BASE + 3, lend)] {
+                            STORE_RUN_TAKEN.store(0, Relaxed);
+                            compare_hinted(block, Case { seed: 23, entry, budget, fast: true, unwatched, readonly, ..Case::default() },
+                                &|c: &mut Cpu| { c.set_ar(4, addr); c.lbeg = lbeg; c.lend = end; c.lcount = lcount; }, lend);
+                            let hit = STORE_RUN_TAKEN.load(Relaxed) != 0;
+                            let own = !unwatched && off + 9 * stride <= 0x200;
+                            assert!(!hit || (!readonly && off % width == 0 && lbeg == BASE && end == lend && !own), "store run taken outside its proof");
+                            taken += hit as u32;
+                            watched += (hit && !unwatched) as u32;
+                            cases += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(taken > 100 && watched > 50, "store runs were taken only {taken} times ({watched} watched)");
+    cases
+}

@@ -33,7 +33,7 @@ const TUNES: u8 = 3;
 /// Formation attempts per block, including re-formation after a code page changed.
 const REGION_TRIES: u8 = 8;
 #[cfg(feature = "wasm-jit-tests")]
-pub(crate) static REGION_STATS: [std::sync::atomic::AtomicU32; 16] = [const { std::sync::atomic::AtomicU32::new(0) }; 16];
+pub(crate) static REGION_STATS: [std::sync::atomic::AtomicU32; 17] = [const { std::sync::atomic::AtomicU32::new(0) }; 17];
 
 /// Last retired PC and (lane-s1) the region parameter that resumes right at the exit PC when the
 /// exit ended the quantum there (credit short at a chunk head, a guarded copy's cut), else NONE.
@@ -173,8 +173,10 @@ struct Hot { epoch: u64, bloom: u64, slot: u32, k: u32, len: u32, lo: u32, span:
     /// shell-s2: `Bus::stable_pages` epoch at the refill; `pages` leaves out the pages it vouches for.
     fepoch: u64, counting: bool,
     /// lane-s1l: the owning region's (LEND, LBEG) loops, live while `epoch` is current.
-    loops: *const (u32, u32), nloops: u32 }
-impl Hot { const NONE: Hot = Hot { epoch: 0, bloom: 0, slot: 0, k: 0, len: 0, lo: 0, span: 0, pages: [(0, 0); emitter::region::MAX_PAGES], npages: 0, nsites: 0, sites: std::ptr::null(), copy: 0, fepoch: 0, counting: false, loops: std::ptr::null(), nloops: 0 }; }
+    loops: *const (u32, u32), nloops: u32,
+    /// loop-s1: the region loop (LEND, LBEG) whose body holds this chunk; with it active the region continues it.
+    lp: Option<(u32, u32)> }
+impl Hot { const NONE: Hot = Hot { epoch: 0, bloom: 0, slot: 0, k: 0, len: 0, lo: 0, span: 0, pages: [(0, 0); emitter::region::MAX_PAGES], npages: 0, nsites: 0, sites: std::ptr::null(), copy: 0, fepoch: 0, counting: false, loops: std::ptr::null(), nloops: 0, lp: None }; }
 #[cfg(any(debug_assertions, feature = "wasm-jit-tests"))]
 impl Hot {
     fn assert_matches(&self, r: &Region, k: u32, (lo, hi, _): (u32, u32, u64)) {
@@ -184,6 +186,7 @@ impl Hot {
         assert_eq!((self.sites, self.nsites), (r.sites.as_ptr(), r.sites.len() as u32));
         assert_eq!((self.loops, self.nloops), (r.loops.as_ptr(), r.loops.len() as u32));
         assert_eq!(self.counting, !r.short.is_empty() && r.lens[k as usize] > 1 && r.copies[k as usize] == 0);
+        assert_eq!(self.lp, r.chunk_loop(k));
     }
 }
 /// Several chunks compiled as one function; see wasm_region.rs.
@@ -208,6 +211,12 @@ struct Region {
     tunes: u8,
     /// tails-s2: dispatch index of each chunk's guarded copy, or 0.
     copies: Vec<u32>,
+}
+impl Region {
+    fn chunk_loop(&self, k: u32) -> Option<(u32, u32)> {
+        let pc = self.chunks[k as usize].pc;
+        self.loops.iter().copied().find(|&(lend, lbeg)| pc.wrapping_sub(lbeg) < lend.wrapping_sub(lbeg))
+    }
 }
 // Compiled instructions own their backing storage, independently of the decoder arena.
 // A decoder flush invalidates every handle before reset may compact this cache.
@@ -665,10 +674,13 @@ pub unsafe fn resume<B: Bus>(cc: &CodeCache, cpu: &mut Cpu, bus: &mut B, h: &Hel
     // Hot facts stamped in this epoch describe the region the memo came from; a chunk-head entry
     // needs credit for the whole chunk (at most MAX_LEN), a guarded copy cuts where credit ends.
     // lane-s1l: a chunk head admits an active loop of the region's own, as the slow path does.
+    // loop-s1: a copy admits its chunk's own loop, as the Hot path does; these facts are that
+    // chunk's exactly when the copy is theirs.
     if hot.epoch != epoch || hot.fepoch != bus.stable_pages().2 || cpu.boundary_bloom & hot.bloom != 0
-        || (cpu.lcount != 0 && cpu.lend.wrapping_sub(hot.lo) <= hot.span && (param >> 16 != 0
+        || (cpu.lcount != 0 && cpu.lend.wrapping_sub(hot.lo) <= hot.span && !if param >> 16 == 0 {
             // SAFETY: the epoch proves the owning region, and so this vector, is live.
-            || !unsafe { std::slice::from_raw_parts(hot.loops, hot.nloops as usize) }.contains(&(cpu.lend, cpu.lbeg))))
+            unsafe { std::slice::from_raw_parts(hot.loops, hot.nloops as usize) }.contains(&(cpu.lend, cpu.lbeg))
+        } else { param & 0xffff == hot.copy && hot.lp == Some((cpu.lend, cpu.lbeg)) })
         || (param >> 16 == 0 && budget < crate::block::MAX_LEN as u32)
         || !hot.pages[..hot.npages as usize].iter().all(|&(i, v)| pv.get(i as usize).copied().unwrap_or(0) == v) {
         #[cfg(feature = "wasm-jit-profile")]
@@ -767,7 +779,9 @@ unsafe fn run_inner<B: Bus>(
             // inner-s1: one bloom test for both the credit and the resume admission.
             let clear = cpu.boundary_bloom & hot.bloom == 0;
             let fits = budget >= hot.len && clear;
-            let unlooped = cpu.lcount == 0 || cpu.lend.wrapping_sub(hot.lo) > hot.span;
+            // loop-s1: the chunk's own region loop active is as good as none: its LEND ends a chunk,
+            // where the region takes the backedge itself.
+            let unlooped = cpu.lcount == 0 || cpu.lend.wrapping_sub(hot.lo) > hot.span || hot.lp == Some((cpu.lend, cpu.lbeg));
             let live = hot.epoch == cc.region_epoch.get() && hot.fepoch == stable.2;
             // tails-s2 (EX182 s2): a resume inside a chunk with a guarded copy enters the copy at
             // `entry`, whose STOP cuts wherever the credit ends. A resume never forms or enters a
@@ -790,6 +804,8 @@ unsafe fn run_inner<B: Bus>(
                     let epoch = hot.epoch;
                     #[cfg(feature = "wasm-jit-tests")]
                     if entry != 0 { REGION_STATS[13].fetch_add(1, std::sync::atomic::Ordering::Relaxed); }
+                    #[cfg(feature = "wasm-jit-tests")]
+                    if cpu.lcount != 0 && hot.lp == Some((cpu.lend, cpu.lbeg)) { REGION_STATS[16].fetch_add(1, std::sync::atomic::Ordering::Relaxed); }
                     let f: Run<B> = unsafe { std::mem::transmute(slot as usize) };
                     let mut result = f(cpu, bus, h, budget.min(0xffff), param, tlb, versions);
                     // SAFETY: the epoch proves the owning region, and so this vector, is live.
@@ -909,7 +925,8 @@ unsafe fn run_inner<B: Bus>(
                     for &(i, v) in &r.pages { if i < lo || i >= hi { pages[npages] = (i, v); npages += 1; } }
                     rec.hot.set(Hot { epoch: cc.region_epoch.get(), bloom: r.bloom, slot: r.slot, k, len: r.lens[k as usize], lo: r.lo,
                         span: r.hi.wrapping_sub(r.lo), pages, npages: npages as u32, nsites: r.sites.len() as u32, sites: r.sites.as_ptr(), loops: r.loops.as_ptr(), nloops: r.loops.len() as u32,
-                        copy: r.copies[k as usize], fepoch, counting: !r.short.is_empty() && r.lens[k as usize] > 1 && r.copies[k as usize] == 0 });
+                        copy: r.copies[k as usize], fepoch, counting: !r.short.is_empty() && r.lens[k as usize] > 1 && r.copies[k as usize] == 0,
+                        lp: r.chunk_loop(k) });
                 }
                 if entry == 0
                     && budget >= r.lens[k as usize]
@@ -1128,11 +1145,12 @@ unsafe fn run_block_body<B: Bus>(cc: &CodeCache, code: u32, cpu: &mut Cpu, bus: 
         debug_assert_eq!(cc.blocks[code as usize].pcs[offset], cpu.pc);
         // lane-s1c: the next dispatch resumes here, which the Hot path takes into this chunk's
         // guarded copy; the memo lets it go there directly (every other check is made at use).
-        // Not inside an active loop ending in the region: a copy resume is refused there.
+        // Not inside an active loop ending in the region unless it is the chunk's own (loop-s1): a
+        // copy resume is refused there.
         // SAFETY: the only writer, the refill in run_inner, is not running.
         let hot = unsafe { &*r.hot.as_ptr() };
         if hot.epoch == cc.region_epoch.get() && hot.copy != 0 && offset != 0 && (offset as u32) < hot.len
-            && (cpu.lcount == 0 || cpu.lend.wrapping_sub(hot.lo) > hot.span) {
+            && (cpu.lcount == 0 || cpu.lend.wrapping_sub(hot.lo) > hot.span || hot.lp == Some((cpu.lend, cpu.lbeg))) {
             cpu.blocks.memo = (cpu.pc, code, hot.copy | (offset as u32) << 16, hot.epoch);
         } else { cpu.blocks.memo.0 = 1; }
         result | ((offset as u32) << 19)

@@ -70,6 +70,8 @@ impl Profile {
 
     pub fn report(&self) -> String {
         let mut text = format!("[wasm-profile] calls={} sample_probability=1/4096\n", self.calls);
+        let runs = &emitter::memory::STORE_RUNS;
+        writeln!(text, "[store-run] bulk={} iterations={} (all cores so far)", runs[0].load(std::sync::atomic::Ordering::Relaxed), runs[1].load(std::sync::atomic::Ordering::Relaxed)).unwrap();
         let mut loops: Vec<_> = self.loops.iter().collect();
         loops.sort_by_key(|(pc, _)| **pc);
         for (pc, (calls, backedges)) in loops {
