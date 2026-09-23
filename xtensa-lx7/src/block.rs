@@ -135,7 +135,7 @@ impl BlockCache {
     }
     pub fn flush(&mut self) {
         for e in self.entries.iter_mut() { *e = Entry::EMPTY; }
-        self.arena.clear(); self.extras.clear(); self.resume = (0, 0, 1); self.alias_pc = 1;
+        self.arena.clear(); self.extras.clear(); self.resume = (0, 0, 1); self.alias_pc = 1; self.alias_head = (1, 1);
         for a in self.aliases.iter_mut() { a.0 = 1; } self.flushes += 1;
         if let Some(c) = &mut self.code { c.reset(); }
     }
@@ -282,6 +282,16 @@ pub(crate) fn must_start_block(i: &Insn) -> bool {
 /// Decode a block starting at `pc0` and register it. Only the first fetch can fault: a later
 /// unmapped instruction simply ends the block and faults when it is reached as a block start.
 fn build<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc0: u32) -> Result<(u32, u32, u16), Trap> {
+    match decode_block(cpu, bus, pc0) {
+        Some(b) => Ok(b),
+        None => Err(cpu.raise_mem(crate::state::exc::IFETCH_ERROR, pc0)),
+    }
+}
+
+/// `build` without the exception: `None` when the first fetch faults, before anything changes
+/// (review T1: speculative head recovery must not enter an exception for a PC it is not at).
+fn decode_block<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc0: u32) -> Option<(u32, u32, u16)> {
+    let mut bytes = bus.fetch(pc0).ok()?;
     #[cfg(all(
         target_arch = "aarch64",
         any(target_os = "macos", target_os = "linux")
@@ -296,16 +306,13 @@ fn build<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc0: u32) -> Result<(u32, u32, u16)
     let start = cpu.blocks.arena.len() as u32;
     let (mut pc, mut n, mut last) = (pc0, 0u16, pc0);
     loop {
-        let bytes = match bus.fetch(pc) {
-            Ok(b) => b,
-            Err(_) => { if n == 0 { return Err(cpu.raise_mem(crate::state::exc::IFETCH_ERROR, pc)); } break; }
-        };
         let i = decode(pc, bytes);
         if n > 0 && (must_start_block(&i) || cpu.boundary_bloom & pc_bit(pc) != 0) { break; }
         cpu.blocks.arena.push(BlockInsn { insn: i, max_ar: max_ar(&i), straddle: cpu.price_control && crate::exec::static_target(&i).is_some_and(|t| crate::exec::straddles(bus, t)), off: 0 });
         n += 1; last = pc;
         pc = pc.wrapping_add(i.len as u32);
         if ends_block(&i) || n as usize == MAX_LEN { break; }
+        match bus.fetch(pc) { Ok(b) => bytes = b, Err(_) => break }
     }
     cpu.blocks.extras.truncate(start as usize);
     if cpu.price_control {
@@ -336,7 +343,7 @@ fn build<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc0: u32) -> Result<(u32, u32, u16)
     let bridge = if code == crate::jit::NONE { bridge_block_class(&cpu.blocks.arena[start as usize..start as usize + n as usize]) } else { 0 };
     cpu.blocks.entries[ei] = Entry { pc: pc0, start, n, chain, #[cfg(target_arch = "wasm32")] bridge, vidx: [vidx0, vidx1], ver, code };
     cpu.blocks.builds += 1;
-    Ok((ei as u32, start, n))
+    Some((ei as u32, start, n))
 }
 
 /// Run a block (or a cut continuation) at `cpu.pc`, at most `budget` instructions.
@@ -448,9 +455,10 @@ fn alias_lookup(cpu: &mut Cpu, pv: &[u32], pc: u32) -> Option<(u32, u32, u32)> {
 #[cold]
 #[inline(never)]
 fn head_lookup<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc: u32) -> Option<(u32, u32, u32)> {
-    let (at, head) = cpu.blocks.alias_head;
+    // One use per hint; flush forgets it with the decoded blocks it was recorded against.
+    let (at, head) = std::mem::replace(&mut cpu.blocks.alias_head, (1, 1));
     if at != pc || head == pc { return None; }
-    build(cpu, bus, head).ok()?;
+    decode_block(cpu, bus, head)?;
     alias_lookup(cpu, bus.page_versions(), pc)
 }
 

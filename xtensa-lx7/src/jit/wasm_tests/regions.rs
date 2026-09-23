@@ -774,12 +774,36 @@ fn deferred_in_guarded_copy() -> u32 {
     c.set_ar(4, BASE + 0x1000);
     c.pc = BASE;
     assert_eq!(crate::block::run_block(&mut c, &mut ram, 6), (6, None));
-    assert_eq!((c.pc, c.blocks.alias_pc, c.blocks.alias_head), (BASE + 13, BASE + 13, (BASE + 13, BASE + 9)));
+    let hint = (BASE + 13, BASE + 9);
+    assert_eq!((c.pc, c.blocks.alias_pc, c.blocks.alias_head), (BASE + 13, BASE + 13, hint));
+    let at = c.clone();
     c.blocks.flush();
     c.blocks.alias_pc = c.pc;
+    c.blocks.alias_head = hint;
     let (hits, builds) = (c.blocks.alias_hits, c.blocks.builds);
     assert_eq!(crate::block::run_block(&mut c, &mut ram, 1), (1, None));
     assert_eq!((c.blocks.alias_hits, c.blocks.builds, c.pc), (hits + 1, builds + 1, BASE + 15));
+    assert_eq!(c.blocks.alias_head, (1, 1), "a head hint is used once");
+    // Review T1: the head no longer fetches (a mapping ending there) while the cut PC still does.
+    // Recovery gives up without an exception and the arrival runs exactly as a direct step at it.
+    // An old hint does not survive the decoder flush; a hint that fails is consumed.
+    let mut direct = at.clone();
+    assert!(crate::exec::step(&mut direct, &mut ram).is_ok());
+    for (fault, rearm) in [(Some(BASE + 9), true), (None, false)] {
+        c = at.clone();
+        c.blocks.alias_head = hint;
+        c.blocks.flush();
+        assert_eq!(c.blocks.alias_head, (1, 1), "flush forgets the head hint");
+        c.blocks.alias_pc = c.pc;
+        if rearm { c.blocks.alias_head = hint; }
+        ram.fetch_fault = fault;
+        let (hits, builds) = (c.blocks.alias_hits, c.blocks.builds);
+        assert_eq!(crate::block::run_block(&mut c, &mut ram, 1), (1, None));
+        same(&c, &direct);
+        assert_eq!((c.blocks.alias_hits, c.blocks.builds, c.blocks.alias_head), (hits, builds + 1, (1, 1)),
+                   "no head recovery (fault {fault:x?}): only the arrival's own block is built");
+    }
+    ram.fetch_fault = None;
     2
 }
 

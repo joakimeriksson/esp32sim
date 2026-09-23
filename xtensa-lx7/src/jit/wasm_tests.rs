@@ -15,6 +15,7 @@ const BASE: u32 = 0x4037_0000;
 const SLOW: u32 = BASE + 0x1_0000;
 struct Ram {
     ram: FlatRam,
+    fetch_fault: Option<u32>,
     versions: Vec<u32>,
     tlb: Vec<TlbEntry>,
     fast: bool,
@@ -55,6 +56,7 @@ impl Ram {
         .with_span();
         Self {
             ram,
+            fetch_fault: None,
             versions: vec![0; 256],
             tlb,
             fast,
@@ -139,6 +141,7 @@ impl Bus for Ram {
         Ok(())
     }
     fn fetch(&mut self, a: u32) -> Result<[u8; 4], Fault> {
+        if self.fetch_fault == Some(a) { return Err(Fault::Prohibited); }
         self.ram.fetch(a)
     }
     fn page_versions(&self) -> &[u32] {
