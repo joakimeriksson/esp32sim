@@ -33,7 +33,7 @@ const TUNES: u8 = 3;
 /// Formation attempts per block, including re-formation after a code page changed.
 const REGION_TRIES: u8 = 8;
 #[cfg(feature = "wasm-jit-tests")]
-pub(crate) static REGION_STATS: [std::sync::atomic::AtomicU32; 17] = [const { std::sync::atomic::AtomicU32::new(0) }; 17];
+pub(crate) static REGION_STATS: [std::sync::atomic::AtomicU32; 18] = [const { std::sync::atomic::AtomicU32::new(0) }; 18];
 
 /// Last retired PC and (lane-s1) the region parameter that resumes right at the exit PC when the
 /// exit ended the quantum there (credit short at a chunk head, a guarded copy's cut), else NONE.
@@ -162,6 +162,9 @@ struct Rec {
     /// EX136: everything a dispatch at this head needs to enter its region, copied out of the
     /// owning block so the common path follows no pointers; valid while `epoch` is current.
     hot: Cell<Hot>,
+    /// hop-s2: the coverage epoch at which this block had no region, no cover and no formation
+    /// tries left, or `u64::MAX`. Only a coverage insertion (which moves that epoch) can change it.
+    none: Cell<u64>,
 }
 const LOOP_UNKNOWN: (u32, u32, [u32; 2]) = (0, u32::MAX, [0; 2]);
 /// Entry facts of one region chunk. `sites` points into the owning region's vector, which
@@ -371,7 +374,7 @@ fn queue(cc: &mut CodeCache, instructions: &mut [BlockInsn], pc: u32, fast: bool
             old
         })
         .collect();
-    cc.recs.push(Rec { slot: Cell::new(NONE), pc, n: pcs.len() as u32, looped: Cell::new(LOOP_UNKNOWN), hot: Cell::new(Hot::NONE) });
+    cc.recs.push(Rec { slot: Cell::new(NONE), pc, n: pcs.len() as u32, looped: Cell::new(LOOP_UNKNOWN), hot: Cell::new(Hot::NONE), none: Cell::new(u64::MAX) });
     cc.blocks.push(Block {
         pcs,
         // Explicit loop-state writes break the LCOUNT-delta accounting used for retained
@@ -766,7 +769,7 @@ unsafe fn run_inner<B: Bus>(
         // Read cached admission facts in place instead of copying the entire descriptor.
         // End the borrow before entering generated code or updating the cached descriptor.
         let mut rejected;
-        {
+        'facts: {
             // SAFETY: the only writer, the refill below, runs after this reference's scope.
             let hot = unsafe { &*rec.hot.as_ptr() };
             let stable = bus.stable_pages();
@@ -777,6 +780,19 @@ unsafe fn run_inner<B: Bus>(
                 let region = cc.blocks[owner as usize].region.borrow();
                 hot.assert_matches(region.as_ref().expect("live hot region"), k, stable);
             }
+            let live = hot.epoch == cc.region_epoch.get() && hot.fepoch == stable.2;
+            // hop-s2: a block no region can run skips the admission facts and the slow lookup.
+            if !live && rec.none.get() == cc.coverage_epoch.get() {
+                #[cfg(any(debug_assertions, feature = "wasm-jit-tests"))]
+                {
+                    let b = &cc.blocks[code as usize];
+                    assert!(b.region.borrow().is_none() && b.region_tries.get() >= REGION_TRIES && !cc.covered.borrow().contains_key(&b.pc));
+                }
+                #[cfg(feature = "wasm-jit-tests")]
+                REGION_STATS[17].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                rejected = true;
+                break 'facts;
+            }
             // EX168 s1: `fits` false with current pages is a proven rejection: while the epoch holds,
             // the slow lookup below selects this same live chunk and fails the same budget/bloom test.
             // inner-s1: one bloom test for both the credit and the resume admission.
@@ -785,7 +801,6 @@ unsafe fn run_inner<B: Bus>(
             // loop-s1: the chunk's own region loop active is as good as none: its LEND ends a chunk,
             // where the region takes the backedge itself.
             let unlooped = cpu.lcount == 0 || cpu.lend.wrapping_sub(hot.lo) > hot.span || hot.lp == Some((cpu.lend, cpu.lbeg));
-            let live = hot.epoch == cc.region_epoch.get() && hot.fepoch == stable.2;
             // tails-s2 (EX182 s2): a resume inside a chunk with a guarded copy enters the copy at
             // `entry`, whose STOP cuts wherever the credit ends. A resume never forms or enters a
             // region on the slow path below; that only re-stamps stale facts of a covered head.
@@ -892,6 +907,8 @@ unsafe fn run_inner<B: Bus>(
                 *b.region.borrow_mut() = formed;
                 (code, 0)
             } else {
+                // hop-s2: nothing here can change before a coverage insertion (EX168 t1's verdict).
+                if b.region_tries.get() >= REGION_TRIES { rec.none.set(epoch); }
                 (NONE, 0)
             }
         };

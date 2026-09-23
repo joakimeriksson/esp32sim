@@ -738,7 +738,7 @@ pub(super) fn regions() -> u32 {
     // tails-s2: and resume inside them.
     assert!(REGION_STATS[13].load(std::sync::atomic::Ordering::Relaxed) > 200, "too few resumes into guarded copies: {}", REGION_STATS[13].load(std::sync::atomic::Ordering::Relaxed));
     cases + 2 + prev_page_store() + forward_edges() + self_loops() + outside_loops() + jx_literal() + deferred_in_guarded_copy() + leaf_calls()
-        + resumed_head_copy() + head_recovery_long_pie() + resume_memo() + named_tail_resume() + looped_resumes() + store_runs()
+        + resumed_head_copy() + head_recovery_long_pie() + uncovered_verdict() + resume_memo() + named_tail_resume() + looped_resumes() + store_runs()
 }
 
 /// lane-s1: a dispatch at the PC a quantum-ending region exit left enters that region directly.
@@ -1465,4 +1465,36 @@ fn leaf_calls() -> u32 {
         cases += 1;
     }
     cases
+}
+
+/// hop-s2: a head that cannot form a region (one chunk ending in JX) takes its own module without
+/// the admission facts once its tries are spent; a region formed later at another head that covers
+/// it (a coverage insertion) ends that, and the next entry there enters the covering region.
+fn uncovered_verdict() -> u32 {
+    let mut p = Vec::new();
+    p.extend(asm::addi_n(3, 3, 1));        // 0  the uncovered head: one chunk
+    p.extend(asm::addi_n(5, 5, 1));        // 2
+    p.extend(asm::jx(7));                  // 4
+    p.extend([0; 9]);
+    p.extend(asm::addi_n(6, 6, 1));        // 16 a later head whose region covers 0
+    p.extend(asm::j(BASE + 18, BASE));     // 18
+    let mut c = cpu(7);
+    let mut ram = Ram::new(true, false);
+    ram.ram.mem[..p.len()].copy_from_slice(&p);
+    c.set_ar(7, BASE);
+    let stat = |i: usize| REGION_STATS[i].load(std::sync::atomic::Ordering::Relaxed);
+    let (failed, early) = (stat(1), stat(17));
+    for _ in 0..60 { c.pc = BASE; assert_eq!(crate::block::run_block(&mut c, &mut ram, 3), (3, None)); }
+    assert!(stat(1) >= failed + REGION_TRIES as u32, "uncovered: formation tries not spent");
+    assert!(stat(17) > early + 10, "uncovered: no early own-module entries");
+    let (formed, covered) = (stat(0), stat(10));
+    for _ in 0..60 { c.pc = BASE + 16; crate::block::run_block(&mut c, &mut ram, 2); }
+    assert!(stat(0) > formed, "uncovered: no covering region");
+    let early = stat(17);
+    c.pc = BASE;
+    let a3 = c.get_ar(3);
+    assert_eq!(crate::block::run_block(&mut c, &mut ram, 3), (3, None));
+    assert_eq!((stat(17), c.get_ar(3)), (early, a3.wrapping_add(1)), "uncovered: a stale verdict ran the own module");
+    assert!(stat(10) > covered, "uncovered: the entry did not find its covering region");
+    1
 }

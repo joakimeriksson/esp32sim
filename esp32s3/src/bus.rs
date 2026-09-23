@@ -703,8 +703,10 @@ impl Bus for SocBus {
     /// `invalidate_tlb`, which all call `touched` or move the epoch; generated stores need a writable
     /// mapping and flash never has one. The last flash page is left out: the EX180 previous-page rule
     /// lets a generated or DMA store to the first bytes of PSRAM bump it without the bus.
+    /// hop-s2b: mask ROM (just below flash) too: it is never mapped writable and changes only through
+    /// the same calls; its first page is left out, next to SRAM's last.
     #[inline(always)]
-    fn stable_pages(&self) -> (u32, u32, u64) { (self.ver_base[SRC_FLASH as usize], self.ver_base[SRC_PSRAM as usize].saturating_sub(1), self.flash_epoch) }
+    fn stable_pages(&self) -> (u32, u32, u64) { (self.ver_base[SRC_IROM as usize] + 1, self.ver_base[SRC_PSRAM as usize].saturating_sub(1), self.flash_epoch) }
     fn note_code_page(&mut self, vidx: u32) { self.watch_code_page(vidx); }
     #[inline(always)]
     fn note_pc(&mut self, pc: u32) { self.periph.misc.cur_pc = pc; }

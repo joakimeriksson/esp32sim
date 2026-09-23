@@ -1273,6 +1273,10 @@ fn stable_pages_move_their_epoch() {
     assert!(check(&mut bus, "load through the flash mapping", |b| b.load_bytes(IBUS_LOW + 0x1_0020, &[7]).unwrap()));
     assert!(check(&mut bus, "SPI flash write-back", |b| b.note_written(SRC_FLASH, 0x2_0000, 4)));
     assert!(check(&mut bus, "PSRAM resize", |b| b.set_psram_size(4 << 16).unwrap()));
+    // hop-s2b: mask ROM below flash is covered from its second page on, and its loads move the epoch.
+    assert_eq!(bus.stable_pages().0, bus.code_page(IROM_MASK_LOW) + 1, "the first ROM page is left to per-page compares");
+    assert!(check(&mut bus, "ROM load", |b| b.load_bytes(IROM_MASK_LOW + 0x1000, &[1, 2]).unwrap()));
+    assert!(check(&mut bus, "ROM load at the last ROM byte", |b| b.load_bytes(IROM_MASK_HIGH - 1, &[3]).unwrap()));
     bus.write32(MMU_TABLE, MMU_SPIRAM).unwrap();
     let first = bus.code_page(DBUS_LOW);
     bus.note_code_page(first);
