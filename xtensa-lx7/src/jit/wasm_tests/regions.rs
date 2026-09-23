@@ -41,6 +41,16 @@ fn region_program_on(name: &str, program: &[u8], expected: &[(u32, Op, u32)], da
             // A timer deadline inside the region must land on the same instruction.
             if turn % 90 == 60 { c.ccompare[0] = c.ccount.wrapping_add(1 + (turn % 13) as u32); c.refresh_event(); c.intenable = 1 << 6; }
         }
+        // rename-s1: once warm, start the driver with no caller frame live: the wrapper's RETW must
+        // take WINDOW_UF8 although its nested leaf returned inline.
+        if name == "leaf-calls-underflow" && turn >= 600 {
+            for c in [&mut a, &mut b] {
+                c.pc = BASE + 256;
+                c.ps = ps::WOE;
+                c.windowbase = 0;
+                c.windowstart = 0;
+            }
+        }
         let start = b.pc;
         CONTEXT.with(|c| *c.borrow_mut() = format!("region program {name} turn {turn} start {start:x} budget {budget}"));
         let (done, trap) = crate::block::run_block(&mut b, &mut rb, budget);
@@ -120,7 +130,7 @@ pub(super) fn regions() -> u32 {
         let all: Vec<usize> = (0..40).collect();
         let even: Vec<usize> = (0..40).step_by(2).collect();
         for copies in [None, Some(&all[..]), Some(&even[..])] {
-        let (bytes, sites) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, true, copies);
+        let (bytes, sites) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, &formed.leaves, true, copies);
         let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
         assert_ne!(slot, 0, "large region module with {} exit sites", sites.len());
         type Run = extern "C" fn(*mut Cpu, *mut Ram, *const Helpers, u32, u32, *const TlbEntry, *mut u32) -> u32;
@@ -247,7 +257,7 @@ pub(super) fn regions() -> u32 {
         let head: Vec<BlockInsn> = (0..6).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, straddle: false, off: 0 }) }).collect();
         let formed = emitter::region::form(&c, &mut ram, BASE, &head, true).expect("memmove region");
         assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len())).collect::<Vec<_>>(), vec![(0, 6), (17, 1)]);
-        let (bytes, sites) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, true, Some(&[]));
+        let (bytes, sites) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, &formed.leaves, true, Some(&[]));
         let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
         assert!(slot != 0, "memmove region module must compile ({} bytes, {} sites)", bytes.len(), sites.len());
         unsafe { host_jit_release(slot) };
@@ -409,7 +419,7 @@ pub(super) fn regions() -> u32 {
         let head: Vec<BlockInsn> = (0..4).scan(BASE, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: crate::exec::max_ar(&i), straddle: false, off: 0 }) }).collect();
         let formed = emitter::region::form(&c0, &mut ram, BASE, &head, true).expect("entry-interior region");
         let interior = formed.chunks.iter().position(|c| c.pc == BASE + 3).expect("interior chunk") as u32;
-        let (bytes, _) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, true, Some(&[]));
+        let (bytes, _) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, &formed.leaves, true, Some(&[]));
         let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
         assert!(slot != 0);
         type Run = extern "C" fn(*mut Cpu, *mut Ram, *const Helpers, u32, u32, *const TlbEntry, *mut u32) -> u32;
@@ -576,7 +586,7 @@ pub(super) fn regions() -> u32 {
         }).collect();
         let formed = emitter::region::form(&cpu(0), &mut ram, BASE, &head, true).expect("held ACCX region");
         let entry = formed.chunks.iter().position(|c| c.pc == BASE + 5).expect("held ACCX body") as u32;
-        let (bytes, _) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, true, Some(&[]));
+        let (bytes, _) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, &formed.leaves, true, Some(&[]));
         let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
         assert_ne!(slot, 0);
         type Run = extern "C" fn(*mut Cpu, *mut Ram, *const Helpers, u32, u32, *const TlbEntry, *mut u32) -> u32;
@@ -727,7 +737,7 @@ pub(super) fn regions() -> u32 {
     assert!(REGION_STATS[12].load(std::sync::atomic::Ordering::Relaxed) > 20, "too few regions chose guarded copies");
     // tails-s2: and resume inside them.
     assert!(REGION_STATS[13].load(std::sync::atomic::Ordering::Relaxed) > 200, "too few resumes into guarded copies: {}", REGION_STATS[13].load(std::sync::atomic::Ordering::Relaxed));
-    cases + 2 + prev_page_store() + forward_edges() + self_loops() + outside_loops() + jx_literal() + deferred_in_guarded_copy()
+    cases + 2 + prev_page_store() + forward_edges() + self_loops() + outside_loops() + jx_literal() + deferred_in_guarded_copy() + leaf_calls()
         + resumed_head_copy() + head_recovery_long_pie() + resume_memo() + named_tail_resume() + looped_resumes() + store_runs()
 }
 
@@ -1211,7 +1221,7 @@ fn jx_literal() -> u32 {
         // x6 integrate: a tails guarded copy of the trampoline chunk keeps its own prediction
         // (the copies are emitted after the last chunk, whose target is None).
         let edges = emitter::region::JX_EDGES.load(std::sync::atomic::Ordering::Relaxed);
-        emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, true, Some(&[0]));
+        emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, &formed.leaves, true, Some(&[0]));
         assert_eq!(emitter::region::JX_EDGES.load(std::sync::atomic::Ordering::Relaxed), edges + 2, "the guarded copy lost its JX edge");
     }
     let before = emitter::region::JX_EDGES.load(std::sync::atomic::Ordering::Relaxed);
@@ -1343,6 +1353,99 @@ fn store_runs() -> u32 {
                 cases += 1;
             }
         }
+    }
+    cases
+}
+
+/// leaf-s1: a driver region calls a wrapper W that calls leaf L (CALL8 twice, nested), then
+/// `l32r a8; callx8 a8` into a ROM-style trampoline T (`l32r a9; jx a9`) and leaf D. L and D use
+/// the FP coprocessor. Variants: the CALLX literal flips between T and D (guarded mismatch), a
+/// store rewrites L's `addi.n` immediate (1 <-> -1) every pass (L declines, so W leaves at its call), an occupied frame past W's window
+/// (W's post-ENTRY proof exits), the coprocessor disabled (declines), and probes on L's head.
+fn leaf_calls() -> u32 {
+    use Op::*;
+    let (t, d, w, l) = (BASE + 0x140, BASE + 0x180, BASE + 0x1c0, BASE + 0x300);
+    let mut p = t.to_le_bytes().to_vec();              // 0    literal: T (the CALLX target)
+    p.extend(d.to_le_bytes());                         // 4    literal: D (T's JX target)
+    p.resize(256, 0);
+    p.extend(asm::mov_n(10, 4));                       // 256  head
+    p.extend(asm::call8(BASE + 258, w));               // 258  call8 W
+    p.extend(asm::mov_n(4, 10));                       // 261  <- return site
+    p.extend(asm::l32r(8, BASE + 263, BASE));          // 263
+    p.extend(asm::callx8(8));                          // 266  callx8 T
+    p.extend(asm::add_n(4, 4, 10));                    // 269  <- return site
+    p.extend(asm::l32i_n(11, 13, 0));                  // 271
+    p.extend(asm::xor(11, 11, 12));                    // 273
+    p.extend(asm::s32i_n(11, 13, 0));                  // 276  flip the literal, or L's code
+    p.extend(asm::j(BASE + 278, BASE + 256));          // 278
+    p.resize(0x140, 0);
+    p.extend(asm::l32r(9, t, BASE + 4));               // T
+    p.extend(asm::jx(9));
+    p.resize(0x180, 0);
+    p.extend(asm::entry(1, 32));                       // D
+    p.extend(asm::add_n(2, 2, 3));
+    p.extend(asm::wfr(0, 2));
+    p.extend(asm::rfr(2, 0));
+    p.extend(asm::retw_n());
+    p.resize(0x1c0, 0);
+    p.extend(asm::entry(1, 32));                       // W
+    p.extend(asm::mov_n(10, 2));
+    p.extend(asm::call8(w + 5, l));
+    p.extend(asm::mov_n(2, 10));
+    p.extend(asm::retw_n());
+    p.resize(0x300, 0);
+    p.extend(asm::entry(1, 32));                       // L (its page and the one before are not the region's)
+    p.extend(asm::addi_n(2, 2, 1));
+    p.extend(asm::wfr(1, 2));
+    p.extend(asm::rfr(2, 1));
+    p.extend(asm::retw_n());
+    let shape = [(256, MovN, 0), (258, Call8, 0x1c0), (261, MovN, 0), (263, L32r, 0), (266, Callx8, 0), (269, AddN, 0),
+                 (271, L32iN, 0), (273, Xor, 0), (276, S32iN, 0), (278, J, 256), (0x140, L32r, 0), (0x143, Jx, 0),
+                 (0x180, Entry, 0), (0x185, Wfr, 0), (0x188, Rfr, 0), (0x1c5, Call8, 0x300), (0x300, Entry, 0)];
+    {
+        let mut ram = Ram::new(true, false);
+        ram.ram.mem[..p.len()].copy_from_slice(&p);
+        let head: Vec<BlockInsn> = (0..2).scan(BASE + 256, |pc, _| { let i = crate::decode::decode(*pc, ram.fetch(*pc).unwrap()); *pc += i.len as u32; Some(BlockInsn { insn: i, max_ar: 0, straddle: false, off: 0 }) }).collect();
+        let formed = emitter::region::form(&cpu(0), &mut ram, BASE + 256, &head, true).expect("leaf-call region");
+        assert_eq!(formed.chunks.iter().map(|c| (c.pc - BASE, c.instructions.len(), c.leaf)).collect::<Vec<_>>(),
+            vec![(256, 2, Some(1)), (261, 3, Some(2)), (269, 5, None)]);
+        assert_eq!(formed.leaves.iter().map(|l| (l.pc - BASE, l.count)).collect::<Vec<_>>(), vec![(0x300, 5), (0x1c0, 10), (0x140, 7)]);
+        // Leaves are inlined: the region module defines exactly one function, `run`.
+        let (module, _) = emitter::region::generate(&formed.chunks, &formed.pages, &formed.loops, &formed.leaves, true, None);
+        let mut at = 8;
+        let functions = loop {
+            let (id, mut size, mut shift) = (module[at], 0usize, 0);
+            at += 1;
+            loop { let b = module[at]; at += 1; size |= usize::from(b & 127) << shift; shift += 7; if b < 128 { break; } }
+            if id == 3 { break &module[at..at + size]; }
+            at += size;
+        };
+        assert_eq!(functions, [1, 0], "leaf-calls: one defined function");
+    }
+    let mut cases = 1;
+    for (label, lit, flip, occupied, cp, turns) in [
+        ("leaf-calls", BASE, 0, false, 1, 900),
+        ("leaf-calls-callx-flip", BASE, t ^ d, false, 1, 900),
+        ("leaf-calls-jx-literal-flip", BASE + 4, d ^ l, false, 1, 900), // T's own JX literal: D <-> L
+        ("leaf-calls-underflow", BASE, 0, false, 1, 900),
+        ("leaf-calls-code-page", BASE + 0x300, 0x1000_0000, false, 1, 600),
+        ("leaf-calls-overflow", BASE, 0, true, 1, 300),
+        ("leaf-calls-no-coprocessor", BASE, 0, false, 0, 300),
+    ] {
+        let before = LEAF_RETURNS.load(std::sync::atomic::Ordering::Relaxed);
+        region_program(label, &p, &shape, &[], 2, 0x300, move |c| {
+            c.pc = BASE + 256;
+            c.ps = ps::WOE;
+            c.cpenable = cp;
+            c.windowstart = (1 << c.windowbase) | if occupied { 1 << ((c.windowbase + 4) % 16) } else { 0 };
+            c.set_ar(1, BASE + 0x4000);
+            c.set_ar(12, flip);
+            c.set_ar(13, lit);
+        }, turns);
+        // The occupied frame ends in the overflow vector, whose code is not a leaf's.
+        let taken = LEAF_RETURNS.load(std::sync::atomic::Ordering::Relaxed) > before;
+        assert!(occupied || taken == (cp != 0), "{label}: inline leaves returned: {taken}");
+        cases += 1;
     }
     cases
 }

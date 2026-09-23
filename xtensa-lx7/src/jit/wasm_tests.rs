@@ -7,6 +7,7 @@ use crate::{Fault, FlatRam, Insn, Op, Trap};
 pub(super) static PS_INLINE_TAKEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 pub(super) static PS_REGION_TAKEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 pub(super) static RETW_INLINE_TAKEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+pub(super) static LEAF_RETURNS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 pub(super) static GUARDED_TAKEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 pub(super) static STORE_RUN_TAKEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 #[path = "wasm_tests/pie_accx.rs"]

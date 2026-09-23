@@ -367,6 +367,11 @@ pub(super) fn emit(
             g.c(if inc == 0 { next } else { (inc << 30) | (next & 0x3fff_ffff) });
             g.set_ar((inc * 4) as u8);
             g.advance();
+            if let Some(k) = g.region.as_ref().and_then(|r| r.leaf) {
+                super::region::inline_call(g, k, inc as u8, indirect, next, fast, cp);
+                super::region::region_edge(g, next, true);
+                return true;
+            }
             if indirect {
                 g.get(0);
                 g.get(TMP);

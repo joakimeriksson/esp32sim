@@ -195,6 +195,7 @@ struct Region {
     /// so they live exactly as long as the module does.
     #[allow(dead_code)]
     chunks: Vec<emitter::region::Chunk>,
+    leaves: Vec<emitter::region::Leaf>,
     slot: u32,
     bytes: usize,
     bloom: u64,
@@ -860,14 +861,14 @@ unsafe fn run_inner<B: Bus>(
             } else if entry == 0 && b.region_tries.get() < REGION_TRIES {
                 b.region_tries.set(b.region_tries.get() + 1);
                 let mut formed = emitter::region::form(cpu, bus, b.pc, &b.instructions, b.fast).and_then(|f| {
-                    let (bytes, sites) = emitter::region::generate(&f.chunks, &f.pages, &f.loops, b.fast, None);
+                    let (bytes, sites) = emitter::region::generate(&f.chunks, &f.pages, &f.loops, &f.leaves, b.fast, None);
                     // SAFETY: as for ready(): the host copies and installs the module.
                     let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
                     (slot != 0).then(|| Region {
                         lens: f.chunks.iter().map(|c| c.instructions.len() as u32).collect(),
                         short: vec![0; f.chunks.len()], tunes: 0,
                         copies: vec![0; f.chunks.len()],
-                        chunks: f.chunks, slot, bytes: bytes.len(), bloom: f.bloom, lo: f.lo, hi: f.hi, loops: f.loops, pages: f.pages, sites,
+                        chunks: f.chunks, leaves: f.leaves, slot, bytes: bytes.len(), bloom: f.bloom, lo: f.lo, hi: f.hi, loops: f.loops, pages: f.pages, sites,
                     })
                 });
                 if let Some(r) = &mut formed {
@@ -1022,7 +1023,7 @@ fn note_short(cc: &CodeCache, code: u32, slot: u32, target: u32) {
     // edge-s1: Hot facts change what they count when the epoch moves, also if nothing is added.
     cc.region_epoch.set(cc.region_epoch.get() + 1);
     if new.is_empty() { return; }
-    let (bytes, sites) = emitter::region::generate(&r.chunks, &r.pages, &r.loops, rb.fast, Some(&hot));
+    let (bytes, sites) = emitter::region::generate(&r.chunks, &r.pages, &r.loops, &r.leaves, rb.fast, Some(&hot));
     let copies = emitter::region::copy_indices(&r.chunks, &hot).iter().map(|c| c.unwrap_or(0)).collect();
     // SAFETY: as for ready(): the host copies and installs the module; the old one is not running.
     let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
