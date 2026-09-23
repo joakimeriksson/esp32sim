@@ -8,6 +8,8 @@ pub fn bz(m: u32, pc: u32, s: u32, target: u32) -> Vec<u8> { w24(0x6 | 0x10 | (m
 pub fn l8ui(t: u32, s: u32, imm: u32) -> Vec<u8> { rri8(2, 0, s, t, imm) }
 pub fn l16ui(t: u32, s: u32, imm: u32) -> Vec<u8> { rri8(2, 1, s, t, imm / 2) }
 pub fn s8i(t: u32, s: u32, imm: u32) -> Vec<u8> { rri8(2, 4, s, t, imm) }
+pub fn s16i(t: u32, s: u32, imm: u32) -> Vec<u8> { rri8(2, 5, s, t, imm / 2) }
+pub fn addi(t: u32, s: u32, imm: i32) -> Vec<u8> { rri8(2, 0xc, s, t, imm as u32) }
 pub fn xor(r: u32, s: u32, t: u32) -> Vec<u8> { w24((t << 4) | (s << 8) | (r << 12) | (3 << 20)) }
 pub fn rsr(t: u32, sr: u32) -> Vec<u8> { w24((3 << 16) | (sr << 8) | (t << 4)) }
 /// RUR: op2 = 14, op1 = 3; the user register number is s:t.
@@ -18,8 +20,13 @@ pub fn wur(t: u32, ur: u32) -> Vec<u8> { w24((0xf3 << 16) | (ur << 8) | (t << 4)
 pub fn shift_setup(kind: u32, s: u32) -> Vec<u8> { w24((4 << 20) | (kind << 12) | (s << 8)) }
 /// loop=8 loopnez=9 loopgtz=10; the end is pc + 4 + imm8
 pub fn lp(r: u32, pc: u32, s: u32, end: u32) -> Vec<u8> { w24(0x76 | (s << 8) | (r << 12) | ((end - pc - 4) << 16)) }
+pub fn l32r(t: u32, pc: u32, literal: u32) -> Vec<u8> { w24(0x1 | (t << 4) | (((literal.wrapping_sub((pc + 3) & !3) >> 2) & 0xffff) << 8)) }
+pub fn jx(s: u32) -> Vec<u8> { w24(0xa0 | (s << 8)) }
 pub fn entry(s: u32, frame: u32) -> Vec<u8> { w24(0x36 | (s << 8) | ((frame >> 3) << 12)) }
 pub fn call8(pc: u32, target: u32) -> Vec<u8> { w24(0x25 | (((target.wrapping_sub((pc & !3) + 4) >> 2) & 0x3ffff) << 6)) }
+pub fn callx8(s: u32) -> Vec<u8> { w24(0xe0 | (s << 8)) }
+pub fn wfr(f: u32, a: u32) -> Vec<u8> { w24(0xfa0050 | (f << 12) | (a << 8)) }
+pub fn rfr(a: u32, f: u32) -> Vec<u8> { w24(0xfa0040 | (a << 12) | (f << 8)) }
 pub fn retw_n() -> Vec<u8> { w16(0xf01d) }
 pub fn l32i_n(t: u32, s: u32, imm: u32) -> Vec<u8> { w16(0x8 | (t << 4) | (s << 8) | ((imm / 4) << 12)) }
 pub fn s32i_n(t: u32, s: u32, imm: u32) -> Vec<u8> { w16(0x9 | (t << 4) | (s << 8) | ((imm / 4) << 12)) }

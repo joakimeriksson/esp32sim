@@ -10,7 +10,7 @@ use region::{region_edge, RegionGen};
 #[path = "wasm_policy.rs"]
 mod policy;
 #[path = "wasm_memory.rs"]
-mod memory;
+pub(super) mod memory;
 #[path = "wasm_instruction.rs"]
 mod instruction;
 pub(super) use policy::{admitted, supported_insn, loop_safe, terminal_helper, rsr_field};
@@ -49,6 +49,10 @@ const ACC: u8 = WIDE + 1;
 const STOP: u8 = ACC + 1;
 /// EX178 s1: the host pointer a coalesced run of PIE vector loads reads through.
 const HOSTP: u8 = STOP + 1;
+/// gen-s1: the host address of one register quad of the window, for whole-window reloads and spills.
+const QB: u8 = HOSTP + 1;
+/// rename-s1: locals of AR 16..32 relative to the region's window, for renamed leaf windows.
+const WIDE_AR: u8 = QB + 1;
 const PC: usize = offset_of!(Cpu, pc);
 const AR: usize = offset_of!(Cpu, ar);
 const WINDOWBASE: usize = offset_of!(Cpu, windowbase);
@@ -65,7 +69,7 @@ const ACCX: usize = offset_of!(Cpu, accx);
 enum Ctl { If(u32), Block(u32), Loop(u32) }
 
 #[derive(Default)]
-struct Gen {
+struct Gen<'a> {
     /// The next `leave` is a skipped LOOPNEZ/LOOPGTZ body: its setup price already covers it.
     free_leave: bool,
     /// EX141: the instruction being emitted has a static target that straddles a fetch word
@@ -74,10 +78,14 @@ struct Gen {
     wait_price: u32,
     /// module body bytes
     bytes: Vec<u8>,
-    /// registers written so far (spilled on exit)
-    written: u16,
+    /// registers written so far (spilled on exit); rename-s1: bits 16..32 are renamed leaf registers
+    written: u32,
     /// registers loaded at entry
-    loaded: u16,
+    loaded: u32,
+    /// rename-s1: the current instruction's window starts this many registers above the region's
+    roff: u8,
+    /// rename-s1: the function uses AR locals 16..32
+    wide: bool,
     /// Retired instructions not yet added to the DONE local. In a static body (whole
     /// path) DONE is never materialized: every exit returns a constant count.
     pending: u32,
@@ -87,13 +95,16 @@ struct Gen {
     /// Highest AR index any instruction touches; below 4 no window collision is possible.
     max_ar: u8,
     /// Region emission state, when compiling several chunks into one function.
-    region: Option<RegionGen>,
+    region: Option<RegionGen<'a>>,
     /// PC of the most recently emitted guest instruction, for exit-site attribution.
     last_pc: u32,
     /// EX156: emitting the guarded body; with a loop site (instruction count of the
     /// repeated prefix, control depth just inside the repeat loop) when LEND is hinted.
     guarded: bool,
     guard_site: Option<(usize, usize)>,
+    /// tails-s1: in a region's guarded copy, the control depth of the block whose end spills
+    /// and returns for every cut (EX182 s3), so the spill is emitted once per copy.
+    cut_target: Option<usize>,
     /// EX178: this body is straight line from its head, so a run of PIE accumulates can
     /// keep ACCX in a local. False for the guarded body (every index is an entry label)
     /// and the checked body (a cut may land between two instructions of a run).
@@ -105,7 +116,7 @@ struct Gen {
     #[cfg(feature = "wasm-jit-profile")]
     last_kind: ExitKind,
 }
-impl Gen {
+impl Gen<'_> {
     /// Runtime reachability receipt; absent from production modules.
     #[cfg(feature = "wasm-jit-tests")]
     fn test_hit(&mut self, counter: &std::sync::atomic::AtomicU32) {
@@ -215,22 +226,53 @@ impl Gen {
         self.op(0x71);
     }
     fn ar(&mut self, r: u8) {
-        self.get(13 + r);
+        self.get(ar_local(r + self.roff));
     }
     fn set_ar(&mut self, r: u8) {
-        self.set(13 + r);
+        let r = r + self.roff;
+        self.set(ar_local(r));
         self.written |= 1 << r;
     }
-    fn reload(&mut self) {
+    /// WB = WINDOWBASE * 4 less the renamed window's offset (rename-s1).
+    fn window_base(&mut self) {
         self.cpu(WINDOWBASE);
         self.c(2);
         self.op(0x74);
+        if self.roff != 0 {
+            self.c(self.roff as u32);
+            self.op(0x6b);
+            self.c(63);
+            self.op(0x71);
+        }
         self.set(WB);
-        for r in 0..16 {
-            if self.loaded & (1 << r) != 0 {
-                self.ar_addr(r);
-                self.load(AR);
-                self.set(13 + r);
+    }
+    /// gen-s1: QB = the address of registers 4q..4q+3. WB is a multiple of 4, so a quad never
+    /// straddles the 64-register wrap and its registers sit at constant offsets from QB.
+    fn quad_base(&mut self, q: u8) {
+        self.get(0);
+        self.get(WB);
+        if q != 0 {
+            self.c(4 * q as u32);
+            self.op(0x6a);
+            self.c(63);
+            self.op(0x71);
+        }
+        self.c(2);
+        self.op(0x74);
+        self.op(0x6a);
+        self.set(QB);
+    }
+    fn reload(&mut self) {
+        self.window_base();
+        for q in 0..8u8 {
+            if (self.loaded >> (4 * q)) & 15 == 0 { continue; }
+            self.quad_base(q);
+            for r in 4 * q..4 * q + 4 {
+                if self.loaded & (1 << r) != 0 {
+                    self.get(QB);
+                    self.load(AR + 4 * (r % 4) as usize);
+                    self.set(ar_local(r));
+                }
             }
         }
         if self.max_ar < 4 {
@@ -264,11 +306,15 @@ impl Gen {
     }
     fn spill(&mut self) {
         self.accx_spill();
-        for r in 0..16 {
-            if self.written & (1 << r) != 0 {
-                self.ar_addr(r);
-                self.get(13 + r);
-                self.store(AR);
+        for q in 0..8u8 {
+            if (self.written >> (4 * q)) & 15 == 0 { continue; }
+            self.quad_base(q);
+            for r in 4 * q..4 * q + 4 {
+                if self.written & (1 << r) != 0 {
+                    self.get(QB);
+                    self.get(ar_local(r));
+                    self.store(AR + 4 * (r % 4) as usize);
+                }
             }
         }
     }
@@ -303,15 +349,23 @@ impl Gen {
         let site = match &mut self.region {
             Some(r) => {
                 #[cfg(not(feature = "wasm-jit-profile"))]
-                r.sites.push(self.last_pc);
+                r.sites.push((self.last_pc, NONE));
                 #[cfg(feature = "wasm-jit-profile")]
-                r.sites.push((self.last_pc, self.last_kind));
+                r.sites.push((self.last_pc, self.last_kind, NONE));
                 (r.sites.len() - 1) as u32
             }
             None => 0,
         };
         assert!(site < (1 << 13), "region exit site exceeds the result tag");
         (code << 16) | (site << 19)
+    }
+    /// lane-s1: the region parameter that resumes at the exit PC of the site just tagged.
+    fn resume_at(&mut self, param: u32) {
+        let site = self.region.as_mut().unwrap().sites.last_mut().unwrap();
+        #[cfg(not(feature = "wasm-jit-profile"))]
+        { site.1 = param; }
+        #[cfg(feature = "wasm-jit-profile")]
+        { site.2 = param; }
     }
     fn ret_value(&mut self, code: u32) {
         let tag = self.tag(code);
@@ -479,10 +533,7 @@ impl Gen {
                 self.ret_value(code);
             }
         } else {
-            self.cpu(WINDOWBASE);
-            self.c(2);
-            self.op(0x74);
-            self.set(WB);
+            self.window_base();
         }
     }
     fn fallthrough(&mut self, next: u32, looping: bool) {
@@ -562,6 +613,31 @@ impl Gen {
         self.end();
         self.end();
     }
+    /// After a region's ENTRY: the rotated window must be free for everything the region touches;
+    /// otherwise continue at the next instruction through ordinary blocks. ENTRY has retired, so a
+    /// hardware loop ending right here takes its backedge first, as the interpreter's epilogue would.
+    fn entry_proof(&mut self, next: u32) {
+        self.window_collision(self.max_ar);
+        self.begin_if();
+        self.spill();
+        self.cpu(LEND);
+        self.c(next);
+        self.op(0x46);
+        self.cpu(LCOUNT);
+        self.c(0);
+        self.op(0x47);
+        self.op(0x71);
+        self.begin_if();
+        self.decrement_loop();
+        self.get(0);
+        self.cpu(LBEG);
+        self.store(PC);
+        self.ret_value(CODE_LEFT);
+        self.end();
+        self.cpu_const(PC, next);
+        self.ret_value(CODE_LEFT);
+        self.end();
+    }
     fn repeat_guard(&mut self) {
         self.flush();
         self.get(2);
@@ -605,19 +681,19 @@ pub(super) fn generate(block: &Block) -> Vec<u8> {
     // A conservative operand mask avoids loading all sixteen registers for tiny blocks.
     // Interpreter-only opcodes may use implicit registers, so their test/future helper
     // path retains the full register file.
-    let registers = block.instructions.iter().enumerate().fold(0u16, |mask, (n, bi)| {
+    let registers = block.instructions.iter().enumerate().fold(0u32, |mask, (n, bi)| {
         if n + 1 == block.instructions.len() && terminal_helper(bi.insn.op)
             && !supported_insn(&bi.insn, block.fast) {
             // The helper reads the CPU after dirty locals have been spilled. It exits
             // immediately, so neither its operands nor its new window need loading.
             mask
         } else if !supported_insn(&bi.insn, block.fast) {
-            u16::MAX
+            0xffff
         } else {
             // Include destinations (also conditional ones), not just reads: entry may
             // resume after an earlier write, and emitted selects read the old destination.
             // ENTRY reloads this same whole-block mask after rotating the register window.
-            mask | bi.insn.gpr_effects().touched()
+            mask | bi.insn.gpr_effects().touched() as u32
         }
     });
     let max_ar = block.instructions.iter().map(|bi| bi.max_ar).max().unwrap_or(0);
@@ -699,6 +775,28 @@ pub(super) fn generate(block: &Block) -> Vec<u8> {
         g.op(0x6a);
         g.set(STOP);
         if site.is_some() { g.begin_loop(); }
+        if let Some((n, run)) = site.and_then(|n| memory::store_run(&block.instructions[..n], block.fast).map(|r| (n, r))) {
+            // store-s1: at the loop head (entry 0: a head entry or a taken backedge) of a loop the
+            // dispatcher admitted (loop_end), STOP is the credit left, budget - DONE; bulk
+            // iterations keep it so.
+            g.get(3);
+            g.get(DONE);
+            g.op(0x6b);
+            g.c(0);
+            g.get(4);
+            g.op(0x45);
+            g.get(2);
+            g.load(offset_of!(Helpers, loop_end));
+            g.c(hint);
+            g.op(0x46);
+            g.op(0x71);
+            g.op(0x1b);
+            memory::store_bulk(&mut g, &run, block.pc, hint, n < block.instructions.len());
+            g.get(3);
+            g.get(DONE);
+            g.op(0x6b);
+            g.set(STOP);
+        }
         let loop_depth = g.depth();
         let n = block.instructions.len();
         for _ in 0..n { g.begin_block(); }
@@ -751,10 +849,10 @@ pub(super) fn generate(block: &Block) -> Vec<u8> {
 
 fn finish(g: Gen, pc: u32) -> Vec<u8> {
     #[cfg(not(feature = "wasm-cpu-profile"))]
-    { let _ = pc; module(&g.bytes) }
+    { let _ = pc; module(&g.bytes, g.wide) }
     #[cfg(feature = "wasm-cpu-profile")]
     {
-        let mut bytes = module(&g.bytes);
+        let mut bytes = module(&g.bytes, g.wide);
         // Diagnostic names connect host CPU samples to the guest ELF without a debugger.
         let mut names = Vec::new();
         name(&mut names, "name");
@@ -828,13 +926,54 @@ fn emit_body(
             // (an unconditional J before it has counted itself on its own dead path).
             g.end();
             g.pending = index as u32;
-            g.get(STOP);
-            g.c(index as u32);
-            g.op(0x4d);
-            g.begin_if();
-            g.cpu_const(PC, pc);
-            g.ret(CODE_CUT);
-            g.end();
+            match g.cut_target {
+                None => {
+                    g.get(STOP);
+                    g.c(index as u32);
+                    g.op(0x4d);
+                    g.begin_if();
+                    g.cpu_const(PC, pc);
+                    g.ret(CODE_CUT);
+                    g.end();
+                }
+                // tails-s1: a region copy is entered with STOP above its entry index, so index 0
+                // never cuts. A region returns TAIL, not CUT (whose tag the caller reads as a block
+                // index), with the site naming the last retired instruction, as an own-module
+                // cut's `offset - 1` does for note_pc/note_sequential; the next site names the head.
+                Some(depth) if index > 0 => {
+                    g.get(STOP);
+                    g.c(index as u32);
+                    g.op(0x4d);
+                    g.begin_if();
+                    g.cpu_const(PC, pc);
+                    let site = std::mem::replace(&mut g.last_pc, pc.wrapping_sub(instructions[index - 1].insn.len as u32));
+                    #[cfg(feature = "wasm-jit-profile")]
+                    let kind = std::mem::replace(&mut g.last_kind, ExitKind::Budget);
+                    let tag = g.tag(CODE_TAIL);
+                    let r = g.region.as_ref().unwrap();
+                    let copy = r.copies.as_ref().and_then(|c| c[r.current]).unwrap();
+                    g.resume_at(copy | (index as u32) << 16);
+                    g.last_pc = pc0;
+                    g.tag(CODE_TAIL);
+                    // alias-s1: the third site is the chunk index, for the decoded resume
+                    g.last_pc = index as u32;
+                    g.tag(CODE_TAIL);
+                    g.last_pc = site;
+                    #[cfg(feature = "wasm-jit-profile")]
+                    { g.last_kind = kind; }
+                    g.get(DONE);
+                    g.c(index as u32);
+                    g.op(0x6a);
+                    g.c(tag);
+                    g.op(0x72);
+                    g.set(TMP);
+                    let label = g.depth() - depth;
+                    g.op(0x0c);
+                    uleb(&mut g.bytes, label);
+                    g.end();
+                }
+                Some(_) => {}
+            }
         }
         if !whole || window_changed {
             // The window helper runs with the CPU visible; do not leave ACCX in a local.
@@ -879,30 +1018,7 @@ fn emit_body(
                 g.fallthrough(next, looping);
             }
             if g.region.is_some() && bi.insn.op == crate::Op::Entry && g.max_ar >= 4 {
-                // The rotated window must be free for everything the region touches;
-                // otherwise continue at the next instruction through ordinary blocks.
-                // ENTRY has retired, so a hardware loop ending right here takes its
-                // backedge first, as the interpreter's epilogue would.
-                g.window_collision(g.max_ar);
-                g.begin_if();
-                g.spill();
-                g.cpu(LEND);
-                g.c(next);
-                g.op(0x46);
-                g.cpu(LCOUNT);
-                g.c(0);
-                g.op(0x47);
-                g.op(0x71);
-                g.begin_if();
-                g.decrement_loop();
-                g.get(0);
-                g.cpu(LBEG);
-                g.store(PC);
-                g.ret_value(CODE_LEFT);
-                g.end();
-                g.cpu_const(PC, next);
-                g.ret_value(CODE_LEFT);
-                g.end();
+                g.entry_proof(next);
             }
         } else {
             g.fallback(bi, pc, next, last, !last);
@@ -949,6 +1065,11 @@ fn emit_body(
     }
 }
 
+/// The local of AR `r` relative to the function's window.
+fn ar_local(r: u8) -> u8 {
+    if r < 16 { 13 + r } else { WIDE_AR + r - 16 }
+}
+
 fn uleb(out: &mut Vec<u8>, mut n: usize) {
     loop {
         let b = (n & 127) as u8;
@@ -979,7 +1100,7 @@ fn section(out: &mut Vec<u8>, id: u8, bytes: &[u8]) {
     uleb(out, bytes.len());
     out.extend(bytes);
 }
-fn module(body: &[u8]) -> Vec<u8> {
+fn module(body: &[u8], wide: bool) -> Vec<u8> {
     let mut out = b"\0asm\x01\0\0\0".to_vec();
     let mut types = vec![3];
     for count in [7, 4, 3] {
@@ -1001,7 +1122,8 @@ fn module(body: &[u8]) -> Vec<u8> {
     name(&mut exports, "run");
     exports.extend([0, 0]);
     section(&mut out, 7, &exports);
-    let mut func = vec![4, if cfg!(feature = "wasm-cache-inline") { 29 } else { 25 }, 0x7f, 1, 0x7b, 2, 0x7e, 2, 0x7f];   // i32 locals, then V128, WIDE, ACC, STOP and HOSTP
+    let mut func = vec![4, if cfg!(feature = "wasm-cache-inline") { 29 } else { 25 }, 0x7f, 1, 0x7b, 2, 0x7e, 3, 0x7f];   // i32 locals, then V128, WIDE, ACC, STOP, HOSTP and QB
+    if wide { func[0] = 5; func.extend([16, 0x7f]); } // rename-s1: WIDE_AR..
     func.extend(body);
     let mut code = vec![1];
     uleb(&mut code, func.len());

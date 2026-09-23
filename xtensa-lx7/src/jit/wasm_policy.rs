@@ -83,6 +83,8 @@ pub(in crate::jit) fn supported_opcode(op: crate::Op, fast: bool) -> bool {
             | Or
             | Xor
             | Mull
+            // coverage-s3: the top interpreted integer ops by weighted count (TinyDraw core 0).
+            | Mul16u | Mul16s
             | Muluh
             | Mulsh
             | Quou
@@ -151,6 +153,7 @@ pub(in crate::jit) fn supported_opcode(op: crate::Op, fast: bool) -> bool {
             | Bbsi
             | Bbc
             | Bbs
+            | Bany | Bnone | Ball | Bnall
             | Loop | Loopnez | Loopgtz
             // helpers-s2: emitted guarded; a failing guard still runs through the helper.
             | Retw | RetwN

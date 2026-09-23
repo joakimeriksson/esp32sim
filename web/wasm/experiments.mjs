@@ -17,6 +17,8 @@ const setters = new Map([
   ['esp32sim_set_control_prices', [mode(1)]],
   ['esp32sim_set_icache_fill', [price]],
   ['esp32sim_set_quantum', [quantum]],
+  // Not timing: the fluidbox benchmark's scripted IMU handling (guest-time driven, exact).
+  ['esp32sim_set_imu_motion', [mode(1)]],
 ]);
 
 export const HW = [

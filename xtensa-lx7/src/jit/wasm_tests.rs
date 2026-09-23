@@ -7,7 +7,10 @@ use crate::{Fault, FlatRam, Insn, Op, Trap};
 pub(super) static PS_INLINE_TAKEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 pub(super) static PS_REGION_TAKEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 pub(super) static RETW_INLINE_TAKEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+pub(super) static LEAF_RETURNS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 pub(super) static GUARDED_TAKEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+pub(super) static STORE_RUN_TAKEN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+pub(super) static STORE_RUN_DONE: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 #[path = "wasm_tests/pie_accx.rs"]
 mod pie_accx;
 const BASE: u32 = 0x4037_0000;
@@ -15,6 +18,7 @@ const BASE: u32 = 0x4037_0000;
 const SLOW: u32 = BASE + 0x1_0000;
 struct Ram {
     ram: FlatRam,
+    fetch_fault: Option<u32>,
     versions: Vec<u32>,
     tlb: Vec<TlbEntry>,
     fast: bool,
@@ -23,6 +27,9 @@ struct Ram {
     /// `note_code_page`, and honored by `wrote` exactly as the generated store honors
     /// `TlbEntry.code`, so both paths must produce the same counters.
     watched: bool,
+    /// store-s1: `note_code_page` leaves an unwatched mapping unwatched (a program that never
+    /// writes its own code, standing in for data in another mapping).
+    pinned: bool,
     noted: u32,
     slow: [u8; 256],
     slow_writes: u32,
@@ -55,11 +62,13 @@ impl Ram {
         .with_span();
         Self {
             ram,
+            fetch_fault: None,
             versions: vec![0; 256],
             tlb,
             fast,
             readonly,
             watched: true,
+            pinned: false,
             noted: 0,
             slow: [0x5a; 256],
             slow_writes: 0,
@@ -139,6 +148,7 @@ impl Bus for Ram {
         Ok(())
     }
     fn fetch(&mut self, a: u32) -> Result<[u8; 4], Fault> {
+        if self.fetch_fault == Some(a) { return Err(Fault::Prohibited); }
         self.ram.fetch(a)
     }
     fn page_versions(&self) -> &[u32] {
@@ -157,6 +167,7 @@ impl Bus for Ram {
         self.noted = pc;
     }
     fn note_code_page(&mut self, _vidx: u32) {
+        if self.pinned { return }
         self.watched = true;
         for e in self.tlb.iter_mut() { if e.hi > e.lo { e.code = 1; } }
     }
@@ -328,7 +339,7 @@ fn compare_hinted(block: &mut [BlockInsn], case: Case, configure: &impl Fn(&mut 
     let mut count = 0;
     let mut trap = None;
     let mut pre = false;
-    let repeat = loop_len(&cc, code, &a).is_some();
+    let repeat = loop_len(&cc, code, &a, &mut ra).is_some();
     for _ in 0..budget {
         let index = a.pc.wrapping_sub(BASE) / 3;
         let Some(instruction) = block.get(index as usize) else { break; };
@@ -409,7 +420,8 @@ pub fn run_tests() -> u32 {
     scheduler::interior_alias_deferred();
     scheduler::interior_alias_instruction_bytes();
     scheduler::ps_terminal_chain();
-    tests += 4;
+    scheduler::event_writers();
+    tests += 5;
     tests += memory::extension_deferral() + memory::flat_ram_bounds() + regions::regions() + pie_accx::run_tests() + pie_accx::held_and_coalesced();
     tests += memory::code_page_flag();
     scheduler::retention();
@@ -419,7 +431,7 @@ pub fn run_tests() -> u32 {
     crate::block::ownership_tests::compiled_helpers_follow_the_current_bus_type();
     tests += 1;
     tests + arithmetic::integer_ops() + float::floating_point() + float::floating_point_guard_proof() + float::fma_halfway_fallback()
-        + loops::hardware_loops() + control::window_masks() + control::terminal_helpers()
+        + loops::hardware_loops() + loops::store_runs() + control::window_masks() + control::window_quads() + control::terminal_helpers()
         + control::special_register_blocks() + control::ps_terminals() + control::windowed_return() + control::whole_block_guards()
         + control::entry_and_shifts() + control::guarded_loop_sites() + control::pie_wide_shifts() + timing::priced_cases()
 }

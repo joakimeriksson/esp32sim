@@ -62,3 +62,39 @@ fn s3_watchdog_unlock_address_does_not_unlock_c3() {
     rtc.wdt_tick(100);
     assert!(!rtc.sw_reset);
 }
+
+/// q256: one long tick leaves a timer exactly as the same APB ticks one at a time. Steps after an
+/// alarm survive the autoreload, counting up or down, over several crossings, for any divider.
+#[test]
+fn timer_long_tick_equals_single_ticks() {
+    // (start, load, alarm): count up with start < alarm, count down with start > alarm
+    let up = [(0, 0, 32), (0, 0, 5), (3, 0, 1), (0, 40, 32), (10, 32, 32), (40, 0, 32)];
+    let down = [(40, 40, 30), (40, 40, 39), (40, 20, 30), (40, 30, 30), (20, 40, 30)];
+    let mut crossings = 0;
+    for inc in [true, false] {
+        for &(start, load, alarm) in if inc { &up[..] } else { &down[..] } {
+            for auto in [true, false] {
+                for div in [1u32, 2, 3, 7] {
+                    for n in [1u64, 5, 64, 256, 1000] {
+                        let mut g = [TimerGroup::new(), TimerGroup::new()];
+                        for g in &mut g {
+                            g.write(0x18, start);
+                            g.write(0x20, 1);                                  // count = load
+                            g.write(0x18, load);
+                            g.write(0x10, alarm);
+                            g.write(0x0, (1 << 31) | u32::from(inc) << 30 | u32::from(auto) << 29 | div << 13 | (1 << 10));
+                        }
+                        g[0].tick(n);
+                        for _ in 0..n { g[1].tick(1); }
+                        let label = format!("inc={inc} auto={auto} div={div} start={start} load={load} alarm={alarm} n={n}");
+                        let [a, b] = &g;
+                        assert_eq!((a.t[0].count, a.t[0].prescale_acc, a.t[0].config, a.int_raw),
+                                   (b.t[0].count, b.t[0].prescale_acc, b.t[0].config, b.int_raw), "{label}");
+                        crossings += b.int_raw & 1;
+                    }
+                }
+            }
+        }
+    }
+    assert!(crossings > 100, "the cases must cross their alarms ({crossings})");
+}

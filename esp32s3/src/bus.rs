@@ -74,6 +74,9 @@ pub struct SocBus {
     page_ver: Vec<u32>,
     /// first `page_ver` index of each buffer, by `SRC_*`
     ver_base: [u32; 7],
+    /// shell-s2: moves with every change to a version `stable_pages` covers (flash pages). Starts at a
+    /// per-bus base `BUS_EPOCHS` hands out, so equal epochs also mean the same bus (review B1).
+    flash_epoch: u64,
     /// EX110: one flag per 64 KiB block of the `page_ver` index space (256 pages, the span of one
     /// TLB entry): some decode cache, block or region has recorded the version of a page in it, or
     /// of a page next to it. Never cleared while the buffers stand. `TlbEntry.code` copies it, so a
@@ -128,6 +131,9 @@ const VPAGE_MASK: usize = (1 << VPAGE_SHIFT) - 1;
 use xtensa_lx7::bus::{FastMem, TlbEntry};
 #[inline(always)]
 fn tlb_idx(addr: u32) -> usize { xtensa_lx7::bus::tlb_index(addr) }
+/// Review B1: the next bus's `flash_epoch` base. A CPU whose caches outlive one bus must not match
+/// another bus's epoch; 2^32 flash-version changes per bus before bases could meet.
+static BUS_EPOCHS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
 impl SocBus {
     pub(crate) fn cancel_spi2_timing(&mut self) { self.spi2_scheduled = None; }
@@ -139,7 +145,7 @@ impl SocBus {
             rtc_fast: vec![0; 8192], rtc_slow: vec![0; 8192], flash: vec![0xff; flash_size], psram: vec![0; psram_size],
             mmu: [MMU_INVALID; MMU_ENTRIES], periph: Peripherals::new(mac), board: Box::new(crate::board::Atech14::new()), cycles: 0, last_fault: None, spi2_dma_fault: None, irq_dirty: false, gpio_events: None, debug: Default::default(),
             spi2_timing: false, spi2_scheduled: None,
-            tlb: vec![TlbEntry::EMPTY; TLB_SIZE], page_ver: Vec::new(), ver_base: [0; 7], code_blk: Vec::new(), tick_pending: 0, tick_budget: 0, defer_mmio: false, mmio_deferred: false, vq_violations: 0,
+            tlb: vec![TlbEntry::EMPTY; TLB_SIZE], page_ver: Vec::new(), ver_base: [0; 7], flash_epoch: BUS_EPOCHS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) << 32, code_blk: Vec::new(), tick_pending: 0, tick_budget: 0, defer_mmio: false, mmio_deferred: false, vq_violations: 0,
             approximate_cache: None, approximate_cache_pending: 0, approximate_cache_fast_internal: false, approximate_cache_inline: false,
             approximate_cache_yield_miss: false,
             cache_resource: CacheResource::default(),
@@ -303,6 +309,14 @@ impl SocBus {
         for e in self.tlb.iter_mut() { *e = TlbEntry::EMPTY; }
         let (a, b) = (self.ver_base[SRC_FLASH as usize] as usize, self.ver_base[SRC_DROM as usize] as usize);
         for v in &mut self.page_ver[a..b] { *v = v.wrapping_add(1); }          // flash then psram
+        self.flash_epoch += 1;
+    }
+
+    /// shell-s2: versions `first..=last` changed; move the epoch if `stable_pages` covers one.
+    #[inline(always)]
+    pub(crate) fn touched(&mut self, first: usize, last: usize) {
+        let (lo, hi, _) = Bus::stable_pages(self);
+        if first < hi as usize && last >= lo as usize { self.flash_epoch += 1; }
     }
 
     #[inline(always)]
@@ -377,6 +391,7 @@ impl SocBus {
         let last = vbase as usize + ((off + len - 1) >> VPAGE_SHIFT);
         if last != p { self.page_ver[last] = self.page_ver[last].wrapping_add(1); }
         if off & VPAGE_MASK < emu_core::bus::PREV_PAGE_BYTES as usize && p > 0 { self.page_ver[p - 1] = self.page_ver[p - 1].wrapping_add(1); }
+        self.touched(p.saturating_sub(1), last);
     }
 
     /// EX110: watch page `vidx` from now on. A code page also marks its neighbors' blocks,
@@ -399,6 +414,7 @@ impl SocBus {
         let (first, last) = (off >> VPAGE_SHIFT, (off + len - 1) >> VPAGE_SHIFT);
         for p in first..=last { let i = vbase as usize + p; if i < self.page_ver.len() { self.page_ver[i] = self.page_ver[i].wrapping_add(1); } }
         if off & VPAGE_MASK < emu_core::bus::PREV_PAGE_BYTES as usize && first > 0 { let i = vbase as usize + first - 1; self.page_ver[i] = self.page_ver[i].wrapping_add(1); }
+        self.touched((vbase as usize + first).saturating_sub(1), vbase as usize + last);
     }
 
     #[inline]
@@ -431,6 +447,11 @@ impl SocBus {
         }
         self.flush_ticks();
         let a = addr & !3;
+        // mmio-s1: SPI2 and GDMA writes reach only those two devices' sources (and RAM, the board),
+        // so they re-derive interrupt lines only when one of those sources moved.
+        let spi = matches!(a >> 12, 0x60024 | 0x6003f);
+        let sources = |p: &Peripherals| (p.spi2.irq(), esp_periph::Device::irq_sources(&p.gdma));
+        let before = if spi { sources(&self.periph) } else { (false, 0) };
         if a == PERIPH_BASE + 0x24_000 && v & (1 << 24) != 0 {
             self.spi2_dma_fault = None;
             self.spi2_scheduled = None;
@@ -459,7 +480,9 @@ impl SocBus {
         self.deliver_spi2_transfer();
         // GPIO output writes usually only drive the board, but an enabled level
         // interrupt also observes output levels. Inspect only changed output pins.
-        if !(0x6000_4004..=0x6000_4018).contains(&a) {
+        if spi {
+            self.irq_dirty |= before != sources(&self.periph);
+        } else if !(0x6000_4004..=0x6000_4018).contains(&a) {
             self.irq_dirty = true;
         } else {
             let mut changed = (old_gpio_out ^ self.periph.gpio.out) & self.periph.gpio.enable & ((1u64 << 49) - 1);
@@ -676,6 +699,14 @@ impl Bus for SocBus {
     }
     #[inline(always)]
     fn page_versions(&self) -> &[u32] { &self.page_ver }
+    /// shell-s2: flash pages change only through `bump`, `note_written`, DMA `bump_run` and
+    /// `invalidate_tlb`, which all call `touched` or move the epoch; generated stores need a writable
+    /// mapping and flash never has one. The last flash page is left out: the EX180 previous-page rule
+    /// lets a generated or DMA store to the first bytes of PSRAM bump it without the bus.
+    /// hop-s2b: mask ROM (just below flash) too: it is never mapped writable and changes only through
+    /// the same calls; its first page is left out, next to SRAM's last.
+    #[inline(always)]
+    fn stable_pages(&self) -> (u32, u32, u64) { (self.ver_base[SRC_IROM as usize] + 1, self.ver_base[SRC_PSRAM as usize].saturating_sub(1), self.flash_epoch) }
     fn note_code_page(&mut self, vidx: u32) { self.watch_code_page(vidx); }
     #[inline(always)]
     fn note_pc(&mut self, pc: u32) { self.periph.misc.cur_pc = pc; }

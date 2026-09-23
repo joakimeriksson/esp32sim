@@ -6,12 +6,13 @@ const IRAM: u32 = 0x4037_0000;
 #[test]
 fn peripheral_alarm_inside_a_batch_matches_single_round_scheduling() {
     const VECTOR: u32 = IRAM + 0x1000;
-    // 16 MHz SYSTIMER deadlines straddle the 64-cycle scheduling boundary.
-    for ticks in [9u32, 12, 13, 17] {
+    // 16 MHz SYSTIMER deadlines (15 cycles a tick) straddle the round boundaries of each quantum.
+    for (q, ticks) in [(64u64, [9u32, 12, 13, 17]), (256, [35, 36, 52, 69])].into_iter().flat_map(|(q, t)| t.map(|t| (q, t))) {
         for busy in 0..2 {
             let mut results = Vec::new();
             for vq in [1, 1024] {
                 let mut m = esp32s3::machine([0; 6]);
+                m.quantum = 64;
                 m.console.capture = true;
                 m.vq_max = 1;
                 for core in &mut m.cores { core.set_jit(false); }
@@ -37,11 +38,12 @@ fn peripheral_alarm_inside_a_batch_matches_single_round_scheduling() {
                 m.bus.write32(0x6002_3064, 1).unwrap();
                 m.bus.write32(0x6002_3050, 1).unwrap();
                 m.vq_max = vq;
-                m.max_cycles = m.bus.cycles + 512;
-                assert!(matches!(m.run(2048), Stop::Halted));
-                assert_eq!(m.interrupts, 1, "alarm must reach the running core");
+                m.quantum = q;
+                m.max_cycles = m.bus.cycles + 8 * q;
+                assert!(matches!(m.run(1 << 20), Stop::Halted));
+                assert_eq!(m.interrupts, 1, "alarm must reach the running core, q={q} ticks={ticks}");
                 assert_eq!(m.cores[busy].epc[1], IRAM);
-                assert!((64..576).contains(&m.cores[busy].get_ar(2)), "handler must capture its arrival time");
+                assert!((64..64 + 8 * q as u32).contains(&m.cores[busy].get_ar(2)), "handler must capture its arrival time");
                 assert_eq!(m.bus.periph.systimer.int_raw & 1, 1);
                 assert_eq!(m.bus.vq_violations, 0);
                 if vq > 1 && std::env::var_os("ESP32SIM_VQ_NATIVE").is_some() {
@@ -50,7 +52,7 @@ fn peripheral_alarm_inside_a_batch_matches_single_round_scheduling() {
                 results.push((m.bus.cycles, m.cores.iter()
                     .map(|c| (c.ccount, c.insn_count, c.pc, c.ps, c.interrupt, c.epc, c.get_ar(2))).collect::<Vec<_>>()));
             }
-            assert_eq!(results[0], results[1], "busy={busy} ticks={ticks}");
+            assert_eq!(results[0], results[1], "q={q} busy={busy} ticks={ticks}");
         }
     }
 }
@@ -59,11 +61,12 @@ fn peripheral_alarm_inside_a_batch_matches_single_round_scheduling() {
 fn architectural_stop_preserves_unfinished_round() {
     // Native virtual quanta require ESP32SIM_VQ_NATIVE=1 and the interpreter.
     // Cover both round boundaries and partial rounds, with either core busy.
-    for (quantum, busy) in [32usize, 64, 128].into_iter().flat_map(|q| (0..2).map(move |b| (q, b))) {
+    for (quantum, busy) in [32usize, 64, 128, 256].into_iter().flat_map(|q| (0..2).map(move |b| (q, b))) {
         for instructions in [1, quantum - 1, quantum, quantum + 1, 2 * quantum - 1, 2 * quantum, 2 * quantum + 1] {
             let mut results = Vec::new();
             for vq in [1, 1024] {
                 let mut m = esp32s3::machine([0; 6]);
+                m.quantum = 64; // the release run below is one 64-instruction round; `quantum` applies after it
                 m.console.capture = true;
                 m.vq_max = 1;
                 for c in &mut m.cores { c.set_jit(false); }
@@ -102,13 +105,14 @@ fn waiti_inside_virtual_round_preserves_timer_ordering() {
     const START: u32 = IRAM + 0x100;
     const VECTOR_BASE: u32 = IRAM + 0x1000;
     let timer = xtensa_lx7::state::TIMER_INTERRUPT[0];
-    for busy in 0..2 {
+    for (q, busy) in [64usize, 256].into_iter().flat_map(|q| (0..2).map(move |b| (q, b))) {
         // Include short partial rounds, exact boundaries and partial rounds after full ones.
-        for wait_at in [3, 63, 64, 65, 67, 127, 128, 129] {
-            for wake_after in [1, 2, 63, 65] {
+        for wait_at in [3, q - 1, q, q + 1, q + 3, 2 * q - 1, 2 * q, 2 * q + 1] {
+            for wake_after in [1, 2, q - 1, q + 1] {
                 let mut results = Vec::new();
                 for vq in [1, 1024] {
                     let mut m = esp32s3::machine([0; 6]);
+                    m.quantum = 64;
                     m.console.capture = true;
                     m.vq_max = 1;
                     for core in &mut m.cores { core.set_jit(false); }
@@ -129,11 +133,12 @@ fn waiti_inside_virtual_round_preserves_timer_ordering() {
                     cpu.ps = 0;
                     cpu.vecbase = VECTOR_BASE;
                     cpu.intenable = 1 << timer;
-                    cpu.ccompare[0] = cpu.ccount.wrapping_add((wait_at + wake_after) as u32);
+                    cpu.write_sr(xtensa_lx7::state::sr::CCOMPARE0, cpu.ccount.wrapping_add((wait_at + wake_after) as u32));
                     m.vq_max = vq;
-                    m.max_cycles = m.bus.cycles + 384;
-                    assert!(matches!(m.run(1024), Stop::Halted));
-                    assert_eq!(m.interrupts, 1, "one wakeup, busy={busy} wait_at={wait_at} wake_after={wake_after} vq={vq}");
+                    m.quantum = q as u64;
+                    m.max_cycles = m.bus.cycles + 6 * q as u64;
+                    assert!(matches!(m.run(1 << 20), Stop::Halted));
+                    assert_eq!(m.interrupts, 1, "one wakeup, q={q} busy={busy} wait_at={wait_at} wake_after={wake_after} vq={vq}");
                     assert_eq!(m.cores[busy].epc[1], START + 2 * (wait_at as u32 - 1) + 3, "timer resumes after WAITI");
                     if vq > 1 && std::env::var_os("ESP32SIM_VQ_NATIVE").is_some() {
                         assert!(m.vq_stats[0] > 0 && m.vq_stats[3] > 0, "exercise a virtual run cut by WAITI");
@@ -142,7 +147,7 @@ fn waiti_inside_virtual_round_preserves_timer_ordering() {
                     results.push((m.bus.cycles, m.run_steps(), m.irq_hist.clone(), m.cores.iter()
                         .map(|c| (c.ccount, c.insn_count, c.pc, c.ps, c.interrupt, c.epc, c.waiting)).collect::<Vec<_>>()));
                 }
-                assert_eq!(results[0], results[1], "busy={busy} wait_at={wait_at} wake_after={wake_after}");
+                assert_eq!(results[0], results[1], "q={q} busy={busy} wait_at={wait_at} wake_after={wake_after}");
             }
         }
     }
@@ -150,32 +155,35 @@ fn waiti_inside_virtual_round_preserves_timer_ordering() {
 
 #[test]
 fn virtual_runs_stop_before_register_reads_and_script_events() {
-    let mut results = Vec::new();
-    for vq in [1, 1024] {
-        let mut m = esp32s3::machine([0; 6]);
-        m.console.capture = true;
-        for core in &mut m.cores { core.set_jit(false); }
-        let mut code = [0x3d, 0xf0].repeat(150); // nop.n
-        code.extend([0x22, 0x23, 0x00]); // l32i a2,a3,0: device access cuts virtual run
-        code.extend([0x06, 0xff, 0xff]); // j .
-        m.bus.load_bytes(IRAM, &code).unwrap();
-        m.cores[0].pc = IRAM;
-        m.cores[0].ps = 0;
-        m.cores[0].set_ar(3, 0x6002_3000); // SYSTIMER configuration register
-        m.vq_max = vq;
-        m.script.log = false;
-        m.script.events = vec![(192, esp_soc::ScriptAction::Serial("event".into())), (320, esp_soc::ScriptAction::Stop)];
-        assert!(matches!(m.run(1024), Stop::Halted));
-        assert_eq!(m.bus.vq_violations, 0);
-        assert_eq!(m.script.pos, 2);
-        assert_eq!(m.bus.periph.usb.rx.iter().copied().collect::<Vec<_>>(), b"event");
-        if vq > 1 && std::env::var_os("ESP32SIM_VQ_NATIVE").is_some() {
-            assert!(m.vq_stats[0] > 0 && m.vq_stats[2] > 0, "exercise register deferral");
+    for q in [64u64, 256] {
+        let mut results = Vec::new();
+        for vq in [1, 1024] {
+            let mut m = esp32s3::machine([0; 6]);
+            m.quantum = q;
+            m.console.capture = true;
+            for core in &mut m.cores { core.set_jit(false); }
+            let mut code = [0x3d, 0xf0].repeat(150 * q as usize / 64); // nop.n
+            code.extend([0x22, 0x23, 0x00]); // l32i a2,a3,0: device access cuts virtual run
+            code.extend([0x06, 0xff, 0xff]); // j .
+            m.bus.load_bytes(IRAM, &code).unwrap();
+            m.cores[0].pc = IRAM;
+            m.cores[0].ps = 0;
+            m.cores[0].set_ar(3, 0x6002_3000); // SYSTIMER configuration register
+            m.vq_max = vq;
+            m.script.log = false;
+            m.script.events = vec![(3 * q, esp_soc::ScriptAction::Serial("event".into())), (5 * q, esp_soc::ScriptAction::Stop)];
+            assert!(matches!(m.run(1 << 20), Stop::Halted));
+            assert_eq!(m.bus.vq_violations, 0);
+            assert_eq!(m.script.pos, 2);
+            assert_eq!(m.bus.periph.usb.rx.iter().copied().collect::<Vec<_>>(), b"event");
+            if vq > 1 && std::env::var_os("ESP32SIM_VQ_NATIVE").is_some() {
+                assert!(m.vq_stats[0] > 0 && m.vq_stats[2] > 0, "exercise register deferral");
+            }
+            results.push((m.bus.cycles, m.insns(), m.cores[0].ccount, m.cores[0].pc, m.cores[0].get_ar(2)));
         }
-        results.push((m.bus.cycles, m.insns(), m.cores[0].ccount, m.cores[0].pc, m.cores[0].get_ar(2)));
+        assert_eq!(results[0], results[1], "q={q}");
+        assert_eq!(results[0].0, 5 * q);
     }
-    assert_eq!(results[0], results[1]);
-    assert_eq!(results[0].0, 320);
 }
 
 /// EX177: batching whole rounds while both cores are busy must leave exactly the state the
@@ -187,17 +195,22 @@ fn round_batches_match_the_per_round_schedule() {
     const NOP: [u8; 2] = [0x3d, 0xf0];
     const SPIN: [u8; 3] = [0x06, 0xff, 0xff];       // j .
     const BACK: [u8; 3] = [0x06, 0xfd, 0xff];       // j -12: back over four nop.n
-    const CODE: [u32; 2] = [IRAM + 0x100, IRAM + 0x400];
+    const CODE: [u32; 2] = [IRAM + 0x100, IRAM + 0x600]; // room for 2 * 256 + 1 nop.n
     const VECTORS: u32 = IRAM + 0x1000;
     let timer = xtensa_lx7::state::TIMER_INTERRUPT[0];
     let armed = std::env::var_os("ESP32SIM_VQ_NATIVE").is_some();
-    // kinds: 0 uncut, 1 device read, 2 waiti, 3 core-local timer, 4 script events, 5 illegal
-    for kind in 0..6 {
-        for at in [1usize, 63, 64, 65, 129] {
+    // kinds: 0 uncut, 1 device read, 2 waiti, 3 core-local timer, 4 script events, 5 illegal,
+    // 6 (batch-s1) a loop that latches and reads SYSTIMER, so every round meets device registers,
+    // 7 (batch-s1) a store that arms a SYSTIMER alarm, moving the device deadline inside a batch,
+    // 8 (batch-s1) a store that stops core 1's clock inside a batch
+    // q256: at 64 (native default) and 256 (wasm32 default), with the cut at the same round offsets
+    for (q, kind) in [64usize, 256].into_iter().flat_map(|q| (0..9).map(move |k| (q, k))) {
+        for at in [1, q - 1, q, q + 1, 2 * q + 1] {
             for cut in 0..2usize {
                 let mut results = Vec::new();
                 for bb in [1u64, 128] {
                     let mut m = esp32s3::machine([0; 6]);
+                    m.quantum = 64;
                     m.console.capture = true;
                     m.vq_max = 1;
                     for c in &mut m.cores { c.set_jit(false); }
@@ -214,6 +227,10 @@ fn round_batches_match_the_per_round_schedule() {
                         1 => code.extend([0x22, 0x23, 0x00]),       // l32i a2,a3,0: SYSTIMER
                         2 => code.extend([0x00, 0x70, 0x00]),       // waiti 0
                         5 => code.extend([0x00, 0x00, 0x00]),       // ill
+                        // s32i a4,a3,4 (latch); l32i a2,a3,0x44; add.n a5,a5,a2; nop.n x4; j back 16 bytes
+                        8 => code.extend([0x52, 0x63, 0x00]),       // s32i a5,a3,0 (a3: core 1 clock control)
+                        7 => code.extend([0x42, 0x63, 0x14]),       // s32i a4,a3,0x50: COMP0_LOAD
+                        6 => { code.extend([0x42, 0x63, 0x01, 0x22, 0x23, 0x11, 0x2a, 0x55]); code.extend(NOP.repeat(4)); code.extend([0x06, 0xfb, 0xff]); }
                         _ => {}
                     }
                     code.extend(SPIN);
@@ -223,24 +240,34 @@ fn round_batches_match_the_per_round_schedule() {
                         let c = &mut m.cores[i];
                         c.pc = entry; c.ps = 0; c.waiting = false;
                         c.intenable = 0; c.interrupt = 0; c.vecbase = VECTORS;
-                        c.set_ar(3, 0x6002_3000);
+                        c.set_ar(3, 0x6002_3000); c.set_ar(4, 1 << 30);
                     }
                     if kind == 3 {
                         let c = &mut m.cores[cut];
-                        c.ccompare[0] = c.ccount.wrapping_add(at as u32);
+                        c.write_sr(xtensa_lx7::state::sr::CCOMPARE0, c.ccount.wrapping_add(at as u32));
                         c.intenable = 1 << timer;
                     }
                     if kind == 4 {
                         m.script.log = false;
                         m.script.events = vec![
                             (m.bus.cycles + at as u64, esp_soc::ScriptAction::Serial("event".into())),
-                            (m.bus.cycles + 300, esp_soc::ScriptAction::Stop),
+                            (m.bus.cycles + 300 * q as u64 / 64, esp_soc::ScriptAction::Stop),
                         ];
                     }
                     if kind == 5 { m.dbg.stop_after_exceptions = 1; }
+                    if kind == 6 { m.bus.write32(0x6002_3000, 1 << 30).unwrap(); }     // run SYSTIMER unit 0
+                    if kind == 8 { m.cores[cut].set_ar(3, 0x600c_0000); }
+                    if kind == 7 {
+                        // the alarm interrupts the cut core, whose handler records its arrival time
+                        m.bus.load_bytes(VECTORS + xtensa_lx7::state::vec::KERNEL, &[0x20, 0xea, 0x03, 0x06, 0xff, 0xff]).unwrap(); // rsr a2,ccount; j .
+                        m.bus.write32(0x600c_2000 + cut as u32 * 0x800 + esp32s3::periph::SRC_SYSTIMER_T0 as u32 * 4, 1).unwrap();
+                        m.cores[cut].intenable = 1 << 1;
+                        for (off, v) in [(0x00, (1 << 30) | (1 << 24)), (0x20, 40), (0x64, 1)] { m.bus.write32(0x6002_3000 + off, v).unwrap(); }
+                    }
                     m.bb_max = bb;
-                    m.max_cycles = m.bus.cycles + if kind == 0 || kind == 3 { 32768 } else { 512 };
-                    let label = format!("kind={kind} at={at} cut={cut} bb={bb}");
+                    m.quantum = q as u64;
+                    m.max_cycles = m.bus.cycles + if matches!(kind, 0 | 3 | 6 | 7) { 32768 } else { 8 * q as u64 };
+                    let label = format!("q={q} kind={kind} at={at} cut={cut} bb={bb}");
                     let stop = m.run(1 << 20);
                     if kind == 5 { assert!(matches!(stop, Stop::Exceptions(1)), "{label}: {stop:?}"); }
                     else { assert!(matches!(stop, Stop::Halted), "{label}: {stop:?}"); }
@@ -252,12 +279,14 @@ fn round_batches_match_the_per_round_schedule() {
                         if kind == 2 { assert!(m.bb_stats[3] > 0, "{label}: no waiti cut"); }
                         if kind == 3 { assert!(m.interrupts > 0, "{label}: timer never fired"); }
                         if kind == 4 { assert_eq!(m.script.pos, 2, "{label}: script events never applied"); }
+                        if kind == 7 { assert_eq!(m.interrupts, 1, "{label}: alarm never fired"); }
+                        if kind == 6 { assert!(m.bb_stats[2] > 8 * m.bb_stats[0], "{label}: batches end at device registers"); }
                     }
                     results.push((m.bus.cycles, m.run_steps(), m.insns(), m.script.pos, m.console.all.clone(),
                         m.exceptions, m.interrupts, m.irq_hist.clone(), m.bus.periph.usb.rx.iter().copied().collect::<Vec<_>>(),
                         m.cores.iter().map(|c| (c.pc, c.ps, c.ccount, c.insn_count, c.interrupt, c.epc, c.waiting, c.ar)).collect::<Vec<_>>()));
                 }
-                assert_eq!(results[0], results[1], "kind={kind} at={at} cut={cut}");
+                assert_eq!(results[0], results[1], "q={q} kind={kind} at={at} cut={cut}");
             }
         }
     }
@@ -284,12 +313,13 @@ fn frontier_instruction_observers_do_not_arm_mmio_deferral() {
 #[test]
 fn peripheral_alarm_inside_both_busy_rounds_matches_single_round_scheduling() {
     const VECTOR: u32 = IRAM + 0x1000;
-    // 16 MHz SYSTIMER deadlines straddle the 64-cycle scheduling boundary.
-    for ticks in [9u32, 12, 13, 17, 257, 1025] {
+    // 16 MHz SYSTIMER deadlines (15 cycles a tick) straddle the 64- and 256-cycle round boundaries.
+    for (q, ticks) in [64u64, 256].into_iter().flat_map(|q| [9u32, 12, 13, 17, 18, 35, 257, 1025].map(|t| (q, t))) {
         for busy in 0..2 {
             let mut results = Vec::new();
             for bb in [1, 128] {
                 let mut m = esp32s3::machine([0; 6]);
+                m.quantum = 64;
                 m.console.capture = true;
                 m.vq_max = 1;
                 m.bb_max = 1;
@@ -316,9 +346,10 @@ fn peripheral_alarm_inside_both_busy_rounds_matches_single_round_scheduling() {
                 m.bus.write32(0x6002_3064, 1).unwrap();
                 m.bus.write32(0x6002_3050, 1).unwrap();
                 m.bb_max = bb;
+                m.quantum = q;
                 m.max_cycles = m.bus.cycles + 32768;
                 assert!(matches!(m.run(1 << 20), Stop::Halted));
-                assert_eq!(m.interrupts, 1, "alarm must reach core={busy} ticks={ticks} bb={bb}");
+                assert_eq!(m.interrupts, 1, "alarm must reach core={busy} ticks={ticks} bb={bb} q={q}");
                 assert_eq!(m.cores[busy].epc[1], IRAM);
                 assert!((64..32832).contains(&m.cores[busy].get_ar(2)), "handler must capture its arrival time");
                 assert_eq!(m.bus.periph.systimer.int_raw & 1, 1);
@@ -329,7 +360,7 @@ fn peripheral_alarm_inside_both_busy_rounds_matches_single_round_scheduling() {
                 results.push((m.bus.cycles, m.cores.iter()
                     .map(|c| (c.ccount, c.insn_count, c.pc, c.ps, c.interrupt, c.epc, c.get_ar(2))).collect::<Vec<_>>()));
             }
-            assert_eq!(results[0], results[1], "busy={busy} ticks={ticks}");
+            assert_eq!(results[0], results[1], "q={q} busy={busy} ticks={ticks}");
         }
     }
 }

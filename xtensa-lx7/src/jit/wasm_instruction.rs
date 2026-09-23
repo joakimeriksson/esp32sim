@@ -311,6 +311,20 @@ pub(super) fn emit(
         Jx => {
             g.price(5);
             g.advance();
+            // coverage-s2: a formation-time prediction is a guarded internal edge; the edge
+            // spills ACCX on its own path only, so the exit below still holds it.
+            if let Some(target) = g.region.as_ref().and_then(|r| r.jx) {
+                #[cfg(feature = "wasm-jit-tests")]
+                super::region::JX_EDGES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                let accx_live = g.accx_live;
+                g.ar(s);
+                g.c(target);
+                g.op(0x46);
+                g.begin_if();
+                super::region::region_edge(g, target, false);
+                g.end();
+                g.accx_live = accx_live;
+            }
             g.get(0);
             g.ar(s);
             g.store(PC);
@@ -353,6 +367,11 @@ pub(super) fn emit(
             g.c(if inc == 0 { next } else { (inc << 30) | (next & 0x3fff_ffff) });
             g.set_ar((inc * 4) as u8);
             g.advance();
+            if let Some(k) = g.region.as_ref().and_then(|r| r.leaf) {
+                super::region::inline_call(g, k, inc as u8, indirect, next, fast, cp);
+                super::region::region_edge(g, next, true);
+                return true;
+            }
             if indirect {
                 g.get(0);
                 g.get(TMP);
@@ -414,6 +433,38 @@ pub(super) fn emit(
                 g.leave(imm);
                 g.end();
             }
+        }
+        Bany | Bnone | Ball | Bnall => {
+            // BALL/BNALL test ~AR[s] & AR[t]; BNONE/BALL branch when that mask is zero.
+            g.ar(s);
+            if matches!(i.op, Ball | Bnall) {
+                g.c(u32::MAX);
+                g.op(0x73);
+            }
+            g.ar(t);
+            g.op(0x71);
+            if matches!(i.op, Bnone | Ball) {
+                g.op(0x45);
+            }
+            g.begin_if();
+            g.leave(imm);
+            g.end();
+        }
+        Mul16u | Mul16s => {
+            for x in [s, t] {
+                g.ar(x);
+                if i.op == Mul16u {
+                    g.c(0xffff);
+                    g.op(0x71);
+                } else {
+                    g.c(16);
+                    g.op(0x74);
+                    g.c(16);
+                    g.op(0x75);
+                }
+            }
+            g.op(0x6c);
+            g.set_ar(r);
         }
         Bbci | Bbsi | Bbc | Bbs => {
             g.ar(s);

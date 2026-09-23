@@ -122,16 +122,17 @@ async function testJitHandoff() {
   const withBytes = (bytes, f) => { const p = w.esp32sim_alloc(bytes.length); mem().set(bytes, p); try { return f(p, bytes.length); } finally { w.esp32sim_free(p, bytes.length); } };
   const emu = withBytes(enc.encode('none'), (p, n) => w.esp32sim_new(p, n, 1, 0));
   const entry = 0x40370000;
-  const program = new Uint8Array(64 * 2 + 3);
-  for (let i = 0; i < 64; i++) program.set([0x0c, 0x03], i * 2); // movi.n a3,0
-  program.set([0x06, 0xff, 0xff], 64 * 2);                       // j .
+  const q = 256; // one default scheduling quantum (q256)
+  const program = new Uint8Array(q * 2 + 3);
+  for (let i = 0; i < q; i++) program.set([0x0c, 0x03], i * 2); // movi.n a3,0
+  program.set([0x06, 0xff, 0xff], q * 2);                       // j .
   const app = new Uint8Array(24 + 8 + program.length), view = new DataView(app.buffer);
   app[0] = 0xe9; app[1] = 1; view.setUint32(4, entry, true);
   view.setUint32(24, entry, true); view.setUint32(28, program.length, true);
   app.set(program, 32);
   if (withBytes(app, (p, n) => w.esp32sim_load(emu, 3, p, n)) !== 0 || w.esp32sim_boot(emu, 1) !== 0) throw new Error('JIT fixture boot failed');
-  if (!dispatchJit(w, emu, mem, new Map(), new Set(), 64)) throw new Error('JIT handoff did not commit');
-  if (w.esp32sim_cycles(emu) !== 64 || w.esp32sim_insns(emu) !== 64) throw new Error('JIT handoff accounting mismatch');
+  if (!dispatchJit(w, emu, mem, new Map(), new Set(), q)) throw new Error('JIT handoff did not commit');
+  if (w.esp32sim_cycles(emu) !== q || w.esp32sim_insns(emu) !== q) throw new Error('JIT handoff accounting mismatch');
   w.esp32sim_delete(emu);
   console.log('ok   wasm JIT handoff: shared-memory block committed at a scheduler boundary');
 }

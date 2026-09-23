@@ -57,7 +57,7 @@ console events, and a `summary.json` with individual pairs and median wall time.
 Every run must pass the 36 firmware checks defined in `verdict-schema.json`,
 report zero JIT failures, and match the expected instruction total; each capture's
 `result.json` records success as `result.passed`. The current TinyDraw battery expects
-9,819,885,134 instructions; changing
+9,816,141,790 instructions (256-instruction scheduling quantum); changing
 `--expected-instructions` requires a separately justified workload baseline. Inputs
 must stay identical within each arm; firmware, harness, browser and console output
 must match across arms. Stop other builds and simulator runs during timing.

@@ -107,10 +107,23 @@ impl Cpu {
     pub fn advance_ccount(&mut self, cycles: u32) {
         let before = self.ccount;
         self.ccount = self.ccount.wrapping_add(cycles);
+        // event-s1: no comparator matches unless the nearest one does
+        #[cfg(target_arch = "wasm32")]
+        if self.event_at.wrapping_sub(before) >= cycles { return; }
         for (&c, &irq) in self.ccompare.iter().zip(&TIMER_INTERRUPT) {
             // matched if c in (before, ccount]
             if c.wrapping_sub(before).wrapping_sub(1) < cycles { self.interrupt |= 1 << irq; }
         }
+        #[cfg(target_arch = "wasm32")]
+        self.refresh_event();
+    }
+
+    /// event-s1: recompute `event_at` from `ccount` and `ccompare`. The order of the comparators'
+    /// distances only changes when one of them matches (in `advance_ccount`) or on a direct write.
+    #[cfg(target_arch = "wasm32")]
+    pub fn refresh_event(&mut self) {
+        let now = self.ccount;
+        self.event_at = now.wrapping_add(self.ccompare.iter().map(|c| c.wrapping_sub(now).wrapping_sub(1)).min().unwrap_or(u32::MAX));
     }
 
     pub fn read_sr(&mut self, n: u32) -> Option<u32> {
@@ -152,6 +165,8 @@ impl Cpu {
             sr::CONFIGID0 | sr::CONFIGID1 => {}
             _ => return None,
         }
+        #[cfg(target_arch = "wasm32")]
+        if n == sr::CCOUNT || (240..=242).contains(&n) { self.refresh_event(); }
         Some(())
     }
 

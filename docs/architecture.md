@@ -17,11 +17,12 @@ licensed, and contains no third-party emulator code (QEMU was consulted for inst
 ```
 cli/          esp32sim binary, all three chips: argument parsing, image loading, run loop, reports
               (`--chip s3|c3|c6`; the setup that is chip-specific is one function per chip)
-esp-soc/      Machine<S: Soc>, written once for every chip: the scheduler (64-instruction quanta,
-              idle skipping, per-core reset state), lazy device time, console capture, action
-              scripts, function stubs/probes, tracing and watchpoints, the web UI protocol,
-              real-time pacing, ROM/app image loading, reboot; the Soc/SocBus traits a chip
-              implements; the BoardModel trait; elf/image/picture loaders; the web server
+esp-soc/      Machine<S: Soc>, written once for every chip: the scheduler (256-instruction quanta
+              on wasm32, 64 natively; idle skipping, per-core reset state), lazy device time,
+              console capture, action scripts, function stubs/probes, tracing and watchpoints,
+              the web UI protocol, real-time pacing, ROM/app image loading, reboot; the
+              Soc/SocBus traits a chip implements; the BoardModel trait; elf/image/picture
+              loaders; the web server
 esp32s3/      the SoC and boards
   soc.rs      the S3 as a Soc: two LX7 cores, core-1 reset/stall state, interrupt lines per core,
               app boot, reboot (what survives), console streams, audio, board
@@ -150,7 +151,7 @@ trap timing and next pc. The model may refuse any event it cannot price.
 
 ## Scheduling and time
 
-Without a cost model, `Machine::run` interleaves the cores in quanta of 64 instructions. A core sitting in `waiti`
+Without a cost model, `Machine::run` interleaves the cores in quanta of 256 instructions in the browser (wasm32) build and 64 natively ([EX047](experiments.md#ex047)); `esp32sim_set_quantum` selects 64–4096 in multiples of 64. A core sitting in `waiti`
 with nothing pending costs nothing. When both cores are idle, each advance is at most
 512 cycles and is shortened to the earliest enabled-core wakeup, bus deadline, script event,
 cycle limit or remaining instruction allowance. The S3 bus deadline also bounds idle steps to
@@ -163,7 +164,7 @@ than bursting if it falls > 0.5 s behind). Work that costs host syscalls — rea
 sockets — runs on its own emulated-time cadence rather than every round, because at 240 MHz a
 per-round syscall costs more than the instructions it interleaves with.
 
-**Virtual quanta.** When exactly one core is busy and every other core is idle, the 64-instruction
+**Virtual quanta.** When exactly one core is busy and every other core is idle, the per-quantum
 cut serves nobody: no other core runs between the quanta, and nothing else can change until the
 next device deadline. `run_unmodeled` then gives the busy core one budget of up to `vq_max` quanta
 (`Machine::vq_max`, 1024 in the browser build, 1 natively) and afterwards closes the rounds it

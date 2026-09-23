@@ -9,7 +9,7 @@
       "elf"
     ],
     "serialSource": "usb",
-    "expectedInstructions": 9819885134
+    "expectedInstructions": 9816141790
   },
   "pocket-tank": {
     "schema": "pocket-tank-v1",
@@ -37,7 +37,7 @@
         "min": 2
       }
     ],
-    "expectedInstructions": 10073833775
+    "expectedInstructions": 11565467394
   },
   "tinydraw-hw": {
     "schema": "tinydraw-gate1-v1",
@@ -160,6 +160,31 @@
       [
         "esp32sim_set_icache_fill",
         404
+      ]
+    ]
+  },
+  "fluidbox": {
+    "schema": "fluidbox-v1",
+    "assets": [
+      "rom",
+      "bootloader",
+      "ptable",
+      "app"
+    ],
+    "guestSeconds": 30,
+    "serialSource": "uart0",
+    "checks": [
+      {
+        "name": "sim_reports",
+        "pattern": "fluidbox: [0-9.]+ fps \\| [0-9.]+ steps/s",
+        "min": 10
+      }
+    ],
+    "expectedInstructions": 13334523179,
+    "exports": [
+      [
+        "esp32sim_set_imu_motion",
+        1
       ]
     ]
   }

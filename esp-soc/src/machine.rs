@@ -67,8 +67,8 @@ pub struct Machine<S: Soc> {
     pub cores: Vec<S::Core>,
     /// a secondary core held in reset by its SoC registers (reset when released)
     core_held: Vec<bool>,
-    /// Instructions each busy core runs per scheduling round. 64 is the reference the goldens and
-    /// pinned totals hold for; a larger value changes the interleaving of two busy cores (EX047).
+    /// Instructions each busy core runs per scheduling round (`QUANTUM`: 64 native, 256 on wasm32; the goldens
+    /// and pinned totals hold for these); another value changes the interleaving of two busy cores (EX047).
     pub quantum: u64,
     pub bus: S::Bus,
     pub symbols: BTreeMap<u32, String>,
@@ -120,8 +120,9 @@ pub struct Machine<S: Soc> {
     run_steps: u64,
 }
 
-/// Default scheduling quantum; `Machine::quantum` can raise it (not bit-exact with the default).
-const QUANTUM: u64 = 64;
+/// Default scheduling quantum; `Machine::quantum` can change it (not bit-exact with the default). q256: 256 on wasm32,
+/// 64 native (M3 CLI at 256: Pocket Tank 5.4% slower, cheap native quantum switches lose to +15% spin-waiting).
+const QUANTUM: u64 = if cfg!(target_arch = "wasm32") { 256 } else { 64 };
 /// EX133 default for `Machine::vq_max`; a build can pin another with `ESP32SIM_VQ_BUILD=<n>`.
 const VQ_DEFAULT: u64 = match option_env!("ESP32SIM_VQ_BUILD") {
     Some(s) => { let b = s.as_bytes(); let (mut i, mut v) = (0, 0u64); while i < b.len() { v = v * 10 + (b[i] - b'0') as u64; i += 1; } v }
@@ -380,6 +381,13 @@ impl<S: Soc> Machine<S> {
             if let Some(&ret) = self.stubs.get(&pc) { cpu.return_from_stub(&mut self.bus, ret); self.stub_hits += 1; return (1, None); }
         }
         let (used, trap) = cpu.run(&mut self.bus, budget);
+        self.finish_step(core, pc, used, trap)
+    }
+
+    /// The completion of a dispatch at `pc` that retired `used` iterations: observers, trap counts,
+    /// interrupt lines, the exception stop.
+    #[inline(always)]
+    fn finish_step(&mut self, core: usize, pc: u32, used: u32, trap: Option<Trap>) -> (u32, Option<Stop>) {
         if let Some(stop) = self.observe_execution(core, pc, used, trap) { return (used, Some(stop)); }
         self.refresh_irq();
         if self.exceptions >= self.dbg.stop_after_exceptions { return (used, Some(Stop::Exceptions(self.exceptions))); }
@@ -462,7 +470,7 @@ impl<S: Soc> Machine<S> {
     }
 
     /// Run until something stops us or the `max_insns` scheduling-step budget is reached. The no-model path
-    /// uses complete quanta (64 by default), so a busy round can exceed the budget by up to
+    /// uses complete quanta (`QUANTUM` by default), so a busy round can exceed the budget by up to
     /// `quantum - 1` steps. The modeled path schedules one priced event at a time.
     pub fn run(&mut self, max_insns: u64) -> Stop {
         self.web_poll_input();
@@ -565,8 +573,8 @@ impl<S: Soc> Machine<S> {
             // closed afterwards exactly as the per-quantum schedule would have closed them. A device
             // register access stops in front of its instruction and finishes its quantum the old way.
             let mut resume_at = 0u64;
-            // The core that owns `resume_at`, and the cores of this round a fast path already ran.
-            let (mut resume_core, mut skip_before) = (0usize, 0usize);
+            // The core that owns `resume_at`.
+            let mut resume_core = 0usize;
             // Find the sole busy core only when virtual quanta are eligible.
             let busy = if !APPROXIMATE && can_defer && blocks && !slow_path && self.probes.0 == 0 {
                 if self.vq_skip > 0 { self.vq_skip -= 1; usize::MAX }
@@ -622,11 +630,8 @@ impl<S: Soc> Machine<S> {
                     let k = self.bb_quanta(max_insns - n, n);
                     if k > 1 {
                         self.bb_stats[0] += 1; self.bb_stats[5] += k;
-                        match self.bb_batch(k, &mut n, &on) {
-                            Err(stop) => return stop,
-                            Ok(None) => continue,
-                            Ok(Some((core, at))) => { skip_before = core; resume_core = core; resume_at = at; }
-                        }
+                        if let Err(stop) = self.bb_batch(k, &mut n, &on) { return stop; }
+                        continue;
                     } else { self.bb_stats[6] += 1; }
                 }
             }
@@ -646,10 +651,9 @@ impl<S: Soc> Machine<S> {
             };
             let elapsed = quantum * u64::from(cpi);
             let mut stalls = [0u64; 4];
-            // A fast path that already ran the head of this round charged its cycles to the round.
-            let mut round_elapsed = if skip_before == 0 { 0 } else { elapsed };
+            let mut round_elapsed = 0;
             for i in 0..S::CORES {
-                if !on[i] || i < skip_before { continue; }
+                if !on[i] { continue; }
                 if idle[i] && !slow_path {
                     self.cores[i].idle_advance(elapsed as u32);
                     if i == 0 { self.run_steps += quantum; }
@@ -776,15 +780,14 @@ impl<S: Soc> Machine<S> {
     /// has made equivalent to closing them one at a time. `bus.tick` only accumulates until its
     /// own deadline, so the folded call flushes the same cycles at the same boundary.
     ///
-    /// A device-register access stops the batch in front of its instruction, and a core that goes
-    /// to sleep stops it at the end of its round; the caller finishes an unfinished round the
-    /// ordinary way, after the fold has put device time where that round expects it.
-    /// `Ok(Some((core, consumed)))` is that unfinished round's cut position.
-    fn bb_batch(&mut self, k: u64, n: &mut u64, on: &[bool]) -> Result<Option<(usize, u64)>, Stop> {
+    /// A device-register access stops the batch in front of its instruction; batch-s1 folds the
+    /// completed rounds there and finishes that round with access allowed, then re-bounds the batch.
+    /// A core that goes to sleep ends it at the end of its round. `Err` is a stop inside a round.
+    fn bb_batch(&mut self, mut k: u64, n: &mut u64, on: &[bool]) -> Result<(), Stop> {
         let q = self.quantum;
-        let (mut done, mut sleep) = (0u64, false);
+        let (mut done, mut sleep, mut open) = (0u64, false, false);
         // (core, instructions of its quantum already run, a stop that ended the batch there)
-        let mut cut: Option<(usize, u64, Option<Stop>)> = None;
+        let mut cut: Option<(usize, u64, Stop)> = None;
         self.bus.set_defer(true);
         'batch: while done < k {
             // EX177: preserve the indexed form used by the measured artifact (see
@@ -794,19 +797,41 @@ impl<S: Soc> Machine<S> {
                 if !on[i] { continue; }
                 let mut left = q as u32;
                 while left > 0 {
-                    let (used, stop) = self.step_blocks(i, left);
+                    // lane-s2b: a start the core prepared runs without step_blocks' stub/probe test (the
+                    // memo never names a boundary PC and batches run without observers).
+                    let pc = self.cores[i].pc();
+                    let (used, stop) = match self.cores[i].run_prepared(&mut self.bus, left) {
+                        Some((used, trap)) => { self.bb_stats[7] += 1; self.finish_step(i, pc, used, trap) }
+                        None => self.step_blocks(i, left),
+                    };
                     left -= used.min(left);
-                    if stop.is_some() { cut = Some((i, q - u64::from(left), stop)); break 'batch; }
-                    if self.bus.take_deferred() { self.bb_stats[2] += 1; cut = Some((i, q - u64::from(left), None)); break 'batch; }
+                    if let Some(stop) = stop { cut = Some((i, q - u64::from(left), stop)); break 'batch; }
+                    if self.bus.take_deferred() {
+                        // batch-s1: fold the completed rounds, which puts device time where this round
+                        // expects it, and finish the round with device access allowed, as the ordinary path does.
+                        self.bb_stats[2] += 1;
+                        if done > 0 { self.after_round(done * q); self.bb_stats[1] += done; k -= done; done = 0; }
+                        self.bus.set_defer(false);
+                        open = true;
+                        continue;
+                    }
                     // Defensive for future buses: a reset is a deferred device-register write today, but
                     // the ordinary path ends the round at that instruction, so end the batch too.
-                    if self.bus.sw_reset() { cut = Some((i, q - u64::from(left), Some(Stop::SwReset))); break 'batch; }
+                    if self.bus.sw_reset() { cut = Some((i, q - u64::from(left), Stop::SwReset)); break 'batch; }
                 }
                 if i == 0 { *n += q; self.run_steps += q; }
                 sleep |= self.cores[i].waiting();
             }
             done += 1;
             if sleep { self.bb_stats[3] += 1; break; }
+            if open {
+                // batch-s1: the accesses may have moved a device deadline or a core's run state. Re-bound
+                // from this round's start (core 0 already counted it in `n`); the loop top would re-plan.
+                open = false;
+                if (1..S::CORES).any(|i| on[i] != (S::core_state(&self.bus, i) == CoreState::Running)) { break; }
+                k = self.bb_quanta(k * q, *n - q);
+                self.bus.set_defer(true);
+            }
         }
         self.bus.set_defer(false);
         self.bb_stats[1] += done;
@@ -818,7 +843,7 @@ impl<S: Soc> Machine<S> {
                 if self.bus.cycles() >= self.max_cycles { self.drain_console(); return Err(Stop::Halted); }
                 if *n & 0xffff < q { self.drain_console(); }
             }
-            return Ok(None);
+            return Ok(());
         };
         // A cut leaves `done < k`, so none of the folded boundaries can be the one the bound
         // allowed work at: the fold only moves device time forward for the unfinished round.
@@ -828,9 +853,8 @@ impl<S: Soc> Machine<S> {
         if core == 0 { self.run_steps += at; }
         match stop {
             // the bus reset; charge the unfinished round's cycles as its own path would
-            Some(Stop::SwReset) => Err(self.finish_reset(if core > 0 { q } else { at })),
-            Some(s) => { self.drain_console(); Err(s) }
-            None => Ok(Some((core, at))),
+            Stop::SwReset => Err(self.finish_reset(if core > 0 { q } else { at })),
+            s => { self.drain_console(); Err(s) }
         }
     }
 
@@ -854,7 +878,7 @@ impl<S: Soc> Machine<S> {
     /// (`SocBus::take_host_event`), so a transmission the host must forward is seen at the cycle
     /// it started. Every round is also bounded by the bus's next device deadline
     /// (`SocBus::next_deadline`), so a device event lands at its own cycle rather than at the end
-    /// of a 64-instruction quantum; a core asleep in `wfi` with nothing pending lets time jump to
+    /// of a scheduling quantum; a core asleep in `wfi` with nothing pending lets time jump to
     /// the target or to that deadline, whichever is first — the deadline is conservative, so an
     /// interrupt is never delivered late by the skip. Single-core chips only (the S3's second
     /// core is not scheduled here), and the unmodeled path only: a cost model is not consulted.

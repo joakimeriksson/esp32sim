@@ -194,6 +194,9 @@ Things that cost real time to find out, recorded so they do not have to be found
   nothing on Apple Silicon, where the default target already is the host.
 - **Scheduling quantum 64**, not 32: half the device-tick overhead for ~9 % more throughput, and the
   Atech WAV regression stays bit-identical. 128 gains almost nothing and costs interrupt latency.
+  This remains the native default. Since x8 the browser (wasm32) build defaults to 256 (M3 Chrome
+  fluidbox −33 % wall time, different work); native keeps 64 because native Pocket Tank ran 5.38 %
+  slower at 256 ([EX047](experiments.md#ex047)).
 - **Free things, measured so nobody removes them for speed**: the three `ccompare` checks in
   `advance_ccount`, the per-instruction stub/probe/breakpoint/trace checks in `step_core`, and the
   decode-cache size (32 K, 64 K and 128 K entries all perform the same — it could shrink).
@@ -339,7 +342,7 @@ Things that cost real time to find out, recorded so they do not have to be found
   accesses, not a claim that silicon under every PMS configuration raises the same CPU fault.
 - **Idle advances stop at known boundaries.** The former fixed 512-cycle skip could overshoot
   core timers, device deadlines, scripts and run limits. Both run entry points now bound each
-  skip by those deadlines; active cores retain their 64-instruction scheduling quantum. This
+  skip by those deadlines; active cores retain their scheduling quantum (64 natively, 256 on wasm32). This
   deliberately changes instruction totals in fixed-time workloads and makes cycle limits exact.
 - **Read-driven interrupt changes are visible before the next block.** An MMIO read flushes
   pending device time. If a source changes, it requests a block exit and CPU-line refresh rather

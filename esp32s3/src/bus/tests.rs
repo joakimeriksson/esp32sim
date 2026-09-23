@@ -361,6 +361,71 @@ fn timed_spi2_dma_keeps_owner_and_interrupt_pending_until_wire_deadline() {
     assert_eq!(&*events.lock().unwrap(), &["spi:2:[11, 22, 33, 44]:0"]);
 }
 
+/// mmio-s1: SPI2/GDMA writes mark interrupt inputs dirty exactly when their sources move,
+/// including a DMA completion the last write triggers; other devices keep the blanket rule.
+#[test]
+fn spi2_and_gdma_writes_dirty_interrupts_only_when_their_sources_change() {
+    const DATA: u32 = 0x3fc9_0200;
+    let mut bus = dma_bus();
+    bus.write32(DATA, 0x4433_2211).unwrap();
+    bus.write32(FIRST_DESC, 4 | (4 << 12) | (1 << 30) | (1 << 31)).unwrap();
+    bus.write32(FIRST_DESC + 4, DATA).unwrap();
+    bus.write32(FIRST_DESC + 8, 0).unwrap();
+    bus.periph.gdma.out[0].conf0 = 1 << 2;
+    let dirty = |bus: &mut SocBus, addr: u32, v: u32| { bus.irq_dirty = false; bus.write32(addr, v).unwrap(); bus.irq_dirty };
+    assert!(!dirty(&mut bus, SPI2 + 0x08, 0x1234), "configuration write");
+    assert!(!dirty(&mut bus, GDMA + 0x70, 1 << 3), "GDMA enable without a raw event");
+    assert!(!dirty(&mut bus, SPI2 + 0x34, 1 << 12), "SPI2 enable without a raw event");
+    bus.write32(SPI2 + 0x30, 1 << 28).unwrap();
+    bus.write32(SPI2 + 0x10, 1 << 27).unwrap();
+    assert!(!dirty(&mut bus, SPI2 + 0x1c, 31));
+    assert!(dirty(&mut bus, SPI2, 1 << 24), "the command completes the DMA and raises both sources");
+    assert_ne!(bus.periph.spi2.int_raw & (1 << 12), 0);
+    assert!(!dirty(&mut bus, SPI2 + 0x34, 1 << 12), "unchanged enable");
+    assert!(dirty(&mut bus, SPI2 + 0x38, 1 << 12), "SPI2 clear drops its source");
+    assert!(dirty(&mut bus, GDMA + 0x74, 1 << 3), "GDMA clear drops its source");
+    assert!(!dirty(&mut bus, GDMA + 0x74, 1 << 3), "clearing again changes nothing");
+    assert!(dirty(&mut bus, 0x6000_0010, 1), "UART writes keep the blanket rule");
+}
+
+/// Review (mmio blocker): timed SPI2 submission collects its descriptors through the bus, and a
+/// descriptor word can be a device register. Here the EOF descriptor sits in unmodelled register
+/// storage just below USB Serial/JTAG, so its next word pops the USB FIFO, presents the queued
+/// packet and raises RECV_PKT: interrupts must be dirty at submission, not at the wire deadline.
+#[test]
+fn timed_spi2_descriptor_collection_dirties_interrupts() {
+    const DATA: u32 = 0x3fc9_0200;
+    const DESC: u32 = 0x6003_7ff8; // + 8 is the USB Serial/JTAG FIFO
+    const LINE: u32 = 5;
+    let mut bus = dma_bus();
+    bus.spi2_timing = true;
+    bus.write32(DATA, 0x4433_2211).unwrap();
+    bus.write32(DESC, 4 | (4 << 12) | (1 << 30) | (1 << 31)).unwrap();
+    bus.write32(DESC + 4, DATA).unwrap();
+    bus.periph.gdma.out[0].desc = DESC;
+    bus.periph.intmatrix.map[0][crate::periph::SRC_USB_SERIAL_JTAG] = LINE;
+    bus.periph.usb.host_input(&[0x11]);
+    bus.periph.usb.host_input(&[0x22]);
+    bus.periph.usb.int_raw = 0;
+    bus.periph.usb.int_ena = 1 << 2;
+    bus.write32(SPI2 + 0x0c, 1 << 12).unwrap();
+    bus.write32(SPI2 + 0x30, 1 << 28).unwrap();
+    bus.write32(SPI2 + 0x10, 1 << 27).unwrap();
+    bus.write32(SPI2 + 0x1c, 31).unwrap();
+    let refresh = |bus: &mut SocBus| <SocBus as esp_soc::SocBus>::refresh_irq(bus);
+    refresh(&mut bus);
+    assert!(!bus.periph.usb.irq());
+    assert_eq!(bus.periph.cpu_lines_both().0 & (1 << LINE), 0);
+    bus.irq_dirty = false;
+    bus.write32(SPI2, 1 << 24).unwrap();
+    assert!(bus.spi2_scheduled.is_some() && bus.periph.spi2.transfers == 0, "still on the wire");
+    assert_eq!(bus.periph.usb.rx.iter().copied().collect::<Vec<_>>(), [0x22], "the next word read the FIFO");
+    assert!(bus.periph.usb.irq(), "the queued packet raised RECV_PKT");
+    assert!(bus.irq_dirty && bus.block_break(), "USB moved during submission: interrupts are dirty now");
+    assert!(refresh(&mut bus));
+    assert_ne!(bus.periph.cpu_lines_both().0 & (1 << LINE), 0);
+}
+
 #[test]
 fn spi2_data_phase_comes_from_gdma_descriptor() {
     const DATA: u32 = 0x3fc9_0200;
@@ -1186,4 +1251,43 @@ fn cpu_store_versions_cover_instruction_overlap() {
             }
         }
     }
+}
+
+/// shell-s2: every version `stable_pages` covers changes only together with its epoch, and the
+/// page generated stores can reach through the EX180 previous-page rule stays outside the range.
+#[test]
+fn stable_pages_move_their_epoch() {
+    use esp_soc::SocBus as _;
+    // Whether a covered version changed; if one did, the epoch must have moved.
+    fn check(bus: &mut SocBus, what: &str, op: impl FnOnce(&mut SocBus)) -> bool {
+        let (lo, hi, epoch) = bus.stable_pages();
+        let before = bus.page_versions()[lo as usize..hi as usize].to_vec();
+        op(bus);
+        let changed = bus.stable_pages().0 != lo || bus.page_versions()[lo as usize..hi as usize] != before[..];
+        assert!(!changed || bus.stable_pages().2 != epoch, "{what}: a covered version changed without the epoch");
+        changed
+    }
+    let mut bus = SocBus::new(4 << 16, 2 << 16, [0; 6]);
+    assert!(check(&mut bus, "flash write", |b| b.write_flash(0x1_0010, &[1, 2, 3]).unwrap()));
+    assert!(check(&mut bus, "remap", |b| b.write32(MMU_TABLE + 4, 1).unwrap()));
+    assert!(check(&mut bus, "load through the flash mapping", |b| b.load_bytes(IBUS_LOW + 0x1_0020, &[7]).unwrap()));
+    assert!(check(&mut bus, "SPI flash write-back", |b| b.note_written(SRC_FLASH, 0x2_0000, 4)));
+    assert!(check(&mut bus, "PSRAM resize", |b| b.set_psram_size(4 << 16).unwrap()));
+    // hop-s2b: mask ROM below flash is covered from its second page on, and its loads move the epoch.
+    assert_eq!(bus.stable_pages().0, bus.code_page(IROM_MASK_LOW) + 1, "the first ROM page is left to per-page compares");
+    assert!(check(&mut bus, "ROM load", |b| b.load_bytes(IROM_MASK_LOW + 0x1000, &[1, 2]).unwrap()));
+    assert!(check(&mut bus, "ROM load at the last ROM byte", |b| b.load_bytes(IROM_MASK_HIGH - 1, &[3]).unwrap()));
+    bus.write32(MMU_TABLE, MMU_SPIRAM).unwrap();
+    let first = bus.code_page(DBUS_LOW);
+    bus.note_code_page(first);
+    let before = bus.page_versions().to_vec();
+    for width in [1, 2, 4] {
+        assert!(!check(&mut bus, "store to the first bytes of PSRAM", |b| match width {
+            1 => b.write8(DBUS_LOW, 1).unwrap(),
+            2 => b.write16(DBUS_LOW, 1).unwrap(),
+            _ => b.write32(DBUS_LOW, 1).unwrap(),
+        }));
+    }
+    assert_eq!(bus.stable_pages().1, first - 1, "the last flash page is left to per-page compares");
+    assert_eq!(bus.page_versions()[first as usize - 1], before[first as usize - 1] + 3);
 }

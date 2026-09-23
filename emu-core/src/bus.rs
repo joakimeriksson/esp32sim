@@ -124,6 +124,10 @@ pub trait Bus {
     /// versions of the pages holding its first and last byte and assumes there is no third.
     fn page_versions(&self) -> &[u32] { &[] }
     fn code_page(&mut self, pc: u32) -> u32 { let _ = pc; 0 }
+    /// shell-s2 (EX168 t5): `(lo, hi, epoch)`: every change to a page version with index in `lo..hi`
+    /// also moves `epoch`, so one epoch compare vouches for all of them. Empty by default.
+    #[inline(always)]
+    fn stable_pages(&self) -> (u32, u32, u64) { (0, 0, 0) }
     /// EX110: decoded code is about to record the version of page `vidx`, so every later write
     /// that could change a byte of it must move a version this consumer will compare. Call this
     /// before reading the version to remember: the bytes and the version are then read after the

@@ -1,5 +1,5 @@
 use emu_core::Core;
-use xtensa_lx7::{Bus, Cpu, FlatRam};
+use xtensa_lx7::{state::sr, Bus, Cpu, FlatRam};
 const BASE: u32 = 0x4037_0000;
 
 fn setup(program: &[u8]) -> (Cpu, FlatRam) {
@@ -10,7 +10,7 @@ fn setup(program: &[u8]) -> (Cpu, FlatRam) {
     cpu.approximate_cpi = 3;
     cpu.cpenable = 9;
     cpu.scompare1 = 0; // Match zero-filled RAM: the conditional store must succeed.
-    cpu.ccompare = [u32::MAX; 3];
+    for i in 0..3 { cpu.write_sr(sr::CCOMPARE0 + i, u32::MAX); }
     cpu.set_ar(4, BASE + 0x100);
     cpu.set_ar(5, 0x1234_5678);
     let mut ram = FlatRam::new(BASE, 4096);

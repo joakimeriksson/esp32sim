@@ -133,6 +133,9 @@ pub trait Core {
         for i in 0..budget { if let Some(t) = self.step(bus).trap() { return (i + 1, Some(t)); } }
         (budget, None)
     }
+    /// lane-s2b: `run` for a dispatch the core has already prepared (the start a quantum-ending
+    /// exit left), when nothing it does not check itself can intervene there; `None` otherwise.
+    fn run_prepared<B: Bus>(&mut self, _bus: &mut B, _budget: u32) -> Option<(u32, Option<Trap>)> { None }
     /// pcs the machine intercepts (stubs, probes) as a bloom over `pc_bit`: a fast path must
     /// stop at every one of them so the machine can look.
     fn set_boundaries(&mut self, _bloom: u64) {}

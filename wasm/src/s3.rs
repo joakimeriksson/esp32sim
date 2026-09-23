@@ -73,11 +73,14 @@ pub unsafe extern "C" fn esp32sim_set_measured_te(e: *mut Emu, enabled: u32) -> 
     if e.booted { return 1; }
     let Some(m) = e.m.s3_mut() else { return 1 };
     if m.bus.board.name() != "waveshare-amoled18-v2" { return 1; }
+    // A new board must keep the IMU motion selected before it.
+    let motion = m.bus.board.imu_motion();
     m.bus.board = Box::new(if enabled != 0 {
         esp32s3::board::WaveshareAmoled18V2::with_measured_te()
     } else {
         esp32s3::board::WaveshareAmoled18V2::new()
     });
+    m.bus.board.set_imu_motion(motion);
     m.bus.attach_board_devices();
     0
 }
@@ -157,8 +160,8 @@ pub unsafe extern "C" fn esp32sim_set_control_prices(e: *mut Emu, on: u32) -> u3
     0
 }
 
-/// Scheduling quantum of the exact-clock scheduler (default 64). Larger values interleave two
-/// busy cores more coarsely: faster, deterministic, but not bit-identical with the default.
+/// Scheduling quantum of the exact-clock scheduler (default 256 on wasm32, 64 native). Other values interleave two
+/// busy cores differently: deterministic, but not bit-identical with the default.
 /// Rejected while either timing model owns scheduling; approximate timing uses its own quantum.
 /// # Safety
 /// `e` must be a live exclusively borrowed emulator.
@@ -185,8 +188,9 @@ pub unsafe extern "C" fn esp32sim_set_round_batch(e: *mut Emu, rounds: u32) -> u
     0
 }
 
-/// EX177 counters: batches, whole rounds covered, cuts at a device register, cuts at waiti,
-/// batches that ran the whole cap, granted rounds, batches the bound refused.
+/// EX177 counters: batches, whole rounds covered, device-register deferrals (batch-s1: the batch
+/// continues past them), cuts at waiti, batches that ran the whole cap, granted rounds, batches the bound refused,
+/// (lane-s2b) memo'd starts the batch ran without `step_blocks`.
 /// # Safety
 /// `e` must be a live exclusively borrowed emulator.
 #[no_mangle]
@@ -312,6 +316,18 @@ pub unsafe extern "C" fn esp32sim_profile_report(e: *mut Emu) {
 }
 
 
+/// Select a scripted IMU motion on a supporting S3 board before execution (0 = still, 1 = the
+/// 30 s fluidbox handling script). Returns 1 if unsupported.
+/// # Safety
+/// The pointer must reference a live exclusively borrowed emulator.
+#[no_mangle]
+pub unsafe extern "C" fn esp32sim_set_imu_motion(e: *mut Emu, mode: u32) -> u32 {
+    let e = unsafe { &mut *e };
+    let Some(m) = e.m.s3_mut() else { return 1 };
+    if m.insns() != 0 || mode > 1 { return 1; }
+    if m.bus.board.set_imu_motion(mode) { 0 } else { 1 }
+}
+
 /// Opt in to interactive host display publication for a supporting S3 board, before execution.
 /// This changes host snapshots only, not guest display timing. Returns 1 if unsupported.
 /// # Safety
@@ -322,4 +338,36 @@ pub unsafe extern "C" fn esp32sim_set_smooth_display(e: *mut Emu, on: u32) -> u3
     let Some(m) = e.m.s3_mut() else { return 1 };
     if m.insns() != 0 || on > 1 { return 1; }
     if m.bus.board.set_smooth_display(on != 0) { 0 } else { 1 }
+}
+
+#[cfg(test)]
+mod imu_motion_tests {
+    use super::*;
+    use crate::{esp32sim_delete, esp32sim_new};
+
+    fn status0(e: *mut Emu) -> u8 {
+        // SAFETY: the test owns the live emulator.
+        let m = unsafe { &mut *e }.m.s3_mut().unwrap();
+        let mut devices = m.bus.board.i2c_devices();
+        let (_, _, imu) = devices.iter_mut().find(|(_, addr, _)| *addr == 0x6b).unwrap();
+        imu.start(false); imu.write(0x2e); imu.start(true);
+        imu.read()
+    }
+
+    /// Both setter orders keep the scripted motion (the TE setter replaces the board).
+    #[test]
+    fn motion_survives_measured_te_in_either_order() {
+        let board = "waveshare-amoled18-v2";
+        for motion_first in [true, false] {
+            // SAFETY: a fresh emulator, exclusively owned and deleted here.
+            unsafe {
+                let e = esp32sim_new(board.as_ptr(), board.len(), 4, 2);
+                if motion_first { assert_eq!(esp32sim_set_imu_motion(e, 1), 0); }
+                assert_eq!(esp32sim_set_measured_te(e, 1), 0);
+                if !motion_first { assert_eq!(esp32sim_set_imu_motion(e, 1), 0); }
+                assert_eq!(status0(e), 3, "motion first: {motion_first}");
+                esp32sim_delete(e);
+            }
+        }
+    }
 }

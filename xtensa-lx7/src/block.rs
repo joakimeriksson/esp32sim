@@ -61,6 +61,27 @@ pub const ALIAS_SEQ: bool = true;
 pub(crate) fn note_sequential(cpu: &mut Cpu, last: u32) {
     if ALIAS && ALIAS_SEQ && cpu.pc.wrapping_sub(last).wrapping_sub(2) <= 1 { cpu.blocks.alias_pc = cpu.pc; }
 }
+/// A guarded region copy cut here, `k` instructions into the chunk headed at `head`: where the next
+/// lookup finds it (sequential by construction, also after a four-byte PIE instruction).
+#[cfg(target_arch = "wasm32")]
+#[inline(always)]
+pub(crate) fn tail_hints(cpu: &mut Cpu, head: u32, k: u32) {
+    let pc = cpu.pc;
+    cpu.blocks.alias_pc = pc;
+    cpu.blocks.alias_head = (pc, head);
+    // alias-s1: name the decoded resume too, so the next lookup neither misses nor aliases.
+    if !cpu.price_control && cpu.boundary_bloom & pc_bit(pc) == 0 { cpu.blocks.name_resume(head, k, pc); }
+}
+/// memo-s2: the lookup hints a memo'd exit left unwritten, for the dispatch that declined the memo
+/// (only a dispatch at the memo's PC reads them). `.4`: a copy cut's chunk head, a chunk-head exit's
+/// last retired PC, or 1 when the exit wrote its hints itself (an own-module cut).
+#[cfg(target_arch = "wasm32")]
+#[cold]
+fn memo_hints(cpu: &mut Cpu) {
+    let (_, _, param, _, aux) = cpu.blocks.memo;
+    if aux == 1 { return; }
+    if param >> 16 != 0 { tail_hints(cpu, aux, param >> 16); } else { note_sequential(cpu, aux); }
+}
 /// Arena size at which decoded entries are rebuilt. The arena never reallocates:
 /// native code holds pointers into it; WASM code owns separate retained instruction storage.
 #[cfg(not(target_arch = "wasm32"))] const ARENA_MAX: usize = 1 << 20;
@@ -77,10 +98,12 @@ pub struct BlockCache {
     extras: Vec<u8>,
     /// A block cut short by the caller's budget or a timer deadline resumes here rather than
     /// spawning a new block at the cut point: (entry index, arena index, pc at that index).
-    resume: (u32, u32, u32),
+    pub(crate) resume: (u32, u32, u32),
     /// EX172: an exception-return, sequential or deferred arrival PC, or 1. A lookup miss there
     /// may enter an existing block at that instruction instead of decoding a new head.
     pub(crate) alias_pc: u32,
+    /// tails-s1: a guarded region copy cut at `.0` inside the chunk headed at `.1`.
+    pub(crate) alias_head: (u32, u32),
     /// EX172: direct-mapped interior PC -> (head PC, arena start of that build, arena index),
     /// filled on misses. The arena only grows between flushes, so an entry that still has this
     /// head and start is the same build and the index still names `pc`. Cleared by flush.
@@ -95,6 +118,10 @@ pub struct BlockCache {
     /// EX171: instructions the chain loop interpreted in place during the current wrapper call.
     #[cfg(target_arch = "wasm32")]
     pub(crate) bridged: u32,
+    /// lane-s1: a region exit that ended a quantum: (PC, block code it entered through, region
+    /// parameter resuming at that PC, region epoch); PC 1 when none. See `jit::resume`.
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) memo: (u32, u32, u32, u64, u32),
     pub builds: u64,
     pub flushes: u64,
     /// native code for blocks, when the host supports it and `jit_enabled`
@@ -124,7 +151,9 @@ impl BlockCache {
                      chain_ei: u32::MAX,
                      #[cfg(target_arch = "wasm32")]
                      bridged: 0,
-                     entries: vec![Entry::EMPTY; ENTRIES], arena: Vec::with_capacity(ARENA_MAX + MAX_LEN), extras: Vec::new(), resume: (0, 0, 1), alias_pc: 1, aliases: vec![(1, 0, 0, 0); if ALIAS { ALIASES } else { 0 }], builds: 0, flushes: 0,
+                     #[cfg(target_arch = "wasm32")]
+                     memo: (1, 0, 0, 0, 1),
+                     entries: vec![Entry::EMPTY; ENTRIES], arena: Vec::with_capacity(ARENA_MAX + MAX_LEN), extras: Vec::new(), resume: (0, 0, 1), alias_pc: 1, alias_head: (1, 1), aliases: vec![(1, 0, 0, 0); if ALIAS { ALIASES } else { 0 }], builds: 0, flushes: 0,
                      #[cfg(feature = "wasm-jit-tests")]
                      alias_hits: 0,
                      #[cfg(all(target_arch = "wasm32", feature = "wasm-jit-profile"))]
@@ -133,7 +162,10 @@ impl BlockCache {
     }
     pub fn flush(&mut self) {
         for e in self.entries.iter_mut() { *e = Entry::EMPTY; }
-        self.arena.clear(); self.extras.clear(); self.resume = (0, 0, 1); self.alias_pc = 1;
+        self.arena.clear(); self.extras.clear(); self.resume = (0, 0, 1); self.alias_pc = 1; self.alias_head = (1, 1);
+        // memo-s2: its unwritten hints are forgotten with the others
+        #[cfg(target_arch = "wasm32")]
+        { self.memo.0 = 1; }
         for a in self.aliases.iter_mut() { a.0 = 1; } self.flushes += 1;
         if let Some(c) = &mut self.code { c.reset(); }
     }
@@ -163,6 +195,15 @@ impl BlockCache {
     pub(crate) fn bridge_target(&self, pc: u32, pv: &[u32], room: u32) -> Option<(u32, u32)> {
         let e = &self.entries[Self::index(pc)];
         (e.pc == pc && e.chain && e.bridge.wrapping_sub(1) < BRIDGE_CLASS && e.n as u32 <= room && Self::valid(e, pv)).then_some((e.start, e.n as u32))
+    }
+    /// alias-s1: a region copy cut at `pc`, `k` instructions into the chunk headed at `head`, resumes
+    /// in the head's decoded block, whose instruction `k` it is (same bytes: `find_block` checks the
+    /// pages, and the arena range proves the same build, exactly as for a CUT).
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn name_resume(&mut self, head: u32, k: u32, pc: u32) {
+        let ei = Self::index(head);
+        let e = &self.entries[ei];
+        if e.pc == head && k < e.n as u32 { self.resume = (ei as u32, e.start + k, pc); }
     }
     #[cfg(all(target_arch = "wasm32", feature = "wasm-jit-tests"))]
     pub(crate) fn install_test_bridge(&mut self, pc: u32, ops: &[BlockInsn]) {
@@ -280,6 +321,16 @@ pub(crate) fn must_start_block(i: &Insn) -> bool {
 /// Decode a block starting at `pc0` and register it. Only the first fetch can fault: a later
 /// unmapped instruction simply ends the block and faults when it is reached as a block start.
 fn build<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc0: u32) -> Result<(u32, u32, u16), Trap> {
+    match decode_block(cpu, bus, pc0) {
+        Some(b) => Ok(b),
+        None => Err(cpu.raise_mem(crate::state::exc::IFETCH_ERROR, pc0)),
+    }
+}
+
+/// `build` without the exception: `None` when the first fetch faults, before anything changes
+/// (review T1: speculative head recovery must not enter an exception for a PC it is not at).
+fn decode_block<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc0: u32) -> Option<(u32, u32, u16)> {
+    let mut bytes = bus.fetch(pc0).ok()?;
     #[cfg(all(
         target_arch = "aarch64",
         any(target_os = "macos", target_os = "linux")
@@ -294,16 +345,13 @@ fn build<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc0: u32) -> Result<(u32, u32, u16)
     let start = cpu.blocks.arena.len() as u32;
     let (mut pc, mut n, mut last) = (pc0, 0u16, pc0);
     loop {
-        let bytes = match bus.fetch(pc) {
-            Ok(b) => b,
-            Err(_) => { if n == 0 { return Err(cpu.raise_mem(crate::state::exc::IFETCH_ERROR, pc)); } break; }
-        };
         let i = decode(pc, bytes);
         if n > 0 && (must_start_block(&i) || cpu.boundary_bloom & pc_bit(pc) != 0) { break; }
         cpu.blocks.arena.push(BlockInsn { insn: i, max_ar: max_ar(&i), straddle: cpu.price_control && crate::exec::static_target(&i).is_some_and(|t| crate::exec::straddles(bus, t)), off: 0 });
         n += 1; last = pc;
         pc = pc.wrapping_add(i.len as u32);
         if ends_block(&i) || n as usize == MAX_LEN { break; }
+        match bus.fetch(pc) { Ok(b) => bytes = b, Err(_) => break }
     }
     cpu.blocks.extras.truncate(start as usize);
     if cpu.price_control {
@@ -334,7 +382,7 @@ fn build<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc0: u32) -> Result<(u32, u32, u16)
     let bridge = if code == crate::jit::NONE { bridge_block_class(&cpu.blocks.arena[start as usize..start as usize + n as usize]) } else { 0 };
     cpu.blocks.entries[ei] = Entry { pc: pc0, start, n, chain, #[cfg(target_arch = "wasm32")] bridge, vidx: [vidx0, vidx1], ver, code };
     cpu.blocks.builds += 1;
-    Ok((ei as u32, start, n))
+    Some((ei as u32, start, n))
 }
 
 /// Run a block (or a cut continuation) at `cpu.pc`, at most `budget` instructions.
@@ -372,8 +420,18 @@ fn run_block_profiled<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, 
 // Keep this boundary visible to a sampling profiler without adding per-block clocks.
 #[cfg_attr(all(target_arch = "wasm32", feature = "wasm-cpu-profile"), inline(never))]
 fn run_block_inner<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Option<Trap>) {
-    if let Some(t) = cpu.check_interrupts() { return (1, Some(t)); }
+    // memo-s2: the common no-interrupt case without the call and its returned Option
+    if cpu.check_interrupts_pending() != 0 { if let Some(t) = cpu.check_interrupts() { return (1, Some(t)); } }
     if cpu.waiting { cpu.advance_ccount(cpu.approximate_cpi); return (1, None); }
+    #[cfg(target_arch = "wasm32")]
+    {
+        if cpu.blocks.memo.0 == cpu.pc {
+            if let Some(r) = resume(cpu, bus, budget) { return r; }
+            memo_hints(cpu);
+        }
+        // lane-s1: only the dispatch right after the exit may use it
+        cpu.blocks.memo.0 = 1;
+    }
     let (ei, k, end) = match find_block(cpu, bus) { Ok(b) => b, Err(t) => return (1, Some(t)) };
     #[cfg(all(target_arch = "wasm32", feature = "wasm-jit-profile"))]
     { cpu.blocks.profile_entry = ei as usize; }
@@ -441,6 +499,32 @@ fn alias_lookup(cpu: &mut Cpu, pv: &[u32], pc: u32) -> Option<(u32, u32, u32)> {
     None
 }
 
+/// tails-s1: after a guarded region copy cut mid-chunk, decode the chunk's head block (the one the
+/// own-module tail cut it replaces would have run) and resume inside it, instead of a new head here.
+#[cold]
+#[inline(never)]
+fn head_lookup<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc: u32) -> Option<(u32, u32, u32)> {
+    // One use per hint; flush forgets it with the decoded blocks it was recorded against.
+    let (at, head) = std::mem::replace(&mut cpu.blocks.alias_head, (1, 1));
+    if at != pc || head == pc { return None; }
+    let (ei, start, n) = decode_block(cpu, bus, head)?;
+    // Walk the block just built, not `alias_lookup`'s 93-byte scan: a cut late in a chunk of
+    // four-byte PIE instructions lies up to 124 bytes past its head (review T2).
+    let b = &mut cpu.blocks;
+    if b.entries[ei as usize].code == crate::jit::NONE { return None; }
+    let mut p = head;
+    for k in start..start + n as u32 {
+        if p == pc {
+            b.aliases[BlockCache::index(pc) & (ALIASES - 1)] = (pc, head, start, k);
+            #[cfg(feature = "wasm-jit-tests")]
+            { b.alias_hits += 1; }
+            return Some((ei, k, start + n as u32));
+        }
+        p = p.wrapping_add(b.arena[k as usize].insn.len as u32);
+    }
+    None
+}
+
 #[cfg_attr(not(target_arch = "wasm32"), inline(always))]
 fn find_block<B: Bus>(cpu: &mut Cpu, bus: &mut B) -> Result<(u32, u32, u32), Trap> {
     let pc = cpu.pc;
@@ -457,7 +541,7 @@ fn find_block<B: Bus>(cpu: &mut Cpu, bus: &mut B) -> Result<(u32, u32, u32), Tra
             let e = &cpu.blocks.entries[ei];
             if e.pc == pc && BlockCache::valid(e, bus.page_versions()) { (ei as u32, e.start, e.start + e.n as u32) }
             else if let Some(hit) = (ALIAS && cpu.blocks.alias_pc == pc && !cpu.price_control && !cpu.blocks.observed
-                && cpu.boundary_bloom & pc_bit(pc) == 0).then(|| alias_lookup(cpu, bus.page_versions(), pc)).flatten() { hit }
+                && cpu.boundary_bloom & pc_bit(pc) == 0).then(|| alias_lookup(cpu, bus.page_versions(), pc).or_else(|| head_lookup(cpu, bus, pc))).flatten() { hit }
             else { let (ei, s, n) = build(cpu, bus, pc)?; (ei, s, s + n as u32) }
         }
     })
@@ -491,21 +575,116 @@ fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, mut budget: u32, mut ei: u32,
     }
 }
 
-/// One block (or WASM wrapper chain). WASM also returns the next block to continue with.
+/// Never run past a CCOMPARE match: the timer interrupt must land on the same instruction.
 #[inline(always)]
-fn run_decoded_once<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k: u32, end: u32) -> DecodedResult {
-    // never run past a CCOMPARE match: the timer interrupt must land on the same instruction
+fn timer_limit(cpu: &mut Cpu, mut limit: u32) -> u32 {
     #[cfg(not(target_arch = "wasm32"))]
-    let mut limit = (end - k).min(budget);
-    // WASM code bounds itself by its block: pass the round's remaining credit so a retained
-    // loop or a region may continue past the block, under the same CCOMPARE deadline.
-    #[cfg(target_arch = "wasm32")]
-    let mut limit = budget.min(0xffff);
     for i in 0..3 {
         let d = cpu.ccompare[i].wrapping_sub(cpu.ccount);
         let d = if cpu.approximate_cpi == 1 { d } else { d.div_ceil(cpu.approximate_cpi) };
         if d != 0 && d < limit { limit = d; }
     }
+    // event-s1: the nearest comparator bounds the others (div_ceil is monotonic), so one distance.
+    #[cfg(target_arch = "wasm32")]
+    {
+        #[cfg(feature = "wasm-jit-tests")]
+        { let kept = cpu.event_at; cpu.refresh_event(); assert_eq!(kept, cpu.event_at, "ccount/ccompare changed without refresh_event"); }
+        let d = cpu.event_at.wrapping_sub(cpu.ccount).wrapping_add(1);
+        let d = if cpu.approximate_cpi == 1 { d } else { d.div_ceil(cpu.approximate_cpi) };
+        if d != 0 && d < limit { limit = d; }
+    }
+    limit
+}
+
+/// lane-s1: a dispatch at the PC where this core's last quantum-ending region exit left goes
+/// straight into that region (`jit::resume`), skipping the lookup and the Hot re-derivation.
+/// Pricing keeps the ordinary path.
+#[cfg(target_arch = "wasm32")]
+#[inline(always)]
+fn resume<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> Option<(u32, Option<Trap>)> {
+    if cpu.price_control || cpu.blocks.observed || !cpu.blocks.jit_enabled { return None; }
+    let limit = timer_limit(cpu, budget.min(0xffff));
+    let fm = bus.fast_mem();
+    let cache = cpu.blocks.code.take()?;
+    // SAFETY: helpers match B, `fm` describes this exclusive bus borrow, and the cache is owned here.
+    let r = unsafe { crate::jit::resume(&cache, cpu, bus, crate::jit::Helpers::shared::<B>(), limit, fm) };
+    cpu.blocks.code = Some(cache);
+    let r = r?;
+    // a region never cuts; a chained own module that cuts names its entry in `chain_ei`
+    Some(retire(cpu, bus, r, 0, 0, 0))
+}
+
+/// lane-s2b: the memo'd dispatch for a round loop, with run_block_inner's checks in front of it
+/// (interrupts, WAITI, the PC); a decline leaves the ordinary dispatch exactly as run_block_inner
+/// would (hints written, memo consumed). One out-of-line copy of the memo path.
+#[cfg(target_arch = "wasm32")]
+#[inline(always)]
+pub fn run_memo<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> Option<(u32, Option<Trap>)> {
+    if cpu.blocks.memo.0 != cpu.pc { return None; }
+    run_memo_hit(cpu, bus, budget)
+}
+#[cfg(target_arch = "wasm32")]
+#[inline(never)]
+fn run_memo_hit<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> Option<(u32, Option<Trap>)> {
+    if cpu.check_interrupts_pending() != 0 || cpu.waiting { return None; }
+    let r = resume(cpu, bus, budget);
+    if r.is_none() { memo_hints(cpu); cpu.blocks.memo.0 = 1; }
+    r
+}
+
+/// Account a compiled call's result: retired instructions, the refused device access, traps and
+/// the continuation of a cut.
+#[inline(always)]
+#[allow(unused_variables)]
+fn retire<B: Bus>(cpu: &mut Cpu, bus: &mut B, r: u32, ei: u32, k: u32, end: u32) -> (u32, Option<Trap>) {
+    let (mut done, exit) = (r & 0xffff, (r >> 16) & 7);
+    // EX133: the helper refused a device-register access; its instruction was counted
+    // but did not run, and the pc still names it.
+    if exit == crate::jit::CODE_TRAP && bus.deferred() {
+        done -= 1;
+        // EX172 s3: the refused instruction is dispatched again, usually from mid-block.
+        if ALIAS && ALIAS_SEQ { cpu.blocks.alias_pc = cpu.pc; }
+    }
+
+    // EX171: instructions the chain loop interpreted in place are not compiled instructions.
+    #[cfg(target_arch = "wasm32")]
+    { cpu.blocks.jit_instructions += (done - cpu.blocks.bridged.min(done)) as u64; }
+    #[cfg(not(target_arch = "wasm32"))]
+    { cpu.blocks.jit_instructions += done as u64; }
+    cpu.insn_count += done as u64;
+    cpu.advance_ccount(done * cpu.approximate_cpi);
+    match exit {
+        crate::jit::CODE_TRAP => (done, cpu.jit_trap.take()),
+        crate::jit::CODE_TRAP_PRE => (done + 1, cpu.jit_trap.take()),
+        crate::jit::CODE_CUT => {
+            #[cfg(target_arch = "wasm32")]
+            {
+                // The WASM wrapper accounts for repeated prefixes when returning
+                // the next decoded index; no PC scan is needed here.
+                let (ei, end) = if cpu.blocks.chain_ei != u32::MAX {
+                    let e = &cpu.blocks.entries[cpu.blocks.chain_ei as usize];
+                    (cpu.blocks.chain_ei, e.start + e.n as u32)
+                } else { (ei, end) };
+                let index = cpu.blocks.entries[ei as usize].start + (r >> 19);
+                if index < end { cpu.blocks.resume = (ei, index, cpu.pc); }
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            if k + done < end { cpu.blocks.resume = (ei, k + done, cpu.pc); }
+            (done, None)
+        }
+        _ => (done, None),
+    }
+}
+
+/// One block (or WASM wrapper chain). WASM also returns the next block to continue with.
+#[inline(always)]
+fn run_decoded_once<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mut k: u32, end: u32) -> DecodedResult {
+    #[cfg(not(target_arch = "wasm32"))]
+    let limit = timer_limit(cpu, (end - k).min(budget));
+    // WASM code bounds itself by its block: pass the round's remaining credit so a retained
+    // loop or a region may continue past the block, under the same CCOMPARE deadline.
+    #[cfg(target_arch = "wasm32")]
+    let mut limit = timer_limit(cpu, budget.min(0xffff));
 
     let code = cpu.blocks.entries[ei as usize].code;
     // Native code has no price collector or deferred-access guard. Keep its default
@@ -542,43 +721,7 @@ fn run_decoded_once<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32, ei: u32, mu
             cpu.blocks.code = Some(cache);
             r
         };
-        let (mut done, exit) = (r & 0xffff, (r >> 16) & 7);
-        // EX133: the helper refused a device-register access; its instruction was counted
-        // but did not run, and the pc still names it.
-        if exit == crate::jit::CODE_TRAP && bus.deferred() {
-            done -= 1;
-            // EX172 s3: the refused instruction is dispatched again, usually from mid-block.
-            if ALIAS && ALIAS_SEQ { cpu.blocks.alias_pc = cpu.pc; }
-        }
-
-        // EX171: instructions the chain loop interpreted in place are not compiled instructions.
-        #[cfg(target_arch = "wasm32")]
-        { cpu.blocks.jit_instructions += (done - cpu.blocks.bridged.min(done)) as u64; }
-        #[cfg(not(target_arch = "wasm32"))]
-        { cpu.blocks.jit_instructions += done as u64; }
-        cpu.insn_count += done as u64;
-        cpu.advance_ccount(done * cpu.approximate_cpi);
-        let (done, trap) = match exit {
-            crate::jit::CODE_TRAP => (done, cpu.jit_trap.take()),
-            crate::jit::CODE_TRAP_PRE => (done + 1, cpu.jit_trap.take()),
-            crate::jit::CODE_CUT => {
-                #[cfg(target_arch = "wasm32")]
-                {
-                    // The WASM wrapper accounts for repeated prefixes when returning
-                    // the next decoded index; no PC scan is needed here.
-                    let (ei, end) = if cpu.blocks.chain_ei != u32::MAX {
-                        let e = &cpu.blocks.entries[cpu.blocks.chain_ei as usize];
-                        (cpu.blocks.chain_ei, e.start + e.n as u32)
-                    } else { (ei, end) };
-                    let index = cpu.blocks.entries[ei as usize].start + (r >> 19);
-                    if index < end { cpu.blocks.resume = (ei, index, cpu.pc); }
-                }
-                #[cfg(not(target_arch = "wasm32"))]
-                if k + done < end { cpu.blocks.resume = (ei, k + done, cpu.pc); }
-                (done, None)
-            }
-            _ => (done, None),
-        };
+        let (done, trap) = retire(cpu, bus, r, ei, k, end);
         #[cfg(target_arch = "wasm32")]
         return (done, trap, None);
         #[cfg(not(target_arch = "wasm32"))]

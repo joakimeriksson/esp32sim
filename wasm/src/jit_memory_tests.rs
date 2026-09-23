@@ -1,6 +1,6 @@
 //! EX110/EX173/EX180: generated stores must observe real S3 code-watch transitions.
 use xtensa_lx7::{block::run_block, bus::{tlb_index, Bus}, Core, Cpu};
-use esp32s3::bus::{SocBus, DRAM_LOW, IRAM_LOW};
+use esp32s3::bus::{SocBus, DBUS_LOW, DRAM_LOW, IRAM_LOW, MMU_SPIRAM, MMU_TABLE};
 
 const WRITER: u32 = IRAM_LOW;
 const VALUE: u32 = 0x1234_5678;
@@ -62,5 +62,26 @@ pub fn run() -> u32 {
         store(&mut cpu, &mut bus, unrelated);
         assert_eq!(bus.page_versions(), before, "unrelated group must remain unwatched");
     }
-    3
+    // shell-s2: a generated store to the first bytes of PSRAM bumps the last flash page without the
+    // bus, so that page must stay outside the pages the flash epoch vouches for.
+    let mut bus = SocBus::new(65536, 65536, [0; 6]);
+    let mut cpu = Cpu::new(0);
+    cpu.ps = 0;
+    cpu.set_jit(true);
+    bus.load_bytes(WRITER, &[0x32, 0x64, 0, 0x06, 0xff, 0xff]).unwrap();
+    bus.write32(MMU_TABLE, MMU_SPIRAM).unwrap();
+    let first = bus.code_page(DBUS_LOW);
+    bus.note_code_page(first);
+    cpu.set_ar(4, DBUS_LOW);
+    for _ in 0..64 {
+        cpu.pc = WRITER;
+        assert_eq!(run_block(&mut cpu, &mut bus, 1), (1, None));
+    }
+    let (lo, hi, epoch) = bus.stable_pages();
+    let before = bus.page_versions().to_vec();
+    store(&mut cpu, &mut bus, DBUS_LOW);
+    assert_eq!(bus.page_versions()[first as usize - 1], before[first as usize - 1].wrapping_add(1), "EX180 previous-page bump");
+    assert!(bus.stable_pages().2 != epoch || bus.page_versions()[lo as usize..hi as usize] == before[lo as usize..hi as usize],
+        "a generated store changed a version the flash epoch vouches for");
+    4
 }
