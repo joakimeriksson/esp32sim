@@ -540,6 +540,22 @@ fn loop_learn<B: Bus>(cc: &CodeCache, code: u32, lend: u32, bus: &mut B) -> (u32
     (n, pages)
 }
 
+/// EX168 t4 (EX030 retry be64c0e7): shadow `$h` with the cache view for one wrapper call (`run`,
+/// lane-s1 `resume`); copy the 36-byte table only when a view exists, since constructors leave
+/// `cache` null, which is what the copy would have stored.
+macro_rules! decorate {
+    ($bus:ident, $h:ident) => {
+        #[cfg(feature = "wasm-cache-inline")]
+        let cache_view = if CACHE_PROBES.load(std::sync::atomic::Ordering::Relaxed) { $bus.fast_cache() } else { None };
+        #[cfg(feature = "wasm-cache-inline")]
+        let hinted;
+        #[cfg(feature = "wasm-cache-inline")]
+        debug_assert!($h.cache.is_null(), "a wrapper call requires an undecorated helper table");
+        #[cfg(feature = "wasm-cache-inline")]
+        let $h = if let Some(cache) = cache_view.as_ref() { hinted = Helpers { cache, ..*$h }; &hinted } else { $h };
+    };
+}
+
 /// Execute a published block against the exclusively borrowed machine state.
 /// Returns retired count in bits 0..16 and exit code in bits 16..19. For CODE_CUT,
 /// bits 19..32 carry the next instruction index in the decoded block.
@@ -566,10 +582,14 @@ pub unsafe fn run<B: Bus>(
     cpu.jit_helped = false;
     cpu.blocks.chain_ei = NONE;
     cpu.blocks.bridged = 0;
+    // inner-s1: the helper table and the fast-memory pointers hold for the whole chain (it stops
+    // once a helper ran), so each hop's run_inner no longer re-derives them.
+    decorate!(bus, h);
+    let (tlb, versions) = tables(fm);
     // A dispatch at a probed PC stays one block long, as the differential suite requires.
     let chain = cpu.boundary_bloom & emu_core::core::pc_bit(cpu.pc) == 0;
-    let mut result = unsafe { run_inner(cc, code, cpu, bus, h, budget, entry, fm) };
-    if chain { result = unsafe { chain_on(cc, cpu, bus, h, budget, result, fm) }; }
+    let mut result = unsafe { run_inner(cc, code, cpu, bus, h, budget, entry, tlb, versions) };
+    if chain { result = unsafe { chain_on(cc, cpu, bus, h, budget, result, tlb, versions) }; }
     #[cfg(feature = "wasm-jit-profile")]
     {
         let st = &cc.region_stats.ex153;
@@ -594,7 +614,8 @@ pub unsafe fn run<B: Bus>(
 /// changed: a plain END/LEFT exit, no interpreter helper ran, credit remains, and the next PC
 /// has a valid decoded entry with ready code that may start without a boundary check.
 #[inline(always)]
-unsafe fn chain_on<B: Bus>(cc: &CodeCache, cpu: &mut Cpu, bus: &mut B, h: &Helpers, budget: u32, mut result: u32, fm: Option<FastMem>) -> u32 {
+#[allow(clippy::too_many_arguments)]
+unsafe fn chain_on<B: Bus>(cc: &CodeCache, cpu: &mut Cpu, bus: &mut B, h: &Helpers, budget: u32, mut result: u32, tlb: *const TlbEntry, versions: *mut u32) -> u32 {
     let mut total = 0u32;
     loop {
         let exit = (result >> 16) & 7;
@@ -622,7 +643,7 @@ unsafe fn chain_on<B: Bus>(cc: &CodeCache, cpu: &mut Cpu, bus: &mut B, h: &Helpe
         #[cfg(feature = "wasm-jit-profile")]
         { let st = &cc.region_stats.ex153; st[11].set(st[11].get() + 1); }
         // SAFETY: the entry is valid for the current code pages and its code is ready in this cache.
-        result = unsafe { run_inner(cc, next, cpu, bus, h, budget - total, 0, fm) };
+        result = unsafe { run_inner(cc, next, cpu, bus, h, budget - total, 0, tlb, versions) };
     }
     result + total
 }
@@ -662,6 +683,7 @@ pub unsafe fn resume<B: Bus>(cc: &CodeCache, cpu: &mut Cpu, bus: &mut B, h: &Hel
     cpu.jit_helped = false;
     cpu.blocks.chain_ei = NONE;
     cpu.blocks.bridged = 0;
+    decorate!(bus, h);
     let (tlb, versions) = tables(fm);
     let (slot, sites, nsites) = (hot.slot, hot.sites, hot.nsites);
     // SAFETY: the epoch proves the region, its slot and its sites are live.
@@ -681,7 +703,7 @@ pub unsafe fn resume<B: Bus>(cc: &CodeCache, cpu: &mut Cpu, bus: &mut B, h: &Hel
     { let st = &cc.region_stats.ex153; st[12].set(st[12].get() + 1); }
     #[cfg(feature = "wasm-jit-tests")]
     { REGION_STATS[14].fetch_add(1, std::sync::atomic::Ordering::Relaxed); if param >> 16 != 0 { REGION_STATS[13].fetch_add(1, std::sync::atomic::Ordering::Relaxed); } }
-    Some(unsafe { chain_on(cc, cpu, bus, h, budget, result & 0x7ffff, fm) })
+    Some(unsafe { chain_on(cc, cpu, bus, h, budget, result & 0x7ffff, tlb, versions) })
 }
 
 /// lane-s1: keep a site's resume parameter only for a chunk this region owns in the coverage map,
@@ -717,21 +739,11 @@ unsafe fn run_inner<B: Bus>(
     h: &Helpers,
     budget: u32,
     entry: u32,
-    fm: Option<FastMem>,
+    tlb: *const TlbEntry,
+    versions: *mut u32,
 ) -> u32 {
     type Run<B> =
         extern "C" fn(*mut Cpu, *mut B, *const Helpers, u32, u32, *const TlbEntry, *mut u32) -> u32;
-    #[cfg(feature = "wasm-cache-inline")]
-    let cache_view = if CACHE_PROBES.load(std::sync::atomic::Ordering::Relaxed) { bus.fast_cache() } else { None };
-    // EX168 t4 (EX030 retry be64c0e7): copy the 36-byte table only when a cache view exists;
-    // constructors leave `cache` null, which is what the copy would have stored.
-    #[cfg(feature = "wasm-cache-inline")]
-    let hinted;
-    #[cfg(feature = "wasm-cache-inline")]
-    debug_assert!(h.cache.is_null(), "run_inner requires an undecorated helper table");
-    #[cfg(feature = "wasm-cache-inline")]
-    let h = if let Some(cache) = cache_view.as_ref() { hinted = Helpers { cache, ..*h }; &hinted } else { h };
-    let (tlb, versions) = tables(fm);
     let rec = &cc.recs[code as usize];
     if !cpu.blocks.observed {
         // EX136: the facts the checks below would fetch through the owning block, its region and
@@ -752,13 +764,15 @@ unsafe fn run_inner<B: Bus>(
             }
             // EX168 s1: `fits` false with current pages is a proven rejection: while the epoch holds,
             // the slow lookup below selects this same live chunk and fails the same budget/bloom test.
-            let fits = budget >= hot.len && cpu.boundary_bloom & hot.bloom == 0;
+            // inner-s1: one bloom test for both the credit and the resume admission.
+            let clear = cpu.boundary_bloom & hot.bloom == 0;
+            let fits = budget >= hot.len && clear;
             let unlooped = cpu.lcount == 0 || cpu.lend.wrapping_sub(hot.lo) > hot.span;
             let live = hot.epoch == cc.region_epoch.get() && hot.fepoch == stable.2;
             // tails-s2 (EX182 s2): a resume inside a chunk with a guarded copy enters the copy at
             // `entry`, whose STOP cuts wherever the credit ends. A resume never forms or enters a
             // region on the slow path below; that only re-stamps stale facts of a covered head.
-            let resumable = entry < hot.len && cpu.boundary_bloom & hot.bloom == 0 && unlooped;
+            let resumable = entry < hot.len && clear && unlooped;
             let enter = if entry == 0 { !fits || unlooped } else { hot.copy != 0 && resumable };
             rejected = entry != 0 && (live || {
                 let b = &cc.blocks[code as usize];
@@ -949,8 +963,14 @@ fn private_exit(result: &mut u32, budget: u32, cpu: &mut Cpu, sites: &[ExitSite]
     *result ^= (code ^ CODE_LEFT) << 16;
     if code == CODE_TAIL {
         // Sequential by construction, also after a four-byte PIE instruction.
+        let t = (*result >> 19) as usize;
+        let head = site_pc(sites[t + 1]);
         cpu.blocks.alias_pc = cpu.pc;
-        cpu.blocks.alias_head = (cpu.pc, site_pc(sites[(*result >> 19) as usize + 1]));
+        cpu.blocks.alias_head = (cpu.pc, head);
+        // alias-s1: name the decoded resume too, so the next lookup neither misses nor aliases.
+        if !cpu.price_control && cpu.boundary_bloom & emu_core::core::pc_bit(cpu.pc) == 0 {
+            cpu.blocks.name_resume(head, site_pc(sites[t + 2]), cpu.pc);
+        }
         return false;
     }
     *result & 0xffff < budget

@@ -86,7 +86,8 @@ fn idle_cut_includes_each_enabled_cores_timer() {
         for c in &mut m.cores { c.waiting = true; c.ps = 0; }
         let now = m.bus.cycles;
         m.cores[core].intenable = 1 << xtensa_lx7::state::TIMER_INTERRUPT[0];
-        m.cores[core].ccompare[0] = m.cores[core].ccount.wrapping_add(3);
+        let at = m.cores[core].ccount.wrapping_add(3);
+        m.cores[core].write_sr(xtensa_lx7::state::sr::CCOMPARE0, at);
         let rounds = Arc::new(Mutex::new(Vec::new()));
         m.add_observer(Box::new(Rounds(rounds.clone())));
         m.max_cycles = now + 9;
@@ -112,7 +113,7 @@ fn mixed_idle_rounds_end_at_the_sleeping_cores_timer() {
                 m.cores[sleeping].ps = 0;
                 m.cores[sleeping].intenable = 1 << xtensa_lx7::state::TIMER_INTERRUPT[0];
                 let before: Vec<_> = m.cores.iter().map(|c| c.ccount).collect();
-                m.cores[sleeping].ccompare[0] = before[sleeping].wrapping_add(wake);
+                m.cores[sleeping].write_sr(xtensa_lx7::state::sr::CCOMPARE0, before[sleeping].wrapping_add(wake));
                 let now = m.bus.cycles;
                 m.max_cycles = now + u64::from(wake);
                 assert!(matches!(m.run(u64::MAX), Stop::Halted));

@@ -172,6 +172,15 @@ impl BlockCache {
         let e = &self.entries[Self::index(pc)];
         (e.pc == pc && e.chain && e.bridge.wrapping_sub(1) < BRIDGE_CLASS && e.n as u32 <= room && Self::valid(e, pv)).then_some((e.start, e.n as u32))
     }
+    /// alias-s1: a region copy cut at `pc`, `k` instructions into the chunk headed at `head`, resumes
+    /// in the head's decoded block, whose instruction `k` it is (same bytes: `find_block` checks the
+    /// pages, and the arena range proves the same build, exactly as for a CUT).
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn name_resume(&mut self, head: u32, k: u32, pc: u32) {
+        let ei = Self::index(head);
+        let e = &self.entries[ei];
+        if e.pc == head && k < e.n as u32 { self.resume = (ei as u32, e.start + k, pc); }
+    }
     #[cfg(all(target_arch = "wasm32", feature = "wasm-jit-tests"))]
     pub(crate) fn install_test_bridge(&mut self, pc: u32, ops: &[BlockInsn]) {
         let start = self.arena.len() as u32;
@@ -540,9 +549,19 @@ fn run_decoded<B: Bus>(cpu: &mut Cpu, bus: &mut B, mut budget: u32, mut ei: u32,
 
 /// Never run past a CCOMPARE match: the timer interrupt must land on the same instruction.
 #[inline(always)]
-fn timer_limit(cpu: &Cpu, mut limit: u32) -> u32 {
+fn timer_limit(cpu: &mut Cpu, mut limit: u32) -> u32 {
+    #[cfg(not(target_arch = "wasm32"))]
     for i in 0..3 {
         let d = cpu.ccompare[i].wrapping_sub(cpu.ccount);
+        let d = if cpu.approximate_cpi == 1 { d } else { d.div_ceil(cpu.approximate_cpi) };
+        if d != 0 && d < limit { limit = d; }
+    }
+    // event-s1: the nearest comparator bounds the others (div_ceil is monotonic), so one distance.
+    #[cfg(target_arch = "wasm32")]
+    {
+        #[cfg(feature = "wasm-jit-tests")]
+        { let kept = cpu.event_at; cpu.refresh_event(); assert_eq!(kept, cpu.event_at, "ccount/ccompare changed without refresh_event"); }
+        let d = cpu.event_at.wrapping_sub(cpu.ccount).wrapping_add(1);
         let d = if cpu.approximate_cpi == 1 { d } else { d.div_ceil(cpu.approximate_cpi) };
         if d != 0 && d < limit { limit = d; }
     }

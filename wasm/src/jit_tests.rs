@@ -184,6 +184,7 @@ fn both_busy_rounds() -> u32 {
                             if kind == 3 {
                                 let c = &mut m.cores[cut];
                                 c.ccompare[0] = c.ccount.wrapping_add(at as u32);
+                                c.refresh_event();
                                 c.intenable = 1 << timer;
                             }
                             if kind == 4 {
@@ -365,6 +366,7 @@ pub fn run() -> u32 {
                 let c = &mut m.cores[1];
                 c.ps = 0;
                 c.ccompare[0] = c.ccount + 1;
+                c.refresh_event();
                 c.intenable = 1 << 6;
             }
             m.max_cycles = m.bus.cycles + 64;

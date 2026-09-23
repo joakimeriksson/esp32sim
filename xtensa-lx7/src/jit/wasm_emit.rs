@@ -868,6 +868,9 @@ fn emit_body(
                     g.resume_at(copy | (index as u32) << 16);
                     g.last_pc = pc0;
                     g.tag(CODE_TAIL);
+                    // alias-s1: the third site is the chunk index, for the decoded resume
+                    g.last_pc = index as u32;
+                    g.tag(CODE_TAIL);
                     g.last_pc = site;
                     #[cfg(feature = "wasm-jit-profile")]
                     { g.last_kind = kind; }

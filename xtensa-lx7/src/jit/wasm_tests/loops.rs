@@ -230,6 +230,7 @@ pub(super) fn hardware_loop_scheduler() {
             for c in [&mut a, &mut b] {
                 c.pc = BASE; c.lcount = 100; c.ccount = u32::MAX - 8;
                 c.ccompare = [c.ccount.wrapping_add(distance), 0, 0];
+                c.refresh_event();
                 c.interrupt = 0; c.intenable = 0;
             }
             let (done, trap) = crate::block::run_block(&mut b, &mut rb, 32);

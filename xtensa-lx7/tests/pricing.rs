@@ -1,6 +1,6 @@
 //! Regression coverage for the opt-in core pricing model.
 use emu_core::{Bus, Core};
-use xtensa_lx7::{decode, disasm, Cpu, FlatRam};
+use xtensa_lx7::{decode, disasm, state::sr, Cpu, FlatRam};
 
 const BASE: u32 = 0x4037_0000;
 
@@ -10,7 +10,7 @@ fn cpu_at(prog: &[u8]) -> (Cpu, FlatRam) {
     let mut cpu = Cpu::new(0);
     cpu.pc = BASE;
     cpu.ps = 0;
-    cpu.ccompare = [u32::MAX, u32::MAX, u32::MAX];
+    for i in 0..3 { cpu.write_sr(sr::CCOMPARE0 + i, u32::MAX); }
     (cpu, ram)
 }
 
@@ -118,7 +118,7 @@ fn r4_fetch_step_vs_block_and_early_exit() {
         let mut cpu = Cpu::new(0);
         cpu.pc = FBASE;
         cpu.ps = 0;
-        cpu.ccompare = [u32::MAX, u32::MAX, u32::MAX];
+        for i in 0..3 { cpu.write_sr(sr::CCOMPARE0 + i, u32::MAX); }
         (cpu, ram)
     }
     // 12 movis = 36 bytes spanning two 32-byte fetch lines; budget 1 executes

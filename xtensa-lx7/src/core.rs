@@ -108,7 +108,7 @@ impl Cpu {
 #[cfg(test)]
 mod tests {
     use emu_core::{Bus, CacheOperation, ControlEventKind, Core, Fault, FlatRam, StepKind, TlbOperation, Trap};
-    use crate::state::{exc, TIMER_INTERRUPT};
+    use crate::state::{exc, sr, TIMER_INTERRUPT};
 
     #[test]
     fn external_lines_preserve_core_interrupts_and_track_levels() {
@@ -189,7 +189,7 @@ mod tests {
         let mut cpu = crate::Cpu::new(0);
         cpu.pc = base;
         cpu.ps = 0;
-        cpu.ccompare[0] = 5;
+        cpu.write_sr(sr::CCOMPARE0, 5);
         Core::set_approximate_cpi(&mut cpu, 3);
         let (used, trap) = cpu.run(&mut ram, 8);
         assert_eq!(trap, None);
@@ -354,7 +354,7 @@ mod tests {
     fn timing_only_advance_exposes_the_next_ccompare_wake() {
         let mut cpu = crate::Cpu::new(0);
         cpu.waiting = true; cpu.ps = 0; cpu.intenable = 1 << TIMER_INTERRUPT[0];
-        cpu.ccount = 0xffff_fffd; cpu.ccompare[0] = 1;
+        cpu.write_sr(sr::CCOUNT, 0xffff_fffd); cpu.write_sr(sr::CCOMPARE0, 1);
         assert_eq!(cpu.cycles_until_wake(), Some(4));
         cpu.advance_cycles(3);
         assert_eq!(cpu.cycles_until_wake(), Some(1));
@@ -362,7 +362,7 @@ mod tests {
         cpu.advance_cycles(1);
         assert_ne!(cpu.interrupt & (1 << TIMER_INTERRUPT[0]), 0);
         assert_eq!(cpu.insn_count, 0);
-        cpu.interrupt = 0; cpu.ccompare[0] = cpu.ccount;
+        cpu.interrupt = 0; cpu.write_sr(sr::CCOMPARE0, cpu.ccount);
         assert_eq!(cpu.cycles_until_wake(), Some(1u64 << 32));
     }
 }

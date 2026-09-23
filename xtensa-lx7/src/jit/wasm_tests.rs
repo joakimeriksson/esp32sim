@@ -412,7 +412,8 @@ pub fn run_tests() -> u32 {
     scheduler::interior_alias_deferred();
     scheduler::interior_alias_instruction_bytes();
     scheduler::ps_terminal_chain();
-    tests += 4;
+    scheduler::event_writers();
+    tests += 5;
     tests += memory::extension_deferral() + memory::flat_ram_bounds() + regions::regions() + pie_accx::run_tests() + pie_accx::held_and_coalesced();
     tests += memory::code_page_flag();
     scheduler::retention();

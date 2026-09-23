@@ -129,7 +129,7 @@ fn waiti_inside_virtual_round_preserves_timer_ordering() {
                     cpu.ps = 0;
                     cpu.vecbase = VECTOR_BASE;
                     cpu.intenable = 1 << timer;
-                    cpu.ccompare[0] = cpu.ccount.wrapping_add((wait_at + wake_after) as u32);
+                    cpu.write_sr(xtensa_lx7::state::sr::CCOMPARE0, cpu.ccount.wrapping_add((wait_at + wake_after) as u32));
                     m.vq_max = vq;
                     m.max_cycles = m.bus.cycles + 384;
                     assert!(matches!(m.run(1024), Stop::Halted));
@@ -234,7 +234,7 @@ fn round_batches_match_the_per_round_schedule() {
                     }
                     if kind == 3 {
                         let c = &mut m.cores[cut];
-                        c.ccompare[0] = c.ccount.wrapping_add(at as u32);
+                        c.write_sr(xtensa_lx7::state::sr::CCOMPARE0, c.ccount.wrapping_add(at as u32));
                         c.intenable = 1 << timer;
                     }
                     if kind == 4 {

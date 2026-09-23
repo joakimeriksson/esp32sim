@@ -37,7 +37,7 @@ fn region_program_on(name: &str, program: &[u8], expected: &[(u32, Op, u32)], da
             if turn % 50 == 40 { c.boundary_bloom = emu_core::core::pc_bit(BASE); }
             if turn % 50 == 45 { c.boundary_bloom = 0; }
             // A timer deadline inside the region must land on the same instruction.
-            if turn % 90 == 60 { c.ccompare[0] = c.ccount.wrapping_add(1 + (turn % 13) as u32); c.intenable = 1 << 6; }
+            if turn % 90 == 60 { c.ccompare[0] = c.ccount.wrapping_add(1 + (turn % 13) as u32); c.refresh_event(); c.intenable = 1 << 6; }
         }
         let start = b.pc;
         CONTEXT.with(|c| *c.borrow_mut() = format!("region program {name} turn {turn} start {start:x} budget {budget}"));
@@ -57,7 +57,7 @@ fn region_program_on(name: &str, program: &[u8], expected: &[(u32, Op, u32)], da
         if done > 0 && trap.is_none() { assert_eq!(ra.noted, rb.noted, "{name}: noted PC after turn {turn}"); }
         if let Some(Trap::Interrupt(_)) = trap {
             // Return from the interrupt by hand: both continue at the interrupted PC.
-            for c in [&mut a, &mut b] { c.pc = c.epc[1]; c.ps &= !ps::EXCM; c.interrupt = 0; c.ccompare[0] = 0; }
+            for c in [&mut a, &mut b] { c.pc = c.epc[1]; c.ps &= !ps::EXCM; c.interrupt = 0; c.ccompare[0] = 0; c.refresh_event(); }
         }
     }
     max_done
@@ -726,7 +726,7 @@ pub(super) fn regions() -> u32 {
     // tails-s2: and resume inside them.
     assert!(REGION_STATS[13].load(std::sync::atomic::Ordering::Relaxed) > 200, "too few resumes into guarded copies: {}", REGION_STATS[13].load(std::sync::atomic::Ordering::Relaxed));
     cases + 2 + prev_page_store() + forward_edges() + self_loops() + outside_loops() + jx_literal() + deferred_in_guarded_copy()
-        + resumed_head_copy() + head_recovery_long_pie() + resume_memo()
+        + resumed_head_copy() + head_recovery_long_pie() + resume_memo() + named_tail_resume()
 }
 
 /// lane-s1: a dispatch at the PC a quantum-ending region exit left enters that region directly.
@@ -749,7 +749,7 @@ fn resume_memo() -> u32 {
         assert_eq!(trap, oracle, "memo: budget {budget}");
         same(a, b);
         if let Some(Trap::Interrupt(_)) = trap {
-            for c in [a, b] { c.pc = c.epc[1]; c.ps &= !ps::EXCM; c.interrupt = 0; c.ccompare[0] = 0; c.intenable = 0; }
+            for c in [a, b] { c.pc = c.epc[1]; c.ps &= !ps::EXCM; c.interrupt = 0; c.ccompare[0] = 0; c.refresh_event(); c.intenable = 0; }
         }
     }
     let stat = |i: usize| REGION_STATS[i].load(std::sync::atomic::Ordering::Relaxed);
@@ -778,7 +778,7 @@ fn resume_memo() -> u32 {
             2 => b.boundary_bloom = emu_core::core::pc_bit(b.pc),
             // an active hardware loop, not the region's own, ending inside it after a fall-through
             3 => for c in [&mut a, &mut b] { c.lcount = 1; c.lbeg = BASE; c.lend = BASE + 4; },
-            4 => for c in [&mut a, &mut b] { c.ccompare[0] = c.ccount.wrapping_add(3); c.intenable = 1 << 6; },
+            4 => for c in [&mut a, &mut b] { c.ccompare[0] = c.ccount.wrapping_add(3); c.refresh_event(); c.intenable = 1 << 6; },
             _ => for c in [&mut a, &mut b] { c.intenable = 1 << 6; c.interrupt = 1 << 6; },
         }
         for _ in 0..3 { turn(&mut a, &mut b, &mut ra, &mut rb, 64); }
@@ -804,6 +804,64 @@ fn resume_memo() -> u32 {
     }
     assert!(looped > 20, "memo: too few direct entries inside the region's own loop ({looped})");
     2
+}
+
+/// alias-s1: a copy cut names its head's decoded block and index, so the next dispatch resumes
+/// there with no alias lookup and no build. A flush, or a rewrite of the code, between the cut and
+/// the arrival makes that resume invalid, and the arrival runs the current code.
+fn named_tail_resume() -> u32 {
+    let mut p = Vec::new();
+    p.extend(asm::addi_n(3, 3, 1));        // 0  chunk 0
+    p.extend(asm::addi_n(5, 5, 1));        // 2
+    p.extend(asm::addi_n(6, 6, 1));        // 4
+    p.extend(asm::j(BASE + 6, BASE + 9));  // 6
+    p.extend(asm::addi_n(3, 3, 1));        // 9  chunk 1
+    p.extend(asm::addi_n(5, 5, 1));        // 11
+    p.extend(asm::addi_n(6, 6, 1));        // 13 the cut
+    p.extend(asm::j(BASE + 15, BASE));     // 15
+    let mut c = cpu(7);
+    let mut ram = Ram::new(true, false);
+    ram.ram.mem[..p.len()].copy_from_slice(&p);
+    let stat = |i: usize| REGION_STATS[i].load(std::sync::atomic::Ordering::Relaxed);
+    let prepare = |c: &mut Cpu, ram: &mut Ram| {
+        let (formed, tuned) = (stat(0), stat(12));
+        for _ in 0..60 { c.pc = BASE; crate::block::run_block(c, ram, 64); }
+        assert!(stat(0) > formed, "named-tail: no region");
+        for _ in 0..20 { c.pc = BASE; crate::block::run_block(c, ram, 6); }
+        assert!(stat(12) > tuned, "named-tail: chunk 1 got no copy");
+    };
+    // Two instructions into chunk 1's copy, with chunk 1's head decoded.
+    let cut = |c: &mut Cpu, ram: &mut Ram| {
+        c.pc = BASE + 9;
+        assert_eq!(crate::block::run_block(c, ram, 1), (1, None));
+        c.pc = BASE;
+        assert_eq!(crate::block::run_block(c, ram, 6), (6, None));
+        assert_eq!((c.pc, c.blocks.alias_head), (BASE + 13, (BASE + 13, BASE + 9)), "named-tail: no copy cut");
+        (c.blocks.alias_hits, c.blocks.builds)
+    };
+    let arrive = |c: &mut Cpu, ram: &mut Ram| {
+        let mut direct = c.clone();
+        assert!(crate::exec::step(&mut direct, ram).is_ok());
+        assert_eq!(crate::block::run_block(c, ram, 1), (1, None));
+        same(c, &direct);
+        assert_eq!(c.pc, BASE + 15);
+    };
+    prepare(&mut c, &mut ram);
+    let (hits, builds) = cut(&mut c, &mut ram);
+    arrive(&mut c, &mut ram);
+    assert_eq!((c.blocks.alias_hits, c.blocks.builds), (hits, builds), "named-tail: the arrival must resume, not alias or build");
+    let (hits, builds) = cut(&mut c, &mut ram);
+    let a6 = c.get_ar(6);
+    for (i, b) in asm::addi_n(6, 6, 2).into_iter().enumerate() { ram.write8(BASE + 13 + i as u32, b).unwrap(); }
+    arrive(&mut c, &mut ram);
+    assert_eq!(c.get_ar(6), a6.wrapping_add(2), "named-tail: the arrival must run the rewritten code");
+    assert_eq!((c.blocks.alias_hits, c.blocks.builds), (hits + 1, builds + 1), "named-tail: a rewrite re-decodes the head and aliases into it");
+    prepare(&mut c, &mut ram);
+    let (hits, builds) = cut(&mut c, &mut ram);
+    c.blocks.flush();
+    arrive(&mut c, &mut ram);
+    assert_eq!((c.blocks.alias_hits, c.blocks.builds), (hits, builds + 1), "named-tail: after a flush the arrival is a new head");
+    3
 }
 
 /// edge-s1: a head chunk no internal edge reaches. Its quanta end only in dispatches short of its

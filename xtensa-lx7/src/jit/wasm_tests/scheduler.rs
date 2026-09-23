@@ -30,6 +30,7 @@ pub(super) fn scheduler() {
     // A timer deadline inside an already hot block must land at the same instruction.
     for c in [&mut a, &mut b] {
         c.ccompare[0] = c.ccount + 2;
+        c.refresh_event();
         c.intenable = 1 << 6;
     }
     for _ in 0..10 {
@@ -48,6 +49,76 @@ pub(super) fn scheduler() {
         }
     }
     panic!("timer interrupt not delivered");
+}
+
+/// event-s1: CCOUNT and CCOMPARE written by an executed WSR or XSR keep the nearest-event distance,
+/// so the deadline lands at the same instruction as in the interpreter; after one comparator
+/// matches (not enabled here), the next one still fires on time.
+pub(super) fn event_writers() {
+    use crate::state::sr;
+    // The generic core.rs timer fixture, run where `event_at` exists: its CCOMPARE goes through `write_sr`.
+    {
+        use emu_core::Core;
+        let mut ram = emu_core::FlatRam::new(BASE, 64);
+        ram.mem[..8].copy_from_slice(&[0x0c, 0x12, 0x0c, 0x23, 0x0c, 0x34, 0x0c, 0x45]);
+        let mut c = Cpu::new(0);
+        c.pc = BASE;
+        c.ps = 0;
+        c.write_sr(sr::CCOMPARE0, 5);
+        Core::set_approximate_cpi(&mut c, 3);
+        assert_eq!(c.run(&mut ram, 8), (2, None));
+        assert_eq!((c.insn_count, c.ccount), (2, 6));
+        assert_ne!(c.interrupt & (1 << crate::state::TIMER_INTERRUPT[0]), 0);
+    }
+    // <wsr (RST3 op2 1) | xsr (RST1 op2 6)> a2, SR; then addi.n a3,a3,1 x3; j back to the first addi.n.
+    let insn = |op2: u32, n: u32| { let w = (op2 << 20) | (if op2 == 6 { 1 } else { 3 } << 16) | (n << 8) | (2 << 4); [w as u8, (w >> 8) as u8, (w >> 16) as u8] };
+    let cases = [(1, sr::CCOMPARE0, 0), (6, sr::CCOMPARE0 + 1, 1), (1, sr::CCOMPARE0 + 2, 2), (1, sr::CCOUNT, 1), (6, sr::CCOUNT, 0), (0, 0, 1)];
+    for (op2, n, timer) in cases {
+        let mut program = if op2 == 0 { vec![0xf0, 0x20, 0x00] } else { insn(op2, n).to_vec() };   // nop without a writer
+        program.extend([0x1b, 0x33, 0x1b, 0x33, 0x1b, 0x33]);
+        program.extend(asm::j(BASE + 9, BASE + 3));
+        let (mut a, mut b) = (cpu(7), cpu(7));
+        let (mut ra, mut rb) = (Ram::new(true, false), Ram::new(true, false));
+        ra.ram.mem[..program.len()].copy_from_slice(&program);
+        rb.ram.mem[..program.len()].copy_from_slice(&program);
+        for c in [&mut a, &mut b] {
+            c.pc = BASE;
+            c.ps = 0;
+            c.interrupt = 0;
+            c.intenable = 1 << crate::state::TIMER_INTERRUPT[timer];
+            let now = c.ccount;
+            c.ccompare = [now.wrapping_sub(1); 3];
+            if n == sr::CCOUNT {
+                // The write moves CCOUNT 2,000 cycles before this comparator.
+                c.ccompare[timer] = now.wrapping_add(3000);
+                c.set_ar(2, now.wrapping_add(1000));
+            } else if op2 == 0 {
+                // No writer: comparator 0 matches first (disabled), then the enabled one.
+                c.ccompare[0] = now.wrapping_add(1000);
+                c.ccompare[timer] = now.wrapping_add(2003);
+            } else {
+                c.set_ar(2, now.wrapping_add(2001));
+            }
+            c.refresh_event();
+        }
+        // Deadlines lie after the loop is compiled (the first quanta run it interpreted).
+        let mut delivered = false;
+        for _ in 0..200 {
+            let (done, trap) = crate::block::run_block(&mut b, &mut rb, 16);
+            let mut oracle = None;
+            for _ in 0..done {
+                if let Err(t) = crate::step(&mut a, &mut ra) { oracle = Some(t); break; }
+            }
+            assert_eq!(trap, oracle, "event writer op2 {op2} sr {n}");
+            same(&a, &b);
+            let kept = b.event_at;
+            b.refresh_event();
+            assert_eq!(kept, b.event_at, "event writer op2 {op2} sr {n}: stale nearest event");
+            if trap == Some(Trap::Interrupt(crate::state::TIMER_INTERRUPT[timer])) { delivered = true; break; }
+        }
+        assert!(delivered, "event writer op2 {op2} sr {n}: timer {timer} not delivered: ccount {} ccompare {:x?} interrupt {:x} intenable {:x} ps {:x} event {:x}", b.ccount, b.ccompare, b.interrupt, b.intenable, b.ps, b.event_at);
+        assert!(b.blocks.jit_instructions > 0, "op2 {op2} sr {n}: ccount {} insns {} builds {} compiled {}", b.ccount, b.insn_count, b.blocks.builds, b.blocks.compiled);
+    }
 }
 
 /// EX172: an exception return into the middle of a decoded block runs that block from the
@@ -366,7 +437,7 @@ pub(super) fn wrapper_chain() {
         assert_eq!(check(&mut a, &mut b, &mut ra, &mut rb, 32).0, 2, "probed successor must redispatch");
         for c in [&mut a, &mut b] {
             c.pc = BASE; c.boundary_bloom = 0;
-            c.ccompare[0] = c.ccount.wrapping_add(5); c.intenable = 1 << 6;
+            c.ccompare[0] = c.ccount.wrapping_add(5); c.refresh_event(); c.intenable = 1 << 6;
         }
         let mut interrupted = false;
         for _ in 0..4 {
@@ -449,7 +520,7 @@ pub(super) fn wrapper_bridge_guards() {
         b.blocks.install_test_bridge(BASE + 64, &ops);
         for c in [&mut a, &mut b] {
             c.pc = BASE;
-            if mode == 1 { c.ccompare[0] = c.ccount + 3; c.intenable = 1 << 6; }
+            if mode == 1 { c.ccompare[0] = c.ccount + 3; c.refresh_event(); c.intenable = 1 << 6; }
             if mode == 2 { c.price_control = true; }
         }
         let budget = if mode == 0 { 3 } else { 5 };
