@@ -667,17 +667,20 @@ unsafe fn chain_on<B: Bus>(cc: &CodeCache, cpu: &mut Cpu, bus: &mut B, h: &Helpe
 pub unsafe fn resume<B: Bus>(cc: &CodeCache, cpu: &mut Cpu, bus: &mut B, h: &Helpers, budget: u32, fm: Option<FastMem>) -> Option<u32> {
     type Run<B> =
         extern "C" fn(*mut Cpu, *mut B, *const Helpers, u32, u32, *const TlbEntry, *mut u32) -> u32;
-    let (_, code, param, epoch) = cpu.blocks.memo;
+    let (_, code, param, epoch, _) = cpu.blocks.memo;
     cpu.blocks.memo.0 = 1;
     // SAFETY: the epoch proves `code` indexes the same record; no refill runs while this is read.
-    let hot = if epoch == cc.region_epoch.get() { unsafe { &*cc.recs[code as usize].hot.as_ptr() } } else { &Hot::NONE };
+    let live = epoch == cc.region_epoch.get();
+    let hot = if live { unsafe { &*cc.recs[code as usize].hot.as_ptr() } } else { &Hot::NONE };
     let pv = bus.page_versions();
-    // Hot facts stamped in this epoch describe the region the memo came from; a chunk-head entry
-    // needs credit for the whole chunk (at most MAX_LEN), a guarded copy cuts where credit ends.
+    // Hot facts stamped in this epoch describe the region the memo came from (memo-s2: a memo is only
+    // recorded with the epoch its Hot facts carry, and they change only with it, so the region epoch
+    // alone proves them); a chunk-head entry needs credit for the whole chunk (at most MAX_LEN), a
+    // guarded copy cuts where credit ends.
     // lane-s1l: a chunk head admits an active loop of the region's own, as the slow path does.
     // loop-s1: a copy admits its chunk's own loop, as the Hot path does; these facts are that
     // chunk's exactly when the copy is theirs.
-    if hot.epoch != epoch || hot.fepoch != bus.stable_pages().2 || cpu.boundary_bloom & hot.bloom != 0
+    if !live || hot.fepoch != bus.stable_pages().2 || cpu.boundary_bloom & hot.bloom != 0
         || (cpu.lcount != 0 && cpu.lend.wrapping_sub(hot.lo) <= hot.span && !if param >> 16 == 0 {
             // SAFETY: the epoch proves the owning region, and so this vector, is live.
             unsafe { std::slice::from_raw_parts(hot.loops, hot.nloops as usize) }.contains(&(cpu.lend, cpu.lbeg))
@@ -690,9 +693,6 @@ pub unsafe fn resume<B: Bus>(cc: &CodeCache, cpu: &mut Cpu, bus: &mut B, h: &Hel
         REGION_STATS[15].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         return None;
     }
-    // As after find_block: this dispatch consumes the lookup hints and may leave new ones.
-    let hints = (cpu.blocks.resume.2, cpu.blocks.alias_pc);
-    (cpu.blocks.resume.2, cpu.blocks.alias_pc) = (1, 1);
     cpu.jit_helped = false;
     cpu.blocks.chain_ei = NONE;
     cpu.blocks.bridged = 0;
@@ -703,15 +703,17 @@ pub unsafe fn resume<B: Bus>(cc: &CodeCache, cpu: &mut Cpu, bus: &mut B, h: &Hel
     let f: Run<B> = unsafe { std::mem::transmute(slot as usize) };
     let mut result = f(cpu, bus, h, budget.min(0xffff), param, tlb, versions);
     // window or coprocessor state refused the region before it ran anything
-    if (result >> 16) & 7 == CODE_REJECT { (cpu.blocks.resume.2, cpu.blocks.alias_pc) = hints; return None; }
+    if (result >> 16) & 7 == CODE_REJECT { return None; }
+    // As after find_block: this dispatch consumes the lookup hints (nothing read them since) and may
+    // leave new ones.
+    (cpu.blocks.resume.2, cpu.blocks.alias_pc) = (1, 1);
     let sites = unsafe { std::slice::from_raw_parts(sites, nsites as usize) };
-    let short = private_exit(&mut result, budget, cpu, sites);
-    let site = sites[(result >> 19) as usize];
-    region_stats(cc, result, budget, Some(site));
+    let (short, cut) = private_exit(&mut result, budget);
+    let t = (result >> 19) as usize;
+    region_stats(cc, result, budget, Some(sites[t]));
+    // before note_short, which may regenerate the region and free these sites
+    exit_site(cpu, bus, sites, t, cut, code, epoch);
     if short { note_short(cc, code, slot, cpu.pc); }
-    bus.note_pc(site_pc(site));
-    crate::block::note_sequential(cpu, site_pc(site));
-    if site_resume(site) != NONE { cpu.blocks.memo = (cpu.pc, code, site_resume(site), epoch); }
     #[cfg(feature = "wasm-jit-profile")]
     { let st = &cc.region_stats.ex153; st[12].set(st[12].get() + 1); }
     #[cfg(feature = "wasm-jit-tests")]
@@ -810,7 +812,7 @@ unsafe fn run_inner<B: Bus>(
                     let f: Run<B> = unsafe { std::mem::transmute(slot as usize) };
                     let mut result = f(cpu, bus, h, budget.min(0xffff), param, tlb, versions);
                     // SAFETY: the epoch proves the owning region, and so this vector, is live.
-                    let short = private_exit(&mut result, budget, cpu, unsafe { std::slice::from_raw_parts(sites, nsites as usize) });
+                    let (short, cut) = private_exit(&mut result, budget);
                     let site = if (result >> 16) & 7 != CODE_REJECT {
                         assert!((result >> 19) < nsites);
                         // SAFETY: index checked against the live vector's length.
@@ -818,13 +820,10 @@ unsafe fn run_inner<B: Bus>(
                     } else { None };
                     region_stats(cc, result, budget, site);
                     if site.is_some() { census(0, 1); census(1, (result & 0xffff) as u64); }
+                    // before note_short, which may regenerate the region and free these sites
+                    if site.is_some() { exit_site(cpu, bus, unsafe { std::slice::from_raw_parts(sites, nsites as usize) }, (result >> 19) as usize, cut, code, epoch); }
                     if short { note_short(cc, code, slot, cpu.pc); }
-                    if let Some(site) = site {
-                        bus.note_pc(site_pc(site));
-                        crate::block::note_sequential(cpu, site_pc(site));
-                        if site_resume(site) != NONE { cpu.blocks.memo = (cpu.pc, code, site_resume(site), epoch); }
-                        return result & 0x7ffff;
-                    }
+                    if site.is_some() { return result & 0x7ffff; }
                     return run_block_body(cc, code, cpu, bus, h, budget, entry, tlb, versions);
                   }
                 }
@@ -942,25 +941,23 @@ unsafe fn run_inner<B: Bus>(
                     #[cfg(any(debug_assertions, feature = "wasm-jit-tests"))]
                     unsafe { &*rec.hot.as_ptr() }.assert_matches(r, k, (lo, hi, fepoch));
                     let mut result = f(cpu, bus, h, budget.min(0xffff), k, tlb, versions);
-                    let epoch = cc.region_epoch.get();
-                    let short = private_exit(&mut result, budget, cpu, &r.sites);
+                    // memo-s2: the facts were stamped above unless the region has too many pages;
+                    // epoch 0 never matches, so such a memo only replays its hints.
+                    let epoch = if r.pages.len() <= emitter::region::MAX_PAGES { cc.region_epoch.get() } else { 0 };
+                    let (short, cut) = private_exit(&mut result, budget);
                     let site = if (result >> 16) & 7 != CODE_REJECT {
                         assert!(((result >> 19) as usize) < r.sites.len(), "region {:x}: result {result:#x} sites {}", rb.pc, r.sites.len());
                         Some(r.sites[(result >> 19) as usize])
                     } else { None };
                     region_stats(cc, result, budget, site);
                     if site.is_some() { census(0, 1); census(1, (result & 0xffff) as u64); }
+                    if site.is_some() { exit_site(cpu, bus, &r.sites, (result >> 19) as usize, cut, code, epoch); }
                     if short {
                         let slot = r.slot;
                         drop(region);
                         note_short(cc, code, slot, cpu.pc);
                     }
-                    if let Some(site) = site {
-                        bus.note_pc(site_pc(site));
-                        crate::block::note_sequential(cpu, site_pc(site));
-                        if site_resume(site) != NONE { cpu.blocks.memo = (cpu.pc, code, site_resume(site), epoch); }
-                        return result & 0x7ffff;
-                    }
+                    if site.is_some() { return result & 0x7ffff; }
                 }
                 }
             }
@@ -975,23 +972,29 @@ unsafe fn run_inner<B: Bus>(
 /// chunk head, so the next dispatch resumes inside that block rather than decoding a new
 /// head mid-chunk (EX172's alias finds it, or decodes it after a flush).
 #[inline(always)]
-fn private_exit(result: &mut u32, budget: u32, cpu: &mut Cpu, sites: &[ExitSite]) -> bool {
+fn private_exit(result: &mut u32, budget: u32) -> (bool, bool) {
     let code = (*result >> 16) & 7;
-    if code < CODE_SHORT { return false; }
+    if code < CODE_SHORT { return (false, false); }
     *result ^= (code ^ CODE_LEFT) << 16;
-    if code == CODE_TAIL {
-        // Sequential by construction, also after a four-byte PIE instruction.
-        let t = (*result >> 19) as usize;
-        let head = site_pc(sites[t + 1]);
-        cpu.blocks.alias_pc = cpu.pc;
-        cpu.blocks.alias_head = (cpu.pc, head);
-        // alias-s1: name the decoded resume too, so the next lookup neither misses nor aliases.
-        if !cpu.price_control && cpu.boundary_bloom & emu_core::core::pc_bit(cpu.pc) == 0 {
-            cpu.blocks.name_resume(head, site_pc(sites[t + 2]), cpu.pc);
-        }
-        return false;
+    if code == CODE_TAIL { return (false, true); }
+    (*result & 0xffff < budget, false)
+}
+
+/// The exit side of a region call that returned through site `t` (`cut`: a guarded copy's TAIL):
+/// the last retired PC for the bus, then either the lane-s1 memo for the next dispatch or the lookup
+/// hints. memo-s2: a memo'd exit leaves its hints to a dispatch that declines the memo (`memo_hints`);
+/// only a dispatch at this PC reads them, and a memo hit overwrites them unread.
+#[inline(always)]
+fn exit_site<B: Bus>(cpu: &mut Cpu, bus: &mut B, sites: &[ExitSite], t: usize, cut: bool, code: u32, epoch: u64) {
+    let site = sites[t];
+    bus.note_pc(site_pc(site));
+    let param = site_resume(site);
+    if param != NONE {
+        cpu.blocks.memo = (cpu.pc, code, param, epoch, if cut { site_pc(sites[t + 1]) } else { site_pc(site) });
+        return;
     }
-    *result & 0xffff < budget
+    if cut { crate::block::tail_hints(cpu, site_pc(sites[t + 1]), site_pc(sites[t + 2])); }
+    crate::block::note_sequential(cpu, site_pc(site));
 }
 
 /// tails-s1: count a credit-short exit to chunk head `target` of the region in `slot`, reached
@@ -1152,7 +1155,7 @@ unsafe fn run_block_body<B: Bus>(cc: &CodeCache, code: u32, cpu: &mut Cpu, bus: 
         let hot = unsafe { &*r.hot.as_ptr() };
         if hot.epoch == cc.region_epoch.get() && hot.copy != 0 && offset != 0 && (offset as u32) < hot.len
             && (cpu.lcount == 0 || cpu.lend.wrapping_sub(hot.lo) > hot.span || hot.lp == Some((cpu.lend, cpu.lbeg))) {
-            cpu.blocks.memo = (cpu.pc, code, hot.copy | (offset as u32) << 16, hot.epoch);
+            cpu.blocks.memo = (cpu.pc, code, hot.copy | (offset as u32) << 16, hot.epoch, 1);
         } else { cpu.blocks.memo.0 = 1; }
         result | ((offset as u32) << 19)
     } else { result }

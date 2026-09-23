@@ -225,6 +225,38 @@ fn both_busy_rounds() -> u32 {
     cases
 }
 
+/// lane-s2b: both cores loop through a two-chunk region, so most quanta start where a region exit
+/// left them and the batch runs those starts itself. The machine must end exactly as the
+/// per-round schedule (no batching) leaves it.
+fn batch_prepared_starts() -> u32 {
+    const CODE: [u32; 2] = [BASE + 0x800, BASE + 0xc00];
+    let mut p = Vec::new();
+    for _ in 0..3 { p.extend([0x1b, 0x33]); }      // addi.n a3,a3,1
+    p.extend([0xc6, 0xff, 0xff]);                    // j +3 (next chunk)
+    for _ in 0..3 { p.extend([0x1b, 0x55]); }      // addi.n a5,a5,1
+    p.extend([0x46, 0xfb, 0xff]);                    // j back to the head
+    let (mut a, mut b) = (machine(true), machine(true));
+    for m in [&mut a, &mut b] {
+        m.vq_max = 1;
+        m.bus.write32(CONTROL, 2).unwrap();
+        m.max_cycles = m.bus.cycles + 64;
+        assert!(matches!(m.run(u64::MAX), Stop::Halted));
+        for (i, &entry) in CODE.iter().enumerate() {
+            SocBus::load_bytes(&mut m.bus, entry, &p).unwrap();
+            let c = &mut m.cores[i];
+            c.pc = entry; c.ps = 0; c.waiting = false; c.intenable = 0; c.interrupt = 0;
+        }
+        m.max_cycles = m.bus.cycles + 65536;
+    }
+    a.bb_max = 1;
+    b.bb_max = 128;
+    for m in [&mut a, &mut b] { assert!(matches!(m.run(u64::MAX), Stop::Halted)); }
+    assert!(b.bb_stats[7] > 100, "no prepared start ran from a batch ({})", b.bb_stats[7]);
+    same(&a, &b);
+    assert_eq!((a.insns(), a.run_steps()), (b.insns(), b.run_steps()));
+    1
+}
+
 /// shell-s2: cached region entry facts leave flash pages to the bus epoch. Rewriting or remapping
 /// the second chunk of a hot compiled flash loop, whose head page stays current, must still run
 /// the new code, exactly like the interpreter.
@@ -383,7 +415,7 @@ pub fn run() -> u32 {
         }
         same(&a, &b);
     }
-    let cases = 3 + solo_core_one() + architectural_stops() + both_busy_rounds() + flash_code_rewrites();
+    let cases = 3 + solo_core_one() + architectural_stops() + both_busy_rounds() + flash_code_rewrites() + batch_prepared_starts();
     #[cfg(feature = "cache-inline")]
     let cases = cases + sequential_emulators_reset_timing_state();
     cases

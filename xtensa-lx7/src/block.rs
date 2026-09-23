@@ -61,6 +61,27 @@ pub const ALIAS_SEQ: bool = true;
 pub(crate) fn note_sequential(cpu: &mut Cpu, last: u32) {
     if ALIAS && ALIAS_SEQ && cpu.pc.wrapping_sub(last).wrapping_sub(2) <= 1 { cpu.blocks.alias_pc = cpu.pc; }
 }
+/// A guarded region copy cut here, `k` instructions into the chunk headed at `head`: where the next
+/// lookup finds it (sequential by construction, also after a four-byte PIE instruction).
+#[cfg(target_arch = "wasm32")]
+#[inline(always)]
+pub(crate) fn tail_hints(cpu: &mut Cpu, head: u32, k: u32) {
+    let pc = cpu.pc;
+    cpu.blocks.alias_pc = pc;
+    cpu.blocks.alias_head = (pc, head);
+    // alias-s1: name the decoded resume too, so the next lookup neither misses nor aliases.
+    if !cpu.price_control && cpu.boundary_bloom & pc_bit(pc) == 0 { cpu.blocks.name_resume(head, k, pc); }
+}
+/// memo-s2: the lookup hints a memo'd exit left unwritten, for the dispatch that declined the memo
+/// (only a dispatch at the memo's PC reads them). `.4`: a copy cut's chunk head, a chunk-head exit's
+/// last retired PC, or 1 when the exit wrote its hints itself (an own-module cut).
+#[cfg(target_arch = "wasm32")]
+#[cold]
+fn memo_hints(cpu: &mut Cpu) {
+    let (_, _, param, _, aux) = cpu.blocks.memo;
+    if aux == 1 { return; }
+    if param >> 16 != 0 { tail_hints(cpu, aux, param >> 16); } else { note_sequential(cpu, aux); }
+}
 /// Arena size at which decoded entries are rebuilt. The arena never reallocates:
 /// native code holds pointers into it; WASM code owns separate retained instruction storage.
 #[cfg(not(target_arch = "wasm32"))] const ARENA_MAX: usize = 1 << 20;
@@ -100,7 +121,7 @@ pub struct BlockCache {
     /// lane-s1: a region exit that ended a quantum: (PC, block code it entered through, region
     /// parameter resuming at that PC, region epoch); PC 1 when none. See `jit::resume`.
     #[cfg(target_arch = "wasm32")]
-    pub(crate) memo: (u32, u32, u32, u64),
+    pub(crate) memo: (u32, u32, u32, u64, u32),
     pub builds: u64,
     pub flushes: u64,
     /// native code for blocks, when the host supports it and `jit_enabled`
@@ -131,7 +152,7 @@ impl BlockCache {
                      #[cfg(target_arch = "wasm32")]
                      bridged: 0,
                      #[cfg(target_arch = "wasm32")]
-                     memo: (1, 0, 0, 0),
+                     memo: (1, 0, 0, 0, 1),
                      entries: vec![Entry::EMPTY; ENTRIES], arena: Vec::with_capacity(ARENA_MAX + MAX_LEN), extras: Vec::new(), resume: (0, 0, 1), alias_pc: 1, alias_head: (1, 1), aliases: vec![(1, 0, 0, 0); if ALIAS { ALIASES } else { 0 }], builds: 0, flushes: 0,
                      #[cfg(feature = "wasm-jit-tests")]
                      alias_hits: 0,
@@ -142,6 +163,9 @@ impl BlockCache {
     pub fn flush(&mut self) {
         for e in self.entries.iter_mut() { *e = Entry::EMPTY; }
         self.arena.clear(); self.extras.clear(); self.resume = (0, 0, 1); self.alias_pc = 1; self.alias_head = (1, 1);
+        // memo-s2: its unwritten hints are forgotten with the others
+        #[cfg(target_arch = "wasm32")]
+        { self.memo.0 = 1; }
         for a in self.aliases.iter_mut() { a.0 = 1; } self.flushes += 1;
         if let Some(c) = &mut self.code { c.reset(); }
     }
@@ -396,11 +420,15 @@ fn run_block_profiled<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, 
 // Keep this boundary visible to a sampling profiler without adding per-block clocks.
 #[cfg_attr(all(target_arch = "wasm32", feature = "wasm-cpu-profile"), inline(never))]
 fn run_block_inner<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> (u32, Option<Trap>) {
-    if let Some(t) = cpu.check_interrupts() { return (1, Some(t)); }
+    // memo-s2: the common no-interrupt case without the call and its returned Option
+    if cpu.check_interrupts_pending() != 0 { if let Some(t) = cpu.check_interrupts() { return (1, Some(t)); } }
     if cpu.waiting { cpu.advance_ccount(cpu.approximate_cpi); return (1, None); }
     #[cfg(target_arch = "wasm32")]
     {
-        if cpu.blocks.memo.0 == cpu.pc { if let Some(r) = resume(cpu, bus, budget) { return r; } }
+        if cpu.blocks.memo.0 == cpu.pc {
+            if let Some(r) = resume(cpu, bus, budget) { return r; }
+            memo_hints(cpu);
+        }
         // lane-s1: only the dispatch right after the exit may use it
         cpu.blocks.memo.0 = 1;
     }
@@ -584,6 +612,24 @@ fn resume<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> Option<(u32, Optio
     let r = r?;
     // a region never cuts; a chained own module that cuts names its entry in `chain_ei`
     Some(retire(cpu, bus, r, 0, 0, 0))
+}
+
+/// lane-s2b: the memo'd dispatch for a round loop, with run_block_inner's checks in front of it
+/// (interrupts, WAITI, the PC); a decline leaves the ordinary dispatch exactly as run_block_inner
+/// would (hints written, memo consumed). One out-of-line copy of the memo path.
+#[cfg(target_arch = "wasm32")]
+#[inline(always)]
+pub fn run_memo<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> Option<(u32, Option<Trap>)> {
+    if cpu.blocks.memo.0 != cpu.pc { return None; }
+    run_memo_hit(cpu, bus, budget)
+}
+#[cfg(target_arch = "wasm32")]
+#[inline(never)]
+fn run_memo_hit<B: Bus>(cpu: &mut Cpu, bus: &mut B, budget: u32) -> Option<(u32, Option<Trap>)> {
+    if cpu.check_interrupts_pending() != 0 || cpu.waiting { return None; }
+    let r = resume(cpu, bus, budget);
+    if r.is_none() { memo_hints(cpu); cpu.blocks.memo.0 = 1; }
+    r
 }
 
 /// Account a compiled call's result: retired instructions, the refused device access, traps and

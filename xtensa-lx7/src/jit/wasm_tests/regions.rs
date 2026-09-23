@@ -745,14 +745,21 @@ pub(super) fn regions() -> u32 {
 /// Whatever could change that entry in between (a store into its code page, a flush, a probe, a
 /// hardware loop, a timer deadline inside the quantum, a pending interrupt) must leave the result
 /// exactly the interpreter's; the store, flush, probe and loop must send it the ordinary way.
+/// lane-s2b: the same through the prepared entry a round batch takes first (`run_memo`, then
+/// `run_block` when it declines).
 fn resume_memo() -> u32 {
+    resume_memo_on(false) + resume_memo_on(true)
+}
+
+fn resume_memo_on(prepared: bool) -> u32 {
     let mut p = Vec::new();
     for _ in 0..3 { p.extend(asm::addi_n(3, 3, 1)); }  // 0 2 4   chunk 0
     p.extend(asm::j(BASE + 6, BASE + 9));             // 6
     for _ in 0..3 { p.extend(asm::addi_n(5, 5, 1)); }  // 9 11 13 chunk 1
     p.extend(asm::j(BASE + 15, BASE));                // 15
-    fn turn(a: &mut Cpu, b: &mut Cpu, ra: &mut Ram, rb: &mut Ram, budget: u32) {
-        let (done, trap) = crate::block::run_block(b, rb, budget);
+    let turn = |a: &mut Cpu, b: &mut Cpu, ra: &mut Ram, rb: &mut Ram, budget: u32| {
+        let (done, trap) = if prepared { crate::block::run_memo(b, rb, budget) } else { None }
+            .unwrap_or_else(|| crate::block::run_block(b, rb, budget));
         let mut oracle = None;
         for _ in 0..done {
             ra.note_pc(a.pc);
@@ -763,38 +770,46 @@ fn resume_memo() -> u32 {
         if let Some(Trap::Interrupt(_)) = trap {
             for c in [a, b] { c.pc = c.epc[1]; c.ps &= !ps::EXCM; c.interrupt = 0; c.ccompare[0] = 0; c.refresh_event(); c.intenable = 0; }
         }
-    }
+    };
     let stat = |i: usize| REGION_STATS[i].load(std::sync::atomic::Ordering::Relaxed);
     let (mut a, mut b) = (cpu(5), cpu(5));
     let (mut ra, mut rb) = (Ram::new(true, false), Ram::new(true, false));
     for r in [&mut ra, &mut rb] { r.ram.mem[..p.len()].copy_from_slice(&p); }
-    CONTEXT.with(|c| *c.borrow_mut() = "resume memo".into());
+    CONTEXT.with(|c| *c.borrow_mut() = format!("resume memo (prepared {prepared})"));
     let (hits, tuned) = (stat(14), stat(12));
     // Mixed credit: exits at chunk heads choose guarded copies, whose cuts then end quanta mid-chunk.
     for t in 0..300 { turn(&mut a, &mut b, &mut ra, &mut rb, [64, 61, 50, 64, 23, 64][t % 6]); }
     assert!(stat(12) > tuned, "memo: the region never chose a copy");
     assert!(stat(14) > hits + 100, "memo: too few direct entries ({})", stat(14) - hits);
-    for kind in 0..6 {
+    for kind in 0..7 {
         let mut armed = false;
         for t in 0..40 {
             turn(&mut a, &mut b, &mut ra, &mut rb, [61, 64, 50][t % 3]);
             // the loop case needs a chunk-head entry, the one kind that may admit a loop
-            if b.blocks.memo.0 == b.pc && (kind != 3 || b.blocks.memo.2 >> 16 == 0) { armed = true; break; }
+            // memo-s2: the replayed hints case needs a guarded copy's cut
+            if b.blocks.memo.0 == b.pc && (kind != 3 || b.blocks.memo.2 >> 16 == 0) && (kind != 6 || b.blocks.memo.2 >> 16 != 0) { armed = true; break; }
         }
         assert!(armed, "memo: kind {kind} never armed");
         let declined = stat(15);
         match kind {
             // addi.n a3,a3,1 at +2 becomes addi.n a3,a3,2: a new version of the region's page
             0 => for r in [&mut ra, &mut rb] { r.write8(BASE + 2, 0x2b).unwrap(); },
-            1 => b.blocks.flush(),
+            // memo-s2: a flush forgets the memo outright (and its unwritten hints)
+            1 => { b.blocks.flush(); assert_eq!(b.blocks.memo.0, 1, "memo: a flush kept the memo"); }
             2 => b.boundary_bloom = emu_core::core::pc_bit(b.pc),
             // an active hardware loop, not the region's own, ending inside it after a fall-through
             3 => for c in [&mut a, &mut b] { c.lcount = 1; c.lbeg = BASE; c.lend = BASE + 4; },
             4 => for c in [&mut a, &mut b] { c.ccompare[0] = c.ccount.wrapping_add(3); c.refresh_event(); c.intenable = 1 << 6; },
-            _ => for c in [&mut a, &mut b] { c.intenable = 1 << 6; c.interrupt = 1 << 6; },
+            5 => for c in [&mut a, &mut b] { c.intenable = 1 << 6; c.interrupt = 1 << 6; },
+            // memo-s2: a copy cut's memo declined (a foreign loop) must still find the resume the
+            // exit would have named, not decode a new block in mid-chunk
+            _ => for c in [&mut a, &mut b] { c.lcount = 1; c.lbeg = BASE; c.lend = BASE + 4; },
         }
-        for _ in 0..3 { turn(&mut a, &mut b, &mut ra, &mut rb, 64); }
-        if kind < 4 { assert!(stat(15) > declined, "memo: kind {kind} was not declined"); }
+        let builds = b.blocks.builds;
+        turn(&mut a, &mut b, &mut ra, &mut rb, 64);
+        if kind == 6 { assert_eq!(b.blocks.builds, builds, "memo: a declined memo decoded a new block"); }
+        for _ in 0..2 { turn(&mut a, &mut b, &mut ra, &mut rb, 64); }
+        if matches!(kind, 0 | 2 | 3 | 6) { assert!(stat(15) > declined, "memo: kind {kind} was not declined"); }
         b.boundary_bloom = 0;
         for c in [&mut a, &mut b] { c.lcount = 0; }
     }
@@ -807,7 +822,7 @@ fn resume_memo() -> u32 {
     let (mut a, mut b) = (cpu(6), cpu(6));
     let (mut ra, mut rb) = (Ram::new(true, false), Ram::new(true, false));
     for r in [&mut ra, &mut rb] { r.ram.mem[..p.len()].copy_from_slice(&p); }
-    CONTEXT.with(|c| *c.borrow_mut() = "resume memo in a loop".into());
+    CONTEXT.with(|c| *c.borrow_mut() = format!("resume memo in a loop (prepared {prepared})"));
     let mut looped = 0;
     for _ in 0..400 {
         let (armed, hits) = (b.lcount != 0 && b.blocks.memo.0 == b.pc, stat(14));
@@ -848,7 +863,8 @@ fn named_tail_resume() -> u32 {
         assert_eq!(crate::block::run_block(c, ram, 1), (1, None));
         c.pc = BASE;
         assert_eq!(crate::block::run_block(c, ram, 6), (6, None));
-        assert_eq!((c.pc, c.blocks.alias_head), (BASE + 13, (BASE + 13, BASE + 9)), "named-tail: no copy cut");
+        // memo-s2: the hints wait in the memo
+        assert_eq!((c.pc, c.blocks.memo.0, c.blocks.memo.4), (BASE + 13, BASE + 13, BASE + 9), "named-tail: no copy cut");
         (c.blocks.alias_hits, c.blocks.builds)
     };
     let arrive = |c: &mut Cpu, ram: &mut Ram| {
@@ -1044,7 +1060,8 @@ fn deferred_in_guarded_copy() -> u32 {
     c.pc = BASE;
     assert_eq!(crate::block::run_block(&mut c, &mut ram, 6), (6, None));
     let hint = (BASE + 13, BASE + 9);
-    assert_eq!((c.pc, c.blocks.alias_pc, c.blocks.alias_head), (BASE + 13, BASE + 13, hint));
+    // memo-s2: the memo'd cut keeps its hints (the head) in the memo for a dispatch that declines it
+    assert_eq!((c.pc, c.blocks.memo.0, c.blocks.memo.4), (BASE + 13, BASE + 13, hint.1));
     let at = c.clone();
     c.blocks.flush();
     c.blocks.alias_pc = c.pc;

@@ -189,7 +189,8 @@ pub unsafe extern "C" fn esp32sim_set_round_batch(e: *mut Emu, rounds: u32) -> u
 }
 
 /// EX177 counters: batches, whole rounds covered, device-register deferrals (batch-s1: the batch
-/// continues past them), cuts at waiti, batches that ran the whole cap, granted rounds, batches the bound refused.
+/// continues past them), cuts at waiti, batches that ran the whole cap, granted rounds, batches the bound refused,
+/// (lane-s2b) memo'd starts the batch ran without `step_blocks`.
 /// # Safety
 /// `e` must be a live exclusively borrowed emulator.
 #[no_mangle]

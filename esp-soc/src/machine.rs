@@ -380,6 +380,13 @@ impl<S: Soc> Machine<S> {
             if let Some(&ret) = self.stubs.get(&pc) { cpu.return_from_stub(&mut self.bus, ret); self.stub_hits += 1; return (1, None); }
         }
         let (used, trap) = cpu.run(&mut self.bus, budget);
+        self.finish_step(core, pc, used, trap)
+    }
+
+    /// The completion of a dispatch at `pc` that retired `used` iterations: observers, trap counts,
+    /// interrupt lines, the exception stop.
+    #[inline(always)]
+    fn finish_step(&mut self, core: usize, pc: u32, used: u32, trap: Option<Trap>) -> (u32, Option<Stop>) {
         if let Some(stop) = self.observe_execution(core, pc, used, trap) { return (used, Some(stop)); }
         self.refresh_irq();
         if self.exceptions >= self.dbg.stop_after_exceptions { return (used, Some(Stop::Exceptions(self.exceptions))); }
@@ -789,7 +796,13 @@ impl<S: Soc> Machine<S> {
                 if !on[i] { continue; }
                 let mut left = q as u32;
                 while left > 0 {
-                    let (used, stop) = self.step_blocks(i, left);
+                    // lane-s2b: a start the core prepared runs without step_blocks' stub/probe test (the
+                    // memo never names a boundary PC and batches run without observers).
+                    let pc = self.cores[i].pc();
+                    let (used, stop) = match self.cores[i].run_prepared(&mut self.bus, left) {
+                        Some((used, trap)) => { self.bb_stats[7] += 1; self.finish_step(i, pc, used, trap) }
+                        None => self.step_blocks(i, left),
+                    };
                     left -= used.min(left);
                     if let Some(stop) = stop { cut = Some((i, q - u64::from(left), stop)); break 'batch; }
                     if self.bus.take_deferred() {
