@@ -458,8 +458,22 @@ fn head_lookup<B: Bus>(cpu: &mut Cpu, bus: &mut B, pc: u32) -> Option<(u32, u32,
     // One use per hint; flush forgets it with the decoded blocks it was recorded against.
     let (at, head) = std::mem::replace(&mut cpu.blocks.alias_head, (1, 1));
     if at != pc || head == pc { return None; }
-    decode_block(cpu, bus, head)?;
-    alias_lookup(cpu, bus.page_versions(), pc)
+    let (ei, start, n) = decode_block(cpu, bus, head)?;
+    // Walk the block just built, not `alias_lookup`'s 93-byte scan: a cut late in a chunk of
+    // four-byte PIE instructions lies up to 124 bytes past its head (review T2).
+    let b = &mut cpu.blocks;
+    if b.entries[ei as usize].code == crate::jit::NONE { return None; }
+    let mut p = head;
+    for k in start..start + n as u32 {
+        if p == pc {
+            b.aliases[BlockCache::index(pc) & (ALIASES - 1)] = (pc, head, start, k);
+            #[cfg(feature = "wasm-jit-tests")]
+            { b.alias_hits += 1; }
+            return Some((ei, k, start + n as u32));
+        }
+        p = p.wrapping_add(b.arena[k as usize].insn.len as u32);
+    }
+    None
 }
 
 #[cfg_attr(not(target_arch = "wasm32"), inline(always))]

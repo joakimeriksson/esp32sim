@@ -726,6 +726,7 @@ pub(super) fn regions() -> u32 {
     // tails-s2: and resume inside them.
     assert!(REGION_STATS[13].load(std::sync::atomic::Ordering::Relaxed) > 200, "too few resumes into guarded copies: {}", REGION_STATS[13].load(std::sync::atomic::Ordering::Relaxed));
     cases + 2 + prev_page_store() + forward_edges() + self_loops() + outside_loops() + jx_literal() + deferred_in_guarded_copy()
+        + head_recovery_long_pie()
 }
 
 /// tails-s1 (from EX182 s1): a helper fallback inside a guarded copy. Short credit first makes
@@ -805,6 +806,34 @@ fn deferred_in_guarded_copy() -> u32 {
     }
     ram.fetch_fault = None;
     2
+}
+
+/// Review T2: a copy cut late in a chunk of four-byte PIE instructions (up to 124 bytes past
+/// its head, beyond `alias_lookup`'s backward scan) still recovers into the one head block.
+fn head_recovery_long_pie() -> u32 {
+    use crate::pie::Role::*;
+    let mut p = Vec::new();
+    for _ in 0..31 { p.extend(asm::pie("ee.vmulas.s16.accx.ld.ip", &[(Qu, 1), (As, 8), (Imm, 16), (Qx, 0), (Qy, 5)])); }
+    p.extend(asm::j(BASE + 124, BASE));
+    assert_eq!(p.len(), 127);
+    for k in 24..32u32 {
+        let mut ram = Ram::new(true, false);
+        ram.ram.mem[..p.len()].copy_from_slice(&p);
+        let mut c = cpu(5);
+        c.cpenable = 8;
+        c.set_ar(8, BASE + 0x1000);
+        c.pc = BASE + 4 * k;
+        let mut direct = c.clone();
+        assert!(crate::exec::step(&mut direct, &mut ram).is_ok());
+        c.blocks.alias_pc = c.pc;
+        c.blocks.alias_head = (c.pc, BASE);
+        let (hits, builds) = (c.blocks.alias_hits, c.blocks.builds);
+        assert_eq!(crate::block::run_block(&mut c, &mut ram, 1), (1, None));
+        same(&c, &direct);
+        assert_eq!((c.blocks.alias_hits, c.blocks.builds), (hits + 1, builds + 1),
+                   "long-pie cut at {k}: one build (the head), entered at the cut");
+    }
+    8
 }
 
 /// EX181 s2: the two shapes whose backedge stays inside one chunk — a `bnez` back to the
