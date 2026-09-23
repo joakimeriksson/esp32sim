@@ -74,7 +74,8 @@ pub struct SocBus {
     page_ver: Vec<u32>,
     /// first `page_ver` index of each buffer, by `SRC_*`
     ver_base: [u32; 7],
-    /// shell-s2: moves with every change to a version `stable_pages` covers (flash pages).
+    /// shell-s2: moves with every change to a version `stable_pages` covers (flash pages). Starts at a
+    /// per-bus base `BUS_EPOCHS` hands out, so equal epochs also mean the same bus (review B1).
     flash_epoch: u64,
     /// EX110: one flag per 64 KiB block of the `page_ver` index space (256 pages, the span of one
     /// TLB entry): some decode cache, block or region has recorded the version of a page in it, or
@@ -130,6 +131,9 @@ const VPAGE_MASK: usize = (1 << VPAGE_SHIFT) - 1;
 use xtensa_lx7::bus::{FastMem, TlbEntry};
 #[inline(always)]
 fn tlb_idx(addr: u32) -> usize { xtensa_lx7::bus::tlb_index(addr) }
+/// Review B1: the next bus's `flash_epoch` base. A CPU whose caches outlive one bus must not match
+/// another bus's epoch; 2^32 flash-version changes per bus before bases could meet.
+static BUS_EPOCHS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
 impl SocBus {
     pub(crate) fn cancel_spi2_timing(&mut self) { self.spi2_scheduled = None; }
@@ -141,7 +145,7 @@ impl SocBus {
             rtc_fast: vec![0; 8192], rtc_slow: vec![0; 8192], flash: vec![0xff; flash_size], psram: vec![0; psram_size],
             mmu: [MMU_INVALID; MMU_ENTRIES], periph: Peripherals::new(mac), board: Box::new(crate::board::Atech14::new()), cycles: 0, last_fault: None, spi2_dma_fault: None, irq_dirty: false, gpio_events: None, debug: Default::default(),
             spi2_timing: false, spi2_scheduled: None,
-            tlb: vec![TlbEntry::EMPTY; TLB_SIZE], page_ver: Vec::new(), ver_base: [0; 7], flash_epoch: 1, code_blk: Vec::new(), tick_pending: 0, tick_budget: 0, defer_mmio: false, mmio_deferred: false, vq_violations: 0,
+            tlb: vec![TlbEntry::EMPTY; TLB_SIZE], page_ver: Vec::new(), ver_base: [0; 7], flash_epoch: BUS_EPOCHS.fetch_add(1, std::sync::atomic::Ordering::Relaxed) << 32, code_blk: Vec::new(), tick_pending: 0, tick_budget: 0, defer_mmio: false, mmio_deferred: false, vq_violations: 0,
             approximate_cache: None, approximate_cache_pending: 0, approximate_cache_fast_internal: false, approximate_cache_inline: false,
             approximate_cache_yield_miss: false,
             cache_resource: CacheResource::default(),

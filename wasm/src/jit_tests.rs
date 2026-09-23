@@ -260,6 +260,47 @@ fn flash_code_rewrites() -> u32 {
     3
 }
 
+/// Review B1: a CPU whose region cache was warmed on bus A runs on bus B, whose flash differs
+/// only in a later chunk's page. B's flash epoch must not vouch for A's cached region facts.
+fn shell_bus_replacement() {
+    const CODE: u32 = 0x4201_0000;
+    const HEAD: [u8; 5] = [0x1b, 0x33, 0x86, 0x3e, 0x00];
+    let tail = |step: u8| [0x0b | (step << 4), 0x33, 0x86, 0xbe, 0xff];
+    let make_bus = || {
+        let mut bus = esp32s3::bus::SocBus::new(4 << 16, 2 << 16, [0; 6]);
+        bus.write_flash(0x1_0000, &HEAD).unwrap();
+        bus.write_flash(0x1_0100, &tail(1)).unwrap();
+        bus.write32(esp32s3::bus::MMU_TABLE + 4, 1).unwrap();
+        bus
+    };
+    let mut answers = Vec::new();
+    for jit in [false, true] {
+        let mut a = make_bus();
+        let mut b = make_bus();
+        a.write_flash(0x2_0100, &[7]).unwrap();
+        b.write_flash(0x1_0100, &tail(2)).unwrap();
+        // Same ranges and the same count of flash-version changes: only the bus differs.
+        let (sa, sb) = (a.stable_pages(), b.stable_pages());
+        assert_eq!((sa.0, sa.1, sa.2 as u32), (sb.0, sb.1, sb.2 as u32));
+        let mut cpu = xtensa_lx7::Cpu::new(0);
+        cpu.ps = 0;
+        cpu.set_jit(jit);
+        cpu.pc = CODE;
+        for _ in 0..200 { assert_eq!(xtensa_lx7::block::run_block(&mut cpu, &mut a, 100).1, None); }
+        cpu.pc = CODE;
+        let before = cpu.get_ar(3);
+        let mut done = 0;
+        while done < 10_000 {
+            let (n, trap) = xtensa_lx7::block::run_block(&mut cpu, &mut b, (10_000 - done).min(100));
+            assert_eq!(trap, None);
+            assert!(n > 0);
+            done += n;
+        }
+        answers.push(cpu.get_ar(3) - before);
+    }
+    assert_eq!(answers[0], answers[1], "shell: equal epochs on distinct buses must not admit stale region code");
+}
+
 fn architectural_stops() -> u32 {
     for jit in [false, true] {
         for busy in 0..2 {
@@ -295,6 +336,7 @@ fn architectural_stops() -> u32 {
 }
 
 pub fn run() -> u32 {
+    shell_bus_replacement();
     crate::browser_jit::code_page_watch_test();
     let (mut a, mut b) = (machine(false), machine(true));
     for m in [&mut a, &mut b] {
