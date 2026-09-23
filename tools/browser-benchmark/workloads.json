@@ -180,7 +180,7 @@
         "min": 10
       }
     ],
-    "expectedInstructions": 13329744922,
+    "expectedInstructions": 13335545195,
     "exports": [
       [
         "esp32sim_set_imu_motion",
