@@ -79,6 +79,9 @@ impl SocBus {
                     // Payload is snapshotted at submission; no progressive SRAM reads yet.
                     let cycles = self.periph.spi2.wire_source_cycles() * (crate::periph::CPU_HZ / 80_000_000);
                     self.spi2_scheduled = Some((self.cycles.saturating_add(cycles), completion));
+                    // Collection reads descriptor words through the bus, and one may be another
+                    // device's register (mmio-s1 compares only SPI2/GDMA sources; review blocker).
+                    self.irq_dirty = true;
                 } else {
                     self.commit_spi2_dma(completion);
                 }

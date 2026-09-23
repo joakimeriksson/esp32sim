@@ -388,6 +388,44 @@ fn spi2_and_gdma_writes_dirty_interrupts_only_when_their_sources_change() {
     assert!(dirty(&mut bus, 0x6000_0010, 1), "UART writes keep the blanket rule");
 }
 
+/// Review (mmio blocker): timed SPI2 submission collects its descriptors through the bus, and a
+/// descriptor word can be a device register. Here the EOF descriptor sits in unmodelled register
+/// storage just below USB Serial/JTAG, so its next word pops the USB FIFO, presents the queued
+/// packet and raises RECV_PKT: interrupts must be dirty at submission, not at the wire deadline.
+#[test]
+fn timed_spi2_descriptor_collection_dirties_interrupts() {
+    const DATA: u32 = 0x3fc9_0200;
+    const DESC: u32 = 0x6003_7ff8; // + 8 is the USB Serial/JTAG FIFO
+    const LINE: u32 = 5;
+    let mut bus = dma_bus();
+    bus.spi2_timing = true;
+    bus.write32(DATA, 0x4433_2211).unwrap();
+    bus.write32(DESC, 4 | (4 << 12) | (1 << 30) | (1 << 31)).unwrap();
+    bus.write32(DESC + 4, DATA).unwrap();
+    bus.periph.gdma.out[0].desc = DESC;
+    bus.periph.intmatrix.map[0][crate::periph::SRC_USB_SERIAL_JTAG] = LINE;
+    bus.periph.usb.host_input(&[0x11]);
+    bus.periph.usb.host_input(&[0x22]);
+    bus.periph.usb.int_raw = 0;
+    bus.periph.usb.int_ena = 1 << 2;
+    bus.write32(SPI2 + 0x0c, 1 << 12).unwrap();
+    bus.write32(SPI2 + 0x30, 1 << 28).unwrap();
+    bus.write32(SPI2 + 0x10, 1 << 27).unwrap();
+    bus.write32(SPI2 + 0x1c, 31).unwrap();
+    let refresh = |bus: &mut SocBus| <SocBus as esp_soc::SocBus>::refresh_irq(bus);
+    refresh(&mut bus);
+    assert!(!bus.periph.usb.irq());
+    assert_eq!(bus.periph.cpu_lines_both().0 & (1 << LINE), 0);
+    bus.irq_dirty = false;
+    bus.write32(SPI2, 1 << 24).unwrap();
+    assert!(bus.spi2_scheduled.is_some() && bus.periph.spi2.transfers == 0, "still on the wire");
+    assert_eq!(bus.periph.usb.rx.iter().copied().collect::<Vec<_>>(), [0x22], "the next word read the FIFO");
+    assert!(bus.periph.usb.irq(), "the queued packet raised RECV_PKT");
+    assert!(bus.irq_dirty && bus.block_break(), "USB moved during submission: interrupts are dirty now");
+    assert!(refresh(&mut bus));
+    assert_ne!(bus.periph.cpu_lines_both().0 & (1 << LINE), 0);
+}
+
 #[test]
 fn spi2_data_phase_comes_from_gdma_descriptor() {
     const DATA: u32 = 0x3fc9_0200;
