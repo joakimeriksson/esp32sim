@@ -880,25 +880,29 @@ pub(in crate::jit) fn generate(chunks: &[Chunk], pages: &[(u32, u32)], formed_lo
         // function as a WASM loop; every other arrival still comes through the br_table.
         let self_loop = successors(chunk).contains(&chunk.pc)
             || formed_loops.iter().any(|&(lend, lbeg)| lbeg == chunk.pc && lend == chunk_end(chunk));
-        if let Some(run) = formed_loops.contains(&(chunk_end(chunk), chunk.pc)).then(|| memory::store_run(&chunk.instructions, fast)).flatten() {
-            // store-s1: once per arrival, before the per-iteration loop; the credit admitted it.
-            g.get(3);
-            g.get(DONE);
-            g.op(0x6b);
-            memory::store_bulk(&mut g, &run, chunk.pc, chunk_end(chunk));
-        }
-        if self_loop {
-            g.begin_loop();
-        }
         {
             let r = g.region.as_mut().unwrap();
             r.current = k;
             r.loop_depth = loop_depth;
-            r.chunk_depth = g.ctl.len();
             r.self_loop = self_loop;
             r.jx = chunk.jx;
             r.leaf = chunk.leaf;
         }
+        if let Some(run) = formed_loops.contains(&(chunk_end(chunk), chunk.pc)).then(|| memory::store_run(&chunk.instructions, fast)).flatten() {
+            // store-s1: once per arrival, before the per-iteration loop; the credit admitted it.
+            // gen-s2: a run that finishes the loop leaves through an edge whose site is the body's end.
+            g.last_pc = chunk_end(chunk).wrapping_sub(chunk.instructions.last().unwrap().insn.len as u32);
+            #[cfg(feature = "wasm-jit-profile")]
+            { g.last_kind = ExitKind::for_op(chunk.instructions.last().unwrap().insn.op); }
+            g.get(3);
+            g.get(DONE);
+            g.op(0x6b);
+            memory::store_bulk(&mut g, &run, chunk.pc, chunk_end(chunk), true);
+        }
+        if self_loop {
+            g.begin_loop();
+        }
+        g.region.as_mut().unwrap().chunk_depth = g.ctl.len();
         emit_body(&mut g, chunk.pc, &chunk.instructions, fast, false, true, cp);
         if self_loop {
             g.end();

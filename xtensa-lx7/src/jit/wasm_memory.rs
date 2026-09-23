@@ -350,7 +350,7 @@ pub(super) fn store_run(body: &[BlockInsn], fast: bool) -> Option<StoreRun> {
 /// credit, so the ordinary body that follows still fits) in one proved range, when the loop is
 /// this one, the pointer is aligned and the range lies in one writable mapping. Otherwise
 /// nothing changes and the ordinary body runs.
-pub(super) fn store_bulk(g: &mut Gen, run: &StoreRun, lbeg: u32, lend: u32) {
+pub(super) fn store_bulk(g: &mut Gen, run: &StoreRun, lbeg: u32, lend: u32, finish: bool) {
     g.c(run.len);
     g.op(0x6e); // i32.div_u: iterations the credit covers
     g.set(TMP);
@@ -367,7 +367,9 @@ pub(super) fn store_bulk(g: &mut Gen, run: &StoreRun, lbeg: u32, lend: u32) {
     g.op(0x71);
     g.op(0x72);
     g.bytes.extend([0x0d, 0]);
-    // k = min(LCOUNT + 1, credit / len) - 1 >= 1; LCOUNT + 1 wraps to 0 for a 2^32 count.
+    // m = min(LCOUNT + 1, credit / len) >= 2; LCOUNT + 1 wraps to 0 for a 2^32 count. The run is
+    // m - 1 iterations that take the backedge, plus (gen-s2) the final one when the credit covers
+    // the whole loop (m == LCOUNT + 1): then the loop is done and execution continues at LEND.
     g.cpu(LCOUNT);
     g.c(1);
     g.op(0x6a);
@@ -384,6 +386,12 @@ pub(super) fn store_bulk(g: &mut Gen, run: &StoreRun, lbeg: u32, lend: u32) {
     g.get(TMP);
     g.c(1);
     g.op(0x6b);
+    if finish {
+        g.get(TMP);
+        g.get(REL);
+        g.op(0x46);
+        g.op(0x6a);
+    }
     g.set(TMP);
     g.ar(run.p);
     g.set(ADDR);
@@ -445,10 +453,18 @@ pub(super) fn store_bulk(g: &mut Gen, run: &StoreRun, lbeg: u32, lend: u32) {
     bytes(g, run);
     g.op(0x6a);
     g.set_ar(run.p);
+    // REL: the run included the final iteration (more iterations than backedges left).
+    g.get(TMP);
+    g.cpu(LCOUNT);
+    g.op(0x4b);
+    g.set(REL);
     g.get(0);
+    g.c(0);
     g.cpu(LCOUNT);
     g.get(TMP);
     g.op(0x6b);
+    g.get(REL);
+    g.op(0x1b);
     g.store(LCOUNT);
     g.get(DONE);
     g.get(TMP);
@@ -456,6 +472,27 @@ pub(super) fn store_bulk(g: &mut Gen, run: &StoreRun, lbeg: u32, lend: u32) {
     g.op(0x6c);
     g.op(0x6a);
     g.set(DONE);
+    if !finish {
+        g.end();
+        return;
+    }
+    g.get(REL);
+    g.begin_if();
+    #[cfg(feature = "wasm-jit-tests")]
+    g.test_hit(&super::super::tests::STORE_RUN_DONE);
+    if g.region.is_some() {
+        // As the chunk's own end would after its final iteration: the edge to LEND.
+        super::region_edge(g, lend, false);
+    } else {
+        // Own module: continue at the instruction after the body (index len), counted from there.
+        g.c(run.len);
+        g.set(4);
+        g.get(DONE);
+        g.c(run.len);
+        g.op(0x6b);
+        g.set(DONE);
+    }
+    g.end();
     g.end();
 }
 

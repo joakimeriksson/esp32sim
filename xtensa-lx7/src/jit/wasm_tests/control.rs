@@ -475,3 +475,23 @@ pub(super) fn bridge_classes() -> u32 {
     }
     22
 }
+
+/// gen-s1: an own module reloading and spilling every register quad, at every window position
+/// (WINDOWBASE 13..15 wrap the 64-register file inside the window), whole, resumed and cut.
+pub(super) fn window_quads() -> u32 {
+    let mut block = [insn(Op::Add), insn(Op::Xor), insn(Op::Sub), insn(Op::Add)];
+    for (bi, (r, s, t)) in block.iter_mut().zip([(15, 0, 4), (9, 14, 1), (3, 12, 7), (0, 8, 15)]) {
+        (bi.insn.r, bi.insn.s, bi.insn.t) = (r, s, t);
+        bi.max_ar = crate::exec::max_ar(&bi.insn);
+    }
+    let mut cases = 0;
+    for wb in 0..16 {
+        for entry in 0..3 {
+            for budget in [1, 2, 4, 9] {
+                compare(&mut block, Case { seed: 5, entry, budget, ..Case::default() }, |c| { c.windowbase = wb; c.windowstart = 1 << wb; });
+                cases += 1;
+            }
+        }
+    }
+    cases
+}

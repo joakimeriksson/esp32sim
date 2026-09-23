@@ -49,8 +49,10 @@ const ACC: u8 = WIDE + 1;
 const STOP: u8 = ACC + 1;
 /// EX178 s1: the host pointer a coalesced run of PIE vector loads reads through.
 const HOSTP: u8 = STOP + 1;
+/// gen-s1: the host address of one register quad of the window, for whole-window reloads and spills.
+const QB: u8 = HOSTP + 1;
 /// rename-s1: locals of AR 16..32 relative to the region's window, for renamed leaf windows.
-const WIDE_AR: u8 = HOSTP + 1;
+const WIDE_AR: u8 = QB + 1;
 const PC: usize = offset_of!(Cpu, pc);
 const AR: usize = offset_of!(Cpu, ar);
 const WINDOWBASE: usize = offset_of!(Cpu, windowbase);
@@ -244,13 +246,33 @@ impl Gen<'_> {
         }
         self.set(WB);
     }
+    /// gen-s1: QB = the address of registers 4q..4q+3. WB is a multiple of 4, so a quad never
+    /// straddles the 64-register wrap and its registers sit at constant offsets from QB.
+    fn quad_base(&mut self, q: u8) {
+        self.get(0);
+        self.get(WB);
+        if q != 0 {
+            self.c(4 * q as u32);
+            self.op(0x6a);
+            self.c(63);
+            self.op(0x71);
+        }
+        self.c(2);
+        self.op(0x74);
+        self.op(0x6a);
+        self.set(QB);
+    }
     fn reload(&mut self) {
         self.window_base();
-        for r in 0..32 {
-            if self.loaded & (1 << r) != 0 {
-                self.ar_addr(r);
-                self.load(AR);
-                self.set(ar_local(r));
+        for q in 0..8u8 {
+            if (self.loaded >> (4 * q)) & 15 == 0 { continue; }
+            self.quad_base(q);
+            for r in 4 * q..4 * q + 4 {
+                if self.loaded & (1 << r) != 0 {
+                    self.get(QB);
+                    self.load(AR + 4 * (r % 4) as usize);
+                    self.set(ar_local(r));
+                }
             }
         }
         if self.max_ar < 4 {
@@ -284,11 +306,15 @@ impl Gen<'_> {
     }
     fn spill(&mut self) {
         self.accx_spill();
-        for r in 0..32 {
-            if self.written & (1 << r) != 0 {
-                self.ar_addr(r);
-                self.get(ar_local(r));
-                self.store(AR);
+        for q in 0..8u8 {
+            if (self.written >> (4 * q)) & 15 == 0 { continue; }
+            self.quad_base(q);
+            for r in 4 * q..4 * q + 4 {
+                if self.written & (1 << r) != 0 {
+                    self.get(QB);
+                    self.get(ar_local(r));
+                    self.store(AR + 4 * (r % 4) as usize);
+                }
             }
         }
     }
@@ -749,7 +775,7 @@ pub(super) fn generate(block: &Block) -> Vec<u8> {
         g.op(0x6a);
         g.set(STOP);
         if site.is_some() { g.begin_loop(); }
-        if let Some(run) = site.and_then(|n| memory::store_run(&block.instructions[..n], block.fast)) {
+        if let Some((n, run)) = site.and_then(|n| memory::store_run(&block.instructions[..n], block.fast).map(|r| (n, r))) {
             // store-s1: at the loop head (entry 0: a head entry or a taken backedge) of a loop the
             // dispatcher admitted (loop_end), STOP is the credit left, budget - DONE; bulk
             // iterations keep it so.
@@ -765,7 +791,7 @@ pub(super) fn generate(block: &Block) -> Vec<u8> {
             g.op(0x46);
             g.op(0x71);
             g.op(0x1b);
-            memory::store_bulk(&mut g, &run, block.pc, hint);
+            memory::store_bulk(&mut g, &run, block.pc, hint, n < block.instructions.len());
             g.get(3);
             g.get(DONE);
             g.op(0x6b);
@@ -1096,7 +1122,7 @@ fn module(body: &[u8], wide: bool) -> Vec<u8> {
     name(&mut exports, "run");
     exports.extend([0, 0]);
     section(&mut out, 7, &exports);
-    let mut func = vec![4, if cfg!(feature = "wasm-cache-inline") { 29 } else { 25 }, 0x7f, 1, 0x7b, 2, 0x7e, 2, 0x7f];   // i32 locals, then V128, WIDE, ACC, STOP and HOSTP
+    let mut func = vec![4, if cfg!(feature = "wasm-cache-inline") { 29 } else { 25 }, 0x7f, 1, 0x7b, 2, 0x7e, 3, 0x7f];   // i32 locals, then V128, WIDE, ACC, STOP, HOSTP and QB
     if wide { func[0] = 5; func.extend([16, 0x7f]); } // rename-s1: WIDE_AR..
     func.extend(body);
     let mut code = vec![1];

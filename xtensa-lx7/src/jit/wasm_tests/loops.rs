@@ -298,5 +298,7 @@ pub(super) fn store_runs() -> u32 {
         }
     }
     assert!(taken > 100 && watched > 50, "store runs were taken only {taken} times ({watched} watched)");
+    // gen-s2: runs that cover the whole loop continue after it.
+    assert!(STORE_RUN_DONE.load(Relaxed) > 20, "no store run finished its loop");
     cases
 }

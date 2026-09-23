@@ -1359,6 +1359,7 @@ fn store_runs() -> u32 {
             (200, BASE + 0x1000, 0, false), (1, BASE + 0x1000, 0, false), (37, BASE + 0x2fc, 0, false), (12, BASE + 0x40, 0, true), (12, BASE + 0x100, 0, true)] {
             for unwatched in [true, false] {
                 STORE_RUN_TAKEN.store(0, Relaxed);
+                let done = STORE_RUN_DONE.load(Relaxed);
                 let max = region_program_on(name, p, shape, &[], 1, 3, false, unwatched, move |c| {
                     c.set_ar(3, count); c.set_ar(7, start); c.set_ar(2, skew); c.set_ar(4, start + skew);
                 }, 600);
@@ -1367,6 +1368,8 @@ fn store_runs() -> u32 {
                 let hit = STORE_RUN_TAKEN.load(Relaxed) != 0;
                 assert!(!hit || allowed, "{name}: store run taken outside its proof");
                 assert!(hit || !allowed || count < 3, "{name}: store run never taken (count {count} start {start:x} unwatched {unwatched})");
+                // gen-s2: a run that covers the loop continues at LEND, inside the region.
+                assert!(STORE_RUN_DONE.load(Relaxed) > done || !allowed || count < 3, "{name}: no store run finished its loop (count {count})");
                 cases += 1;
             }
         }
@@ -1462,6 +1465,21 @@ fn leaf_calls() -> u32 {
         // The occupied frame ends in the overflow vector, whose code is not a leaf's.
         let taken = LEAF_RETURNS.load(std::sync::atomic::Ordering::Relaxed) > before;
         assert!(occupied || taken == (cp != 0), "{label}: inline leaves returned: {taken}");
+        cases += 1;
+    }
+    // gen-s1: whole-window reloads and spills address register quads; every window position,
+    // including those where the renamed leaf registers (a16..a31) wrap the 64-register file.
+    for wb in 0..16 {
+        region_program(&format!("leaf-calls-wb{wb}"), &p, &shape, &[], 2, 0x300, move |c| {
+            c.pc = BASE + 256;
+            c.ps = ps::WOE;
+            c.cpenable = 1;
+            c.windowbase = wb;
+            c.windowstart = 1 << wb;
+            c.set_ar(1, BASE + 0x4000);
+            c.set_ar(12, 0);
+            c.set_ar(13, BASE);
+        }, 200);
         cases += 1;
     }
     cases
