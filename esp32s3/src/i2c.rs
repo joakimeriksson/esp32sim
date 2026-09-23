@@ -226,17 +226,20 @@ pub struct ImuMotion { pub cycle: std::sync::atomic::AtomicU64, pub mode: std::s
 /// QMI8658 IMU. Mode 0 is the register stub every existing workload was pinned against
 /// (WHO_AM_I only, data never ready). Mode 1 plays a fixed 30 s handling script as a
 /// function of guest time, so a benchmark that tilts and shakes the board stays exact.
-pub struct Qmi8658 { regs: [u8; 256], ptr: u8, first: bool, motion: std::sync::Arc<ImuMotion> }
+/// The script produces one sample every 4 ms (250 Hz, the rate fluidbox configures; other ODR
+/// settings are not modeled): timestamp and data come from the same sample, and STATUS0 reports
+/// new data until a read of the sensor outputs consumes that sample.
+pub struct Qmi8658 { regs: [u8; 256], ptr: u8, first: bool, consumed: Option<u32>, motion: std::sync::Arc<ImuMotion> }
 impl Qmi8658 {
     pub fn new(motion: std::sync::Arc<ImuMotion>) -> Self {
         let mut regs = [0; 256];
         regs[0x00] = 0x05;
-        Qmi8658 { regs, ptr: 0, first: true, motion }
+        Qmi8658 { regs, ptr: 0, first: true, consumed: None, motion }
     }
     /// Latch one sample into STATUS0 and the timestamp/temperature/accel/gyro registers.
     fn latch(&mut self, cycle: u64) {
-        let t = cycle as f64 / crate::periph::CPU_HZ as f64;
-        let (accel, gyro) = motion_script(t);
+        let stamp = (cycle / (crate::periph::CPU_HZ / 250)) as u32;
+        let (accel, gyro) = motion_script(f64::from(stamp) / 250.0);
         // Scales follow the configured ranges: CTRL2[6:4] accel 2..16 g, CTRL3[6:4] gyro 16..2048 dps.
         let accel_lsb = f64::from(16384u32 >> ((self.regs[0x03] >> 4) & 3));
         let gyro_lsb = f64::from(2048u32 >> ((self.regs[0x04] >> 4) & 7));
@@ -244,8 +247,9 @@ impl Qmi8658 {
             let r = if v < 0.0 { v - 0.5 } else { v + 0.5 };
             (r.clamp(-32768.0, 32767.0) as i32 as i16).to_le_bytes()
         };
-        let stamp = (cycle / (crate::periph::CPU_HZ / 250)) as u32;
-        self.regs[0x2e] = 0x03;
+        self.regs[0x2e] = if self.consumed == Some(stamp) { 0 } else { 0x03 };
+        // A read of the sensor outputs consumes this sample.
+        if (0x35..=0x40).contains(&self.ptr) { self.consumed = Some(stamp); }
         self.regs[0x30..0x33].copy_from_slice(&stamp.to_le_bytes()[..3]);
         self.regs[0x33..0x35].copy_from_slice(&(25i16 * 256).to_le_bytes());
         for axis in 0..3 {
@@ -349,5 +353,28 @@ mod qmi8658_tests {
         assert_eq!(at(&mut imu, 6.5), tilted);
         assert!(g(&at(&mut imu, 10.3)) > 1.5, "a shake adds linear acceleration");
         assert!((sin(1.0) - 1f64.sin()).abs() < 1e-7 && (sin(-4.0) - (-4f64).sin()).abs() < 1e-7);
+    }
+
+    #[test]
+    fn one_timestamp_is_one_sample_and_is_consumed_once() {
+        let motion = Arc::new(ImuMotion::default());
+        motion.mode.store(1, Relaxed);
+        let mut imu = Qmi8658::new(motion.clone());
+        configure(&mut imu);
+        let at = |imu: &mut Qmi8658, seconds: f64, reg: u8, n: usize| {
+            motion.cycle.store((seconds * crate::periph::CPU_HZ as f64) as u64, Relaxed);
+            read(imu, reg, n)
+        };
+        // Reviewer case: two reads inside one 4 ms sample during a shake see the same stamp and data.
+        let (a, b) = (at(&mut imu, 10.3001, 0x30, 15), at(&mut imu, 10.3011, 0x30, 15));
+        assert_eq!(a, b);
+        let c = at(&mut imu, 10.3041, 0x30, 15);
+        assert_ne!(a[..3], c[..3]);
+        assert_ne!(a[5..], c[5..]);
+        // STATUS0: new until the outputs of that sample are read, then new again at the next sample.
+        assert_eq!(at(&mut imu, 12.0001, 0x2e, 1), [0x03]);
+        at(&mut imu, 12.0002, 0x35, 12);
+        assert_eq!(at(&mut imu, 12.0003, 0x2e, 1), [0x00]);
+        assert_eq!(at(&mut imu, 12.0041, 0x2e, 1), [0x03]);
     }
 }

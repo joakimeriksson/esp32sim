@@ -73,11 +73,14 @@ pub unsafe extern "C" fn esp32sim_set_measured_te(e: *mut Emu, enabled: u32) -> 
     if e.booted { return 1; }
     let Some(m) = e.m.s3_mut() else { return 1 };
     if m.bus.board.name() != "waveshare-amoled18-v2" { return 1; }
+    // A new board must keep the IMU motion selected before it.
+    let motion = m.bus.board.imu_motion();
     m.bus.board = Box::new(if enabled != 0 {
         esp32s3::board::WaveshareAmoled18V2::with_measured_te()
     } else {
         esp32s3::board::WaveshareAmoled18V2::new()
     });
+    m.bus.board.set_imu_motion(motion);
     m.bus.attach_board_devices();
     0
 }
@@ -334,4 +337,36 @@ pub unsafe extern "C" fn esp32sim_set_smooth_display(e: *mut Emu, on: u32) -> u3
     let Some(m) = e.m.s3_mut() else { return 1 };
     if m.insns() != 0 || on > 1 { return 1; }
     if m.bus.board.set_smooth_display(on != 0) { 0 } else { 1 }
+}
+
+#[cfg(test)]
+mod imu_motion_tests {
+    use super::*;
+    use crate::{esp32sim_delete, esp32sim_new};
+
+    fn status0(e: *mut Emu) -> u8 {
+        // SAFETY: the test owns the live emulator.
+        let m = unsafe { &mut *e }.m.s3_mut().unwrap();
+        let mut devices = m.bus.board.i2c_devices();
+        let (_, _, imu) = devices.iter_mut().find(|(_, addr, _)| *addr == 0x6b).unwrap();
+        imu.start(false); imu.write(0x2e); imu.start(true);
+        imu.read()
+    }
+
+    /// Both setter orders keep the scripted motion (the TE setter replaces the board).
+    #[test]
+    fn motion_survives_measured_te_in_either_order() {
+        let board = "waveshare-amoled18-v2";
+        for motion_first in [true, false] {
+            // SAFETY: a fresh emulator, exclusively owned and deleted here.
+            unsafe {
+                let e = esp32sim_new(board.as_ptr(), board.len(), 4, 2);
+                if motion_first { assert_eq!(esp32sim_set_imu_motion(e, 1), 0); }
+                assert_eq!(esp32sim_set_measured_te(e, 1), 0);
+                if !motion_first { assert_eq!(esp32sim_set_imu_motion(e, 1), 0); }
+                assert_eq!(status0(e), 3, "motion first: {motion_first}");
+                esp32sim_delete(e);
+            }
+        }
+    }
 }

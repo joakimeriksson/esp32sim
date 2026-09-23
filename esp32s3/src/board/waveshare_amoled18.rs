@@ -232,6 +232,7 @@ impl BoardModel for WaveshareAmoled18V2 {
     fn display_push_hz(&self) -> u64 { if self.smooth_display { 120 } else { 50 } }
     fn set_smooth_display(&mut self, on: bool) -> bool { self.smooth_display = on; true }
     fn set_imu_motion(&mut self, mode: u32) -> bool { self.imu.mode.store(mode, std::sync::atomic::Ordering::Relaxed); true }
+    fn imu_motion(&self) -> u32 { self.imu.mode.load(std::sync::atomic::Ordering::Relaxed) }
     fn input_levels(&self) -> Vec<(u8, bool)> {
         vec![(PIN_AMOLED_TE, self.te_level), (PIN_AMOLED_TOUCH_INT, self.touch_irq_level)]
     }

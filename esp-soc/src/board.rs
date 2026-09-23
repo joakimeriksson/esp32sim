@@ -56,6 +56,8 @@ pub trait BoardModel {
     fn set_smooth_display(&mut self, _on: bool) -> bool { false }
     /// Select a scripted IMU motion (0 = still) before execution. Returns false if unsupported.
     fn set_imu_motion(&mut self, _mode: u32) -> bool { false }
+    /// The scripted IMU motion selected by `set_imu_motion` (0 when unsupported).
+    fn imu_motion(&self) -> u32 { 0 }
     /// Raw display memory for a debug PNG: (pixels, columns, rows).
     fn gram(&self) -> Option<(Vec<u16>, usize, usize)> { None }
     /// LED ring / strip: colours and a change counter.
