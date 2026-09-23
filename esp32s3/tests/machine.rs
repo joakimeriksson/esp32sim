@@ -11,6 +11,8 @@ const WAITI_LOOP: [u8; 6] = [0x00, 0x70, 0x00, 0x06, 0xff, 0xff];   // waiti 0 ;
 const SPIN: [u8; 3] = [0x06, 0xff, 0xff];                             // j .   (objdump: ffff06)
 
 fn machine() -> esp32s3::Machine { let mut m = esp32s3::machine([1, 2, 3, 4, 5, 6]); m.console.capture = true; m }
+/// q256: for tests written in 64-instruction rounds, whatever the target's default quantum.
+fn machine64() -> esp32s3::Machine { let mut m = machine(); m.quantum = 64; m }
 fn park(m: &mut esp32s3::Machine, core: usize, at: u32, prog: &[u8]) { esp_soc::SocBus::load_bytes(&mut m.bus, at, prog).unwrap(); m.cores[core].pc = at; m.cores[core].ps = 0; }
 
 #[test]
@@ -319,7 +321,7 @@ fn core1_runs_when_released() {
 
 #[test]
 fn browser_external_blocks_are_single_core_scheduler_transactions() {
-    let mut m = machine();
+    let mut m = machine64();
     park(&mut m, 0, IRAM, &SPIN);
     assert_eq!(m.browser_external_block_budget(0), None);
     assert_eq!(m.browser_external_block_budget(1), None);
@@ -336,7 +338,7 @@ fn browser_external_blocks_are_single_core_scheduler_transactions() {
 #[test]
 fn browser_external_finish_honors_halt_and_drains_console() {
     for halt in [false, true] {
-        let mut m = machine();
+        let mut m = machine64();
         park(&mut m, 0, IRAM, &SPIN);
         m.max_cycles = if halt { 64 } else { 128 };
         m.bus.periph.usb.tx_out.extend_from_slice(b"finish-output");
@@ -380,7 +382,7 @@ fn reboot_keeps_what_silicon_keeps() {
 /// existing bus tick, which is bounded by one instruction quantum.
 #[test]
 fn host_touch_is_delivered_on_the_next_fast_path_bus_tick() {
-    let mut m = machine();
+    let mut m = machine64();
     park(&mut m, 0, IRAM, &SPIN);
     m.bus.board = Box::new(esp32s3::board::WaveshareAmoled18V2::new());
     m.bus.attach_board_devices();
@@ -476,7 +478,7 @@ fn observers_count_the_same_instructions_either_way() {
 fn block_observers_keep_working_with_instruction_observers() {
     use esp_soc::observers::{BlockProfile, Coverage, PcHist};
     for until in [false, true] {
-        let mut m = machine();
+        let mut m = machine64();
         park(&mut m, 0, IRAM, &[0x0c, 0x03, 0x1b, 0x33, 0x86, 0xfe, 0xff]);
         m.add_observer(Box::new(BlockProfile::new(4)));
         m.add_observer(Box::new(Coverage::new(None)));
@@ -564,7 +566,7 @@ fn knob_input_preserves_pending_scripts_at_the_current_horizon() {
 #[test]
 fn due_script_stop_precedes_execution_and_observes_edits_between_runs() {
     for until in [false, true] {
-        let mut m = machine();
+        let mut m = machine64();
         park(&mut m, 0, IRAM, &SPIN);
         m.script.log = false;
         // A future action must stay pending when the first run completes.
@@ -657,7 +659,7 @@ fn unmatched_breakpoints_preserve_idle_timeline() {
     for until in [false, true] {
         let mut results = Vec::new();
         for observed in [false, true] {
-            let mut m = machine();
+            let mut m = machine64();
             park(&mut m, 0, IRAM, &WAITI_LOOP);
             m.script.events = vec![(71, ScriptAction::Stop)];
             if observed { m.add_observer(Box::new(Breakpoints { pcs: vec![IRAM + 100] })); }

@@ -160,8 +160,8 @@ pub unsafe extern "C" fn esp32sim_set_control_prices(e: *mut Emu, on: u32) -> u3
     0
 }
 
-/// Scheduling quantum of the exact-clock scheduler (default 64). Larger values interleave two
-/// busy cores more coarsely: faster, deterministic, but not bit-identical with the default.
+/// Scheduling quantum of the exact-clock scheduler (default 256 on wasm32, 64 native). Other values interleave two
+/// busy cores differently: deterministic, but not bit-identical with the default.
 /// Rejected while either timing model owns scheduling; approximate timing uses its own quantum.
 /// # Safety
 /// `e` must be a live exclusively borrowed emulator.

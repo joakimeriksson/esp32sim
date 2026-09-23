@@ -8,6 +8,7 @@ const LOOP: [u8; 8] = [0x1b, 0x33, 0x52, 0x64, 0x00, 0xc6, 0xfd, 0xff];
 fn machine(jit: bool) -> esp32s3::Machine {
     let mut m = esp32s3::machine([1, 2, 3, 4, 5, 6]);
     m.console.capture = true;
+    m.quantum = 64; // q256: these tests are written in 64-instruction rounds (wasm32 defaults to 256)
     SocBus::load_bytes(&mut m.bus, BASE, &LOOP).unwrap();
     SocBus::load_bytes(
         &mut m.bus,
@@ -143,7 +144,7 @@ fn sequential_emulators_reset_timing_state() -> u32 {
 /// EX177: a batch of whole rounds run while both cores are busy must leave exactly the state the
 /// per-round schedule leaves. Cover an interior device access, WAITI, a core-local timer
 /// interrupt, a script event, an architectural stop and a plain uncut batch, on either core and
-/// at the first, last and following instruction of a quantum.
+/// at the first, last and following instruction of a quantum, at quantum 64 and the default 256.
 fn both_busy_rounds() -> u32 {
     const NOP: [u8; 2] = [0x3d, 0xf0];
     const SPIN: [u8; 3] = [0x06, 0xff, 0xff];        // j .
@@ -154,8 +155,8 @@ fn both_busy_rounds() -> u32 {
     let mut cases = 0;
     for jit in [false, true] {
         for vq in [1u64, 1024] {
-            for kind in 0..6 {
-                for at in [1usize, 63, 64, 65] {
+            for (q, kind) in [64usize, 256].into_iter().flat_map(|q| (0..6).map(move |k| (q, k))) {
+                for at in [1, q - 1, q, q + 1] {
                     for cut in 0..2usize {
                         let (mut a, mut b) = (machine(jit), machine(jit));
                         for m in [&mut a, &mut b] {
@@ -191,21 +192,24 @@ fn both_busy_rounds() -> u32 {
                                 m.script.log = false;
                                 m.script.events = vec![
                                     (m.bus.cycles + at as u64, ScriptAction::Serial("event".into())),
-                                    (m.bus.cycles + 300, ScriptAction::Stop),
+                                    (m.bus.cycles + 300 * q as u64 / 64, ScriptAction::Stop),
                                 ];
                             }
                             if kind == 5 { m.dbg.stop_after_exceptions = 1; }
                             m.vq_max = vq;
-                            m.max_cycles = m.bus.cycles + if kind == 0 || kind == 3 { 32768 } else { 512 };
+                            m.quantum = q as u64;
+                            m.max_cycles = m.bus.cycles + if kind == 0 || kind == 3 { 32768 } else { 8 * q as u64 };
                         }
+                        a.bb_max = 1;
                         b.bb_max = 128;
-                        let label = format!("jit={jit} vq={vq} kind={kind} at={at} cut={cut}");
+                        let label = format!("jit={jit} vq={vq} q={q} kind={kind} at={at} cut={cut}");
                         for m in [&mut a, &mut b] {
                             let stop = m.run(u64::MAX);
                             if kind == 5 { assert!(matches!(stop, Stop::Exceptions(1)), "{label}: {stop:?}"); }
                             else { assert!(matches!(stop, Stop::Halted), "{label}: {stop:?}"); }
                             assert_eq!(m.bus.vq_violations, 0, "{label}: undeferred device access");
                         }
+                        assert_eq!(a.bb_stats[0], 0, "{label}: reference must not batch");
                         assert!(b.bb_stats[0] > 0, "{label}: no batch ran");
                         if kind == 0 { assert!(b.bb_stats[1] / b.bb_stats[0] > 8, "{label}: shallow batches"); }
                         if kind == 1 { assert!(b.bb_stats[2] > 0, "{label}: no device-register cut"); }
@@ -336,8 +340,8 @@ fn shell_bus_replacement() {
 
 fn architectural_stops() -> u32 {
     for jit in [false, true] {
-        for busy in 0..2 {
-            for instructions in [1usize, 63, 64, 65, 127, 128, 129] {
+        for (q, busy) in [64usize, 256].into_iter().flat_map(|q| (0..2).map(move |b| (q, b))) {
+            for instructions in [1, q - 1, q, q + 1, 2 * q - 1, 2 * q, 2 * q + 1] {
                 let (mut a, mut b) = (machine(jit), machine(jit));
                 for m in [&mut a, &mut b] {
                     m.vq_max = 1;
@@ -354,7 +358,8 @@ fn architectural_stops() -> u32 {
                     m.cores[busy].ps = 0;
                     m.cores[busy].waiting = false;
                     m.dbg.stop_after_exceptions = 1;
-                    m.max_cycles = m.bus.cycles + (instructions as u64).div_ceil(64).max(2) * 64;
+                    m.quantum = q as u64;
+                    m.max_cycles = m.bus.cycles + (instructions as u64).div_ceil(q as u64).max(2) * q as u64;
                 }
                 b.vq_max = 1024;
                 let before = b.vq_stats[0];
@@ -365,7 +370,7 @@ fn architectural_stops() -> u32 {
             }
         }
     }
-    28
+    56
 }
 
 pub fn run() -> u32 {

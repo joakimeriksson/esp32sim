@@ -48,7 +48,7 @@ pub trait Soc: 'static {
     const ROM_ELF: &'static str;
     const CPU_HZ: u64;
     const CORES: usize;
-    /// How far time jumps when every core sleeps (a multiple of the 64-instruction quantum).
+    /// How far time jumps when every core sleeps (at most; deadlines and limits cut it).
     const IDLE_CHUNK: u64;
     /// Symbols, in order of preference, that start the ROM's RAM-initialiser table.
     const ROM_DATA_TABLE: &'static [&'static str];

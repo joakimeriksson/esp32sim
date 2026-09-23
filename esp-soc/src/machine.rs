@@ -67,8 +67,8 @@ pub struct Machine<S: Soc> {
     pub cores: Vec<S::Core>,
     /// a secondary core held in reset by its SoC registers (reset when released)
     core_held: Vec<bool>,
-    /// Instructions each busy core runs per scheduling round. 64 is the reference the goldens and
-    /// pinned totals hold for; a larger value changes the interleaving of two busy cores (EX047).
+    /// Instructions each busy core runs per scheduling round (`QUANTUM`: 64 native, 256 on wasm32; the goldens
+    /// and pinned totals hold for these); another value changes the interleaving of two busy cores (EX047).
     pub quantum: u64,
     pub bus: S::Bus,
     pub symbols: BTreeMap<u32, String>,
@@ -120,8 +120,9 @@ pub struct Machine<S: Soc> {
     run_steps: u64,
 }
 
-/// Default scheduling quantum; `Machine::quantum` can raise it (not bit-exact with the default).
-const QUANTUM: u64 = 64;
+/// Default scheduling quantum; `Machine::quantum` can change it (not bit-exact with the default). q256: 256 on wasm32,
+/// 64 native (M3 CLI at 256: Pocket Tank 5.4% slower, cheap native quantum switches lose to +15% spin-waiting).
+const QUANTUM: u64 = if cfg!(target_arch = "wasm32") { 256 } else { 64 };
 /// EX133 default for `Machine::vq_max`; a build can pin another with `ESP32SIM_VQ_BUILD=<n>`.
 const VQ_DEFAULT: u64 = match option_env!("ESP32SIM_VQ_BUILD") {
     Some(s) => { let b = s.as_bytes(); let (mut i, mut v) = (0, 0u64); while i < b.len() { v = v * 10 + (b[i] - b'0') as u64; i += 1; } v }
@@ -469,7 +470,7 @@ impl<S: Soc> Machine<S> {
     }
 
     /// Run until something stops us or the `max_insns` scheduling-step budget is reached. The no-model path
-    /// uses complete quanta (64 by default), so a busy round can exceed the budget by up to
+    /// uses complete quanta (`QUANTUM` by default), so a busy round can exceed the budget by up to
     /// `quantum - 1` steps. The modeled path schedules one priced event at a time.
     pub fn run(&mut self, max_insns: u64) -> Stop {
         self.web_poll_input();
@@ -877,7 +878,7 @@ impl<S: Soc> Machine<S> {
     /// (`SocBus::take_host_event`), so a transmission the host must forward is seen at the cycle
     /// it started. Every round is also bounded by the bus's next device deadline
     /// (`SocBus::next_deadline`), so a device event lands at its own cycle rather than at the end
-    /// of a 64-instruction quantum; a core asleep in `wfi` with nothing pending lets time jump to
+    /// of a scheduling quantum; a core asleep in `wfi` with nothing pending lets time jump to
     /// the target or to that deadline, whichever is first — the deadline is conservative, so an
     /// interrupt is never delivered late by the skip. Single-core chips only (the S3's second
     /// core is not scheduled here), and the unmodeled path only: a cost model is not consulted.
