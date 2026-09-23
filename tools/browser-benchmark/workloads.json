@@ -9,7 +9,7 @@
       "elf"
     ],
     "serialSource": "usb",
-    "expectedInstructions": 9819885134
+    "expectedInstructions": 9816141790
   },
   "pocket-tank": {
     "schema": "pocket-tank-v1",
@@ -37,7 +37,7 @@
         "min": 2
       }
     ],
-    "expectedInstructions": 10073833775
+    "expectedInstructions": 11565467394
   },
   "tinydraw-hw": {
     "schema": "tinydraw-gate1-v1",
@@ -180,7 +180,7 @@
         "min": 10
       }
     ],
-    "expectedInstructions": 13335545195,
+    "expectedInstructions": 13334523179,
     "exports": [
       [
         "esp32sim_set_imu_motion",
