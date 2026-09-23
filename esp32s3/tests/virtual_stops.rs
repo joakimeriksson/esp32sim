@@ -191,8 +191,11 @@ fn round_batches_match_the_per_round_schedule() {
     const VECTORS: u32 = IRAM + 0x1000;
     let timer = xtensa_lx7::state::TIMER_INTERRUPT[0];
     let armed = std::env::var_os("ESP32SIM_VQ_NATIVE").is_some();
-    // kinds: 0 uncut, 1 device read, 2 waiti, 3 core-local timer, 4 script events, 5 illegal
-    for kind in 0..6 {
+    // kinds: 0 uncut, 1 device read, 2 waiti, 3 core-local timer, 4 script events, 5 illegal,
+    // 6 (batch-s1) a loop that latches and reads SYSTIMER, so every round meets device registers,
+    // 7 (batch-s1) a store that arms a SYSTIMER alarm, moving the device deadline inside a batch,
+    // 8 (batch-s1) a store that stops core 1's clock inside a batch
+    for kind in 0..9 {
         for at in [1usize, 63, 64, 65, 129] {
             for cut in 0..2usize {
                 let mut results = Vec::new();
@@ -214,6 +217,10 @@ fn round_batches_match_the_per_round_schedule() {
                         1 => code.extend([0x22, 0x23, 0x00]),       // l32i a2,a3,0: SYSTIMER
                         2 => code.extend([0x00, 0x70, 0x00]),       // waiti 0
                         5 => code.extend([0x00, 0x00, 0x00]),       // ill
+                        // s32i a4,a3,4 (latch); l32i a2,a3,0x44; add.n a5,a5,a2; nop.n x4; j back 16 bytes
+                        8 => code.extend([0x52, 0x63, 0x00]),       // s32i a5,a3,0 (a3: core 1 clock control)
+                        7 => code.extend([0x42, 0x63, 0x14]),       // s32i a4,a3,0x50: COMP0_LOAD
+                        6 => { code.extend([0x42, 0x63, 0x01, 0x22, 0x23, 0x11, 0x2a, 0x55]); code.extend(NOP.repeat(4)); code.extend([0x06, 0xfb, 0xff]); }
                         _ => {}
                     }
                     code.extend(SPIN);
@@ -223,7 +230,7 @@ fn round_batches_match_the_per_round_schedule() {
                         let c = &mut m.cores[i];
                         c.pc = entry; c.ps = 0; c.waiting = false;
                         c.intenable = 0; c.interrupt = 0; c.vecbase = VECTORS;
-                        c.set_ar(3, 0x6002_3000);
+                        c.set_ar(3, 0x6002_3000); c.set_ar(4, 1 << 30);
                     }
                     if kind == 3 {
                         let c = &mut m.cores[cut];
@@ -238,8 +245,17 @@ fn round_batches_match_the_per_round_schedule() {
                         ];
                     }
                     if kind == 5 { m.dbg.stop_after_exceptions = 1; }
+                    if kind == 6 { m.bus.write32(0x6002_3000, 1 << 30).unwrap(); }     // run SYSTIMER unit 0
+                    if kind == 8 { m.cores[cut].set_ar(3, 0x600c_0000); }
+                    if kind == 7 {
+                        // the alarm interrupts the cut core, whose handler records its arrival time
+                        m.bus.load_bytes(VECTORS + xtensa_lx7::state::vec::KERNEL, &[0x20, 0xea, 0x03, 0x06, 0xff, 0xff]).unwrap(); // rsr a2,ccount; j .
+                        m.bus.write32(0x600c_2000 + cut as u32 * 0x800 + esp32s3::periph::SRC_SYSTIMER_T0 as u32 * 4, 1).unwrap();
+                        m.cores[cut].intenable = 1 << 1;
+                        for (off, v) in [(0x00, (1 << 30) | (1 << 24)), (0x20, 40), (0x64, 1)] { m.bus.write32(0x6002_3000 + off, v).unwrap(); }
+                    }
                     m.bb_max = bb;
-                    m.max_cycles = m.bus.cycles + if kind == 0 || kind == 3 { 32768 } else { 512 };
+                    m.max_cycles = m.bus.cycles + if matches!(kind, 0 | 3 | 6 | 7) { 32768 } else { 512 };
                     let label = format!("kind={kind} at={at} cut={cut} bb={bb}");
                     let stop = m.run(1 << 20);
                     if kind == 5 { assert!(matches!(stop, Stop::Exceptions(1)), "{label}: {stop:?}"); }
@@ -252,6 +268,8 @@ fn round_batches_match_the_per_round_schedule() {
                         if kind == 2 { assert!(m.bb_stats[3] > 0, "{label}: no waiti cut"); }
                         if kind == 3 { assert!(m.interrupts > 0, "{label}: timer never fired"); }
                         if kind == 4 { assert_eq!(m.script.pos, 2, "{label}: script events never applied"); }
+                        if kind == 7 { assert_eq!(m.interrupts, 1, "{label}: alarm never fired"); }
+                        if kind == 6 { assert!(m.bb_stats[2] > 8 * m.bb_stats[0], "{label}: batches end at device registers"); }
                     }
                     results.push((m.bus.cycles, m.run_steps(), m.insns(), m.script.pos, m.console.all.clone(),
                         m.exceptions, m.interrupts, m.irq_hist.clone(), m.bus.periph.usb.rx.iter().copied().collect::<Vec<_>>(),

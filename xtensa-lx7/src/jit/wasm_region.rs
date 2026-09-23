@@ -304,10 +304,11 @@ pub(super) fn region_edge(g: &mut Gen, target: u32, direct: bool) {
                 g.end();
                 g.last_kind = ExitKind::Budget;
                 g.ret_value(short);
+                g.resume_at(index as u32);
                 g.last_kind = saved;
             }
             #[cfg(not(feature = "wasm-jit-profile"))]
-            g.ret_value(short);
+            { g.ret_value(short); g.resume_at(index as u32); }
             g.end();
             // A guarded copy is neither followed by the next chunk nor inside the open blocks
             // of later chunks: every edge out of it re-dispatches.

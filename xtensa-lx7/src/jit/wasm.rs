@@ -33,12 +33,14 @@ const TUNES: u8 = 3;
 /// Formation attempts per block, including re-formation after a code page changed.
 const REGION_TRIES: u8 = 8;
 #[cfg(feature = "wasm-jit-tests")]
-pub(crate) static REGION_STATS: [std::sync::atomic::AtomicU32; 14] = [const { std::sync::atomic::AtomicU32::new(0) }; 14];
+pub(crate) static REGION_STATS: [std::sync::atomic::AtomicU32; 16] = [const { std::sync::atomic::AtomicU32::new(0) }; 16];
 
+/// Last retired PC and (lane-s1) the region parameter that resumes right at the exit PC when the
+/// exit ended the quantum there (credit short at a chunk head, a guarded copy's cut), else NONE.
 #[cfg(not(feature = "wasm-jit-profile"))]
-type ExitSite = u32;
+type ExitSite = (u32, u32);
 #[cfg(feature = "wasm-jit-profile")]
-type ExitSite = (u32, ExitKind);
+type ExitSite = (u32, ExitKind, u32);
 
 #[cfg(feature = "wasm-jit-profile")]
 #[derive(Clone, Copy, Default)]
@@ -64,11 +66,13 @@ impl ExitKind {
     }
 }
 #[inline(always)]
-fn site_pc(site: ExitSite) -> u32 {
+fn site_pc(site: ExitSite) -> u32 { site.0 }
+#[inline(always)]
+fn site_resume(site: ExitSite) -> u32 {
     #[cfg(feature = "wasm-jit-profile")]
-    { site.0 }
+    { site.2 }
     #[cfg(not(feature = "wasm-jit-profile"))]
-    { site }
+    { site.1 }
 }
 
 /// Region counters for the opt-in profile build; absent from production.
@@ -90,14 +94,15 @@ pub struct RegionStats {
     pub bytes: Cell<u64>,
     /// EX153 census: [run calls, calls with budget>=64, whole calls, whole retired, tail-cut calls, tail-cut retired,
     /// resumed calls, resumed retired, resumed-and-cut-again calls, zero-retired calls, sum of budgets, chained calls]
-    pub ex153: [Cell<u64>; 12],
+    /// lane-s1: [12] memo hits, [13] memo declined at a matching PC
+    pub ex153: [Cell<u64>; 14],
 }
 #[cfg(feature = "wasm-jit-profile")]
 impl RegionStats {
     pub fn report(&self) -> String {
-        format!("[ex153] run_calls={} budget64_calls={} whole_calls={} whole_retired={} tailcut_calls={} tailcut_retired={} resumed_calls={} resumed_retired={} resumed_cut_again={} zero_retired_calls={} budget_sum={} chained={}\n[wasm-region] formed={} failed={} covered={} dropped={} chunks={} instructions={} bytes={} calls={} rejected={} retired={} exits[end,left,trap,cut,pre]={:?} left_kinds[call,callx,retw,ret,jx,sr,memory,edge,budget,dirty,other]={:?} tuned={}",
+        format!("[ex153] run_calls={} budget64_calls={} whole_calls={} whole_retired={} tailcut_calls={} tailcut_retired={} resumed_calls={} resumed_retired={} resumed_cut_again={} zero_retired_calls={} budget_sum={} chained={} memo_hits={} memo_declined={}\n[wasm-region] formed={} failed={} covered={} dropped={} chunks={} instructions={} bytes={} calls={} rejected={} retired={} exits[end,left,trap,cut,pre]={:?} left_kinds[call,callx,retw,ret,jx,sr,memory,edge,budget,dirty,other]={:?} tuned={}",
             self.ex153[0].get(), self.ex153[1].get(), self.ex153[2].get(), self.ex153[3].get(), self.ex153[4].get(), self.ex153[5].get(),
-            self.ex153[6].get(), self.ex153[7].get(), self.ex153[8].get(), self.ex153[9].get(), self.ex153[10].get(), self.ex153[11].get(),
+            self.ex153[6].get(), self.ex153[7].get(), self.ex153[8].get(), self.ex153[9].get(), self.ex153[10].get(), self.ex153[11].get(), self.ex153[12].get(), self.ex153[13].get(),
             self.formed.get(), self.failed.get(), self.covered.get(), self.dropped.get(), self.chunks.get(),
             self.instructions.get(), self.bytes.get(), self.calls.get(), self.rejected.get(), self.retired.get(),
             self.exits[..5].iter().map(|c| c.get()).collect::<Vec<_>>(),
@@ -166,8 +171,10 @@ const LOOP_UNKNOWN: (u32, u32, [u32; 2]) = (0, u32::MAX, [0; 2]);
 /// region still counts where quanta end and this chunk has no copy but could get one.
 struct Hot { epoch: u64, bloom: u64, slot: u32, k: u32, len: u32, lo: u32, span: u32, pages: [(u32, u32); emitter::region::MAX_PAGES], npages: u32, nsites: u32, sites: *const ExitSite, copy: u32,
     /// shell-s2: `Bus::stable_pages` epoch at the refill; `pages` leaves out the pages it vouches for.
-    fepoch: u64, counting: bool }
-impl Hot { const NONE: Hot = Hot { epoch: 0, bloom: 0, slot: 0, k: 0, len: 0, lo: 0, span: 0, pages: [(0, 0); emitter::region::MAX_PAGES], npages: 0, nsites: 0, sites: std::ptr::null(), copy: 0, fepoch: 0, counting: false }; }
+    fepoch: u64, counting: bool,
+    /// lane-s1l: the owning region's (LEND, LBEG) loops, live while `epoch` is current.
+    loops: *const (u32, u32), nloops: u32 }
+impl Hot { const NONE: Hot = Hot { epoch: 0, bloom: 0, slot: 0, k: 0, len: 0, lo: 0, span: 0, pages: [(0, 0); emitter::region::MAX_PAGES], npages: 0, nsites: 0, sites: std::ptr::null(), copy: 0, fepoch: 0, counting: false, loops: std::ptr::null(), nloops: 0 }; }
 #[cfg(any(debug_assertions, feature = "wasm-jit-tests"))]
 impl Hot {
     fn assert_matches(&self, r: &Region, k: u32, (lo, hi, _): (u32, u32, u64)) {
@@ -175,6 +182,7 @@ impl Hot {
         assert_eq!((self.bloom, self.lo, self.span), (r.bloom, r.lo, r.hi.wrapping_sub(r.lo)));
         assert!(self.pages[..self.npages as usize].iter().eq(r.pages.iter().filter(|&&(i, _)| i < lo || i >= hi)));
         assert_eq!((self.sites, self.nsites), (r.sites.as_ptr(), r.sites.len() as u32));
+        assert_eq!((self.loops, self.nloops), (r.loops.as_ptr(), r.loops.len() as u32));
         assert_eq!(self.counting, !r.short.is_empty() && r.lens[k as usize] > 1 && r.copies[k as usize] == 0);
     }
 }
@@ -561,41 +569,7 @@ pub unsafe fn run<B: Bus>(
     // A dispatch at a probed PC stays one block long, as the differential suite requires.
     let chain = cpu.boundary_bloom & emu_core::core::pc_bit(cpu.pc) == 0;
     let mut result = unsafe { run_inner(cc, code, cpu, bus, h, budget, entry, fm) };
-    // EX153: keep going inside this wrapper while nothing the dispatcher would look at can have
-    // changed: a plain END/LEFT exit, no interpreter helper ran, credit remains, and the next PC
-    // has a valid decoded entry with ready code that may start without a boundary check.
-    if chain {
-        let mut total = 0u32;
-        loop {
-            let exit = (result >> 16) & 7;
-            let sofar = total + (result & 0xffff);
-            if (exit != CODE_END && exit != CODE_LEFT) || sofar >= budget || cpu.blocks.observed
-                || cpu.jit_helped { break; }
-            let pc = cpu.pc;
-            if cpu.boundary_bloom & emu_core::core::pc_bit(pc) != 0 { break; }
-            let Some((ei, next)) = cpu.blocks.chain_target(pc, bus.page_versions()) else {
-                // EX171: a tiny block the emitter does not admit is interpreted right here when it is
-                // pure register/branch work, instead of ending the chain and costing two dispatches.
-                if crate::block::BRIDGE_CLASS != 0 && !cpu.price_control {
-                    if let Some((start, n)) = cpu.blocks.bridge_target(pc, bus.page_versions(), budget - sofar) {
-                        total = sofar;
-                        result = crate::block::bridge(cpu, bus, start, n);
-                        continue;
-                    }
-                }
-                break
-            };
-            let slot = cc.recs[next as usize].slot.get();
-            if slot == NONE || slot == 0 { break; }
-            total = sofar;
-            cpu.blocks.chain_ei = ei;
-            #[cfg(feature = "wasm-jit-profile")]
-            { let st = &cc.region_stats.ex153; st[11].set(st[11].get() + 1); }
-            // SAFETY: the entry is valid for the current code pages and its code is ready in this cache.
-            result = unsafe { run_inner(cc, next, cpu, bus, h, budget - total, 0, fm) };
-        }
-        result += total;
-    }
+    if chain { result = unsafe { chain_on(cc, cpu, bus, h, budget, result, fm) }; }
     #[cfg(feature = "wasm-jit-profile")]
     {
         let st = &cc.region_stats.ex153;
@@ -614,6 +588,124 @@ pub unsafe fn run<B: Bus>(
         }
     }
     result
+}
+
+/// EX153: keep going inside this wrapper while nothing the dispatcher would look at can have
+/// changed: a plain END/LEFT exit, no interpreter helper ran, credit remains, and the next PC
+/// has a valid decoded entry with ready code that may start without a boundary check.
+#[inline(always)]
+unsafe fn chain_on<B: Bus>(cc: &CodeCache, cpu: &mut Cpu, bus: &mut B, h: &Helpers, budget: u32, mut result: u32, fm: Option<FastMem>) -> u32 {
+    let mut total = 0u32;
+    loop {
+        let exit = (result >> 16) & 7;
+        let sofar = total + (result & 0xffff);
+        if (exit != CODE_END && exit != CODE_LEFT) || sofar >= budget || cpu.blocks.observed
+            || cpu.jit_helped { break; }
+        let pc = cpu.pc;
+        if cpu.boundary_bloom & emu_core::core::pc_bit(pc) != 0 { break; }
+        let Some((ei, next)) = cpu.blocks.chain_target(pc, bus.page_versions()) else {
+            // EX171: a tiny block the emitter does not admit is interpreted right here when it is
+            // pure register/branch work, instead of ending the chain and costing two dispatches.
+            if crate::block::BRIDGE_CLASS != 0 && !cpu.price_control {
+                if let Some((start, n)) = cpu.blocks.bridge_target(pc, bus.page_versions(), budget - sofar) {
+                    total = sofar;
+                    result = crate::block::bridge(cpu, bus, start, n);
+                    continue;
+                }
+            }
+            break
+        };
+        let slot = cc.recs[next as usize].slot.get();
+        if slot == NONE || slot == 0 { break; }
+        total = sofar;
+        cpu.blocks.chain_ei = ei;
+        #[cfg(feature = "wasm-jit-profile")]
+        { let st = &cc.region_stats.ex153; st[11].set(st[11].get() + 1); }
+        // SAFETY: the entry is valid for the current code pages and its code is ready in this cache.
+        result = unsafe { run_inner(cc, next, cpu, bus, h, budget - total, 0, fm) };
+    }
+    result + total
+}
+
+/// lane-s1: the dispatch a quantum-ending region exit left for this core, straight into that region
+/// at its recorded parameter, with the checks the Hot path makes for an entry there (live epochs,
+/// pages, probes, hardware loop, a whole chunk of credit), then the EX153 chain. The caller has
+/// checked interrupts, waiting and the PC. `None` (the memo is dropped): take the ordinary path.
+/// # Safety
+/// As for `run`.
+pub unsafe fn resume<B: Bus>(cc: &CodeCache, cpu: &mut Cpu, bus: &mut B, h: &Helpers, budget: u32, fm: Option<FastMem>) -> Option<u32> {
+    type Run<B> =
+        extern "C" fn(*mut Cpu, *mut B, *const Helpers, u32, u32, *const TlbEntry, *mut u32) -> u32;
+    let (_, code, param, epoch) = cpu.blocks.memo;
+    cpu.blocks.memo.0 = 1;
+    // SAFETY: the epoch proves `code` indexes the same record; no refill runs while this is read.
+    let hot = if epoch == cc.region_epoch.get() { unsafe { &*cc.recs[code as usize].hot.as_ptr() } } else { &Hot::NONE };
+    let pv = bus.page_versions();
+    // Hot facts stamped in this epoch describe the region the memo came from; a chunk-head entry
+    // needs credit for the whole chunk (at most MAX_LEN), a guarded copy cuts where credit ends.
+    // lane-s1l: a chunk head admits an active loop of the region's own, as the slow path does.
+    if hot.epoch != epoch || hot.fepoch != bus.stable_pages().2 || cpu.boundary_bloom & hot.bloom != 0
+        || (cpu.lcount != 0 && cpu.lend.wrapping_sub(hot.lo) <= hot.span && (param >> 16 != 0
+            // SAFETY: the epoch proves the owning region, and so this vector, is live.
+            || !unsafe { std::slice::from_raw_parts(hot.loops, hot.nloops as usize) }.contains(&(cpu.lend, cpu.lbeg))))
+        || (param >> 16 == 0 && budget < crate::block::MAX_LEN as u32)
+        || !hot.pages[..hot.npages as usize].iter().all(|&(i, v)| pv.get(i as usize).copied().unwrap_or(0) == v) {
+        #[cfg(feature = "wasm-jit-profile")]
+        { let st = &cc.region_stats.ex153; st[13].set(st[13].get() + 1); }
+        #[cfg(feature = "wasm-jit-tests")]
+        REGION_STATS[15].fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        return None;
+    }
+    // As after find_block: this dispatch consumes the lookup hints and may leave new ones.
+    let hints = (cpu.blocks.resume.2, cpu.blocks.alias_pc);
+    (cpu.blocks.resume.2, cpu.blocks.alias_pc) = (1, 1);
+    cpu.jit_helped = false;
+    cpu.blocks.chain_ei = NONE;
+    cpu.blocks.bridged = 0;
+    let (tlb, versions) = tables(fm);
+    let (slot, sites, nsites) = (hot.slot, hot.sites, hot.nsites);
+    // SAFETY: the epoch proves the region, its slot and its sites are live.
+    let f: Run<B> = unsafe { std::mem::transmute(slot as usize) };
+    let mut result = f(cpu, bus, h, budget.min(0xffff), param, tlb, versions);
+    // window or coprocessor state refused the region before it ran anything
+    if (result >> 16) & 7 == CODE_REJECT { (cpu.blocks.resume.2, cpu.blocks.alias_pc) = hints; return None; }
+    let sites = unsafe { std::slice::from_raw_parts(sites, nsites as usize) };
+    let short = private_exit(&mut result, budget, cpu, sites);
+    let site = sites[(result >> 19) as usize];
+    region_stats(cc, result, budget, Some(site));
+    if short { note_short(cc, code, slot, cpu.pc); }
+    bus.note_pc(site_pc(site));
+    crate::block::note_sequential(cpu, site_pc(site));
+    if site_resume(site) != NONE { cpu.blocks.memo = (cpu.pc, code, site_resume(site), epoch); }
+    #[cfg(feature = "wasm-jit-profile")]
+    { let st = &cc.region_stats.ex153; st[12].set(st[12].get() + 1); }
+    #[cfg(feature = "wasm-jit-tests")]
+    { REGION_STATS[14].fetch_add(1, std::sync::atomic::Ordering::Relaxed); if param >> 16 != 0 { REGION_STATS[13].fetch_add(1, std::sync::atomic::Ordering::Relaxed); } }
+    Some(unsafe { chain_on(cc, cpu, bus, h, budget, result & 0x7ffff, fm) })
+}
+
+/// lane-s1: keep a site's resume parameter only for a chunk this region owns in the coverage map,
+/// the region an ordinary dispatch there enters; elsewhere the memo would move execution into
+/// another region's code (measured: +12% generated bytes on fluidbox).
+fn own_resumes(r: &mut Region, owner: u32, covered: &HashMap<u32, (u32, u32)>) {
+    for site in &mut r.sites {
+        #[cfg(not(feature = "wasm-jit-profile"))]
+        let p = &mut site.1;
+        #[cfg(feature = "wasm-jit-profile")]
+        let p = &mut site.2;
+        if *p == NONE { continue; }
+        let k = if *p >> 16 == 0 { *p } else { r.copies.iter().position(|&c| c == *p & 0xffff).unwrap() as u32 };
+        if covered.get(&r.chunks[k as usize].pc) != Some(&(owner, k)) { *p = NONE; }
+    }
+}
+
+/// EX173 s1: a bus without fast memory gets a table where every entry is EMPTY instead of a
+/// null pointer, so generated accesses reject it with the range test they already run and no
+/// per-access null test is emitted. No probe can succeed, so `versions` is never dereferenced.
+#[inline(always)]
+fn tables(fm: Option<FastMem>) -> (*const TlbEntry, *mut u32) {
+    static NO_FAST_MEM: [TlbEntry; crate::bus::TLB_ENTRIES] = [TlbEntry::EMPTY; crate::bus::TLB_ENTRIES];
+    fm.map(|m| (m.tlb, m.page_ver)).unwrap_or((NO_FAST_MEM.as_ptr(), std::ptr::null_mut()))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -639,13 +731,7 @@ unsafe fn run_inner<B: Bus>(
     debug_assert!(h.cache.is_null(), "run_inner requires an undecorated helper table");
     #[cfg(feature = "wasm-cache-inline")]
     let h = if let Some(cache) = cache_view.as_ref() { hinted = Helpers { cache, ..*h }; &hinted } else { h };
-    // EX173 s1: a bus without fast memory gets a table where every entry is EMPTY instead of a
-    // null pointer, so generated accesses reject it with the range test they already run and no
-    // per-access null test is emitted. No probe can succeed, so `versions` is never dereferenced.
-    static NO_FAST_MEM: [TlbEntry; crate::bus::TLB_ENTRIES] = [TlbEntry::EMPTY; crate::bus::TLB_ENTRIES];
-    let (tlb, versions) = fm
-        .map(|m| (m.tlb, m.page_ver))
-        .unwrap_or((NO_FAST_MEM.as_ptr(), std::ptr::null_mut()));
+    let (tlb, versions) = tables(fm);
     let rec = &cc.recs[code as usize];
     if !cpu.blocks.observed {
         // EX136: the facts the checks below would fetch through the owning block, its region and
@@ -687,6 +773,7 @@ unsafe fn run_inner<B: Bus>(
                     // SAFETY: as for the region call below; the epoch proves slot and sites are live.
                     let (slot, sites, nsites) = (hot.slot, hot.sites, hot.nsites);
                     let param = if entry == 0 { hot.k } else { hot.copy | entry << 16 };
+                    let epoch = hot.epoch;
                     #[cfg(feature = "wasm-jit-tests")]
                     if entry != 0 { REGION_STATS[13].fetch_add(1, std::sync::atomic::Ordering::Relaxed); }
                     let f: Run<B> = unsafe { std::mem::transmute(slot as usize) };
@@ -704,6 +791,7 @@ unsafe fn run_inner<B: Bus>(
                     if let Some(site) = site {
                         bus.note_pc(site_pc(site));
                         crate::block::note_sequential(cpu, site_pc(site));
+                        if site_resume(site) != NONE { cpu.blocks.memo = (cpu.pc, code, site_resume(site), epoch); }
                         return result & 0x7ffff;
                     }
                     return run_block_body(cc, code, cpu, bus, h, budget, entry, tlb, versions);
@@ -741,7 +829,7 @@ unsafe fn run_inner<B: Bus>(
                 found
             } else if entry == 0 && b.region_tries.get() < REGION_TRIES {
                 b.region_tries.set(b.region_tries.get() + 1);
-                let formed = emitter::region::form(cpu, bus, b.pc, &b.instructions, b.fast).and_then(|f| {
+                let mut formed = emitter::region::form(cpu, bus, b.pc, &b.instructions, b.fast).and_then(|f| {
                     let (bytes, sites) = emitter::region::generate(&f.chunks, &f.pages, &f.loops, b.fast, None);
                     // SAFETY: as for ready(): the host copies and installs the module.
                     let slot = unsafe { host_jit_compile(bytes.as_ptr(), bytes.len()) };
@@ -752,11 +840,12 @@ unsafe fn run_inner<B: Bus>(
                         chunks: f.chunks, slot, bytes: bytes.len(), bloom: f.bloom, lo: f.lo, hi: f.hi, loops: f.loops, pages: f.pages, sites,
                     })
                 });
-                if let Some(r) = &formed {
+                if let Some(r) = &mut formed {
                     // Removal cannot invalidate a negative lookup; insertion can.
                     cc.coverage_epoch.set(cc.coverage_epoch.get().wrapping_add(1));
                     let mut covered = cc.covered.borrow_mut();
                     for (k, c) in r.chunks.iter().enumerate() { covered.entry(c.pc).or_insert((code, k as u32)); }
+                    own_resumes(r, code, &covered);
                     #[cfg(feature = "wasm-jit-profile")]
                     {
                         let st = &cc.region_stats;
@@ -805,7 +894,7 @@ unsafe fn run_inner<B: Bus>(
                     let mut npages = 0;
                     for &(i, v) in &r.pages { if i < lo || i >= hi { pages[npages] = (i, v); npages += 1; } }
                     rec.hot.set(Hot { epoch: cc.region_epoch.get(), bloom: r.bloom, slot: r.slot, k, len: r.lens[k as usize], lo: r.lo,
-                        span: r.hi.wrapping_sub(r.lo), pages, npages: npages as u32, nsites: r.sites.len() as u32, sites: r.sites.as_ptr(),
+                        span: r.hi.wrapping_sub(r.lo), pages, npages: npages as u32, nsites: r.sites.len() as u32, sites: r.sites.as_ptr(), loops: r.loops.as_ptr(), nloops: r.loops.len() as u32,
                         copy: r.copies[k as usize], fepoch, counting: !r.short.is_empty() && r.lens[k as usize] > 1 && r.copies[k as usize] == 0 });
                 }
                 if entry == 0
@@ -821,6 +910,7 @@ unsafe fn run_inner<B: Bus>(
                     #[cfg(any(debug_assertions, feature = "wasm-jit-tests"))]
                     unsafe { &*rec.hot.as_ptr() }.assert_matches(r, k, (lo, hi, fepoch));
                     let mut result = f(cpu, bus, h, budget.min(0xffff), k, tlb, versions);
+                    let epoch = cc.region_epoch.get();
                     let short = private_exit(&mut result, budget, cpu, &r.sites);
                     let site = if (result >> 16) & 7 != CODE_REJECT {
                         assert!(((result >> 19) as usize) < r.sites.len(), "region {:x}: result {result:#x} sites {}", rb.pc, r.sites.len());
@@ -836,6 +926,7 @@ unsafe fn run_inner<B: Bus>(
                     if let Some(site) = site {
                         bus.note_pc(site_pc(site));
                         crate::block::note_sequential(cpu, site_pc(site));
+                        if site_resume(site) != NONE { cpu.blocks.memo = (cpu.pc, code, site_resume(site), epoch); }
                         return result & 0x7ffff;
                     }
                 }
@@ -901,6 +992,7 @@ fn note_short(cc: &CodeCache, code: u32, slot: u32, target: u32) {
     if slot == 0 { return; }
     unsafe { host_jit_release(r.slot) };
     (r.slot, r.bytes, r.sites, r.copies) = (slot, bytes.len(), sites, copies);
+    own_resumes(r, owner, &cc.covered.borrow());
     #[cfg(feature = "wasm-jit-profile")]
     {
         let st = &cc.region_stats;
@@ -1014,6 +1106,15 @@ unsafe fn run_block_body<B: Bus>(cc: &CodeCache, code: u32, cpu: &mut Cpu, bus: 
     // again in run_block_inner. Regions never return CODE_CUT.
     if result >> 16 == CODE_CUT {
         debug_assert_eq!(cc.blocks[code as usize].pcs[offset], cpu.pc);
+        // lane-s1c: the next dispatch resumes here, which the Hot path takes into this chunk's
+        // guarded copy; the memo lets it go there directly (every other check is made at use).
+        // Not inside an active loop ending in the region: a copy resume is refused there.
+        // SAFETY: the only writer, the refill in run_inner, is not running.
+        let hot = unsafe { &*r.hot.as_ptr() };
+        if hot.epoch == cc.region_epoch.get() && hot.copy != 0 && offset != 0 && (offset as u32) < hot.len
+            && (cpu.lcount == 0 || cpu.lend.wrapping_sub(hot.lo) > hot.span) {
+            cpu.blocks.memo = (cpu.pc, code, hot.copy | (offset as u32) << 16, hot.epoch);
+        } else { cpu.blocks.memo.0 = 1; }
         result | ((offset as u32) << 19)
     } else { result }
 }

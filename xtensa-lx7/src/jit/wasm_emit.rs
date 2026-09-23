@@ -306,15 +306,23 @@ impl Gen {
         let site = match &mut self.region {
             Some(r) => {
                 #[cfg(not(feature = "wasm-jit-profile"))]
-                r.sites.push(self.last_pc);
+                r.sites.push((self.last_pc, NONE));
                 #[cfg(feature = "wasm-jit-profile")]
-                r.sites.push((self.last_pc, self.last_kind));
+                r.sites.push((self.last_pc, self.last_kind, NONE));
                 (r.sites.len() - 1) as u32
             }
             None => 0,
         };
         assert!(site < (1 << 13), "region exit site exceeds the result tag");
         (code << 16) | (site << 19)
+    }
+    /// lane-s1: the region parameter that resumes at the exit PC of the site just tagged.
+    fn resume_at(&mut self, param: u32) {
+        let site = self.region.as_mut().unwrap().sites.last_mut().unwrap();
+        #[cfg(not(feature = "wasm-jit-profile"))]
+        { site.1 = param; }
+        #[cfg(feature = "wasm-jit-profile")]
+        { site.2 = param; }
     }
     fn ret_value(&mut self, code: u32) {
         let tag = self.tag(code);
@@ -855,6 +863,9 @@ fn emit_body(
                     #[cfg(feature = "wasm-jit-profile")]
                     let kind = std::mem::replace(&mut g.last_kind, ExitKind::Budget);
                     let tag = g.tag(CODE_TAIL);
+                    let r = g.region.as_ref().unwrap();
+                    let copy = r.copies.as_ref().and_then(|c| c[r.current]).unwrap();
+                    g.resume_at(copy | (index as u32) << 16);
                     g.last_pc = pc0;
                     g.tag(CODE_TAIL);
                     g.last_pc = site;

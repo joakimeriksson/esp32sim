@@ -726,7 +726,84 @@ pub(super) fn regions() -> u32 {
     // tails-s2: and resume inside them.
     assert!(REGION_STATS[13].load(std::sync::atomic::Ordering::Relaxed) > 200, "too few resumes into guarded copies: {}", REGION_STATS[13].load(std::sync::atomic::Ordering::Relaxed));
     cases + 2 + prev_page_store() + forward_edges() + self_loops() + outside_loops() + jx_literal() + deferred_in_guarded_copy()
-        + resumed_head_copy() + head_recovery_long_pie()
+        + resumed_head_copy() + head_recovery_long_pie() + resume_memo()
+}
+
+/// lane-s1: a dispatch at the PC a quantum-ending region exit left enters that region directly.
+/// Whatever could change that entry in between (a store into its code page, a flush, a probe, a
+/// hardware loop, a timer deadline inside the quantum, a pending interrupt) must leave the result
+/// exactly the interpreter's; the store, flush, probe and loop must send it the ordinary way.
+fn resume_memo() -> u32 {
+    let mut p = Vec::new();
+    for _ in 0..3 { p.extend(asm::addi_n(3, 3, 1)); }  // 0 2 4   chunk 0
+    p.extend(asm::j(BASE + 6, BASE + 9));             // 6
+    for _ in 0..3 { p.extend(asm::addi_n(5, 5, 1)); }  // 9 11 13 chunk 1
+    p.extend(asm::j(BASE + 15, BASE));                // 15
+    fn turn(a: &mut Cpu, b: &mut Cpu, ra: &mut Ram, rb: &mut Ram, budget: u32) {
+        let (done, trap) = crate::block::run_block(b, rb, budget);
+        let mut oracle = None;
+        for _ in 0..done {
+            ra.note_pc(a.pc);
+            if let Err(t) = crate::step(a, ra) { oracle = Some(t); break; }
+        }
+        assert_eq!(trap, oracle, "memo: budget {budget}");
+        same(a, b);
+        if let Some(Trap::Interrupt(_)) = trap {
+            for c in [a, b] { c.pc = c.epc[1]; c.ps &= !ps::EXCM; c.interrupt = 0; c.ccompare[0] = 0; c.intenable = 0; }
+        }
+    }
+    let stat = |i: usize| REGION_STATS[i].load(std::sync::atomic::Ordering::Relaxed);
+    let (mut a, mut b) = (cpu(5), cpu(5));
+    let (mut ra, mut rb) = (Ram::new(true, false), Ram::new(true, false));
+    for r in [&mut ra, &mut rb] { r.ram.mem[..p.len()].copy_from_slice(&p); }
+    CONTEXT.with(|c| *c.borrow_mut() = "resume memo".into());
+    let (hits, tuned) = (stat(14), stat(12));
+    // Mixed credit: exits at chunk heads choose guarded copies, whose cuts then end quanta mid-chunk.
+    for t in 0..300 { turn(&mut a, &mut b, &mut ra, &mut rb, [64, 61, 50, 64, 23, 64][t % 6]); }
+    assert!(stat(12) > tuned, "memo: the region never chose a copy");
+    assert!(stat(14) > hits + 100, "memo: too few direct entries ({})", stat(14) - hits);
+    for kind in 0..6 {
+        let mut armed = false;
+        for t in 0..40 {
+            turn(&mut a, &mut b, &mut ra, &mut rb, [61, 64, 50][t % 3]);
+            // the loop case needs a chunk-head entry, the one kind that may admit a loop
+            if b.blocks.memo.0 == b.pc && (kind != 3 || b.blocks.memo.2 >> 16 == 0) { armed = true; break; }
+        }
+        assert!(armed, "memo: kind {kind} never armed");
+        let declined = stat(15);
+        match kind {
+            // addi.n a3,a3,1 at +2 becomes addi.n a3,a3,2: a new version of the region's page
+            0 => for r in [&mut ra, &mut rb] { r.write8(BASE + 2, 0x2b).unwrap(); },
+            1 => b.blocks.flush(),
+            2 => b.boundary_bloom = emu_core::core::pc_bit(b.pc),
+            // an active hardware loop, not the region's own, ending inside it after a fall-through
+            3 => for c in [&mut a, &mut b] { c.lcount = 1; c.lbeg = BASE; c.lend = BASE + 4; },
+            4 => for c in [&mut a, &mut b] { c.ccompare[0] = c.ccount.wrapping_add(3); c.intenable = 1 << 6; },
+            _ => for c in [&mut a, &mut b] { c.intenable = 1 << 6; c.interrupt = 1 << 6; },
+        }
+        for _ in 0..3 { turn(&mut a, &mut b, &mut ra, &mut rb, 64); }
+        if kind < 4 { assert!(stat(15) > declined, "memo: kind {kind} was not declined"); }
+        b.boundary_bloom = 0;
+        for c in [&mut a, &mut b] { c.lcount = 0; }
+    }
+    // lane-s1l: a quantum that ends exactly at the head of a loop body the region set up itself
+    // resumes there directly with that loop active, as the slow path admits it.
+    let mut p = asm::movi_n(4, 60);                   // 0
+    p.extend(asm::lp(8, BASE + 2, 4, BASE + 11));     // 2  loop a4, body 5..11
+    for r in [3, 5, 6] { p.extend(asm::addi_n(r, r, 1)); } // 5 7 9
+    p.extend(asm::j(BASE + 11, BASE));                // 11
+    let (mut a, mut b) = (cpu(6), cpu(6));
+    let (mut ra, mut rb) = (Ram::new(true, false), Ram::new(true, false));
+    for r in [&mut ra, &mut rb] { r.ram.mem[..p.len()].copy_from_slice(&p); }
+    CONTEXT.with(|c| *c.borrow_mut() = "resume memo in a loop".into());
+    let mut looped = 0;
+    for _ in 0..400 {
+        let (armed, hits) = (b.lcount != 0 && b.blocks.memo.0 == b.pc, stat(14));
+        turn(&mut a, &mut b, &mut ra, &mut rb, 63);
+        if armed && stat(14) > hits { looped += 1; }
+    }
+    assert!(looped > 20, "memo: too few direct entries inside the region's own loop ({looped})");
+    2
 }
 
 /// edge-s1: a head chunk no internal edge reaches. Its quanta end only in dispatches short of its
@@ -761,8 +838,11 @@ fn resumed_head_copy() -> u32 {
     c.pc = BASE;
     let a3 = c.get_ar(3);
     assert_eq!(crate::block::run_block(&mut c, &mut ram, 2), (2, None));
+    // lane-s1c: the own module's cut leaves the copy entry for the next dispatch
+    let (armed, hits) = (c.blocks.memo.0 == c.pc, stat(14));
     assert_eq!(crate::block::run_block(&mut c, &mut ram, 64), (64, None));
     assert_eq!(stat(13), resumes + 1, "resumed-head: the resume must enter the head's copy");
+    assert!(armed && stat(14) == hits + 1, "resumed-head: the resume after a cut must use the memo");
     // 66 instructions from the head: 9 passes of 7, then three more (a3 counts twice per pass).
     assert_eq!((c.pc, c.get_ar(3)), (BASE + 6, a3.wrapping_add(19)));
     // edge-s1r: a second window of resumes, now into chunk 1, adds its copy to the head's. Chunk 1
