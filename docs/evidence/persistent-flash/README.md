@@ -257,6 +257,12 @@ cargo test -p esp32sim --test flash_file                                       #
 cargo test -p esp32sim --test soc_contracts                                    # 6 passed
 cargo test -p esp-soc --lib flash                                              # 7 passed
 ```
+After merging main `9fdeb323` (merge `45992149`, plus the `--coproc` save and the signal docs), the
+tree at `04d4f5b0` with Rust 1.99.1: both Clippy runs clean (native and `wasm32` with `jit-tests`);
+`--include-ignored --skip external_` 1478 passed, 0 failed; `flash_file` 8, `soc_contracts` 7 (main's
+P4 CLIC test joins), `esp-soc` `flash` 7; the evidence privacy check passes. The 998 above is the
+branch before that merge.
+
 Goldens were not regenerated: nothing on a run without `--flash-file` changes, including the report line
 (`report` takes an `Option<Stop>` so an interrupted run can say so).
 
