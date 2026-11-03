@@ -403,10 +403,14 @@ fn run_cosim_on<R: esp32p4::Revision>(o: &Opts, spec: &cosim::CoprocSpec) {
     let prefix = o.console_prefix;
     let mut cs = cosim::CoSim::new(p4, c6, cfg);
     cs.c6.borrow_mut().faults.plan = spec.faults.clone();
+    // as in `run`: a run that saves the P4's flash has to survive a signal long enough to save it
+    let signal_poll = o.flash_file.is_some();
+    if signal_poll { interrupt::install(); }
     let t0 = std::time::Instant::now();
     let stdout = std::io::stdout();
     let mut stop = Stop::Halted;
     while cs.now_ns < end_ns {
+        if signal_poll && interrupt::pending() { break; }
         let step = (cs.now_ns + 1_000_000).min(end_ns);
         let r = cs.run_until(step);
         let mut out = stdout.lock();
@@ -421,7 +425,10 @@ fn run_cosim_on<R: esp32p4::Revision>(o: &Opts, spec: &cosim::CoprocSpec) {
         if let Err(s) = r { stop = s; break; }
     }
     let dt = t0.elapsed().as_secs_f64();
-    report(&mut cs.p4, o, Some(stop), dt);
+    let interrupted = signal_poll && interrupt::pending();
+    if interrupted { eprintln!("[emu] signal: stopping to write the flash image"); }
+    report(&mut cs.p4, o, (!interrupted).then_some(stop), dt);
+    save_flash(&cs.p4, o);
     let c = cs.c6.borrow();
     let st = &c.m.bus.periph.optional.sdio.stats;
     eprintln!("[c6] stop: {} — {} insns; ran {:.3}s of {:.3}s ({} cycles); {} exceptions, {} interrupts; {} power-ups by EN, {} chip resets",
