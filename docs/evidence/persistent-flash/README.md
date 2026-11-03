@@ -55,7 +55,7 @@ boot state every time.
   `read_flash`/`flash_len` contract in `cli/tests/soc_contracts.rs`. Both are hermetic: a hand-built C6
   app image that spins, no mask ROM, no firmware build.
 - `docs/cli.md` ("Persistent flash"), `docs/decisions.md` (four entries: flash is state, `0xff` padding,
-  rename not in-place, a handler can only set a flag).
+  rename not in-place, a handler sets a flag and the run loop polls it).
 
 ## Measurements
 

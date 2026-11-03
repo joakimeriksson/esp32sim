@@ -49,9 +49,9 @@ fn help(chip: &str, code: i32) -> ! {
 fn usage_error(message: &str) -> ! { eprintln!("{message}"); std::process::exit(2) }
 
 /// `SIGINT`/`SIGTERM` as a flag rather than a kill: a run that owns a persistent flash file
-/// (`--flash-file`) has to write it out before it leaves. The handler only sets the flag — nothing
-/// else is safe there — and the run loop polls it between chunks. A run without a flash file
-/// installs nothing and is killed exactly as before.
+/// (`--flash-file`) has to write it out before it leaves. The handler sets the flag and puts the
+/// default disposition back, both async-signal-safe, and the run loop polls the flag between chunks.
+/// A run without a flash file installs nothing and is killed exactly as before.
 #[cfg(unix)]
 mod interrupt {
     use std::sync::atomic::{AtomicBool, Ordering};

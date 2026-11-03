@@ -66,9 +66,10 @@ Things that cost real time to find out, recorded so they do not have to be found
 - **A flash file is written by rename, not in place.** A run that is killed mid-write would otherwise
   leave a half image that the next run boots from; the sequence is temporary file in the same directory →
   `sync_all` → `rename`. The rename is what makes the new image appear atomically.
-- **A signal handler can only set a flag; the run loop has to poll it.** `SIGINT`/`SIGTERM` on a run that
+- **A signal handler sets a flag; the run loop has to poll it.** `SIGINT`/`SIGTERM` on a run that
   owns a flash file must end at an instruction boundary, not inside a device update, so the handler stores
-  an `AtomicBool` (declare `signal(2)` directly — the workspace has no dependencies) and the run is split
+  an `AtomicBool` and puts the default disposition back, so that a second signal kills (both are
+  async-signal-safe; declare `signal(2)` directly — the workspace has no dependencies), and the run is split
   into ~16 M-instruction chunks in which the flag is read. A run without `--flash-file` keeps a single
   `Machine::run` call, so instruction counts and goldens are unchanged.
 

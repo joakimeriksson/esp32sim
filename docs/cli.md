@@ -59,10 +59,13 @@ exit: the next run starts from the same image again. `--flash-file F` makes the 
 - It is loaded at start when it already holds an image, so the run begins where the previous one ended.
 - It is written back at exit, after the report, and also when `SIGINT`/`SIGTERM` interrupts the run: the
   loop is split into chunks of 16 M instructions — about 0.2 s of emulated work at native speed — so a
-  signal is noticed within that grain, and a second signal kills the process as it would without a
-  handler. The report then says `interrupted by a signal`, and the exit status is 130. A run without
-  `--flash-file` is killed by a signal exactly as before. With `--web` the write happens when `run`
-  returns instead, so closing the page and letting the server exit is the clean way out of a web run.
+  signal is noticed within that grain, and a second signal of the same kind kills the process as it would
+  without a handler (`SIGINT` followed by `SIGTERM` is still handled, and saves). The report then says
+  `interrupted by a signal`, and the exit status is 130. A run without `--flash-file` is killed by a
+  signal exactly as before. A `--web` run uses the same loop: closing the page does not end it, and
+  Ctrl-C ends it with a save. `--coproc` saves the P4's flash the same way. Under
+  `--cooja` the file is written when the run ends, but no handler is installed, so a signal kills a Cooja
+  run without a save.
 - It is written atomically — a `.<name>.<pid>.tmp` file in the same directory, flushed and renamed over
   the target — so a killed run leaves the previous image, never half of one.
 - The file is exactly the configured flash size (`--flash-mb`). A longer file is refused (exit status 2);
