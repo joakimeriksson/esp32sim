@@ -32,6 +32,15 @@ adopts whatever you give it. The AP is WPA2-PSK when `psk=` is present and open 
 gateway with an immediate RST, so applications fail fast instead of hanging — useful when you want a
 run to be reproducible and offline.
 
+`--hostfwd tcp:127.0.0.1:8080-:80` (repeatable) listens on the host and completes a TCP handshake
+with a server in the guest: a browser on the Mac opens `http://127.0.0.1:8080/` and the station
+sees a SYN from 10.0.2.2 to 10.0.2.15:80. Empty host address binds loopback; empty guest address is
+the station. The listener is bound when the run starts; SYNs go out once the station's MAC is known
+(association). A connection is not held until the guest's server listens: if the SYN arrives before
+the firmware calls `listen()`, the guest answers with RST and the host client sees a reset (QEMU's
+`hostfwd` behaves the same), so connect once the firmware is listening, or retry. Such a refusal
+counts as failed in the `[emu] nat:` report line. Requires `--wifi` and `--net nat`.
+
 The same `--wifi` and `--net` work on the **ESP32-C6** (`esp32sim-c6`): the access point and the
 network are the same code, the MAC model is the C6's own ([wifi-c6-plan.md](wifi-c6-plan.md)). What
 has been tried is one station on one open or WPA2 network; `examples/c6-wifi-station` has the full command. The C3 also supports `--wifi` with open/WPA2 station mode and the same network backend.
@@ -43,8 +52,10 @@ has been tried is one station on one open or WPA2 network; `examples/c6-wifi-sta
   answer comes back looking as if 10.0.2.3 produced it. With `--net none`, the built-in responder
   answers every A query with 10.0.2.3 itself, so lookups succeed and the connection is then refused.
 - **Time** — with NAT, SNTP requests reach the real server the firmware asked for. With `--net none`,
-  the built-in SNTP server answers from the host clock (stratum 1), so firmware that waits for time
-  still gets it in the first seconds.
+  the built-in SNTP server answers (stratum 1) so firmware that waits for time still gets it in the
+  first seconds: the network's clock plus emulated time since power-on. `--net none,epoch=S` fixes
+  that clock (seconds since 1970) and makes such a run the same every time; without it the host's
+  clock at the first answer sets it.
 - **ICMP echo** — answered inside the emulator for any address, including internet ones; pings never
   leave the host, so they are not a reachability test.
 - **TCP/UDP out** — real connections to real hosts: an HTTP API, a Home Assistant instance on the
@@ -74,8 +85,7 @@ has been tried is one station on one open or WPA2 network; `examples/c6-wifi-sta
 
 ## Known limits
 
-- **Inbound connections** are not forwarded yet, so a server inside the guest (a firmware web UI)
-  cannot be opened from the host.
+- **UDP inbound** is not forwarded. `--hostfwd` is TCP only; multicast and mDNS still do not cross.
 - **Multicast and mDNS** do not cross the NAT: `something.local` will not resolve, and Home
   Assistant / ESP-IDF discovery protocols will not see anything. Use IP addresses.
 - **UDP reply peers** must match the destination IP and port of the outgoing datagram. The

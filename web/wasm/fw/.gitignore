@@ -1,6 +1,8 @@
+# Classic PSRAM IDF fixtures and NOTICE/licences are public (docs/fixtures/classic-psram-idf).
 # C3/C6 crypto-tls fixtures and their NOTICE/runtime licence texts are public (examples/crypto-tls).
+# Classic camera fixtures live under esp32/tests/fixtures, not the Pages asset tree.
 # Firmware for local wasm demos is not committed — except the public demos below, whose code is
-# ours (hello_world from ESP-IDF for the classic ESP32, S3, C3 and C6, the Touch-LCD-4B panel built with
+# ours (hello_world from ESP-IDF for the classic ESP32, S3, C3, C6 and P4, the Touch-LCD-4B panel built with
 # placeholder secrets, and the Atech Pocket Synth) and the manifests that describe them; public/ also
 # holds pocket-tank's bootloader, partition table and app (MIT, with its LICENSE), whose model is fetched,
 # and the WiFi station built for the classic ESP32, S3, C3 and C6 (the WiFi goldens' input, with its NOTICE).
@@ -17,11 +19,16 @@
 !hello.json
 !c3-hello.json
 !c6-hello.json
+!p4-hello.json
+!p4-c6-hosted.json
+!p4-lcd35-synth.json
 !c6-energy-scan.json
 !c6-contiki.json
 !c6-contiki-net.json
 !c6-rpl-net.json
 !tdisplay-prices.json
+!tdisplay-schematik.json
+# Schematik's Arduino starter images, linked licences and LGPL rebuild sources live in public/.
 !linux.json
 !linux-login.json
 !linux-login.txt
@@ -34,3 +41,35 @@
 !atech-sid.json
 !public/
 !public/*
+# The P4 example images the goldens boot, and the P4 + C6 demo (p4-c6-hosted.json): pinned and
+# fetched by tools/fetch-p4-firmware.sh, so a fetched copy is never committed by accident.
+public/p4-hello-smp-bootloader.bin
+public/p4-hello-smp_world.bin
+public/p4-hello-rev3-bootloader.bin
+public/p4-hello-rev3_world.bin
+public/p4-hello-rev3-smp-bootloader.bin
+public/p4-hello-rev3-smp_world.bin
+public/p4-sdcard-bootloader.bin
+public/p4-sdcard.bin
+public/p4-sdcard-rev3-bootloader.bin
+public/p4-sdcard-rev3.bin
+public/p4-sdsectors-bootloader.bin
+public/p4-sdsectors.bin
+public/p4-usbmsc-bootloader.bin
+public/p4-usbmsc-ptable.bin
+public/p4-usbmsc.bin
+public/c6-hosted-bootloader.bin
+public/c6-hosted-ptable.bin
+public/c6-hosted-otadata.bin
+public/c6-hosted-slave.bin
+public/p4-scintilla-lcd35-bootloader.bin
+public/p4-scintilla-lcd35-ptable.bin
+public/p4-scintilla-lcd35.bin
+public/c6-hosted-rawtp-slave.bin
+public/p4-hosted-bootloader.bin
+public/p4-hosted-ptable.bin
+public/p4-hosted-station.bin
+public/p4-hosted-rev3-bootloader.bin
+public/p4-hosted-rev3-station.bin
+public/p4-hosted-rawtp-rx.bin
+public/p4-hosted-rawtp-tx.bin

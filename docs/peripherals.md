@@ -22,7 +22,7 @@ ESP32-S3 peripheral MMIO reads and writes must be aligned 32-bit accesses. Byte 
 | USB Serial/JTAG | 0x60038000 | full | TX/RX FIFOs, interrupts (IDF console and Arduino `Serial`) |
 | I2C0/I2C1 | 0x60013000/27000 | full | IDF `i2c_master` command list, FIFOs, NACK/END/COMPLETE interrupts |
 | GDMA | 0x6003F000 | partial | out-channels (I2S0/I2S1) and in-channels (CAM); memory-to-memory channel pairs (MEM_TRANS_EN) for the transaction-based `esp_async_memcpy` of IDF v5.4, which starts both channels for each copy: the copy lands in one round, IN descriptors written back (length, owner, SUC_EOF), IN_SUC_EOF_DES_ADDR set, a CPU-owned descriptor parks that side, faults and runaway walks raise DSCR_ERR. The IDF v5.1 ring driver kicks each copy with RESTART, which this model rewinds to the LINK address, so it copies once and stalls; descriptor walk, DONE/EOF/TOTAL_EOF |
-| I2S0 / I2S1 | 0x6000F000/2D000 | partial | TX: frame rate derived from the clock tree (source, integer + fractional MCLK divider, BCK divider, slot width and count), 16-bit stereo capture to PCM; RX — |
+| I2S0 / I2S1 | 0x6000F000/2D000 | partial | TX: frame rate derived from the clock tree (source, integer + fractional MCLK divider, BCK divider, slot width and count), 16-bit stereo capture to PCM; RX: standard mode, 16/24/32-bit mono or stereo from host PCM (`--i2s-tone`, `SocBus::i2s_input`) into GDMA, PDM-to-PCM on I2S0 ([cli.md](cli.md#i2s-microphone-input)) |
 | RMT | 0x60016000 | partial | TX channels: symbol RAM, clock divider, end marker, done interrupt; RX — |
 | LCD_CAM | 0x60041000 | partial | camera engine (start/reset, VSYNC, frame pump from GDMA RX) and the LCD RGB/DPI engine (timing/clock registers, frame pump into GDMA TX, LCD_VSYNC); i8080 LCD mode — |
 | SHA | 0x6003B000 | full | SHA-1/224/256/384/512, block and GDMA modes (bootloader image verification, TLS certificate digests) |
@@ -31,15 +31,23 @@ ESP32-S3 peripheral MMIO reads and writes must be aligned 32-bit accesses. Byte 
 | WiFi MAC | 0x60033000 | partial | TX queues, RX descriptor ring, interrupt events, TSF, filters — enough for scan/auth/assoc/data with the unmodified blob (docs/wifi-plan.md) |
 | RNG | 0x6003B000 | full | random words |
 | regi2c / I2C_MST (PLL, RF analog) | 0x6000E000 | stub | reads back what was written; BBPLL and pkdet calibration-done bits set |
-| GP-SPI2 master | 0x60024000 | partial | CPU-driven command/address/data phases; board MISO responses; bounded GDMA TX descriptor completion; RX DMA is not modeled |
+| GP-SPI2 / GP-SPI3 master | 0x60024000 / 0x60025000 | partial | CPU-driven command/address/data phases; board MISO responses (host 2 or 3 to the board model); bounded GDMA TX descriptor completion (SPI2 on GDMA trigger 0, SPI3 on trigger 1; the experimental wire timing is SPI2's only); RX DMA is not modeled |
 | PCNT | 0x60017000 | full | 4 units × 2 channels, pos/neg/ctrl modes via the GPIO matrix, limits/thresholds/zero events, counter reset/pause |
 | LEDC | 0x60019000 | partial | timers, fractional dividers, static duty latching, interrupts and GPIO-matrix output; hardware fades — |
 | MCPWM0/1 | 0x6001E000/2C000 | partial | up-counting timers, compare latching, simple generator actions, interrupts and GPIO-matrix output; sync, capture, fault, carrier and dead time — |
-| SPI3, TWAI, SDMMC, USB-OTG | — | — | |
+| TWAI | — | — | |
+| USB-OTG | — | — | the DWC2 core is modelled in `esp-periph/src/usb_otg.rs` and wired on the ESP32-P4 only (esp32p4.md, "USB") |
+| SDMMC | 0x60028000 | — | the DesignWare host and SD card are modelled in `esp-periph/src/sdmmc.rs` and wired on the ESP32-P4 only (esp32p4.md, "SD card") |
 | WiFi baseband/PHY/RF, BT | — | — | radio registers are faked, not modelled; see wifi-plan.md |
 
 CPU-side: full base ISA, FPU (single precision), MAC16, booleans, PIE (all esp-dl/esp-dsp
 ops; FFT/GPIO/s32 corners decode but are not executed).
+
+## Board I2C devices
+
+[M5PM1 and M5IOE1](m5-i2c.md) implement the StopWatch firmware's register
+accesses, battery inputs, observable shutdown request and OLED/touch power-reset
+signals. They are reusable devices, not a registered StopWatch board.
 
 ## Host ADC inputs
 
@@ -52,6 +60,7 @@ The last setter wins. Raw input bypasses the voltage curve and attenuation. Coun
 ADC pad and `None` for other pins. Generation starts at zero, advances once when a
 conversion completes, and wraps at `u64::MAX`. Reading a register or changing the input
 does not advance it. Host sources and observations survive a software reboot.
+`--adc PIN` prints that snapshot at exit; `--adc-raw PIN=COUNT` is `adc_set_raw`.
 
 | Chip | ADC1 pads | ADC2 pads | One-shot controller |
 | --- | --- | --- | --- |

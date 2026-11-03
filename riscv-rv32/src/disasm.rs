@@ -7,17 +7,30 @@ pub const XREG: [&str; 32] = [
     "a6", "a7", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6",
 ];
 
+pub const FREG: [&str; 32] = [
+    "ft0", "ft1", "ft2", "ft3", "ft4", "ft5", "ft6", "ft7", "fs0", "fs1", "fa0", "fa1", "fa2", "fa3", "fa4", "fa5",
+    "fa6", "fa7", "fs2", "fs3", "fs4", "fs5", "fs6", "fs7", "fs8", "fs9", "fs10", "fs11", "ft8", "ft9", "ft10", "ft11",
+];
+
 fn r(n: u8) -> &'static str { XREG[(n & 31) as usize] }
+fn fr(n: u8) -> &'static str { FREG[(n & 31) as usize] }
+
+/// objdump appends the rounding mode as an operand unless it is `dyn`.
+fn rm(i: &Insn) -> &'static str {
+    match i.imm { 0 => ",rne", 1 => ",rtz", 2 => ",rdn", 3 => ",rup", 4 => ",rmm", 7 => "", _ => ",unknown" }
+}
 
 /// GNU objdump prints a bare CSR name when it knows one, else the number in hex.
 fn csr_name(n: u32) -> String {
     let s = match n {
         0x000 => "ustatus", 0x004 => "uie", 0x005 => "utvec", 0x040 => "uscratch", 0x041 => "uepc", 0x042 => "ucause", 0x043 => "utval", 0x044 => "uip",
+        0x001 => "fflags", 0x002 => "frm", 0x003 => "fcsr",
         0x302 => "medeleg", 0x303 => "mideleg", 0x306 => "mcounteren", 0x320 => "mcountinhibit",
         0x300 => "mstatus", 0x301 => "misa", 0x304 => "mie", 0x305 => "mtvec",
         0x340 => "mscratch", 0x341 => "mepc", 0x342 => "mcause", 0x343 => "mtval", 0x344 => "mip",
         0x7a0 => "tselect", 0x7a1 => "tdata1", 0x7a2 => "tdata2", 0x7a3 => "tdata3", 0x7a5 => "tcontrol",
         0xb00 => "mcycle", 0xb02 => "minstret", 0xb80 => "mcycleh", 0xb82 => "minstreth",
+        0xc00 => "cycle", 0xc01 => "time", 0xc02 => "instret", 0xc80 => "cycleh", 0xc81 => "timeh", 0xc82 => "instreth",
         0xf11 => "mvendorid", 0xf12 => "marchid", 0xf13 => "mimpid", 0xf14 => "mhartid",
         0x3a0..=0x3a3 => return format!("pmpcfg{}", n - 0x3a0),
         0x3b0..=0x3bf => return format!("pmpaddr{}", n - 0x3b0),
@@ -28,8 +41,23 @@ fn csr_name(n: u32) -> String {
 
 /// objdump (and GNU as) print a compressed instruction as the 32-bit instruction it expands to,
 /// so that is what `format` does; `format_compressed` gives the literal `c.*` form instead.
-pub fn format(i: &Insn) -> String {
+/// This is the text for a core without F (the C3 and C6).
+pub fn format(i: &Insn) -> String { format_for(0, i) }
+
+/// As `format`, for a core whose `misa` is `misa`. With F, objdump prints the FP CSR accesses as
+/// their F aliases (`frrm`, `fscsr`, ...).
+pub fn format_for(misa: u32, i: &Insn) -> String {
     use Op::*;
+    if misa & crate::state::MISA_F != 0 && matches!(i.op, Csrrw | Csrrs | Csrrwi) && (1..=3).contains(&i.imm) {
+        let (read, write, write_imm) = match i.imm { 1 => ("frflags", "fsflags", Some("fsflagsi")), 2 => ("frrm", "fsrm", Some("fsrmi")), _ => ("frcsr", "fscsr", None) };
+        match i.op {
+            Csrrs if i.rs1 == 0 => return format!("{}\t{}", read, r(i.rd)),
+            Csrrw if i.rd == 0 => return format!("{}\t{}", write, r(i.rs1)),
+            Csrrw => return format!("{}\t{},{}", write, r(i.rd), r(i.rs1)),
+            Csrrwi => if let Some(n) = write_imm { return format!("{}\t{},{}", n, r(i.rd), i.rs1); },
+            _ => {}
+        }
+    }
     // HINT encodings have no 32-bit alias to print, so objdump keeps them in their `c.*` form
     if matches!(i.comp, Comp::Li | Comp::Slli | Comp::Mv | Comp::Add | Comp::Lui) && i.rd == 0 { return format_compressed(i); }
     if i.comp == Comp::Nop && i.imm != 0 { return format_compressed(i); }
@@ -107,7 +135,11 @@ pub fn format(i: &Insn) -> String {
             let sfx = match i.imm & 3 { 3 => ".aqrl", 2 => ".aq", 1 => ".rl", _ => "" };
             if i.op == LrW { format!("{}{}\t{},({})", n, sfx, rd, rs1) } else { format!("{}{}\t{},{},({})", n, sfx, rd, rs2, rs1) }
         }
-        Fence => m("fence"),
+        Fence => {
+            let (fm, pred, succ) = ((i.imm >> 8) & 0xf, (i.imm >> 4) & 0xf, i.imm & 0xf);
+            let set = |s: i32| if s == 0 { "unknown".to_string() } else { "iorw".chars().enumerate().filter(|(k, _)| s & (8 >> k) != 0).map(|(_, c)| c).collect() };
+            if fm == 8 && pred == 3 && succ == 3 { m("fence.tso") } else if pred == 0xf && succ == 0xf { m("fence") } else { format!("fence\t{},{}", set(pred), set(succ)) }
+        }
         FenceI => m("fence.i"),
         Ecall => m("ecall"),
         Ebreak => m("ebreak"),
@@ -118,6 +150,8 @@ pub fn format(i: &Insn) -> String {
             let imm5 = i.rs1;
             match i.op {
                 Csrrw if i.rd == 0 => format!("csrw\t{},{}", n, rs1),
+                // GNU objdump's Zicntr aliases: rdcycle, rdtime, rdinstret and their high halves
+                Csrrs if i.rs1 == 0 && matches!(i.imm, 0xc00..=0xc02 | 0xc80..=0xc82) => format!("rd{}\t{}", n, rd),
                 Csrrs if i.rs1 == 0 => format!("csrr\t{},{}", rd, n),
                 Csrrs if i.rd == 0 => format!("csrs\t{},{}", n, rs1),
                 Csrrc if i.rd == 0 => format!("csrc\t{},{}", n, rs1),
@@ -132,6 +166,33 @@ pub fn format(i: &Insn) -> String {
                 _ => format!("csrrci\t{},{},{}", rd, n, imm5),
             }
         }
+        Flw => format!("flw\t{},{}({})", fr(i.rd), i.imm, rs1),
+        Fsw => format!("fsw\t{},{}({})", fr(i.rs2), i.imm, rs1),
+        FmaddS | FmsubS | FnmsubS | FnmaddS => {
+            let n = match i.op { FmaddS => "fmadd.s", FmsubS => "fmsub.s", FnmsubS => "fnmsub.s", _ => "fnmadd.s" };
+            format!("{}\t{},{},{},{}{}", n, fr(i.rd), fr(i.rs1), fr(i.rs2), fr(i.rs3()), rm(i))
+        }
+        FaddS | FsubS | FmulS | FdivS => {
+            let n = match i.op { FaddS => "fadd.s", FsubS => "fsub.s", FmulS => "fmul.s", _ => "fdiv.s" };
+            format!("{}\t{},{},{}{}", n, fr(i.rd), fr(i.rs1), fr(i.rs2), rm(i))
+        }
+        FsqrtS => format!("fsqrt.s\t{},{}{}", fr(i.rd), fr(i.rs1), rm(i)),
+        FsgnjS | FsgnjnS | FsgnjxS => {
+            let (n, alias) = match i.op { FsgnjS => ("fsgnj.s", "fmv.s"), FsgnjnS => ("fsgnjn.s", "fneg.s"), _ => ("fsgnjx.s", "fabs.s") };
+            if i.rs1 == i.rs2 { format!("{}\t{},{}", alias, fr(i.rd), fr(i.rs1)) } else { format!("{}\t{},{},{}", n, fr(i.rd), fr(i.rs1), fr(i.rs2)) }
+        }
+        FminS => format!("fmin.s\t{},{},{}", fr(i.rd), fr(i.rs1), fr(i.rs2)),
+        FmaxS => format!("fmax.s\t{},{},{}", fr(i.rd), fr(i.rs1), fr(i.rs2)),
+        FcvtWS => format!("fcvt.w.s\t{},{}{}", rd, fr(i.rs1), rm(i)),
+        FcvtWuS => format!("fcvt.wu.s\t{},{}{}", rd, fr(i.rs1), rm(i)),
+        FcvtSW => format!("fcvt.s.w\t{},{}{}", fr(i.rd), rs1, rm(i)),
+        FcvtSWu => format!("fcvt.s.wu\t{},{}{}", fr(i.rd), rs1, rm(i)),
+        FmvXW => format!("fmv.x.w\t{},{}", rd, fr(i.rs1)),
+        FmvWX => format!("fmv.w.x\t{},{}", fr(i.rd), rs1),
+        FeqS => format!("feq.s\t{},{},{}", rd, fr(i.rs1), fr(i.rs2)),
+        FltS => format!("flt.s\t{},{},{}", rd, fr(i.rs1), fr(i.rs2)),
+        FleS => format!("fle.s\t{},{},{}", rd, fr(i.rs1), fr(i.rs2)),
+        FclassS => format!("fclass.s\t{},{}", rd, fr(i.rs1)),
     }
 }
 
@@ -165,6 +226,10 @@ pub fn format_compressed(i: &Insn) -> String {
         Comp::Jalr => format!("c.jalr\t{}", rs1),
         Comp::Add => format!("c.add\t{},{}", rd, rs2),
         Comp::Swsp => format!("c.swsp\t{},{}(sp)", rs2, i.imm),
+        Comp::Flw => format!("c.flw\t{},{}({})", fr(i.rd), i.imm, rs1),
+        Comp::Fsw => format!("c.fsw\t{},{}({})", fr(i.rs2), i.imm, rs1),
+        Comp::Flwsp => format!("c.flwsp\t{},{}(sp)", fr(i.rd), i.imm),
+        Comp::Fswsp => format!("c.fswsp\t{},{}(sp)", fr(i.rs2), i.imm),
         Comp::None => format(i),
     }
 }

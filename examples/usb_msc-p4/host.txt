@@ -1,0 +1,35 @@
+# A host on the example's USB port (--usb-host): enumerate, take the card, write a file in a
+# vfat-like order, give the card back (eject), poll it while the example's app owns it, and take
+# it again once the console has exposed it.
+attach
+msc
+ready 100 5000
+capacity
+mode-sense
+prevent
+read 0 1
+write 131056 16 a5
+verify 131056 16 a5
+mount
+ls
+# a 1 MiB file in 64 KiB chunks, one due every 16 ms: a fixed-rate writer at 4.1 MB/s
+fat-write FILE0001.BIN 1048576 64 16
+fat-read FILE0001.BIN
+sync
+allow
+# START STOP UNIT with LoEj: esp_tinyusb hands the card to the application
+eject
+poll 100 500
+ready 100 5000
+# Linux revalidates a medium it saw change: the capacity and the write protection again
+capacity
+mode-sense
+mount
+ls
+fat-read README.MD
+suspend
+idle 50
+resume
+read 0 1
+detach
+idle 100

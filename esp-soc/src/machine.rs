@@ -304,7 +304,7 @@ impl<S: Soc> Machine<S> {
     }
 
     /// Cold boot from the mask ROM reset vector (needs ROM + flash image with bootloader).
-    pub fn boot_rom(&mut self) { self.cores[0].reset(); }
+    pub fn boot_rom(&mut self) { S::reset_core(&mut self.cores[0], 0); }
 
     /// Chip reset (software / watchdog): cores back to the reset vector, digital peripherals
     /// re-initialised; SRAM, RTC memories, efuses and the RTC-domain registers survive, as on
@@ -313,6 +313,8 @@ impl<S: Soc> Machine<S> {
         // where core 0 was when the reset took effect (the C6 ROM prints it as `Saved PC`)
         let pc = self.cores[0].pc();
         self.bus.note_pc(pc);
+        let pcs: Vec<u32> = self.cores.iter().map(|c| c.pc()).collect();
+        self.bus.note_core_pcs(&pcs);
         let cause = self.bus.reboot(self.mac);
         for (i, c) in self.cores.iter_mut().enumerate() { S::reset_core_with_bus(c, &mut self.bus, i); if i > 0 { self.core_held[i] = true; } }
         self.reboots += 1;
@@ -373,6 +375,7 @@ impl<S: Soc> Machine<S> {
         if !*self.bus.irq_dirty() { return; }
         *self.bus.irq_dirty() = false;
         if self.bus.refresh_irq() { self.present_irqs(); }
+        S::peripheral_event(&self.bus, &mut self.cores);
     }
     fn present_irqs(&mut self) {
         let mut irqs = [<S::Core as Core>::Irq::default(); 4];
@@ -399,6 +402,7 @@ impl<S: Soc> Machine<S> {
         // Core::run returns a trap without its faulting PC. One-instruction fragments make
         // the entry PC exact while retaining callbacks for combined BLOCK/TRAP observers.
         let budget = if self.probes.contains(Wants::TRAP_PC) { budget.min(1) } else { budget };
+        S::select_core(&mut self.bus, core);
         let cpu = &mut self.cores[core];
         let pc = cpu.pc();
         // stubs and probes are block boundaries, so testing them at block start is exact
@@ -443,7 +447,7 @@ impl<S: Soc> Machine<S> {
         match trap {
             None => {}
             Some(Trap::Exception(_)) => { self.exceptions += 1; }
-            Some(Trap::Interrupt(irq)) => { self.interrupts += 1; self.irq_hist[core][(irq & 31) as usize] += 1; }
+            Some(Trap::Interrupt(irq)) => { self.interrupts += 1; self.irq_hist[core][(irq & 31) as usize] += 1; S::interrupt_taken(&mut self.bus, core, irq); }
             Some(Trap::Unimplemented(p, raw)) => { if self.dbg.stop_on_unimplemented { return Some(Stop::Unimplemented(p, raw)); } }
             Some(Trap::Simcall) => return Some(Stop::Simcall(pc)),
             Some(Trap::Ebreak(p)) => { self.exceptions += 1; if !self.cores[core].has_trap_handler() { return Some(Stop::Ebreak(p)); } }
@@ -471,6 +475,7 @@ impl<S: Soc> Machine<S> {
     /// Execute one instruction on `core` with every per-instruction observer; returns Some(stop) if the run must end.
     #[inline]
     fn step_core(&mut self, core: usize) -> Option<Stop> {
+        S::select_core(&mut self.bus, core);
         let cpu = &mut self.cores[core];
         let pc = cpu.pc();
         if self.probe_bloom & pc_bit(pc) != 0 && !cpu.waiting() {
@@ -842,6 +847,7 @@ impl<S: Soc> Machine<S> {
                     // lane-s2b: a start the core prepared runs without step_blocks' stub/probe test (the
                     // memo never names a boundary PC and batches run without observers).
                     let pc = self.cores[i].pc();
+                    S::select_core(&mut self.bus, i);
                     let (used, stop) = match self.cores[i].run_prepared(&mut self.bus, left) {
                         Some((used, trap)) => { self.bb_stats[7] += 1; self.finish_step(i, pc, used, trap) }
                         None => self.step_blocks(i, left),
@@ -992,6 +998,7 @@ impl<S: Soc> Machine<S> {
         if *self.bus.irq_dirty() || ticked {
             *self.bus.irq_dirty() = false;
             if self.bus.refresh_irq() { self.present_irqs(); }
+            S::peripheral_event(&self.bus, &mut self.cores);
         }
         let script_stopped = self.after_round_rest();
         self.observe_round();

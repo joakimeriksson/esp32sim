@@ -52,6 +52,9 @@ pub trait Soc: 'static {
     const CORES: usize;
     /// How far time jumps when every core sleeps (at most; deadlines and limits cut it).
     const IDLE_CHUNK: u64;
+    /// Whether a run boots from the mask ROM and shows UART0 unless told otherwise; the others
+    /// default to `--boot app` and both consoles.
+    const ROM_BOOT_DEFAULT: bool = Self::CORES == 1;
     /// Symbols, in order of preference, that start the ROM's RAM-initialiser table.
     const ROM_DATA_TABLE: &'static [&'static str];
     /// Symbols, in order of preference, that end it.
@@ -71,10 +74,27 @@ pub trait Soc: 'static {
     fn boot_core(core: &mut Self::Core, entry: u32);
     /// The interrupt input of every core, from the bus's current source state.
     fn irqs(bus: &Self::Bus, out: &mut [<Self::Core as Core>::Irq]);
+    /// Cold peripheral-change boundary, after interrupt presentation. A chip that powers
+    /// its CPUs off can park them here without adding a sleep poll to instruction dispatch.
+    #[inline]
+    fn peripheral_event(_bus: &Self::Bus, _cores: &mut [Self::Core]) {}
     /// Optional function-entry substitutions, resolved from a guest ELF by the chip.
     fn function_hooks(_bus: &Self::Bus) -> &[u32] { &[] }
     fn function_hook(_core: &mut Self::Core, _bus: &mut Self::Bus) -> bool { false }
     fn core_state(_bus: &Self::Bus, _core: usize) -> CoreState { CoreState::Running }
+    /// Core `core` took interrupt `irq` (the number its `Trap::Interrupt` carries): the place for
+    /// what the interrupt controller does on acceptance, such as clearing an edge-triggered
+    /// pending bit.
+    #[inline(always)]
+    fn interrupt_taken(_bus: &mut Self::Bus, _core: usize, _irq: u32) {}
+    /// The machine is about to run core `core`: the place for a bus that decodes core-local
+    /// addresses to learn whose they are.
+    #[inline(always)]
+    fn select_core(_bus: &mut Self::Bus, _core: usize) {}
+    /// Refuse a bootloader or application image (an `esp_image_header_t` first) this model cannot
+    /// run, such as one built for another silicon revision; the error completes "the image ...".
+    /// The front ends call it for the images they load, before the first instruction.
+    fn check_image(_image: &[u8]) -> Result<(), String> { Ok(()) }
 }
 
 /// Programmed GPIO state, not the resolved electrical level or peripheral-matrix output.
@@ -100,6 +120,8 @@ pub trait SocBus: Bus {
     fn ble_enabled(&self) -> bool { false }
     fn ble_pending_commands(&self) -> usize { 0 }
     fn ble_command(&mut self, _command: &str) -> Result<(), String> { Err("BLE is not enabled".into()) }
+    /// The Bluetooth devices around the station (`--ble-nearby`) the virtual controller's scans report.
+    fn ble_nearby(&mut self, _list: Vec<crate::ble::peer::Nearby>) -> Result<(), String> { Err("BLE is not enabled".into()) }
     /// Put a virtual access point (`--wifi`) and the network behind it, with `nat` to the host if
     /// given, on the air the chip's WiFi MAC hears, logging as the bus's debug flags say. They
     /// survive a guest reboot. A second call replaces them and restarts the link's queues, pacing
@@ -145,6 +167,9 @@ pub trait SocBus: Bus {
     fn flash_len(&self) -> usize;
     /// Map and copy the app image at flash `app_off` as the bootloader would; returns the entry point.
     fn boot_app(&mut self, app_off: usize) -> Result<u32, String>;
+    /// Where each core was when a chip reset took effect, just before `reboot` (a chip that records
+    /// it for its ROM, as the P4's ASSIST_DEBUG does, keeps it).
+    fn note_core_pcs(&mut self, _pcs: &[u32]) {}
     /// Chip reset: re-create the digital peripherals, keep what survives on silicon. Returns the cause.
     fn reboot(&mut self, mac: [u8; 6]) -> u32;
     fn sw_reset(&self) -> bool;
@@ -213,6 +238,14 @@ pub trait SocBus: Bus {
     fn set_reset_cause(&mut self, cause: u32);
     /// Chip-specific end-of-run statistics (audio, WiFi, crypto, DMA engines).
     fn report(&self) -> String { String::new() }
+    /// Put an SD card holding `image` in the board's SD socket, in place of the one there; says
+    /// where it went.
+    fn attach_sd_card(&mut self, _image: Box<dyn esp_periph::sdmmc::SdStore>, _config: esp_periph::sdmmc::SdCardConfig) -> Result<String, String> { Err("this chip has no SD card host".into()) }
+    /// Plug a USB host into the chip's USB-OTG device port, in place of one there; host software
+    /// (`crate::usb_host`) drives it through `usb_link`. Unpowered until it asks for VBUS.
+    fn attach_usb_host(&mut self, _timing: esp_periph::usb_otg::UsbTiming) -> Result<(), String> { Err("this chip has no USB-OTG device port".into()) }
+    /// The cable `attach_usb_host` plugged in.
+    fn usb_link(&mut self) -> Option<&mut esp_periph::usb_otg::UsbLink> { None }
 }
 
 /// Attach and synchronize the shared host source bank without adding device-tick work.

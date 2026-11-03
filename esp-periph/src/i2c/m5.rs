@@ -1,0 +1,116 @@
+//! M5Stack StopWatch's I2C register subset, not analog power or sleep timing simulation.
+//! Register sources: M5PM1 Chip User Manual v1.9, pp. 4–10, 12–18, 23;
+//! M5IOE1 Chip User Manual, sections III and IV (links and wiring in docs/m5-i2c.md).
+use super::{I2cDevice, Reg8Device};
+use std::sync::{Arc, Mutex};
+
+/// Host inputs and a latched shutdown request, shared with the board after I2C attachment.
+#[derive(Debug)]
+pub struct M5pm1State {
+    pub battery_mv: u16,
+    pub charging: bool,
+    pub power_off_requested: bool,
+}
+
+impl Default for M5pm1State {
+    fn default() -> Self {
+        Self { battery_mv: 3900, charging: false, power_off_requested: false }
+    }
+}
+
+pub struct M5pm1 {
+    registers: Reg8Device,
+    state: Arc<Mutex<M5pm1State>>,
+}
+
+impl M5pm1 {
+    pub const ADDRESS: u8 = 0x6e;
+
+    pub fn new(state: Arc<Mutex<M5pm1State>>) -> Self {
+        state.lock().expect("M5PM1 state mutex poisoned").power_off_requested = false;
+        Self {
+            registers: Reg8Device::new("m5pm1", &[
+                (0x00, 0x50), (0x01, 0x20), (0x02, 0x05), (0x03, 0x06),
+                (0x06, 0x17), (0x08, 0x40), (0x13, 0x1f), (0x49, 0x2a),
+            ]),
+            state,
+        }
+    }
+}
+
+impl I2cDevice for M5pm1 {
+    fn start(&mut self, read: bool) -> bool { self.registers.start(read) }
+
+    fn write(&mut self, byte: u8) -> bool {
+        if !self.registers.first {
+            let reg = self.registers.ptr;
+            if matches!(reg, 0x00..=0x03 | 0x12 | 0x22..=0x23) {
+                self.registers.ptr = reg.wrapping_add(1);
+                return true;
+            }
+            if reg == 0x0c && byte == 0xa1 {
+                self.state.lock().expect("M5PM1 state mutex poisoned").power_off_requested = true;
+            }
+        }
+        self.registers.write(byte)
+    }
+
+    fn read(&mut self) -> u8 {
+        let state = self.state.lock().expect("M5PM1 state mutex poisoned");
+        self.registers.regs[0x12] = (self.registers.regs[0x12] & !4) | (u8::from(!state.charging) << 2);
+        [self.registers.regs[0x22], self.registers.regs[0x23]] = state.battery_mv.to_le_bytes();
+        self.registers.read()
+    }
+}
+
+/// Driven-high StopWatch signals. Input or released open-drain pins are treated as low;
+/// external pulls and electrical behavior are not modeled.
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct M5ioe1State {
+    pub oled_rail: bool,
+    pub oled_reset_high: bool,
+    pub touch_reset_high: bool,
+}
+
+pub struct M5ioe1 {
+    registers: Reg8Device,
+    state: Arc<Mutex<M5ioe1State>>,
+}
+
+impl M5ioe1 {
+    pub const ADDRESS: u8 = 0x4f;
+
+    /// UID is a board-supplied synthetic identity, not a fixed M5IOE1 chip ID.
+    pub fn new(state: Arc<Mutex<M5ioe1State>>, uid: u16) -> Self {
+        let [lo, hi] = uid.to_le_bytes();
+        *state.lock().expect("M5IOE1 state mutex poisoned") = M5ioe1State::default();
+        Self {
+            registers: Reg8Device::new("m5ioe1", &[
+                (0x00, lo), (0x01, hi), (0x02, b'A'), (0x13, 0xff), (0x14, 0x3f),
+            ]),
+            state,
+        }
+    }
+}
+
+impl I2cDevice for M5ioe1 {
+    fn start(&mut self, read: bool) -> bool { self.registers.start(read) }
+
+    fn write(&mut self, byte: u8) -> bool {
+        if !self.registers.first && self.registers.ptr <= 0x02 {
+            self.registers.ptr += 1;
+            return true;
+        }
+        let ack = self.registers.write(byte);
+        let regs = &self.registers.regs;
+        let high = regs[0x03] & regs[0x05] & !regs[0x13];
+        *self.state.lock().expect("M5IOE1 state mutex poisoned") = M5ioe1State {
+            oled_rail: high & 0x80 != 0,
+            oled_reset_high: high & 0x10 != 0,
+            touch_reset_high: high & 0x08 != 0,
+        };
+        ack
+    }
+
+    fn read(&mut self) -> u8 { self.registers.read() }
+}

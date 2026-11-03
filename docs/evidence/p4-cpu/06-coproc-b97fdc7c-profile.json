@@ -1,0 +1,130 @@
+{
+ "workload": "c6-hello, 90 emulated seconds; 4 s of `sample` at 1 ms from 1 s in",
+ "tool": "macOS /usr/bin/sample, \"Sort by top of stack\"",
+ "redaction": "only function names and sample counts are kept; the binary paths, process ids and the report header are dropped",
+ "builds": {
+  "main": {
+   "total_samples": 2821,
+   "top": [
+    [
+     "<esp32c6::bus::SocBus as emu_core::bus::Bus>::tick",
+     984
+    ],
+    [
+     "<esp32c6::bus::SocBus as esp_soc::soc::SocBus>::next_deadline",
+     894
+    ],
+    [
+     "<esp_soc::machine::Machine<esp32c6::soc::C6>>::run_unmodeled::<false>",
+     266
+    ],
+    [
+     "<esp32c6::bus::SocBus>::deliver_board_events",
+     141
+    ],
+    [
+     "<esp_periph::systimer::Systimer as esp_periph::device::Device>::tick",
+     131
+    ],
+    [
+     "<esp_soc::machine::Machine<esp32c6::soc::C6>>::after_round",
+     114
+    ],
+    [
+     "<esp_periph::timg::TimerGroup as esp_periph::device::Device>::tick",
+     108
+    ],
+    [
+     "<esp_periph::rmt::Rmt>::tick",
+     73
+    ],
+    [
+     "riscv_rv32::exec::step_outcome::<esp32c6::bus::SocBus>",
+     38
+    ],
+    [
+     "riscv_rv32::decode::decode",
+     26
+    ],
+    [
+     "<esp_soc::board::NoBoard as esp_soc::board::BoardModel>::next_deadline",
+     20
+    ],
+    [
+     "<esp32c6::bus::SocBus as emu_core::bus::Bus>::fetch",
+     17
+    ],
+    [
+     "<esp32c6::bus::SocBus as esp_soc::soc::SocBus>::refresh_irq",
+     9
+    ]
+   ]
+  },
+  "branch": {
+   "total_samples": 2765,
+   "top": [
+    [
+     "<esp32c6::bus::SocBus as emu_core::bus::Bus>::tick",
+     918
+    ],
+    [
+     "<esp32c6::bus::SocBus as esp_soc::soc::SocBus>::next_deadline",
+     916
+    ],
+    [
+     "<esp_soc::machine::Machine<esp32c6::soc::C6>>::run_unmodeled::<false>",
+     246
+    ],
+    [
+     "<esp32c6::bus::SocBus>::deliver_board_events",
+     137
+    ],
+    [
+     "<esp_periph::systimer::Systimer as esp_periph::device::Device>::tick",
+     121
+    ],
+    [
+     "<esp_periph::rmt::Rmt>::tick",
+     111
+    ],
+    [
+     "<esp_soc::machine::Machine<esp32c6::soc::C6>>::after_round",
+     101
+    ],
+    [
+     "<esp_periph::timg::TimerGroup as esp_periph::device::Device>::tick",
+     85
+    ],
+    [
+     "riscv_rv32::exec::step_outcome::<esp32c6::bus::SocBus>",
+     51
+    ],
+    [
+     "<esp_soc::board::NoBoard as esp_soc::board::BoardModel>::next_deadline",
+     21
+    ],
+    [
+     "<esp32c6::bus::SocBus as emu_core::bus::Bus>::fetch",
+     17
+    ],
+    [
+     "riscv_rv32::decode::decode_compressed",
+     14
+    ],
+    [
+     "riscv_rv32::decode::decode32",
+     13
+    ],
+    [
+     "<esp32c6::bus::SocBus as emu_core::bus::Bus>::read32",
+     8
+    ],
+    [
+     "<esp32c6::bus::SocBus as esp_soc::soc::SocBus>::refresh_irq",
+     6
+    ]
+   ]
+  }
+ },
+ "symbols": "demangled with rustc-demangle (alternate form, without crate hashes)"
+}

@@ -1,10 +1,15 @@
-//! Differential decoder test: every instruction in objdump's disassembly of the C3 and C6 mask
-//! ROMs and of real firmware for each must decode to the same mnemonic and operands.
+//! Differential decoder test: every instruction in objdump's disassembly of the C3, C6 and P4 mask
+//! ROMs and of real firmware for each must decode to the same mnemonic and operands, and every word
+//! objdump cannot decode (`.insn`) must decode as illegal.
 //! The checked-in corpus (`tests/corpus/*.dis`, sampled from a real app and the mask ROM) runs
-//! every time; `RISCV_DIS_FILES=/path/rom.dis:/path/app.dis` runs the ignored full-size test.
+//! every time; `RISCV_DIS_FILES=/path/rom.dis:/path/app.dis` runs the ignored full-size test, and
+//! `RISCV_P4_DIS_FILES` the same for listings of P4 (RV32IMAFC) code. The lists are split as
+//! `PATH` is (`std::env::split_paths`: `:`, or `;` on Windows, where `:` is in every path).
 use std::collections::BTreeMap;
-use riscv_rv32::decode::decode;
+use std::path::{Path, PathBuf};
+use riscv_rv32::decode::{decode, decode_for, Op};
 use riscv_rv32::disasm;
+use riscv_rv32::state::{MISA_RV32IMAC, MISA_RV32IMAFC};
 
 fn norm_num(t: &str) -> Option<i64> {
     let t = t.trim();
@@ -22,35 +27,58 @@ fn same_operand(mine: &str, theirs: &str) -> bool {
     }
 }
 
-/// Every instruction in the listings must decode to objdump's mnemonic and operands. Returns the case count.
-fn check(files: &str) -> usize {
-    let (mut total, mut bad) = (0usize, 0usize);
-    let mut by_mnemonic: BTreeMap<String, (usize, usize, String)> = BTreeMap::new();
-    for file in files.split(':') {
-        let text = std::fs::read_to_string(file).unwrap_or_else(|e| panic!("{}: {}", file, e));
-        for line in text.lines() {
-            // "40000000:\t0000006f          \tj\t40000000 <_start>"
-            let l = line.trim_start();
-            let Some((addr_s, rest)) = l.split_once(":\t") else { continue };
-            let Ok(addr) = u32::from_str_radix(addr_s.trim(), 16) else { continue };
-            let Some((hex, text)) = rest.split_once('\t') else { continue };
-            let hex = hex.trim();
-            if hex.is_empty() || !hex.chars().all(|c| c.is_ascii_hexdigit()) { continue; }
-            let Ok(word) = u32::from_str_radix(hex, 16) else { continue };
-            let len = hex.len() / 2;
-            if len != 2 && len != 4 { continue; }
-            // objdump appends " <sym+0x..>" and "# 0x.. <sym>" comments — not part of the operands
-            let mut t = text.trim();
-            if let Some(p) = t.find(" <") { t = &t[..p]; }
-            if let Some(p) = t.find(" #") { t = &t[..p]; }
-            if let Some(p) = t.find("  ") { t = &t[..p]; }
-            let theirs = t.trim();
-            if theirs.is_empty() || theirs.starts_with('.') { continue; }
+/// One instruction line of an objdump listing: address, bytes, length and objdump's text.
+struct Line<'a> { addr: u32, hex: &'a str, bytes: [u8; 4], len: usize, theirs: &'a str }
 
-            let mut bytes = [0u8; 4];
-            for (i, byte) in bytes.iter_mut().enumerate().take(len) { *byte = ((word >> (8 * i)) & 0xff) as u8; }
-            let insn = decode(addr, bytes);
-            let mine = disasm::format(&insn);
+fn lines(text: &str) -> impl Iterator<Item = Line<'_>> {
+    text.lines().filter_map(|line| {
+        // "40000000:\t0000006f          \tj\t40000000 <_start>"
+        let l = line.trim_start();
+        let (addr_s, rest) = l.split_once(":\t")?;
+        let addr = u32::from_str_radix(addr_s.trim(), 16).ok()?;
+        let (hex, text) = rest.split_once('\t')?;
+        let hex = hex.trim();
+        if hex.is_empty() || !hex.chars().all(|c| c.is_ascii_hexdigit()) { return None; }
+        let word = u32::from_str_radix(hex, 16).ok()?;
+        let len = hex.len() / 2;
+        if len != 2 && len != 4 { return None; }
+        // objdump appends " <sym+0x..>" and "# 0x.. <sym>" comments — not part of the operands
+        let mut t = text.trim();
+        if let Some(p) = t.find(" <") { t = &t[..p]; }
+        if let Some(p) = t.find(" #") { t = &t[..p]; }
+        if let Some(p) = t.find("  ") { t = &t[..p]; }
+        let mut bytes = [0u8; 4];
+        for (i, byte) in bytes.iter_mut().enumerate().take(len) { *byte = ((word >> (8 * i)) & 0xff) as u8; }
+        Some(Line { addr, hex, bytes, len, theirs: t.trim() })
+    })
+}
+
+fn read(file: &Path) -> String { std::fs::read_to_string(file).unwrap_or_else(|e| panic!("{}: {}", file.display(), e)) }
+
+/// Every instruction in the listings must decode, for a core whose `misa` is `misa`, to objdump's
+/// mnemonic and operands, and every `.insn` word objdump could not decode must be illegal. Xesppie
+/// (`esp.*`) is not modelled and is counted, not compared. Returns the case count.
+fn check(files: &[PathBuf], misa: u32) -> usize {
+    let (mut total, mut bad, mut unknown, mut xesppie) = (0usize, 0usize, 0usize, 0usize);
+    let mut by_mnemonic: BTreeMap<String, (usize, usize, String)> = BTreeMap::new();
+    for file in files {
+        let text = read(file);
+        for Line { addr, hex, bytes, len, theirs } in lines(&text) {
+            if theirs.is_empty() { continue; }
+            if theirs.starts_with("esp.") { xesppie += 1; continue; }
+            let insn = decode_for(misa, addr, bytes);
+            if theirs.starts_with(".insn") {
+                unknown += 1;
+                let e = by_mnemonic.entry(".insn".to_string()).or_insert((0, 0, String::new()));
+                e.0 += 1;
+                if !insn.is_illegal() || insn.len as usize != len {
+                    bad += 1; e.1 += 1;
+                    if e.2.is_empty() { e.2 = format!("{:08x} {:>8}  objdump={:?}  ours={:?}", addr, hex, theirs, disasm::format_for(misa, &insn)); }
+                }
+                continue;
+            }
+            if theirs.starts_with('.') { continue; }
+            let mine = disasm::format_for(misa, &insn);
             total += 1;
 
             let (tm, to) = theirs.split_once(char::is_whitespace).unwrap_or((theirs, ""));
@@ -72,28 +100,83 @@ fn check(files: &str) -> usize {
     if bad > 0 {
         let mut worst: Vec<_> = by_mnemonic.iter().filter(|(_, v)| v.1 > 0).collect();
         worst.sort_by_key(|(_, v)| std::cmp::Reverse(v.1));
-        let mut msg = format!("{}/{} instructions mismatched\n", bad, total);
+        let mut msg = format!("{}/{} instructions mismatched ({} .insn words)\n", bad, total, unknown);
         for (m, (n, b, ex)) in worst.iter().take(15) {
             msg.push_str(&format!("  {:<12} {:>6}/{:<6}  {}\n", m, b, n, ex));
         }
         panic!("{}", msg);
     }
-    eprintln!("decoder: {} instructions, 0 mismatches", total);
+    let f = by_mnemonic.iter().filter(|(m, _)| is_f_text(m)).map(|(_, v)| v.0).sum::<usize>();
+    eprintln!("decoder: {} instructions ({} F), 0 mismatches; {} .insn words illegal; {} Xesppie skipped", total, f, unknown, xesppie);
     total
+}
+
+/// objdump's mnemonics for the F instructions and the FP CSR aliases.
+fn is_f_text(m: &str) -> bool {
+    m.starts_with('f') && !m.starts_with("fence")
+}
+
+const C3_C6: &[&str] = &["rom.dis", "hello_world.dis", "c6-rom.dis", "c6-hello_world.dis"];
+const P4: &[&str] = &["p4-rom.dis", "p4-idf.dis", "rv32f.dis"];
+
+fn corpus(names: &[&str]) -> Vec<PathBuf> {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/corpus");
+    names.iter().map(|n| dir.join(n)).collect()
+}
+
+/// The files a `*_DIS_FILES` variable lists.
+fn listed(var: &str) -> Vec<PathBuf> {
+    let list = std::env::var_os(var).unwrap_or_else(|| panic!("{var}=/path/rom.dis:/path/app.dis is required for this test"));
+    std::env::split_paths(&list).collect()
 }
 
 /// Hermetic: the sampled corpora checked in next to this test (see the headers for provenance).
 #[test]
 fn decoder_matches_corpus() {
-    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/corpus");
-    let n = check(&format!("{0}/rom.dis:{0}/hello_world.dis:{0}/c6-rom.dis:{0}/c6-hello_world.dis", dir));
+    let n = check(&corpus(C3_C6), 0);
     assert!(n >= 14000, "only {} corpus cases — the corpus files are incomplete", n);
+}
+
+/// The P4 corpora decoded as RV32IMAFC: the P4 mask ROM, ESP-IDF's P4 libraries and every F
+/// encoding form assembled from `rv32f.S`.
+#[test]
+fn p4_decoder_matches_corpus() {
+    let n = check(&corpus(P4), MISA_RV32IMAFC);
+    assert!(n >= 8900, "only {} corpus cases — the corpus files are incomplete", n);
+}
+
+/// The C3 and C6 decode the P4 corpora exactly as before F existed: every F instruction is
+/// illegal with its raw bits, and everything else decodes the same with or without F.
+#[test]
+fn cores_without_f_reject_every_f_instruction() {
+    let mut f = 0;
+    for file in [corpus(P4), corpus(C3_C6)].concat() {
+        let text = read(&file);
+        for l in lines(&text) {
+            let with_f = decode_for(MISA_RV32IMAFC, l.addr, l.bytes);
+            for plain in [decode(l.addr, l.bytes), decode_for(MISA_RV32IMAC, l.addr, l.bytes)] {
+                if with_f.op.is_f() {
+                    assert_eq!((plain.op, plain.raw, plain.len), (Op::Illegal, with_f.raw, with_f.len), "{:08x} {}", l.addr, l.theirs);
+                } else {
+                    assert_eq!(plain, with_f, "{:08x} {}", l.addr, l.theirs);
+                }
+            }
+            f += with_f.op.is_f() as usize;
+        }
+    }
+    assert!(f > 2000, "only {} F instructions in the P4 corpora", f);
 }
 
 /// The full listings of whatever `RISCV_DIS_FILES` points at.
 #[test]
 #[ignore = "set RISCV_DIS_FILES=/path/rom.dis:/path/app.dis (riscv32-esp-elf-objdump -d)"]
 fn external_decoder_matches_objdump() {
-    let files = std::env::var("RISCV_DIS_FILES").expect("RISCV_DIS_FILES=/path/rom.dis:/path/app.dis is required for this test");
-    check(&files);
+    check(&listed("RISCV_DIS_FILES"), 0);
+}
+
+/// The same for listings of P4 code, decoded as RV32IMAFC.
+#[test]
+#[ignore = "set RISCV_P4_DIS_FILES=/path/p4rom.dis:/path/app.dis (riscv32-esp-elf-objdump -d)"]
+fn external_p4_decoder_matches_objdump() {
+    check(&listed("RISCV_P4_DIS_FILES"), MISA_RV32IMAFC);
 }

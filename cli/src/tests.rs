@@ -1,6 +1,20 @@
 use super::*;
 
 #[test]
+fn stopwatch_memory_defaults_preserve_other_boards_and_explicit_overrides() {
+    for (board, flash, psram) in [("stopwatch", 16, 8), ("waveshare-amoled18-v2", 8, 2)] {
+        let options = parse(&["esp32sim".into(), "--board".into(), board.into()], "esp32s3");
+        let machine = setup_s3(&options);
+        assert_eq!(machine.bus.flash.len(), flash << 20);
+        assert_eq!(machine.bus.psram.len(), psram << 20);
+    }
+    let options = parse(&["esp32sim".into(), "--board".into(), "stopwatch".into(), "--flash-mb".into(), "8".into(), "--psram-mb".into(), "2".into()], "esp32s3");
+    let machine = setup_s3(&options);
+    assert_eq!(machine.bus.flash.len(), 8 << 20);
+    assert_eq!(machine.bus.psram.len(), 2 << 20);
+}
+
+#[test]
 fn ble_is_opt_in_and_requires_a_supported_adapter_and_symbols() {
     assert!(!parse(&["esp32sim".into()], "esp32s3").ble);
     assert!(parse(&["esp32sim".into(), "--ble".into()], "esp32s3").ble);
@@ -138,6 +152,30 @@ fn ble_scripts_validate_commands_and_require_enable_at_parse_time() {
 fn pwm_pins_are_observation_options() {
     let o = parse(&["esp32sim".into(), "--pwm".into(), "4".into(), "--pwm".into(), "21".into()], "s3");
     assert_eq!(o.pwm_pins, [4, 21]);
+}
+
+#[test]
+fn adc_pins_and_raw_counts_are_host_options() {
+    use emu_core::Bus;
+    let o = parse(&["esp32sim".into(), "--adc".into(), "1".into(), "--adc".into(), "20".into(),
+        "--adc-raw".into(), "1=1234".into(), "--adc-raw".into(), "20=4095".into()], "s3");
+    assert_eq!(o.adc_pins, [1, 20]);
+    assert_eq!(o.adc_raw, [(1, 1234), (20, 4095)]);
+    let mut m = setup_s3(&o);
+    apply_adc_raw(&mut m, &o.adc_raw);
+    m.bus.write32(0x6000_880c, 1 << 19).unwrap();
+    m.bus.write32(0x6000_880c, (1 << 19) | (1 << 17)).unwrap();
+    let s = m.bus.adc_observation(1).unwrap();
+    assert_eq!(s.raw, 1234);
+    assert_eq!(s.generation, 1);
+}
+
+#[test]
+fn hostfwd_is_repeatable_and_kept_with_wifi() {
+    let o = parse(&["esp32sim".into(), "--wifi".into(), "ssid=demo".into(),
+        "--hostfwd".into(), "tcp:127.0.0.1:0-:80".into(),
+        "--hostfwd".into(), "tcp::0-:443".into()], "s3");
+    assert_eq!(o.hostfwd, ["tcp:127.0.0.1:0-:80", "tcp::0-:443"]);
 }
 
 #[test]

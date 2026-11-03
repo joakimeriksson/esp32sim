@@ -30,6 +30,29 @@ form for coding agents, plus the conventions for experiments and evidence.
 - Say what was compared with silicon and what was derived from another chip's model. Code copied
   from another chip keeps none of that chip's "verified on silicon" notes.
 
+## Code style
+
+The code is dense by design: a register map should fit on a screen. Match the file you are in.
+
+- **No rustfmt.** The tree isn't formatted with it, and running it on a whole file rewrites
+  hundreds of lines and buries the actual change. Format only the lines you write, the way their
+  neighbours look. Clippy with warnings denied is the only enforced lint.
+- **Short things stay on one line**: a constructor, a one-expression method, a few related fields,
+  several short `match` arms. Long logic gets its own lines.
+- **A register block is a `match off` on hex offsets** in `read` and `write`, with unmodelled
+  offsets falling through to `RegRam` (see [docs/adding.md](docs/adding.md)). Name the struct after the
+  block and its fields after the IDF register fields (`int_ena`, `int_raw`), so one search finds
+  both.
+- **Each file opens with a one-line `//!`** saying what it models. Comments say why: what the
+  firmware relies on, what silicon does, and the header and IDF version behind it. Don't restate
+  the code.
+- **The guest must not be able to crash the emulator.** Values from registers, descriptors or DMA
+  lengths are clamped or turned into the error the hardware would report (a short SHA DMA chain
+  raises `OUT_DSCR_ERR` in `esp-periph/src/sha.rs`), never an `unwrap` or an index panic.
+- **Tests go in a `#[cfg(test)] mod tests` at the end of the file**, or in a sibling `tests.rs`
+  once they outgrow it (`esp32s3/src/bus/tests.rs`). Tests that boot firmware go in a `tests/`
+  directory; the golden-output tests are in `cli/tests/goldens.rs`.
+
 ## Checks to run before pushing
 
 CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) installs the newest stable Rust on every
@@ -37,15 +60,16 @@ run, so update first: `rustup update stable`, plus `rustup target add wasm32-unk
 for the WebAssembly steps. A lint that a recent Clippy adds fails CI even when
 an older toolchain passes.
 
-The tests that boot firmware need the ESP32-S3, C3 and C6 mask ROM ELFs. They ship with ESP-IDF
-(`~/.espressif/tools/esp-rom-elfs/`); without it, `tools/fetch-demo-assets.sh --no-linux` fetches
-them into `web/wasm/fw/`.
+The tests that boot firmware need the mask ROM ELFs of all five chips and the ESP32-P4 example
+images; the wasm test also boots the MicroPython image. `tools/fetch-demo-assets.sh --no-linux`
+fetches all of them into `web/wasm/fw/`. The ROMs ESP-IDF 5.x installs
+(`~/.espressif/tools/esp-rom-elfs/`, release 20241011) lack the P4 rev ≥ 3 one.
 
 ```sh
 cargo clippy --workspace --all-targets -- -D warnings
 cargo clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings
-ESP32SIM_ROM_DIR=web/wasm/fw cargo test --release --workspace -- --include-ignored --skip external_
-tools/wasm-build.sh && node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel
+ESP32SIM_ROM_DIR=$PWD/web/wasm/fw cargo test --release --workspace -- --include-ignored --skip external_
+tools/wasm-build.sh && node tools/wasm-test.mjs hello c3-hello c6-hello p4-hello p4-c6-hosted p4-lcd35-synth c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel tdisplay-prices tdisplay-schematik
 node tools/check-evidence-privacy.mjs
 ```
 

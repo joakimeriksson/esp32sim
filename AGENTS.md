@@ -8,6 +8,7 @@
 - In the pull request, list the checks you ran and their results.
 - Register, bit, interrupt-source and clock values cite the Espressif header and its ESP-IDF version, checked against the version the firmware uses (Arduino-ESP32 2.x = IDF 4.4, 3.x = IDF 5.x); say where versions differ. Copied code keeps no "verified on silicon" notes from another chip.
 - Code not in use costs nothing: with a feature flag off, instruction counts and console output are unchanged. After touching the bus, `device_set!`, interrupt routing or per-tick work, compare median CPU time against main on the hello demos (and pocket-tank for the S3 core) with identical instruction counts; CONTRIBUTING.md has the command.
+- Code style: see "Code style" in CONTRIBUTING.md. Never run rustfmt on whole files (the tree isn't rustfmt-formatted); match the dense style of the file you edit, and never let guest-controlled values panic the emulator.
 - Before adding a shared piece (a register block such as IO_MUX, a `device_set!` entry, a `Board` method), check open pull requests that touch the same files; build on the one that adds it rather than adding a copy.
 
 # Maintaining pull requests

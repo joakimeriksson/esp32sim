@@ -44,6 +44,15 @@ pub struct SpiMem {
     /// (components/spi_flash/spi_flash_chip_mxic_opi.c:320-345, v5.5.5). A reset command
     /// (RSTEN, RST) clears it.
     pub flash_cr2: u8,
+    // Only the classic adapter opts into phase-aware quad control. Other chips retain
+    // their existing quad/octal behavior. Appended: no new state ahead of hot fields.
+    classic_quad: Option<ClassicQuad>,
+}
+
+#[derive(Default)]
+struct ClassicQuad {
+    qpi: bool,
+    reset_enabled: bool,
 }
 
 /// MR2[2:0], the density code of an AP Memory octal PSRAM for an array of `bytes`: 001 32 Mbit,
@@ -70,7 +79,15 @@ pub fn flash_jedec(octal: bool, bytes: usize) -> [u8; 3] {
 }
 
 impl SpiMem {
-    pub fn new(is_spi1: bool) -> Self { SpiMem { has_psram: true, addr_msb_aligned: false, regs: RegRam::new(), dirty: Vec::new(), w: [0; 16], pending_cmd: 0, status: 0x200, jedec: [0x20, 0x40, 0x17], is_spi1, log: false , psram_mr: [0x09, 0x0d, 0x8b, 0x00, 0x20, 0, 0, 0, 0x03], octal_flash: false, flash_cr2: 0 } }
+    pub fn new(is_spi1: bool) -> Self {
+        let mut s = SpiMem { has_psram: true, addr_msb_aligned: false, regs: RegRam::new(), dirty: Vec::new(), w: [0; 16], pending_cmd: 0, status: 0x200, jedec: [0x20, 0x40, 0x17], is_spi1, log: false , psram_mr: [0x09, 0x0d, 0x8b, 0x00, 0x20, 0, 0, 0, 0x03], octal_flash: false, flash_cr2: 0, classic_quad: None };
+        // SPI1 comes out of reset with a command phase: USER.USR_COMMAND = 1 and USER2.USR_COMMAND_BITLEN = 7
+        // (IDF v5.5.4 components/soc/esp32c3/register/soc/spi_mem_reg.h:328,438; the S3 and C6 headers agree).
+        // The C3 ROM's `esp_rom_spiflash_read` only read-modify-writes the other USER bits and the low half of
+        // USER2, so it relies on these to send an ordinary 8-bit read command.
+        if is_spi1 { s.regs.write(0x18, 1 << 31); s.regs.write(0x20, 7 << 28); }
+        s
+    }
     /// The octal PSRAM on CS1 is `bytes` long, and MR2 says so. Device id and good-die bits keep
     /// their values. A size the field cannot encode leaves MR2 as it was (the reset value's
     /// 64 Mbit) and returns false.
@@ -78,6 +95,65 @@ impl SpiMem {
         let Some(d) = opi_psram_density(bytes) else { return false };
         self.psram_mr[2] = (self.psram_mr[2] & !0x07) | d;
         true
+    }
+    /// Classic adapter only; presence is determined by the caller's backing slice.
+    /// No backing allocation or CPU mapping is owned by the command engine.
+    pub fn enable_classic_quad(&mut self) {
+        self.has_psram = true;
+        self.classic_quad = Some(ClassicQuad::default());
+    }
+
+    /// Classic mapped-cache qualification uses the same device mode as commands.
+    pub fn classic_qpi_enabled(&self) -> bool {
+        self.classic_quad.as_ref().is_some_and(|state| state.qpi)
+    }
+
+    // IDF v5.5.1 components/esp_psram/esp32/esp_psram_impl_quad.c:421-519:
+    // normal exit is MOSI-only f5, ID is command 9f + 24 address bits,
+    // entry is an 8-bit address-only 35. DCLK at 40 MHz PSRAM uses MOSI
+    // 16-bit f500, or a two-bit zero command before address 9f000000 (32
+    // bits, 64 MISO bits) / 35 (8 bits). This is not limited to rev0:
+    // :936-940 selects DCLK when the PSRAM and flash CLK pins differ.
+    // soc/esp32/register/soc/spi_reg.h (IDF v5.5.1): USER phases 31/30/28/27,
+    // USER1 address length 26..31, USER2 command length 28..31.
+    // Mode/reset gating below is an inferred functional model, not timing fidelity.
+    fn classic_quad_opcode(&mut self, user: u32, user1: u32, user2: u32) -> Option<u32> {
+        let command = user & (1 << 31) != 0;
+        let address = user & (1 << 30) != 0;
+        let mosi = user & (1 << 27) != 0;
+        let miso = user & (1 << 28) != 0;
+        let delay_command = command && (user2 >> 28) & 15 == 1 && user2 & 0xffff == 0;
+        let delay_id = delay_command && address && (user1 >> 26) & 63 == 31
+            && miso && !mosi && self.regs.read(0x28) == 63;
+        let opcode = if delay_id {
+            self.regs.read(4) >> 24
+        } else if command && (user2 >> 28) & 15 == 7 {
+            user2 & 0xff
+        } else if (!command || delay_command) && address && (user1 >> 26) & 63 == 7 && !mosi && !miso {
+            self.regs.read(4) >> 24
+        } else if !command && !address && mosi && !miso && self.regs.read(0x24) == 15 && self.w[0] & 0xffff == 0xf500 {
+            0xf5
+        } else if !command && !address && mosi && !miso && self.regs.read(0x24) == 7 {
+            self.w[0] & 0xff
+        } else {
+            self.classic_quad.as_mut().unwrap().reset_enabled = false;
+            return None;
+        };
+        let state = self.classic_quad.as_mut().unwrap();
+        let reset_enabled = std::mem::replace(&mut state.reset_enabled, false);
+        let control = !miso && (!command || (delay_command && address && !mosi) || (!address && !mosi));
+        match opcode {
+            0x35 if control && !state.qpi => { state.qpi = true; None }
+            0xf5 if control => { state.qpi = false; None }
+            0x66 if control => { state.reset_enabled = true; None }
+            0x99 if control => { if reset_enabled { state.qpi = false; } None }
+            0x9f if !state.qpi && (delay_id || (command && address && (user1 >> 26) & 63 == 23 && miso && !mosi)) => Some(opcode),
+            0x02 if !state.qpi && address && mosi && !miso => Some(opcode),
+            0x03 | 0x0b if !state.qpi && address && miso && !mosi => Some(opcode),
+            0x38 if state.qpi && address && mosi && !miso => Some(opcode),
+            0xeb if state.qpi && address && miso && !mosi => Some(opcode),
+            _ => None,
+        }
     }
     pub fn read(&self, off: u32) -> u32 {
         match off {
@@ -125,14 +201,29 @@ impl SpiMem {
         // IDF v5.5.5 components/soc/esp32s3/register/soc/spi_mem_reg.h:
         // USR bit 18 (110-113), MISO/MOSI bits 28/27 (383-391), CS disable (560-570).
         let misc = self.regs.read(0x34);
+        // A disabled classic CS0 must never fall through into flash, including
+        // both-CS-disabled transactions. The default non-classic path is unchanged.
+        if self.classic_quad.is_some() && cmd & (1 << 18) != 0 && misc & 3 == 3 {
+            if user & (1 << 28) != 0 { self.set_w_bytes(&vec![0xff; miso_bytes]); }
+            return;
+        }
         if self.has_psram && cmd & (1 << 18) != 0 && misc & 1 != 0 && misc & 2 == 0 {   // USR command with CS0 disabled, CS1 enabled: PSRAM
-            let c16 = user2 & 0xffff;
+            let mut c16 = user2 & 0xffff;
             let has_miso = user & (1 << 28) != 0; let has_mosi = user & (1 << 27) != 0;
             if self.log { eprintln!("[spi1] psram cmd {:#06x} addr {:#x} miso {} mosi {}", c16, addr, if has_miso { miso_bytes } else { 0 }, if has_mosi { mosi_bytes } else { 0 }); }
             let psize = psram.len();
             if psize == 0 {
                 if has_miso { self.set_w_bytes(&vec![0xff; miso_bytes]); }
                 return;
+            }
+            if self.classic_quad.is_some() {
+                match self.classic_quad_opcode(user, user1, user2) {
+                    Some(opcode) => c16 = opcode,
+                    None => {
+                        if has_miso { self.set_w_bytes(&vec![0xff; miso_bytes]); }
+                        return;
+                    }
+                }
             }
             // IDF v5.5.5 components/esp_psram/device/esp_quad_psram_defs_ap.h:21-60;
             // v4.4.8 components/esp_hw_support/port/esp32s3/spiram_psram.c:46-83
@@ -355,6 +446,26 @@ mod tests {
         // Right-aligned decoding reads 0x200000ff, past a 4 MiB array.
         let mut spi = SpiMem::new(true);
         assert_eq!(user_read(&mut spi, &mut flash, 24, 0x03), 0xffffffff);
+    }
+
+    /// The C3 mask ROM's `esp_rom_spiflash_read` (0x4004df94 in esp32c3_rev3_rom.elf) never writes
+    /// USR_COMMAND: it read-modify-writes USER (clears bit 27, ORs in 0x70000000 for DIO) and the low
+    /// half of USER2 (0xbb), so the command phase comes from the SPI1 reset values (IDF v5.5.4
+    /// components/soc/esp32c3/register/soc/spi_mem_reg.h:328,438: USR_COMMAND 1, USR_COMMAND_BITLEN 7).
+    #[test]
+    fn rom_style_dio_read_gets_its_command_phase_from_the_reset_values() {
+        let mut flash = vec![0xffu8; 0x400000];
+        flash[0x1000..0x1004].copy_from_slice(&[0x11, 0x22, 0x33, 0x44]);
+        let mut spi = SpiMem::new(true);
+        spi.write(0x34, 2);                                       // CS0: the flash
+        let user = spi.read(0x18); spi.write(0x18, (user & !(1 << 27)) | 0x7000_00c0);
+        let user2 = spi.read(0x20); spi.write(0x20, (user2 & 0xffff_0000) | 0xbb);
+        spi.write(0x1c, 23 << 26);                                // USER1: 24-bit address
+        spi.write(0x04, 0x1000);
+        spi.write(0x28, 31);                                      // MISO_DLEN: 32 bits
+        spi.write(0, 1 << 18);
+        spi.execute(&mut flash, &mut []);
+        assert_eq!(spi.w[0], 0x44332211);
     }
 
     #[test]

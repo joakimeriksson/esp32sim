@@ -2,8 +2,10 @@
 pub mod adc;
 pub mod ble;
 pub mod bus;
+mod psram;
 pub mod periph;
 pub mod soc;
+mod sleep;
 pub mod timers;
 pub mod wifi;
 
@@ -13,6 +15,8 @@ pub use soc::{machine, Esp32, Machine};
 pub mod board;
 
 pub mod i2s;
+pub mod camera_fifo;
+mod camera_dma;
 pub mod ledc;
 pub mod rmt;
 pub mod spi;

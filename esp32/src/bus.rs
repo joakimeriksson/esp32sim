@@ -69,6 +69,9 @@ pub struct SocBus {
     pub(crate) clock_half: u64,
     pub(crate) pins_active: bool,
     pub ble: esp_soc::ble::vhci::Ble,
+    pub(crate) deep_sleep: bool,
+    // One allocation shared by CPU translation and the command adapter (no flat CPU window).
+    pub(crate) psram: Vec<u8>,
 }
 
 impl SocBus {
@@ -95,6 +98,8 @@ impl SocBus {
             clock_half: 0,
             pins_active: false,
             ble: Default::default(),
+            deep_sleep: false,
+            psram: Vec::new(),
         }
     }
     fn load<const N: usize>(&mut self, a: u32) -> Result<[u8; N], Fault> {
@@ -103,7 +108,7 @@ impl SocBus {
         }
         match self.memory(a) {
             Some((b, o, _)) if b.len().saturating_sub(o) >= N => Ok(b[o..o + N].try_into().unwrap()),
-            _ => { self.last_fault = Some((a, false)); Err(Fault::Unmapped) }
+            _ => self.load_miss(a),
         }
     }
     fn store(&mut self, a: u32, bytes: &[u8]) -> Result<(), Fault> {
@@ -119,7 +124,30 @@ impl SocBus {
                 self.written(a, bytes.len());
                 Ok(())
             }
-            _ => { self.last_fault = Some((a, true)); Err(Fault::Prohibited) }
+            _ => self.store_miss(a, bytes),
+        }
+    }
+    // External RAM is disjoint from memory()'s ordinary windows. Dispatch only
+    // after a miss, leaving the mapped-memory and peripheral paths unchanged.
+    #[cold]
+    fn load_miss<const N: usize>(&mut self, a: u32) -> Result<[u8; N], Fault> {
+        if (crate::psram::LOW..crate::psram::HIGH).contains(&a) { return self.psram_load(a); }
+        self.last_fault = Some((a, false));
+        Err(Fault::Unmapped)
+    }
+    #[cold]
+    fn store_miss(&mut self, a: u32, bytes: &[u8]) -> Result<(), Fault> {
+        if (crate::psram::LOW..crate::psram::HIGH).contains(&a) { return self.psram_store(a, bytes); }
+        self.last_fault = Some((a, true));
+        Err(Fault::Prohibited)
+    }
+    #[cold]
+    fn fetch_miss(&mut self, pc: u32) -> Result<[u8; 4], Fault> {
+        self.last_fault = Some((pc, false));
+        if (crate::psram::LOW..crate::psram::HIGH).contains(&pc) {
+            Err(Fault::Prohibited)
+        } else {
+            Err(Fault::Unmapped)
         }
     }
     // 256-byte decode pages. RTC FAST's data and instruction windows share backing bytes.
@@ -131,7 +159,7 @@ impl SocBus {
             _ => 0x10020,
         }
     }
-    fn written(&mut self, addr: u32, len: usize) {
+    pub(crate) fn written(&mut self, addr: u32, len: usize) {
         if len == 0 { return; }
         let first = Self::version_page(addr);
         let last = Self::version_page(addr + len as u32 - 1);
@@ -245,6 +273,23 @@ impl SocBus {
         }
         let v = if size == 4 { value } else { merge(self.periph.read32(a), value, addr, size) };
         let old_enable = self.periph.gpio.gpio.enable;
+        // Configuration-only bookkeeping; no new work in ordinary ticks.
+        // Only physical DVP routing bits matter (IDF v4.4.7 gpio_reg.h,
+        // io_mux_reg.h and rtc_io_reg.h). Unrelated pad writes cannot close
+        // a valid window. Loss/restoration without elapsed time still does.
+        let camera_route_mask = match a {
+            a if ((140..148).chain([28, 190, 191, 192])).any(|s| a == 0x3ff4_4130 + 4 * s) => 0xff,
+            0x3ff4_906c | 0x3ff4_9070 | 0x3ff4_9074 | 0x3ff4_907c |
+            0x3ff4_9004 | 0x3ff4_9010 | 0x3ff4_9014 | 0x3ff4_9018 |
+            0x3ff4_9080 | 0x3ff4_908c | 0x3ff4_9024 => (7 << 12) | (1 << 9),
+            0x3ff4_847c => (1 << 27) | (1 << 24), // GPIO36/39
+            0x3ff4_8480 => (1 << 29) | (1 << 28), // GPIO34/35
+            0x3ff4_8484 => 1 << 17, // GPIO25
+            _ => 0,
+        };
+        if camera_route_mask != 0 && (self.periph.read32(a) ^ v) & camera_route_mask != 0 {
+            self.board.invalidate_camera_frame_start();
+        }
         if (0x3ff4_8800..=0x3ff4_88ff).contains(&a) { self.periph.adc.now_cycles = self.cycles; }
         self.periph.write32(a, v);
         // IDF v5.5.4 esp32/rtc_cntl_reg.h:2017-2039. Only a CRC START write
@@ -254,6 +299,11 @@ impl SocBus {
         }
         if matches!(a & !0xfff, 0x3ff4_4000 | 0x3ff4_9000) && self.board.uses_gpio_waveform() {
             self.board.gpio_waveform_at(self.cycles, self.periph.gpio.routes());
+        }
+        // IDF v5.5.4 rtc_cntl_reg.h:247-252,1281-1287: SLEEP_EN and
+        // DIG_PWC.DG_WRAP_PD_EN distinguish deep sleep from light sleep.
+        if a == 0x3ff4_8018 && v & (1 << 31) != 0 {
+            self.enter_deep_sleep();
         }
         if self.pins_active {
             if let Some(port) = [0x3ff4_0000, 0x3ff5_0000, 0x3ff6_e000].iter().position(|&base| a == base) {
@@ -269,6 +319,18 @@ impl SocBus {
         self.run_gp_spi();
         self.flush_rmt();
         self.flush_gpio();
+        // Clock, matrix and SCCB writes can start/stop autonomous sensor inputs
+        // without changing an output GPIO. Reconcile at this same bus horizon.
+        if self.pins_active { self.deliver_board_inputs(); }
+        if (0x3ff4_f000..0x3ff4_f100).contains(&a) { self.camera_dma_written(); }
+        // Configuration horizon, not an idle-tick poll: a qualified receiver
+        // must observe even a loss restored before the next DMA step (matrix,
+        // IO_MUX/RTC, PWDN, SCCB streaming, XCLK or peripheral clock gating).
+        // An initially unavailable source still waits for its first valid route.
+        if self.periph.i2s[0].camera.as_ref().is_some_and(|c| c.qualified())
+            && self.camera_routed_frame().is_none() {
+            self.periph.i2s[0].abort_camera_dma();
+        }
         self.irq_dirty = true;
     }
     #[inline]
@@ -284,9 +346,11 @@ impl SocBus {
         }
     }
     fn deliver_board_inputs(&mut self) {
-        self.board.advance_to(self.cycles);
+        let periph = &self.periph;
+        self.board.advance_inputs_with_clock(self.cycles, &|pin| periph.pwm_output(u32::from(pin)));
         for edge in self.board.take_edges() {
             self.periph.gpio.set_input(edge.pin, edge.level);
+            self.ext0_wake();
             self.irq_dirty = true;
             if let Some(events) = &mut self.gpio_events { events.push((edge.cycle, edge.pin, edge.level)); }
         }
@@ -303,8 +367,48 @@ impl SocBus {
     }
     fn run_spi(&mut self) {
         self.periph.spi_exec = false;
-        self.periph.spi1.0.execute(&mut self.flash, &mut []);
-        for (_, off, len) in std::mem::take(&mut self.periph.spi1.0.dirty) { self.flash_written(off, len); }
+        self.periph.spi1.0.execute(&mut self.flash, &mut self.psram);
+        for (memory, off, len) in std::mem::take(&mut self.periph.spi1.0.dirty) {
+            if memory == esp_periph::DirtyMem::Flash { self.flash_written(off, len); }
+        }
+    }
+    /// Request sensor bytes using current physical XCLK routing, without polling
+    /// the camera from the ordinary bus tick. I2S transport is a separate adapter.
+    pub fn camera_frame(&mut self) -> Option<(u32, u32, std::sync::Arc<Vec<u8>>)> {
+        let periph = &self.periph;
+        self.board.camera_frame_with_clock(&|pin| periph.pwm_output(u32::from(pin)))
+    }
+    /// Qualify a camera frame for I2S0's parallel receiver. No FIFO or DMA work
+    /// occurs here. esp32-camera v2.1.4 ll_cam.c:350-395 and IDF v4.4.7
+    /// gpio_sig_map.h define D0=140, WS/PCLK=28, H/V_SYNC=190/191,
+    /// H_ENABLE=192 (constant high). A fixed sensor's inverted data lines
+    /// invert the actual bytes; inverted control polarities are unsupported.
+    pub fn camera_routed_frame(&mut self) -> Option<(u32, u32, std::sync::Arc<Vec<u8>>)> {
+        if !self.periph.i2s[0].clock_enabled { return None; }
+        let rx = self.periph.i2s[0].camera_rx()?;
+        if !rx.started || rx.reset || !rx.slave || !rx.descriptor_enabled || !rx.fifo_mode_forced || ![1, 3].contains(&rx.fifo_mode) { return None; }
+        let pins = self.board.camera_dvp_pins()?;
+        let gpio = &self.periph.gpio;
+        for (signal, pin) in [(28, pins[8]), (190, pins[9]), (191, pins[10])] {
+            if gpio.matrix_input_route(signal) != Some((pin, false)) { return None; }
+        }
+        let enable = gpio.gpio.func_in_sel[192];
+        if ![0x30, 0x38].contains(&(enable & 0x3f)) || gpio.signal_input(192) != Some(true) { return None; }
+        let mut invert = 0u8;
+        for (bit, pin) in pins[..8].iter().enumerate() {
+            let (actual, inverted) = gpio.matrix_input_route(140 + bit)?;
+            if actual != *pin { return None; }
+            if inverted { invert |= 1 << bit; }
+        }
+        let (w, h, mut frame) = self.camera_frame()?;
+        if invert != 0 {
+            if let Some(capture) = &mut self.periph.i2s[0].camera {
+                frame = capture.inverted_frame(frame, invert);
+            } else {
+                for byte in std::sync::Arc::make_mut(&mut frame) { *byte ^= invert; }
+            }
+        }
+        Some((w, h, frame))
     }
     pub fn attach_board_devices(&mut self) {
         self.irq_dirty = true;
@@ -475,6 +579,10 @@ impl SocBus {
     pub fn load_bytes(&mut self, addr: u32, data: &[u8]) -> Result<(), String> {
         for (i, &v) in data.iter().enumerate() {
             let a = addr.wrapping_add(i as u32);
+            if (crate::psram::LOW..crate::psram::HIGH).contains(&a) {
+                self.psram_store(a, &[v]).map_err(|f| format!("load: address {a:#010x}: {f:?}"))?;
+                continue;
+            }
             match self.memory(a) {
                 Some((b, o, _)) if o < b.len() => b[o] = v,
                 _ => return Err(format!("load: address {a:#010x} not mapped")),
@@ -504,10 +612,7 @@ impl Bus for SocBus {
                 }
                 Ok(out)
             }
-            _ => {
-                self.last_fault = Some((pc, false));
-                Err(Fault::Unmapped)
-            }
+            _ => self.fetch_miss(pc),
         }
     }
     fn page_versions(&self) -> &[u32] {
@@ -709,6 +814,16 @@ mod tests {
         assert_eq!(esp_soc::SocBus::reboot(&mut b, [0; 6]), 12);
         assert_eq!(b.read32(0x3ff4_80b8), Ok(hint));
         assert_eq!(b.read32(0x3ff4_8034), Ok(12 | (12 << 6)));
+    }
+    #[test]
+    fn reboot_reapplies_debug_areas() {
+        let mut b = SocBus::new(4 << 20, [0; 6]);
+        let mut flags = esp_soc::DebugFlags::default();
+        flags.add("mmio");
+        esp_soc::SocBus::set_debug(&mut b, &flags);
+        assert!(b.periph.misc.log_all);
+        esp_soc::SocBus::reboot(&mut b, [0; 6]);
+        assert!(b.periph.misc.log_all, "--debug mmio still logs after esp_restart()");
     }
     #[test]
     fn stores_invalidate_only_the_written_code_pages_and_rtc_alias() {

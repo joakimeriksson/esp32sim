@@ -1,0 +1,12 @@
+{
+ "board": "esp32p4",
+ "flash_mb": 2,
+ "psram_mb": 0,
+ "files": {
+  "rom": "esp32p4_rev0_rom.elf",
+  "bootloader": "public/p4-hello-bootloader.bin",
+  "ptable": "public/p4-hello-ptable.bin",
+  "app": "public/p4-hello_world.bin"
+ },
+ "_note": "ESP32-P4 rev < 3 (RISC-V, single-core build). Console-only: real mask ROM, real 2nd-stage bootloader, FreeRTOS on the CLIC, app_main, esp_restart, repeat."
+}

@@ -1,0 +1,37 @@
+# Faults a host meets, against the example (--usb-host, no --script). The example logs each hand
+# over: "Storage mounted to application: No" when the host has the card, "Yes" when the app has it.
+attach
+msc
+ready 100 5000
+capacity
+mount
+# A command that outlives its timeout: the host aborts the WRITE(10) mid data stage, resets the
+# port as Linux's usb-storage does, and writes again.
+timeout 5
+? write 130000 240 5a
+timeout 30000
+ready 100 5000
+write 130000 240 5a
+verify 130000 240 5a
+# A port reset after an eject: SET_CONFIGURATION runs tud_mount_cb, which takes the card back
+# from the application.
+eject
+idle 100
+port-reset
+ready 100 5000
+mount
+# VBUS goes while a file is being written: tud_umount_cb gives the card to the application, and
+# the file keeps size 0 with its clusters orphaned.
+inject vbus-off 100
+? fat-write FILE0002.BIN 1048576 64 16
+idle 150
+attach
+msc
+ready 100 5000
+mount
+ls
+# the REPL is up by now; it agrees the host has the card
+idle 500
+uart0 status
+idle 50
+detach

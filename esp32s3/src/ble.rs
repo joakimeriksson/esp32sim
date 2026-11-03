@@ -18,6 +18,18 @@ impl VhciBus for SocBus {
     fn valid_callback(&mut self, pc: u32) -> bool { self.fetch(pc).is_ok_and(|bytes| decode(pc, bytes).op == Op::Entry) }
     fn flash_offset(&mut self, pc: u32) -> Option<usize> { self.flash_off(pc) }
     fn ble_debug(&self) -> bool { self.debug.has("ble") }
+    fn valid_packet_range(&self, address: u32, len: usize) -> bool {
+        use crate::bus::{DBUS_LOW, DBUS_HIGH, MMU_INVALID, MMU_SPIRAM};
+        let Some(end) = address.checked_add(len as u32) else { return false };
+        if address >= DRAM_LOW && end <= DRAM_HIGH { return true; }
+        if len == 0 || address < DBUS_LOW || end > DBUS_HIGH { return false; }
+        let first = ((address - DBUS_LOW) >> 16) as usize;
+        let last = ((end - 1 - DBUS_LOW) >> 16) as usize;
+        self.mmu[first..=last].iter().all(|entry| {
+            entry & (MMU_INVALID | MMU_SPIRAM) == MMU_SPIRAM
+                && ((entry & 0x3fff) as usize + 1) * 0x10000 <= self.psram.len()
+        })
+    }
 }
 
 #[cfg(test)]
@@ -216,6 +228,33 @@ mod tests {
             assert_eq!(bus.ble.send_ready, len == 496);
             assert_eq!(bus.ble.session.pop_packet().is_some(), len == 496);
         }
+    }
+    #[test]
+    fn vhci_accepts_mapped_psram_packets_without_accepting_flash_or_unmapped_pages() {
+        use crate::bus::{DBUS_LOW, MMU_INVALID, MMU_SPIRAM};
+        let (mut bus, symbols) = fixture();
+        esp_soc::SocBus::set_psram_size(&mut bus, 2 << 20).unwrap();
+        bus.ble.status = 2;
+        let data = DBUS_LOW + 0xfffe;
+        for (first, second, accepted) in [
+            (MMU_SPIRAM, MMU_SPIRAM | 1, true),
+            (MMU_SPIRAM, MMU_INVALID, false),
+            (0, 1, false),
+            (MMU_SPIRAM, MMU_SPIRAM | 32, false),
+        ] {
+            bus.write32(crate::bus::MMU_TABLE, first).unwrap();
+            bus.write32(crate::bus::MMU_TABLE + 4, second).unwrap();
+            if accepted { bus.load_bytes(data, &[1, 3, 12, 0]).unwrap(); }
+            bus.ble.send_ready = false;
+            let mut cpu = caller(symbols["esp_vhci_host_send_packet"], data);
+            cpu.set_ar(11, 4);
+            assert!(intercept(&mut cpu, &mut bus));
+            assert_eq!(bus.ble.send_ready, accepted);
+            assert_eq!(bus.ble.session.pop_packet().is_some(), accepted);
+        }
+        assert!(!bus.valid_packet_range(u32::MAX - 1, 4));
+        assert!(!bus.valid_packet_range(0x6000_0000, 4));
+        assert!(!bus.valid_packet_range(DRAM_HIGH - 2, 4));
     }
     #[test]
     fn trampoline_extent_uses_symbol_size_including_alignment() {

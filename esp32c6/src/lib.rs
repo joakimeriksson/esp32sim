@@ -13,6 +13,7 @@ pub mod net;
 pub mod periph;
 mod parlio;
 pub mod radio;
+pub mod sdio;
 pub mod soc;
 pub mod wifi;
 

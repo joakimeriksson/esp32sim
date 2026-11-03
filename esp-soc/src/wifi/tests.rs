@@ -1,7 +1,7 @@
 use super::*;
 
 fn config() -> ApConfig {
-    ApConfig { ssid: "esp32sim".into(), bssid: [2, 0x53, 0x49, 0x4d, 0, 1], channel: 6, psk: None }
+    ApConfig { ssid: "esp32sim".into(), bssid: [2, 0x53, 0x49, 0x4d, 0, 1], channel: 6, psk: None, epoch_s: None }
 }
 
 fn station_frame(fc: u16, payload: &[u8]) -> Vec<u8> {
@@ -255,4 +255,140 @@ fn a_reboot_keeps_the_host_side_only() {
     assert!(l.ap().is_some() && l.net().is_some() && l.relay(), "the access point, network and relay mode stay");
     assert_eq!((l.eth_tx.len(), l.eth_rx.len(), l.last_rx_us, l.last_rx_desc, l.net_polled_us), (0, 0, 0, 0, 0), "queues and pacing start again");
     assert_eq!((l.tx_frames(), l.rx_frames(), l.rx_dropped(), l.tx_dropped()), (0, 0, 0, 0), "counts start again");
+}
+
+// ------------------------------------------------------------------ networks around the station
+
+fn nearby() -> Vec<BeaconAp> {
+    vec![
+        BeaconAp { ssid: "Home".into(), bssid: [0x02, 1, 2, 3, 4, 5], channel: 1, rssi: -60, secure: true },
+        BeaconAp { ssid: "Cafe".into(), bssid: [0x02, 9, 8, 7, 6, 5], channel: 11, rssi: -75, secure: false },
+    ]
+}
+
+/// A probe request from the station to the broadcast address and BSSID, with the given elements.
+fn probe_request(elements: &[u8]) -> Vec<u8> {
+    let mut f = station_frame(4 << 4, elements);
+    f[4..10].copy_from_slice(&[0xff; 6]);
+    f[16..22].copy_from_slice(&[0xff; 6]);
+    f
+}
+
+/// (BSSID, capability, the DSSS element's channel, an RSN element present) of a probe response.
+fn response_summary(r: &[u8]) -> ([u8; 6], u16, u8, bool) {
+    let mut bssid = [0u8; 6];
+    bssid.copy_from_slice(&r[16..22]);
+    let cap = u16::from_le_bytes([r[34], r[35]]);
+    let elements = ies(r, 36);
+    let chan = elements.iter().find(|(id, _)| *id == 3).map(|(_, d)| d[0]).expect("DSSS Parameter Set");
+    (bssid, cap, chan, elements.iter().any(|(id, _)| *id == 48))
+}
+
+#[test]
+fn nearby_networks_answer_a_wildcard_probe_after_the_access_point() {
+    let mut ap = VirtualAp::new(config(), false);
+    ap.beacons = nearby();
+    assert!(ap.on_station_tx(&probe_request(&[0, 0]), 1000).is_none());
+    assert_eq!(ap.queue.len(), 3);
+    let (own, cap, chan, rsn) = response_summary(&ap.queue[0].frame);
+    assert_eq!((own, cap & 0x11, chan, rsn), (config().bssid, 0x01, 6, false), "the open access point first: ESS, no Privacy");
+    let (b, cap, chan, rsn) = response_summary(&ap.queue[1].frame);
+    assert_eq!((b, cap & 0x11, chan, rsn), ([0x02, 1, 2, 3, 4, 5], 0x11, 1, true), "Home: Privacy and RSN, channel 1");
+    let (b, cap, chan, rsn) = response_summary(&ap.queue[2].frame);
+    assert_eq!((b, cap & 0x11, chan, rsn), ([0x02, 9, 8, 7, 6, 5], 0x01, 11, false), "Cafe: open, channel 11");
+    assert!(ap.queue[0].at_us < ap.queue[1].at_us && ap.queue[1].at_us < ap.queue[2].at_us, "one after the other");
+    for q in &ap.queue {
+        assert_eq!(&q.frame[4..10], &[2, 3, 4, 5, 6, 7], "to the station");
+        assert_eq!(&q.frame[10..16], &q.frame[16..22], "from its own BSSID");
+    }
+}
+
+#[test]
+fn a_directed_probe_gets_only_the_named_nearby_network() {
+    let mut ap = VirtualAp::new(config(), false);
+    ap.beacons = nearby();
+    assert!(ap.on_station_tx(&probe_request(&[0, 4, b'C', b'a', b'f', b'e']), 1000).is_none());
+    assert_eq!(ap.queue.len(), 1, "not the access point, not Home");
+    assert_eq!(response_summary(&ap.queue[0].frame).0, [0x02, 9, 8, 7, 6, 5]);
+    ap.queue.clear();
+    assert!(ap.on_station_tx(&probe_request(&[0, 5, b'O', b't', b'h', b'e', b'r']), 2000).is_none());
+    assert!(ap.queue.is_empty(), "nobody answers for an unknown SSID");
+}
+
+#[test]
+fn frames_from_a_nearby_network_carry_its_channel_and_signal() {
+    let mut ap = VirtualAp::new(config(), false);
+    ap.beacons = nearby();
+    let mut from_home = vec![0u8; 24];
+    from_home[10..16].copy_from_slice(&[0x02, 1, 2, 3, 4, 5]);
+    let mut from_ap = vec![0u8; 24];
+    from_ap[10..16].copy_from_slice(&config().bssid);
+    assert_eq!(ap.rx_meta(&from_home), (1, -60));
+    assert_eq!(ap.rx_meta(&from_ap), (6, -40));
+    assert_eq!(ap.rx_meta(&[0; 8]), (6, -40), "too short for an address: the access point's");
+}
+
+#[test]
+fn authentication_to_a_nearby_network_goes_unanswered() {
+    let mut ap = VirtualAp::new(config(), false);
+    ap.beacons = nearby();
+    let mut auth = station_frame(11 << 4, &[0, 0, 1, 0, 0, 0]);
+    auth[4..10].copy_from_slice(&[0x02, 1, 2, 3, 4, 5]);
+    auth[16..22].copy_from_slice(&[0x02, 1, 2, 3, 4, 5]);
+    assert!(ap.on_station_tx(&auth, 0).is_none());
+    assert_eq!(ap.state, StaState::Idle);
+    assert!(ap.queue.is_empty(), "nothing answers: the network is out of reach");
+}
+
+#[test]
+fn nearby_specs_parse_with_defaults_and_the_access_points_own_ssid_or_bssid_is_left_out() {
+    let home = BeaconAp::parse("ssid=Home").unwrap();
+    assert_eq!((home.channel, home.rssi, home.secure, home.bssid[0]), (1, -60, true, 0x02), "defaults; a locally administered unicast BSSID");
+    assert_eq!(home.bssid, BeaconAp::parse("ssid=Home,chan=3").unwrap().bssid, "the same BSSID every time");
+    assert_ne!(home.bssid, BeaconAp::parse("ssid=Cafe").unwrap().bssid);
+    let cafe = BeaconAp::parse("ssid=Cafe,ch=11,rssi=-75,secure=0,bssid=02:09:08:07:06:05").unwrap();
+    assert_eq!(cafe, BeaconAp { ssid: "Cafe".into(), bssid: [0x02, 9, 8, 7, 6, 5], channel: 11, rssi: -75, secure: false });
+    for bad in ["chan=1", "ssid=", "ssid=Home,chan=15", "ssid=Home,rssi=low", "ssid=Home,secure=maybe", "ssid=Home,bssid=02:09", "ssid=Home,psk=x", "ssid=Home,chan"] {
+        assert!(BeaconAp::parse(bad).is_err(), "{bad}");
+    }
+    assert!(BeaconAp::parse_all(&vec!["ssid=x".to_string(); 33]).is_err(), "more than 32");
+    let mut link = StationLink::default();
+    assert!(link.set_beacons(nearby()).is_none(), "no access point yet");
+    link.attach(Some(VirtualAp::new(config(), false)), None);
+    let mut list = nearby();
+    list.push(BeaconAp { ssid: "esp32sim".into(), ..home.clone() });
+    list.push(BeaconAp { ssid: "Office".into(), bssid: config().bssid, ..home });
+    let left_out = link.set_beacons(list).unwrap();
+    assert_eq!(link.ap().unwrap().beacons, nearby(), "the access point's own SSID or BSSID is that access point");
+    assert_eq!(left_out.iter().map(|(b, why)| (b.ssid.as_str(), *why)).collect::<Vec<_>>(),
+        [("esp32sim", "the access point's SSID"), ("Office", "the access point's BSSID")]);
+}
+
+/// Two networks around on one BSSID would both answer from it: `parse_all` refuses them, whether
+/// the BSSID is derived from one SSID twice or given twice.
+#[test]
+fn nearby_networks_need_a_bssid_each() {
+    let specs = |list: &[&str]| list.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    assert!(BeaconAp::parse_all(&specs(&["ssid=Home", "ssid=Home,chan=6"])).unwrap_err().contains("share the BSSID"));
+    assert!(BeaconAp::parse_all(&specs(&["ssid=Home,bssid=02:00:00:00:00:42", "ssid=Cafe,bssid=02:00:00:00:00:42"])).unwrap_err()
+        .contains("'Home' and 'Cafe' share the BSSID 02:00:00:00:00:42"));
+    assert_eq!(BeaconAp::parse_all(&specs(&["ssid=Home,bssid=02:00:00:00:00:42", "ssid=Home,bssid=02:00:00:00:00:43"])).unwrap().len(), 2,
+        "one SSID on two BSSIDs is two networks");
+}
+
+/// A network around answers a probe request sent to the broadcast address or its own, with a
+/// wildcard BSSID or its own (IEEE 802.11-2020 11.1.4.3.4), and no other.
+#[test]
+fn a_nearby_network_answers_only_probes_addressed_to_it() {
+    let home = [0x02, 1, 2, 3, 4, 5];
+    for (a1, a3, answers) in [([0xff; 6], [0xff; 6], true), (home, [0xff; 6], true), ([0xff; 6], home, true), (home, home, true),
+        ([0x02, 9, 8, 7, 6, 5], [0xff; 6], false), ([0xff; 6], [0x02, 9, 8, 7, 6, 5], false)] {
+        let mut ap = VirtualAp::new(config(), false);
+        ap.beacons = vec![nearby().remove(0)];
+        let mut probe = probe_request(&[0, 4, b'H', b'o', b'm', b'e']);
+        probe[4..10].copy_from_slice(&a1);
+        probe[16..22].copy_from_slice(&a3);
+        assert!(ap.on_station_tx(&probe, 1000).is_none());
+        assert_eq!(ap.queue.len(), usize::from(answers), "a1 {a1:02x?} a3 {a3:02x?}");
+    }
 }

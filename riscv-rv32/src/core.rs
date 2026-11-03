@@ -1,6 +1,7 @@
-//! `emu_core::Core` for the RV32IMC: one instruction per `step`, no fast path yet (the default
-//! `run` loops `step`). The interrupt input is the single line the C3's interrupt controller has
-//! already arbitrated.
+//! `emu_core::Core` for the RV32 cores (C3, C6, P4): one instruction per `step`, no decode cache,
+//! block cache or JIT; `run` loops `step` and stops where a block would. The interrupt input is
+//! the one line the SoC's interrupt controller has already arbitrated; on a CLIC core (the P4) it
+//! also carries the level and the vectoring attribute (`exec::clic_take`).
 use crate::bus::Bus;
 use crate::exec::Trap;
 use crate::state::Cpu;
@@ -17,7 +18,8 @@ impl emu_core::Core for Cpu {
     fn waiting(&self) -> bool { self.waiting }
     fn insn_count(&self) -> u64 { self.insn_count }
     fn set_irq(&mut self, line: Option<u32>) { self.irq = line; }
-    fn irq_pending(&self) -> bool { self.irq.is_some() }
+    /// A CLIC core in CLINT mode takes nothing the SoC presents (`exec::step_outcome`).
+    fn irq_pending(&self) -> bool { self.irq.is_some() && (!self.clic || self.clic_mode()) }
     fn irq_bits(irq: &Option<u32>) -> u32 { irq.map_or(0, |l| 1 << (l & 31)) }
     fn advance_cycles(&mut self, cycles: u32) { self.cycle_count += cycles as u64; }
     fn idle_advance(&mut self, cycles: u32) { self.insn_count += cycles as u64; self.cycle_count += cycles as u64; }
@@ -36,7 +38,7 @@ impl emu_core::Core for Cpu {
     fn regs(&self, out: &mut Vec<(&'static str, u32)>) { for (&name, &value) in X[1..].iter().zip(&self.x[1..]) { out.push((name, value)); } out.push(("mstatus", self.mstatus)); }
     fn arg<B: emu_core::Bus>(&self, _bus: &mut B, n: usize) -> u32 { self.x[10 + n] }
     fn return_from_stub<B: emu_core::Bus>(&mut self, _bus: &mut B, v: u32) { self.x[10] = v; self.pc = self.x[1]; self.insn_count += 1; self.retired_count += 1; self.cycle_count += 1; }
-    fn disasm(&self, pc: u32, bytes: [u8; 4]) -> String { crate::disasm::format(&crate::decode::decode(pc, bytes)).replace('\t', " ") }
+    fn disasm(&self, pc: u32, bytes: [u8; 4]) -> String { crate::disasm::format_for(self.misa, &crate::decode::decode_for(self.misa, pc, bytes)).replace('\t', " ") }
     fn insn_len(bytes: [u8; 4]) -> u32 { crate::decode::decode(0, bytes).len as u32 }
     const TRACE_WIDTH: usize = 28;
     fn trace_regs(&self) -> String { format!("ra={:08x} sp={:08x} a0={:08x} a1={:08x}", self.x[1], self.x[2], self.x[10], self.x[11]) }

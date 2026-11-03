@@ -1,0 +1,153 @@
+[
+  {
+    "check": "clippy-native",
+    "command": "cargo +1.99.0 clippy --workspace --all-targets -- -D warnings",
+    "exit_code": 0
+  },
+  {
+    "check": "clippy-wasm",
+    "command": "cargo +1.99.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+    "exit_code": 0
+  },
+  {
+    "check": "workspace-ci",
+    "command": "cargo +1.99.0 test --release --workspace --no-fail-fast -- --include-ignored --skip external_",
+    "exit_code": 101,
+    "environment": "ESP32SIM_ROM_DIR=roms (tools/fetch-rom-elfs.sh); Windows 11, core.autocrlf=false checkout",
+    "tests": { "binaries": 95, "passed": 936, "failed": 2, "ignored": 0 },
+    "failures": "decoder_matches_corpus in xtensa-lx7 and riscv-rv32: the test joins its corpus paths with ':' and splits on it, which breaks a Windows drive letter; the same on untouched main, unrelated to this change. Every golden passed unchanged; none regenerated."
+  },
+  {
+    "check": "workspace-plain",
+    "command": "cargo +1.99.0 test --release --workspace --no-fail-fast",
+    "exit_code": 101,
+    "environment": "no ESP32SIM_* variables",
+    "tests": { "passed": 908, "failed": 2, "ignored": 45 },
+    "failures": "the same two decoder_matches_corpus tests"
+  },
+  {
+    "check": "virtual",
+    "command": "ESP32SIM_VQ_NATIVE=1 cargo +1.99.0 test --release -p esp32s3 --test machine --test virtual_stops",
+    "exit_code": 0,
+    "tests": { "passed": 41, "failed": 0 }
+  },
+  {
+    "check": "spi3-unit",
+    "command": "cargo +1.99.0 test --release -p esp32s3 --lib -- spi3",
+    "exit_code": 0,
+    "tests": { "passed": 3, "failed": 0 },
+    "notes": "spi3_cpu_transfer_reaches_the_board_as_host_3_on_its_own_source, spi3_dma_reads_the_gdma_channel_of_trigger_1, spi3_routes_come_from_its_matrix_signals; esp32s3 lib 145 and esp-periph 68 pass"
+  },
+  {
+    "check": "wasm",
+    "command": "RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh && node tools/check-wasm-sections.mjs web/wasm/esp32sim.wasm && ESP32SIM_ROM_DIR=roms node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+    "exit_code": 0,
+    "notes": "esp32sim.wasm 3416473 bytes, dwarfAbsent, nameRetained; all eight manifests ok"
+  },
+  {
+    "check": "wasm-abi",
+    "command": "node wasm/tests/timing-api.mjs web/wasm/esp32sim.wasm; node wasm/tests/ble-api.mjs web/wasm/esp32sim.wasm web/wasm/fw/public roms/esp32c3_rev3_rom.elf; node wasm/tests/ble-connection.mjs web/wasm/esp32sim.wasm web/wasm/fw/public roms/esp32c3_rev3_rom.elf",
+    "exit_code": 0
+  },
+  {
+    "check": "node-tools",
+    "command": "node tools/worker-pacing-test.mjs; node tools/worker-channel-test.mjs; node --test tools/touch-input-test.mjs; node --test tools/wasm-build-policy.test.mjs; node --test tools/browser-benchmark/*.test.mjs; python -m unittest discover -s tools/browser-benchmark -p 'test_*.py'",
+    "exit_code": 0,
+    "notes": "Node 24.16.0, Python 3.14; the worker tests need LF sources (their import stripping matches ';\\n')"
+  },
+  {
+    "check": "privacy",
+    "command": "node tools/check-evidence-privacy.mjs",
+    "exit_code": 0
+  },
+  {
+    "check": "firmware",
+    "command": "see inputs.json: the spi3 probe (SD on HSPI, ILI9341 on FSPI) from the mask ROM, board none, --debug spi, 6 emulated seconds",
+    "exit_code": 0,
+    "notes": "SPI3: 366 transfers (339 single 0xff bytes, 27 x CMD0 40 00 00 00 00 95); SPI2: 88 transfers (ILI9341 init ef 03 80 02 ...); CMD0 never on SPI2; console: tft ready, then mount failed once a second; stop at 6.000 s, core0 13018773 + core1 8159852 insns"
+  },
+  {
+    "check": "not-run",
+    "command": "tools/wasm-jit-test.sh; the profiling-features build; the Linux x5 receipt contracts; native-aarch64 job; docs/evidence/classic-core/hot.py static hot-function comparison",
+    "notes": "Linux/macOS-only steps of ci.yml, left to CI; the static comparison expects an AArch64 llvm-objdump listing with symbols, which an MSVC release build does not give"
+  },
+  {
+    "check": "clippy-native",
+    "on_main": "af9ebc79",
+    "command": "cargo +1.99.1 clippy --workspace --all-targets -- -D warnings",
+    "exit_code": 0
+  },
+  {
+    "check": "clippy-wasm",
+    "on_main": "af9ebc79",
+    "command": "cargo +1.99.1 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+    "exit_code": 0
+  },
+  {
+    "check": "workspace-ci",
+    "on_main": "af9ebc79",
+    "command": "cargo +1.99.1 test --release --workspace --no-fail-fast -- --include-ignored --skip external_",
+    "exit_code": 101,
+    "environment": "ESP32SIM_ROM_DIR=roms (tools/fetch-rom-elfs.sh); Rust 1.99.1 (58cf8f9c3 2026-10-13); Windows 11, core.autocrlf=false checkout",
+    "tests": {
+      "binaries": 109,
+      "passed": 1018,
+      "failed": 2,
+      "ignored": 0
+    },
+    "failures": "the two decoder_matches_corpus tests (Windows drive-letter path split), unrelated; no golden regenerated"
+  },
+  {
+    "check": "virtual",
+    "on_main": "af9ebc79",
+    "command": "ESP32SIM_VQ_NATIVE=1 cargo +1.99.1 test --release -p esp32s3 --test machine --test virtual_stops",
+    "exit_code": 0,
+    "tests": {
+      "passed": 43,
+      "failed": 0
+    }
+  },
+  {
+    "check": "wasm-build-and-demos",
+    "on_main": "af9ebc79",
+    "command": "tools/wasm-build.sh && node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+    "exit_code": 0
+  },
+  {
+    "check": "privacy",
+    "on_main": "af9ebc79",
+    "command": "node tools/check-evidence-privacy.mjs",
+    "exit_code": 0
+  },
+  {
+    "check": "firmware-spi3",
+    "on_main": "af9ebc79",
+    "command": "the inputs.json spi3 run",
+    "exit_code": 0,
+    "spi3": "366 transfers: 339 x [ff], 27 x CMD0 [40 00 00 00 00 95]",
+    "spi2": "88 transfers, the first [ef]",
+    "uart0": "tft ready, then mount failed once a second"
+  },
+  {
+    "check": "firmware-spi3-main",
+    "on_main": "af9ebc79",
+    "command": "the same image and command on main af9ebc79, --max-seconds 3",
+    "exit_code": 0,
+    "result": "tft ready, no SPI3 log line, core1 550084899 instructions in 3 emulated seconds (spinning in SD.begin)"
+  },
+  {
+    "check": "review-follow-up",
+    "on_main": "af9ebc79",
+    "command": "cargo +1.99.1 test --release --workspace --no-fail-fast -- --include-ignored --skip external_",
+    "exit_code": 101,
+    "tests": {
+      "binaries": 109,
+      "passed": 1019,
+      "failed": 2,
+      "ignored": 0
+    },
+    "failures": "the two decoder_matches_corpus tests (Windows drive-letter path split), unrelated",
+    "new_test": "spi3_dma_fault_is_cleared_by_the_next_transaction",
+    "mutation": "without the SPI3 fault clear on a USR write the new test fails"
+  }
+]

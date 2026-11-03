@@ -104,6 +104,27 @@ Things that cost real time to find out, recorded so they do not have to be found
   `BASE_RX_DSCR` every time it recycles descriptors; treating that as "restart here" made every
   second frame land in a descriptor the stack had moved past, so it was batch-recycled instead of
   indicated (`wDev_ProcessRxSucData` `a3=0xa` rather than `0x1`).
+- **`BASE_RX_DSCR` (0x60033088) restarts the receive DMA, but only once it has stopped.** *Inferred, not
+  documented hardware:* no public header names the register, so the rule comes from the register sequence
+  of the IDF 5.1 blob under emulation (a base write immediately before the frame that follows an exhausted
+  list) and from the behaviour it explains (below). A driver may hand the hardware one short list at a
+  time instead of one long ring: Arduino-ESP32 arms four descriptors with the last one's `next` null, and
+  writes the base of the next four. The frame that arrives after such a list finds no descriptor
+  (`dw0 == 0`), which is the DMA's stopped state; the base write is the hand-over, so the DMA takes it as
+  the new head and retries that frame. Rewinding a *running* DMA is still wrong, for the reason above. An
+  IDF 5.1 application needs this: before it, 314 of 315 frames were dropped and the station never
+  authenticated; after it, association, DHCP and MQTT run (receipt:
+  [evidence/wifi-rx-handover](evidence/wifi-rx-handover/README.md)). The S3 and the C3 share the MAC
+  model (`esp-soc/src/wifi/mac.rs`), so both follow this rule; the C6 and classic MACs restart only
+  from `rx_next == 0`.
+  **Assumption of the latch:** `WifiMac::rx_handover` is cleared by the next frame that goes in, so the
+  model assumes a driver publishes the next list's base *after* the current list is exhausted (the
+  Arduino-ESP32 3.x blob does: 1 drop in 570 frames). A driver that published the base while the current
+  list still had two armed descriptors would lose the hand-over and stall at `next = 0`; holding the latch
+  until it is consumed is the change that would cover it, and the bench for it does not exist yet.
+  **Order against the unarmed counter (#276):** the hand-over is tried before the "no ring armed" check, so
+  a frame that finds `rx_next == 0` with a latched base takes that base; only a frame that still has neither
+  a head nor a latched base counts as `unarmed`, which keeps the two counters disjoint.
 - **`rx_ctrl` word 0 must set filter-match bit 28**, plus bit 29 for unicast. With bit 29 alone the
   frame is dropped inside `wDev_ProcessRxSucData` before it is ever indicated — silicon shows
   `0x111b20ad` for a broadcast beacon.
@@ -176,7 +197,8 @@ Things that cost real time to find out, recorded so they do not have to be found
   block interpreter it measured 1.23× (panel), 1.30× (detector), 1.37× (Atech), 1.46× (SID);
   the SID player now runs 193 Minsn/s, 2.1× real time. Decisions that mattered:
   a hand-written encoder for the ~90 instructions used, checked word-for-word against clang
-  (`cargo test encodings_match_clang`) rather than a dependency; anything not inlined calls
+  (`encodings_match_fixture`, against a fixture `external_encodings_match_clang` regenerates)
+  rather than a dependency; anything not inlined calls
   `exec_insn` for that one instruction and carries on natively, so coverage grew op by op
   with the oracle green at every step; the register window base is cached per block and
   reloaded after any helper that could rotate it; the window-overflow test is emitted once

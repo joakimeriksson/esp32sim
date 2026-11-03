@@ -25,6 +25,8 @@ impl<'a, B> RecordingBus<'a, B> {
 }
 
 impl<B: Bus> Bus for RecordingBus<'_, B> {
+    fn reserve(&mut self, addr: u32) { self.bus.reserve(addr) }
+    fn reservation_held(&mut self, addr: u32) -> bool { self.bus.reservation_held(addr) }
     fn read8(&mut self, address: u32) -> Result<u8, Fault> {
         let result = self.bus.read8(address);
         self.accesses.push(MemoryAccess { kind: MemoryAccessKind::Read, address, width: 1, value: result.unwrap_or(0) as u32, fault: result.err() });
@@ -289,6 +291,7 @@ impl<S: Soc> Machine<S> {
     }
 
     fn step_core_modeled(&mut self, core: usize) -> Result<u32, Stop> {
+        S::select_core(&mut self.bus, core);
         let pc = self.cores[core].pc();
         if self.probe_bloom & pc_bit(pc) != 0 && !self.cores[core].waiting() {
             if let Some(name) = self.fn_probes.get(&pc) {

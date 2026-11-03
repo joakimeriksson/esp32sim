@@ -1,0 +1,6 @@
+# The example's console (--script): once its REPL is up, the application writes README.MD on the
+# card the host ejected, then gives the card back to USB.
+0 waituart0 20 esp32p4>
+0.1 uart0 write
+0.3 uart0 status
+0.4 uart0 expose

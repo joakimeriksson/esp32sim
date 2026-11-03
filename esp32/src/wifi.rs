@@ -15,7 +15,12 @@ const DMA_BASE: u32 = 0x3ff0_0000;
 const TXQ0: u32 = 0xd20;
 const EVENT_TX: u32 = 1 << 7;
 
-const EVENT_RX: u32 = 1 << 24;
+// A received frame raises cause bits 24, 5 and 2 together (inferred, not checked on hardware):
+// the esp32-open-mac QEMU model sets 0x1000024 on RX (esp32-open-mac/qemu esp-develop 4a5c772a,
+// hw/xtensa/esp32_wifi.c:481); the Espressif blob takes RX on bit 24; esp-wifi-hal 0.3.1
+// src/ll.rs:182 is `rx => [0x100020, @chip(esp32) 0x4]`, so on the ESP32 it tests 0x100024
+// (bits 20, 5, 2).
+const EVENT_RX: u32 = (1 << 24) | (1 << 5) | (1 << 2);
 
 #[derive(Default)]
 pub struct WifiMac {
@@ -215,10 +220,10 @@ impl SocBus {
         let total = 28 + frame.len() + 4;
         if !d.owner_dma || d.eof || d.buf == 0 || d.size < total as u32 { return None; }
         let range = dma_range(d.buf, total)?;
-        let chan = self.periph.wifi.link.ap().unwrap().cfg.channel as u32;
+        let (chan, rssi) = { let (c, r) = self.periph.wifi.link.ap().unwrap().rx_meta(frame); (c as u32, i32::from(r)) };
         let broadcast = frame.get(4).is_some_and(|v| v & 1 != 0);
         // wDev_ProcessRxSucData subtracts the classic 96 dB RSSI offset.
-        let w0 = 56 | (1 << 28) | if broadcast { 0 } else { 1 << 29 };
+        let w0 = ((rssi + 96) as u32 & 0xff) | (1 << 28) | if broadcast { 0 } else { 1 << 29 };
         // Classic rx_ctrl is 28 bytes: noise at +8, channel at +10, sig_len/state at +24.
         let mut bytes = Vec::with_capacity(total);
         for w in [
@@ -369,6 +374,35 @@ mod tests {
         }
     }
 
+    /// A frame from a network around reaches the classic RX descriptor with that network's channel
+    /// and RSSI (`VirtualAp::rx_meta`): the RSSI plus the classic 96 dB offset in word 0's low byte,
+    /// the channel at +10 (word 2 bits 16-23, next to the -90 dBm noise floor); a frame from the
+    /// access point keeps its channel and -40 dBm (56).
+    #[test]
+    fn classic_rx_ctrl_carries_a_nearby_networks_channel_and_rssi() {
+        use xtensa_lx7::bus::Bus;
+        let home = [0x02, 1, 2, 3, 4, 5];
+        for (from, chan, rssi) in [(home, 1u32, -60i32), ([2, 0x53, 0x49, 0x4d, 0, 1], 6, -40)] {
+            let mut b = SocBus::new(0, [0; 6]);
+            b.periph.wifi.link.attach(Some(VirtualAp::new(wifi::ApConfig::parse("ssid=demo,chan=6,bssid=02:53:49:4d:00:01").unwrap(), false)), None);
+            let left_out = b.periph.wifi.link.set_beacons(vec![wifi::BeaconAp { ssid: "Home".into(), bssid: home, channel: 1, rssi: -60, secure: true }]);
+            assert_eq!(left_out, Some(vec![]));
+            let mut frame = [0u8; 24];
+            frame[0] = 0x80;                                                     // beacon
+            frame[4..10].fill(0xff);
+            frame[10..16].copy_from_slice(&from);
+            let (desc, buf) = (0x3ffb_0000, 0x3ffb_1000);
+            b.write32(desc, (1 << 31) | 0xfff).unwrap();                         // owner DMA, size 4095
+            b.write32(desc + 4, buf).unwrap();
+            b.write32(desc + 8, desc + 12).unwrap();
+            b.periph.wifi.write(0x088, desc);
+            b.periph.wifi.write(0x084, 1 << 31);
+            assert!(b.wifi_rx_fill(&frame, 1234, false).is_some());
+            assert_eq!(b.read32(buf).unwrap() & 0xff, (rssi + 96) as u32, "RSSI of {from:02x?}");
+            assert_eq!(b.read32(buf + 8).unwrap(), 0xa6 | (chan << 16), "channel of {from:02x?}");
+        }
+    }
+
     #[test]
     fn authentication_tx_reads_full_length_not_buffer_capacity() {
         // A complete open-system authentication request is 30 bytes. Truncating
@@ -470,6 +504,27 @@ mod tests {
         assert_eq!(b.periph.wifi.link.rx_frames(), 0);
         assert_eq!(b.periph.wifi.link.last_rx_desc(), 0);
         assert!(b.take_ethernet_frames().is_empty());
+    }
+
+    /// A received frame sets cause 0x0100_0024. 0x01e839e0 is the enable mask both an IDF blob
+    /// and an esp-wifi-hal 0.3.1 firmware write (bits 24 and 5, not 2); bit 24, 5 or 2 alone each
+    /// raise the line; INT_CLR of all three bits clears it.
+    #[test]
+    fn rx_cause_raises_bits_24_5_and_2() {
+        let mut w = WifiMac::default();
+        w.write(0x088, 0x3ffb_0000);
+        w.rx_filled(0x3ffb_0000, 0x3ffb_000c);
+        assert_eq!(w.read(0xc48), 0x0100_0024);
+        assert_eq!(w.irq_sources(), 0);
+        for mask in [0x01e8_39e0, 1 << 24, 1 << 5, 1 << 2] {
+            w.write(0xc40, mask);
+            assert_eq!(w.irq_sources(), 1, "{mask:#x}");
+        }
+        w.write(0xc40, !0x0100_0024);
+        assert_eq!(w.irq_sources(), 0);
+        w.write(0xc40, 0x01e8_39e0);
+        w.write(0xc4c, 0x0100_0024);
+        assert_eq!((w.read(0xc48), w.irq_sources()), (0, 0));
     }
 
     #[test]

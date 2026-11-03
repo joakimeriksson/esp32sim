@@ -141,8 +141,54 @@ parameters, not a hardware calibration or evidence of tear-free rendering.
 
 Waveshare does not opt into this scan. Its existing GPIO13 oscillator remains
 unchanged, including its optional measured 16,773 us period / 578 us high variant;
-STE and TE commands do not change that legacy waveform. The StopWatch board,
-registration, I2C power/reset coupling and UI are separate work.
+STE and TE commands do not change that legacy waveform.
+
+## `stopwatch` — M5Stack StopWatch (ESP32-S3)
+
+Selected with `--board stopwatch` (alias `m5stack-stopwatch`). The native CLI
+defaults to 16 MB flash and 8 MB PSRAM for this board; `--flash-mb` and
+`--psram-mb` override them. `BoardModel` has no memory-size defaults.
+The browser Configure selector includes `stopwatch`; memory sizes remain
+explicit browser configuration values.
+
+| Device | Bus | Model |
+| --- | --- | --- |
+| CO5300 | SPI2 QSPI | 468×466 RGB565 RAM, column offset 6; CASET 6..473, RASET 0..465; split RAMWR/RAMWRC transfers |
+| TE | GPIO38 | STE-aware synthetic scan: 500 lines, 15,000 µs period, 120 µs high pulse; 3,600,000 / 28,800 cycles at 240 MHz |
+| M5PM1 at `0x6e` | I2C0, SDA47/SCL48 | ID `0x2050`, retained power configuration, battery input and latched shutdown request |
+| M5IOE1 at `0x4f` | I2C0 | OLED rail, OLED reset and touch reset through shared state; synthetic UID `0x0000` |
+| CST820 at `0x15` | I2C0 | Identity and latched touch coordinates, clamped to 467/465; reset clears pending touch |
+| Buttons A / B | GPIO2 / GPIO1, active low | Released-high initial inputs; script names `a` / `b` or `btn_a` / `btn_b`; browser buttons |
+
+Power/reset wiring follows M5Stack's public hardware documentation and
+power-management guide, linked in [the M5 device sources](m5-i2c.md#stopwatch-address-and-wiring-sources):
+M5IOE1 IO8 enables the OLED rail, IO5 releases OLED reset and IO4 releases touch
+reset. The board accepts SPI2 panel writes only while the rail and OLED reset
+are high and the PMIC shutdown latch is clear. Every M5 write updates the wiring,
+including reset pulses between board callbacks. Reset assertion, rail loss or
+PMIC shutdown clears panel RAM and command state, drives TE low and cancels
+future TE edges. Restoring power does not reenable TE without a panel command.
+The display change counter remains monotonic across resets.
+
+PMIC `SYS_CMD=0xa1` blanks the panel and is reported as
+`power_off_requested=true`; it does not halt the CPU. Battery input defaults to
+3900 mV, not charging. These values and the expander UID are synthetic.
+Touch input is ignored while touch reset is asserted or after shutdown.
+
+The directed `esp32s3 --test stopwatch` tests cover factory selection, bus-0
+attachments, firmware register initialization, reset/rail/shutdown gating,
+framebuffer stride, CST820 reports and GPIO38 interrupt routing. The scan
+parameters are not hardware measurements. Physical scanout, touch IRQs,
+BMI270 and RX8130 are not modeled. These tests do not establish firmware boot,
+relay connectivity or tear-free rendering. Native `--web` keeps native
+networking; browser-only WASM has no NAT for external relay connections.
+
+The original PR's native boot report used private StopWatch firmware revision
+`9e0d4dc`. Its `relay_connected` log and rendered status face were a manual
+observation, not a checked-in test or a public firmware fixture. That run cannot
+be reproduced from this repository alone; no public build or private relay
+configuration is included. CI covers the directed board and UI tests above,
+not that firmware's boot or relay connection.
 
 ## `waveshare-c6-lcd147` — Waveshare ESP32-C6-LCD-1.47 (ESP32-C6)
 
@@ -157,6 +203,27 @@ registration, I2C power/reset coupling and UI are separate work.
 
 The energy-scan firmware and the run recipe: `examples/waveshare-c6-lcd147/`, [esp32c6.md](esp32c6.md).
 
+## `waveshare-p4-lcd35` — Waveshare ESP32-P4-WIFI6-Touch-LCD-3.5 (ESP32-P4 rev ≥ 3)
+
+The wiring is Waveshare's BSP `waveshare/esp32_p4_wifi6_touch_lcd_3_5` 2.0.2
+(`include/bsp/esp32_p4_wifi6_touch_lcd_3_5.h`); the BSP and LVGL 9 run on the model unmodified.
+
+| Device | Bus | Model |
+| --- | --- | --- |
+| ST7796 320×480 panel | GPSPI2 (MOSI 20, CLK 21, CS 23, D/C 26, RST 27) through the AXI-GDMA | `DcsPanel::new(320, 480)`; the glass shows the RAM with its columns reversed (the BSP sets MADCTL.MX) and R/B exchanged unless MADCTL.BGR is set; pixels high byte first; INVON, which the BSP sets for the IPS glass, not applied |
+| FT5x06-family touch | I2C1 (SCL 8, SDA 7) at 0x38, INT on GPIO 50, RST 29 | `Ft5x06`: TD_STATUS and five point records; INT pulses low every 12 ms while touched (the driver's ID_G_PERIODACTIVE) and once on release; a touch shorter than two report periods (24 ms) is held that long, so the driver, woken by INT, reads it |
+| ES8311 codec | I2C1 at 0x18 (registers), I2S1 through the AHB-GDMA (DOUT 9, LRCK 10, DIN 11, SCLK 12, MCLK 13) | a register file; the audio is I2S1's first slot (`--wav`, the page's audio); its volume register is not applied |
+| Speaker amplifier | enable on GPIO 53 | the level, reported |
+| Backlight | LEDC on GPIO 28 | `Ledc` (P4 layout); the panel is drawn whatever the duty |
+| ESP32-C6 | SDIO slot 1 (ESP-Hosted) | `--coproc` ([esp32p4.md](esp32p4.md), "The co-processor"); without it ESP-Hosted's probe fails |
+| TF card | SDMMC slot 0 | `--sd` |
+
+Firmware for it: the Scintilla synth (`p4-scintilla-lcd35*`, fetched by `tools/fetch-p4-firmware.sh`;
+source joakimeriksson/esp32 at commit `eed6180`, directory `scintilla-p4-lcd35`, GPL-3.0, licences in
+`web/wasm/fw/public/p4-scintilla-NOTICE.txt`), pinned by the golden `scintilla_p4_lcd35`, and the
+page demo `p4-lcd35-synth`. It wants PSRAM: `--psram-mb 32`, as the board has (the CLI's default
+is none; the page's manifest sets 32).
+
 ## `ttgo-tdisplay` — LilyGO TTGO T-Display (classic ESP32)
 
 | Device | Bus | Model |
@@ -168,6 +235,39 @@ The energy-scan firmware and the run recipe: `examples/waveshare-c6-lcd147/`, [e
 | I2C header | SDA 21 / SCL 22 | nothing attached |
 
 Selected with `--chip esp32 --board ttgo-tdisplay` (alias `tdisplay`); [esp32.md](esp32.md#the-board---board-ttgo-tdisplay).
+
+## `ulanzi-tc001` — Ulanzi TC001 pixel clock (classic ESP32)
+
+| Device | Bus | Model |
+| --- | --- | --- |
+| 256 WS2812, 32×8 | GPIO 32 via RMT | one `Ws2812Chain` with `MATRIX_PHYSICAL`: the chain runs in rows from the top left, every second row right to left (AWTRIX layout 0), so `leds()` and the 32×8 `display()` are in reading order |
+| Buttons | GPIO 26 (left), 27 (select), 14 (right), active low | `press left 150`, `press select 150`, `press right 150` |
+| Light sensor, battery divider | GPIO 35, GPIO 34 (ADC1) | not modelled |
+| Buzzer | GPIO 15 | not modelled |
+| I2C | SDA 21 / SCL 22 | temperature/humidity sensor and RTC not modelled |
+| AWTRIX `RESET_PIN` | GPIO 13 (held low for 5 s, AWTRIX erases its settings) | not modelled, reads high |
+
+Selected with `--chip esp32 --board ulanzi-tc001` (alias `tc001`). Pins from the AWTRIX 3 firmware
+(Blueforcer/awtrix3 at `a69571703a88`, `src/DisplayManager.cpp`, `src/PeripheryManager.cpp`; the
+pin block moves between versions). A 256-LED frame is 6144 RMT symbols sent
+through the refilled 64-word block; the classic RMT hands transmissions up to 4096 pixels to the
+board. Stock AWTRIX 3 runs on it: [examples/ulanzi-tc001](../examples/ulanzi-tc001/README.md).
+The web page offers it too: pick `ulanzi-tc001` in the firmware panel; the matrix is drawn 16× and the
+three buttons are under it.
+
+## `ai-thinker-cam` — AI-Thinker ESP32-CAM (classic ESP32)
+
+Select `--chip esp32 --board ai-thinker-cam` (alias `esp32cam`). The OV2640 is
+on SCCB at 0x30 (SDA 26, SCL 27; either I2C controller), with PWDN 32, XCLK 0,
+no reset wire, D0–D7 5/18/19/21/36/39/34/35, PCLK 22, HREF 23 and VSYNC 25. The
+guest must configure the physical routes and a live PWM clock.
+`--cam-image image.bmp|ppm` supplies a still image; absent input is black. Raw
+RGB565/YUV422 captures use I2S0 RX DMA with a fixed approximate 10 FPS cadence.
+`--cam-image photo.jpg` supplies baseline JPEG for `PIXFORMAT_JPEG`, delivered
+byte for byte when its size equals the configured frame size; frame buffers may
+be in DRAM or, with `--psram-mb 4`, PSRAM.
+JPEG encoding, adjustable FPS and silicon/PCLK timing are unsupported.
+See [the fixture and scope](esp32.md#the-camera---board-ai-thinker-cam).
 
 ## `none` — bare module
 

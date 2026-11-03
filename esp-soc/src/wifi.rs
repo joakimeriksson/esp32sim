@@ -4,6 +4,8 @@
 
 #[cfg(test)]
 mod tests;
+mod mac;
+pub use mac::{WifiMac, TXQ_COUNT};
 
 pub fn mac_str(m: &[u8]) -> String { m.iter().map(|b| format!("{:02x}", b)).collect::<Vec<_>>().join(":") }
 
@@ -38,14 +40,19 @@ pub fn is_beacon(f: &[u8]) -> bool { f.len() >= 2 && f[0] & 0x0c == 0 && (f[0] >
 pub const RSN_IE: &[u8] = &[48, 20, 1, 0, 0x00, 0x0f, 0xac, 4, 1, 0, 0x00, 0x0f, 0xac, 4, 1, 0, 0x00, 0x0f, 0xac, 2, 0, 0];
 
 #[derive(Clone, Debug)]
-pub struct ApConfig { pub ssid: String, pub bssid: [u8; 6], pub channel: u8, pub psk: Option<String> }
+pub struct ApConfig {
+    pub ssid: String, pub bssid: [u8; 6], pub channel: u8, pub psk: Option<String>,
+    /// the network's clock at power-on, seconds since 1970 (`epoch=`); without it the host's clock
+    /// at the first SNTP answer
+    pub epoch_s: Option<u64>,
+}
 
 impl ApConfig {
     /// Parse the shared CLI/browser AP configuration. Unknown keys are errors so a
     /// misspelled passphrase option cannot silently configure an open network.
     pub fn parse(spec: &str) -> Result<Self, String> {
         let mut cfg = Self {
-            ssid: "esp32sim".into(), bssid: [0x02, 0x53, 0x49, 0x4d, 0x00, 0x01], channel: 6, psk: None,
+            ssid: "esp32sim".into(), bssid: [0x02, 0x53, 0x49, 0x4d, 0x00, 0x01], channel: 6, psk: None, epoch_s: None,
         };
         if spec.is_empty() { return Ok(cfg); }
         for entry in spec.split(',') {
@@ -58,16 +65,8 @@ impl ApConfig {
                         .ok_or_else(|| format!("invalid WiFi channel '{value}': expected 1 through 14"))?;
                 }
                 "psk" | "password" | "pass" => cfg.psk = Some(value.to_string()),
-                "bssid" => {
-                    let invalid = || format!("invalid WiFi BSSID '{value}': expected six hexadecimal octets");
-                    let mut octets = value.split(':');
-                    for byte in &mut cfg.bssid {
-                        let octet = octets.next().filter(|s| s.len() == 2 && s.bytes().all(|b| b.is_ascii_hexdigit()))
-                            .ok_or_else(invalid)?;
-                        *byte = u8::from_str_radix(octet, 16).map_err(|_| invalid())?;
-                    }
-                    if octets.next().is_some() { return Err(invalid()); }
-                }
+                "epoch" => cfg.epoch_s = Some(crate::net::parse_epoch(value)?),
+                "bssid" => cfg.bssid = parse_bssid(value)?,
                 _ => return Err(format!("unknown WiFi option '{key}'")),
             }
         }
@@ -100,6 +99,76 @@ pub struct Wpa {
     pub state: WpaState,
 }
 
+/// Six hexadecimal octets separated by colons.
+fn parse_bssid(value: &str) -> Result<[u8; 6], String> {
+    let invalid = || format!("invalid WiFi BSSID '{value}': expected six hexadecimal octets");
+    let mut bssid = [0u8; 6];
+    let mut octets = value.split(':');
+    for byte in &mut bssid {
+        let octet = octets.next().filter(|s| s.len() == 2 && s.bytes().all(|b| b.is_ascii_hexdigit()))
+            .ok_or_else(invalid)?;
+        *byte = u8::from_str_radix(octet, 16).map_err(|_| invalid())?;
+    }
+    if octets.next().is_some() { return Err(invalid()); }
+    Ok(bssid)
+}
+
+/// A network around the station, heard on the air but not joinable: it answers probe requests,
+/// so a scan lists it with its channel, signal and security (the `bssid`, `ssid`, `primary`,
+/// `rssi` and `authmode` of IDF's `wifi_ap_record_t`, v5.5.5
+/// components/esp_wifi/include/esp_wifi_types_generic.h:320-349; v4.4.8
+/// components/esp_wifi/include/esp_wifi_types.h:191-210), and nothing else, so connecting to it
+/// fails as to a network out of reach.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BeaconAp { pub ssid: String, pub bssid: [u8; 6], pub channel: u8, pub rssi: i8, pub secure: bool }
+
+/// The most beacon-only networks an access point carries.
+pub const BEACONS_MAX: usize = 32;
+
+impl BeaconAp {
+    /// `--wifi-nearby`'s `key=value,...`: `ssid` (1 to 32 bytes, required), `chan` 1 through 14
+    /// (default 1), `rssi` in dBm (default -60), `secure` 0 or 1 (default 1, WPA2-PSK in the scan),
+    /// `bssid` (default: a locally administered address derived from the SSID, the same every run).
+    pub fn parse(spec: &str) -> Result<BeaconAp, String> {
+        let mut b = BeaconAp { ssid: String::new(), bssid: [0; 6], channel: 1, rssi: -60, secure: true };
+        let mut bssid = None;
+        for entry in spec.split(',') {
+            let (key, value) = entry.split_once('=').ok_or_else(|| format!("invalid nearby-network option '{entry}': expected key=value"))?;
+            match key {
+                "ssid" => b.ssid = value.to_string(),
+                "chan" | "channel" | "ch" => b.channel = value.parse::<u8>().ok().filter(|n| (1..=14).contains(n))
+                    .ok_or_else(|| format!("invalid nearby-network channel '{value}': expected 1 through 14"))?,
+                "rssi" => b.rssi = value.parse::<i8>().map_err(|_| format!("invalid nearby-network rssi '{value}': expected -128 through 127 dBm"))?,
+                "secure" => b.secure = match value { "1" | "true" | "yes" => true, "0" | "false" | "no" => false,
+                    _ => return Err(format!("invalid nearby-network secure '{value}': expected 0 or 1")) },
+                "bssid" => bssid = Some(parse_bssid(value)?),
+                _ => return Err(format!("unknown nearby-network option '{key}'")),
+            }
+        }
+        if !(1..=32).contains(&b.ssid.len()) { return Err("a nearby network needs an ssid of 1 to 32 bytes".into()); }
+        b.bssid = bssid.unwrap_or_else(|| {
+            // FNV-1a over the SSID, in a locally administered unicast address (bit 1 of the first octet)
+            let h = b.ssid.bytes().fold(0xcbf2_9ce4_8422_2325u64, |h, c| (h ^ u64::from(c)).wrapping_mul(0x100_0000_01b3));
+            let x = h.to_le_bytes();
+            [0x02, x[0], x[1], x[2], x[3], x[4]]
+        });
+        Ok(b)
+    }
+
+    /// Every `--wifi-nearby` spec, at most `BEACONS_MAX` of them, each on a BSSID of its own (two
+    /// specs with one SSID and no `bssid` derive the same one).
+    pub fn parse_all(specs: &[String]) -> Result<Vec<BeaconAp>, String> {
+        if specs.len() > BEACONS_MAX { return Err(format!("more than {BEACONS_MAX} nearby networks")); }
+        let list = specs.iter().map(|s| Self::parse(s)).collect::<Result<Vec<_>, _>>()?;
+        for (i, b) in list.iter().enumerate() {
+            if let Some(o) = list[..i].iter().find(|o| o.bssid == b.bssid) {
+                return Err(format!("nearby networks '{}' and '{}' share the BSSID {}", o.ssid, b.ssid, mac_str(&b.bssid)));
+            }
+        }
+        Ok(list)
+    }
+}
+
 pub struct VirtualAp {
     pub cfg: ApConfig,
     pub wpa: Wpa,
@@ -113,6 +182,8 @@ pub struct VirtualAp {
     pub log: bool,
     pub stats: (u64, u64, u64),   // beacons, probe responses, data frames from the station
     pub pn: u64,                  // CCMP packet number for frames we send
+    /// The networks around, beacon-only and not joinable (`set_beacons`).
+    pub beacons: Vec<BeaconAp>,
 }
 
 impl VirtualAp {
@@ -126,7 +197,7 @@ impl VirtualAp {
             for i in 0..16 { wpa.gtk[i] = seed[(i + 3) % 20] ^ 0x5a; }
         }
         VirtualAp { cfg, wpa, state: StaState::Idle, sta: [0; 6], aid: 1, next_beacon_us: 100_000, beacon_interval_us: 102_400, seq: 0,
-                    queue: Vec::new(), pn: 0, log, stats: (0, 0, 0) }
+                    queue: Vec::new(), pn: 0, log, stats: (0, 0, 0), beacons: Vec::new() }
     }
     fn hdr(&mut self, fc: u16, a1: &[u8; 6], a3: &[u8; 6]) -> Vec<u8> {
         let mut f = Vec::with_capacity(128);
@@ -153,6 +224,38 @@ impl VirtualAp {
         f.extend_from_slice(&self.capability().to_le_bytes());
         self.common_ies(&mut f);
         f
+    }
+    /// A probe response from a network around, as its own BSSID: the fixed fields (timestamp,
+    /// beacon interval, capability: ESS, Privacy when secured, Short Slot Time; IEEE 802.11-2020
+    /// 9.3.3.10 and 9.4.1.4) and the SSID, Supported Rates, DSSS Parameter Set (its channel),
+    /// Extended Supported Rates and, when secured, RSN elements (element ids 0, 1, 3, 50 and 48,
+    /// IEEE 802.11-2020 Table 9-92); the rates are this access point's.
+    fn beacon_ap_response(&mut self, b: &BeaconAp, dst: &[u8; 6], now_us: u64) -> Vec<u8> {
+        let mut f = Vec::with_capacity(96);
+        f.extend_from_slice(&(5u16 << 4).to_le_bytes()); f.extend_from_slice(&[0, 0]);
+        f.extend_from_slice(dst); f.extend_from_slice(&b.bssid); f.extend_from_slice(&b.bssid);
+        f.extend_from_slice(&(self.seq << 4).to_le_bytes()); self.seq = self.seq.wrapping_add(1);
+        f.extend_from_slice(&now_us.to_le_bytes());
+        f.extend_from_slice(&100u16.to_le_bytes());
+        let cap: u16 = 0x0001 | if b.secure { 0x0010 } else { 0 } | 0x0400;
+        f.extend_from_slice(&cap.to_le_bytes());
+        f.push(0); f.push(b.ssid.len() as u8); f.extend_from_slice(b.ssid.as_bytes());
+        f.extend_from_slice(&[1, 8, 0x82, 0x84, 0x8b, 0x96, 0x0c, 0x12, 0x18, 0x24]);
+        f.extend_from_slice(&[3, 1, b.channel]);
+        f.extend_from_slice(&[50, 4, 0x30, 0x48, 0x60, 0x6c]);
+        if b.secure { f.extend_from_slice(RSN_IE); }
+        f
+    }
+    /// The channel and signal (dBm) a frame from the air arrives with, for the chip's RX
+    /// descriptor (`rssi` and `channel` of `wifi_pkt_rx_ctrl_t`, IDF v5.5.5
+    /// components/esp_wifi/include/local/esp_wifi_types_native.h:36 and :59-60; v4.4.8
+    /// components/esp_wifi/include/esp_wifi_types.h:387 and :408-409): a network around's own for
+    /// a frame from its BSSID, this access point's channel and -40 dBm otherwise.
+    pub fn rx_meta(&self, frame: &[u8]) -> (u8, i8) {
+        if frame.len() >= 16 {
+            if let Some(b) = self.beacons.iter().find(|b| frame[10..16] == b.bssid) { return (b.channel, b.rssi); }
+        }
+        (self.cfg.channel, -40)
     }
     fn send(&mut self, at_us: u64, frame: Vec<u8>) {
         if self.log { let d = describe(&frame); if d.contains("auth") || d.contains("assoc") || d.contains("888e") { eprintln!("[wifi] AP -> {}  hex={:02x?}", d, frame); } else { eprintln!("[wifi] AP -> {} (t+{} us)", d, at_us); } }
@@ -186,6 +289,17 @@ impl VirtualAp {
             (0, 4) => {                                                                      // probe request: for us or wildcard?
                 let ssid_ok = ies(f, 24).iter().any(|(id, d)| *id == 0 && (d.is_empty() || *d == self.cfg.ssid.as_bytes()));
                 if ssid_ok && to_us(&f[4..10]) { let r = self.beacon_like(5, &a2, now_us); self.stats.1 += 1; self.send(now_us + 1500, r); }
+                // the networks around answer a wildcard probe, or one for their SSID, sent to the
+                // broadcast address or their own with a wildcard BSSID or their own (IEEE
+                // 802.11-2020 11.1.4.3.4)
+                let asked: Vec<Vec<u8>> = ies(f, 24).into_iter().filter(|(id, _)| *id == 0).map(|(_, d)| d.to_vec()).collect();
+                let addressed = |b: &BeaconAp| [&f[4..10], &f[16..22]].iter().all(|a| *a == [0xff; 6] || *a == b.bssid);
+                let around: Vec<BeaconAp> = self.beacons.iter()
+                    .filter(|b| addressed(b) && asked.iter().any(|s| s.is_empty() || *s == b.ssid.as_bytes())).cloned().collect();
+                for (i, b) in around.iter().enumerate() {
+                    let r = self.beacon_ap_response(b, &a2, now_us);
+                    self.send(now_us + 1900 + 400 * i as u64, r);
+                }
             }
             (0, 11) if f.len() >= 30 && to_us(&f[4..10]) => {                                // authentication (open system)
                 let (alg, seq) = (u16::from_le_bytes([f[24], f[25]]), u16::from_le_bytes([f[26], f[27]]));
@@ -395,6 +509,8 @@ pub struct StationLink {
     rx_frames: u64,
     /// received frames with no usable descriptor
     rx_dropped: u64,
+    /// frames on the air before the station's receive ring was set up
+    rx_unarmed: u64,
     /// relayed frames that were too long or found the relay queue full
     tx_dropped: u64,
 }
@@ -424,6 +540,7 @@ impl StationLink {
     pub fn attach_new(&mut self, cfg: ApConfig, nat: Option<crate::nat::Nat>, debug: &crate::DebugFlags) {
         let mut net = crate::net::VirtualNet::new(debug.has("net"));
         net.nat = nat;
+        net.epoch_us = cfg.epoch_s.map(|s| s.saturating_mul(1_000_000));
         self.attach(Some(VirtualAp::new(cfg, debug.has("wifi-frames"))), Some(net));
     }
     /// What a guest reboot keeps: the host's access point, network and relay mode. The queues, the
@@ -442,7 +559,21 @@ impl StationLink {
     pub fn tx_frames(&self) -> u64 { self.tx_frames }
     pub fn rx_frames(&self) -> u64 { self.rx_frames }
     pub fn rx_dropped(&self) -> u64 { self.rx_dropped }
+    pub fn rx_unarmed(&self) -> u64 { self.rx_unarmed }
     pub fn tx_dropped(&self) -> u64 { self.tx_dropped }
+    /// The networks around (beacon-only, not joinable), replacing the ones there were; `None`
+    /// without an access point. A network with the access point's own SSID or BSSID would be that
+    /// access point, so it is left out: the ones left out come back with the reason.
+    pub fn set_beacons(&mut self, beacons: Vec<BeaconAp>) -> Option<Vec<(BeaconAp, &'static str)>> {
+        let ap = self.ap.as_mut()?;
+        let mut left_out = Vec::new();
+        ap.beacons = beacons.into_iter().filter_map(|b| {
+            let why = if b.ssid == ap.cfg.ssid { "the access point's SSID" } else if b.bssid == ap.cfg.bssid { "the access point's BSSID" } else { return Some(b) };
+            left_out.push((b, why));
+            None
+        }).collect();
+        Some(left_out)
+    }
 
     /// The station sent `frame` at `now_us`: the access point hears it, and what it passes on as
     /// data goes to the network or the relay.
@@ -497,12 +628,16 @@ impl StationLink {
     pub fn rx_delivered(&mut self, desc: u32) { self.last_rx_desc = desc; self.rx_frames += 1; }
     /// A frame found no usable descriptor.
     pub fn drop_rx(&mut self) { self.rx_dropped += 1; }
+    /// A frame went by before the driver gave the MAC its receive ring.
+    pub fn drop_rx_unarmed(&mut self) { self.rx_unarmed += 1; }
 
     /// The network behind the access point answers what the station sent at once and reads the
     /// host's sockets every `NET_POLL_US`. Nothing to do in relay mode: the host has the frames.
     pub fn net_step(&mut self, now_us: u64) {
         if self.relay { return; }
+        let sta = self.ap.as_ref().map(|ap| ap.sta);
         let Some(net) = self.net.as_mut() else { return };
+        if let Some(mac) = sta { if mac != [0; 6] { net.sta_mac = mac; } }
         let out = std::mem::take(&mut self.eth_tx);
         let due = now_us.wrapping_sub(self.net_polled_us) >= NET_POLL_US;
         if out.is_empty() && !due { return; }
@@ -535,9 +670,15 @@ impl StationLink {
     /// the station never used the radio and there is no network.
     pub fn report(&self) -> String {
         let mut lines = Vec::new();
-        if self.tx_frames + self.rx_frames > 0 { lines.push(format!("[emu] wifi: {} frames sent by the station, {} received ({} dropped: no descriptor){}", self.tx_frames, self.rx_frames, self.rx_dropped, self.ap.as_ref().map_or(String::new(), |ap| format!("; AP: {} beacons, {} probe responses, {} data frames from the station, state {:?}", ap.stats.0, ap.stats.1, ap.stats.2, ap.state)))); }
+        if self.tx_frames + self.rx_frames + self.rx_dropped + self.rx_unarmed > 0 {
+            let unarmed = if self.rx_unarmed > 0 { format!(", {} before the receive ring was set up", self.rx_unarmed) } else { String::new() };
+            lines.push(format!("[emu] wifi: {} frames sent by the station, {} received ({} dropped: no descriptor{unarmed}){}", self.tx_frames, self.rx_frames, self.rx_dropped, self.ap.as_ref().map_or(String::new(), |ap| format!("; AP: {} beacons, {} probe responses, {} data frames from the station, state {:?}", ap.stats.0, ap.stats.1, ap.stats.2, ap.state))));
+        }
         if let Some(n) = &self.net { lines.push(format!("[emu] net: {} DHCP leases, {} ARP replies, {} DNS answers, {} NTP answers, {} TCP refused, {} pings, {} frames ignored", n.dhcp_acks, n.arp_replies, n.dns_answers, n.ntp_answers, n.tcp_rejects, n.pings, n.unhandled));
-            if let Some(t) = &n.nat { lines.push(format!("[emu] nat: {} TCP connections ({} failed), {} UDP flows ({} evicted, {} send errors), {} bytes out, {} bytes in", t.tcp_opened, t.tcp_refused, t.udp_flows, t.udp_evicted, t.udp_send_errors, t.bytes_to_host, t.bytes_to_guest)); } }
+            if let Some(t) = &n.nat {
+                let inbound = if t.hostfwd == 0 { String::new() } else { format!(", {} inbound, {} hostfwd", t.tcp_accepted, t.hostfwd) };
+                lines.push(format!("[emu] nat: {} TCP connections ({} failed{}), {} UDP flows ({} evicted, {} send errors), {} bytes out, {} bytes in", t.tcp_opened, t.tcp_refused, inbound, t.udp_flows, t.udp_evicted, t.udp_send_errors, t.bytes_to_host, t.bytes_to_guest));
+            } }
         lines.join("\n")
     }
 }

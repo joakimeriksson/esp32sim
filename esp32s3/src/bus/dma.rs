@@ -13,7 +13,10 @@ pub(super) enum M2mFault { Source, Destination }
 pub use esp_periph::gdma::{DmaDescriptorFault, DmaDescriptorWord};
 use esp_periph::gdma::DescriptorWalk;
 
+/// One GP-SPI data phase collected from GDMA (SPI2 or SPI3).
 pub(super) struct Spi2DmaCompletion {
+    /// The GP-SPI host, 2 or 3.
+    host: u8,
     pub(super) channel: usize,
     desc: u32,
     buf_pos: u32,
@@ -96,21 +99,33 @@ impl SocBus {
             self.commit_spi2_dma(completion);
             return;
         }
-        if self.periph.spi2.dma_tx_pending.is_none() {
+        if self.periph.spi2.dma_tx_pending.is_some() { self.complete_gpspi_dma(2); }
+    }
+
+    /// SPI3's DMA data phase, through the GDMA OUT channel of trigger 1
+    /// (SOC_GDMA_TRIG_PERIPH_SPI3). Always committed at once: the experimental wire timing
+    /// (`spi2_timing`) is SPI2's only.
+    #[inline(always)]
+    pub(super) fn complete_spi3_dma(&mut self) { if self.periph.spi3.dma_tx_pending.is_some() { self.complete_gpspi_dma(3); } }
+
+    #[inline(never)]
+    fn complete_gpspi_dma(&mut self, host: u8) {
+        if self.periph.gpspi(host).dma_tx_pending.is_none() {
             return;
         }
-        let channel = self.periph.gdma.out_channel_for(0);
-        if channel.is_none() && !self.periph.gdma.out.iter().any(|c| c.peri_sel == 0 && c.desc != 0) {
+        let peri = u32::from(host - 2);                                 // GDMA trigger: SPI2 0, SPI3 1
+        let channel = self.periph.gdma.out_channel_for(peri);
+        if channel.is_none() && !self.periph.gdma.out.iter().any(|c| c.peri_sel == peri && c.desc != 0) {
             // A DMA command without a bound channel cannot progress. Abort it just
             // like a descriptor failure so firmware can issue a later CPU command.
             // A stopped channel with a descriptor remains bound and can be restarted.
-            self.periph.spi2.fail_dma_tx();
+            self.periph.gpspi_mut(host).fail_dma_tx();
             self.irq_dirty = true;
             return;
         }
-        match self.spi2_dma_completion() {
+        match self.spi2_dma_completion(host) {
             Ok(Some(completion)) => {
-                if self.spi2_timing {
+                if host == 2 && self.spi2_timing {
                     // Rough wire-time floor, assuming the normal 80 MHz SPI source.
                     // Payload is snapshotted at submission; no progressive SRAM reads yet.
                     let cycles = self.periph.spi2.wire_source_cycles() * (crate::periph::CPU_HZ / 80_000_000);
@@ -125,7 +140,7 @@ impl SocBus {
             Ok(None) => {}
             Err(fault) => {
                 if let Some(channel) = channel {
-                    self.fail_spi2_dma(channel, fault);
+                    self.fail_spi2_dma(host, channel, fault);
                 }
             }
         }
@@ -134,7 +149,7 @@ impl SocBus {
     fn commit_spi2_dma(&mut self, completion: Spi2DmaCompletion) {
         for (descriptor, control) in completion.descriptor_writebacks {
             if let Err(fault) = self.write32_unpriced(descriptor, control) {
-                self.fail_spi2_dma(completion.channel, DmaDescriptorFault::Writeback { descriptor, fault });
+                self.fail_spi2_dma(completion.host, completion.channel, DmaDescriptorFault::Writeback { descriptor, fault });
                 return;
             }
         }
@@ -148,25 +163,34 @@ impl SocBus {
         channel.running = channel.running && completion.running;
         if let Some(descriptor) = completion.eof_desc { channel.eof_desc = descriptor; }
         channel.int_raw |= completion.raised_interrupts;
-        self.periph.spi2.complete_dma_tx(&completion.payload);
+        self.periph.gpspi_mut(completion.host).complete_dma_tx(&completion.payload);
         self.irq_dirty = true;
     }
 
-    fn fail_spi2_dma(&mut self, channel: usize, fault: DmaDescriptorFault) {
-        if self.periph.spi2.log { eprintln!("[spi2] DMA descriptor fault: {fault:?}"); }
-        self.spi2_dma_fault = Some(fault);
+    fn fail_spi2_dma(&mut self, host: u8, channel: usize, fault: DmaDescriptorFault) {
+        if self.periph.gpspi(host).log { eprintln!("[spi{host}] DMA descriptor fault: {fault:?}"); }
+        if host == 2 { self.spi2_dma_fault = Some(fault); } else { self.spi3_dma_fault = Some(fault); }
         let gdma = &mut self.periph.gdma.out[channel];
         gdma.running = false;
         gdma.int_raw |= 1 << 2;                                         // OUT_DSCR_ERR
-        self.periph.spi2.fail_dma_tx();
+        self.periph.gpspi_mut(host).fail_dma_tx();
         self.irq_dirty = true;
     }
 
-    pub(super) fn deliver_spi2_transfer(&mut self) {
-        if self.periph.spi2.dma_tx_pending.is_some() {
+    // EX255: every device flush and register write services both GP-SPI hosts, almost always
+    // with nothing queued. Test that inline; the out-of-line body keeps its own checks.
+    #[inline(always)]
+    pub(super) fn deliver_spi2_transfer(&mut self) { if self.periph.spi2.has_pending_transfer() { self.deliver_gpspi_transfer(2); } }
+    /// The same for SPI3 (the board's `host` 3).
+    #[inline(always)]
+    pub(super) fn deliver_spi3_transfer(&mut self) { if self.periph.spi3.has_pending_transfer() { self.deliver_gpspi_transfer(3); } }
+
+    #[inline(never)]
+    fn deliver_gpspi_transfer(&mut self, host: u8) {
+        if self.periph.gpspi(host).dma_tx_pending.is_some() {
             return;
         }
-        let Some(transfer) = self.periph.spi2.take_transfer() else { return };
+        let Some(transfer) = self.periph.gpspi_mut(host).take_transfer() else { return };
         // Chip select and command/data lines are GPIOs. The board must see their preceding edges
         // before it receives the transaction.
         if !self.periph.gpio.changes.is_empty() {
@@ -179,19 +203,20 @@ impl SocBus {
             self.board.gpio_output_at(self.cycles, changes, self.periph.gpio.enable, self.periph.gpio.out);
             self.periph.gpio.changes.clear();
         }
-        let rx = if let Some(pins) = self.spi2_pins.take() {
-            self.board.spi_transfer_pins(2, pins, &transfer.tx, transfer.rx_len)
+        let pins = if host == 2 { self.spi2_pins.take() } else { self.spi3_pins.take() };
+        let rx = if let Some(pins) = pins {
+            self.board.spi_transfer_pins(host, pins, &transfer.tx, transfer.rx_len)
         } else {
-            self.board.spi_transfer(2, &transfer.tx, transfer.rx_len)
+            self.board.spi_transfer(host, &transfer.tx, transfer.rx_len)
         };
-        self.periph.spi2.finish_transfer(transfer, &rx);
+        self.periph.gpspi_mut(host).finish_transfer(transfer, &rx);
     }
 
-    /// Collect one GP-SPI2 data phase and its GDMA completion without partially committing a
-    /// malformed descriptor chain.
-    fn spi2_dma_completion(&mut self) -> Result<Option<Spi2DmaCompletion>, DmaDescriptorFault> {
-        let Some(bits) = self.periph.spi2.dma_tx_pending else { return Ok(None) };
-        let Some(channel_index) = self.periph.gdma.out_channel_for(0) else { return Ok(None) };
+    /// Collect one GP-SPI data phase (`host` 2 or 3) and its GDMA
+    /// completion without partially committing a malformed descriptor chain.
+    fn spi2_dma_completion(&mut self, host: u8) -> Result<Option<Spi2DmaCompletion>, DmaDescriptorFault> {
+        let Some(bits) = self.periph.gpspi(host).dma_tx_pending else { return Ok(None) };
+        let Some(channel_index) = self.periph.gdma.out_channel_for(u32::from(host - 2)) else { return Ok(None) };
         let wanted = (bits as usize).div_ceil(8);
         let mut payload = Vec::with_capacity(wanted);
         let mut visited = HashSet::new();
@@ -257,7 +282,7 @@ impl SocBus {
             return Err(DmaDescriptorFault::PayloadTooShort { expected: wanted, actual: payload.len() });
         }
         Ok(Some(Spi2DmaCompletion {
-            channel: channel_index, desc: channel.desc, buf_pos: channel.buf_pos,
+            host, channel: channel_index, desc: channel.desc, buf_pos: channel.buf_pos,
             running: channel.running,
             eof_desc: (channel.int_raw & (1 << 1) != 0).then_some(channel.eof_desc),
             raised_interrupts: channel.int_raw, descriptor_writebacks, payload,

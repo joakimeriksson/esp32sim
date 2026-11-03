@@ -1,0 +1,158 @@
+[
+  {
+    "check": "clippy-native",
+    "command": "cargo +1.99.0 clippy --workspace --all-targets -- -D warnings",
+    "exit_code": 0
+  },
+  {
+    "check": "clippy-wasm",
+    "command": "cargo +1.99.0 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+    "exit_code": 0
+  },
+  {
+    "check": "workspace-ci",
+    "command": "cargo +1.99.0 test --release --workspace --no-fail-fast -- --include-ignored --skip external_",
+    "exit_code": 101,
+    "environment": "ESP32SIM_ROM_DIR=roms (tools/fetch-rom-elfs.sh); Windows 11, core.autocrlf=false checkout",
+    "tests": { "binaries": 96, "passed": 961, "failed": 2, "ignored": 0 },
+    "failures": "decoder_matches_corpus in xtensa-lx7 and riscv-rv32: the test joins its corpus paths with ':' and splits on it, which breaks a Windows drive letter; the same on untouched main, unrelated to this change. Every golden (the Wi-Fi station goldens on S3, C3 and C6 among them) passed unchanged; none regenerated."
+  },
+  {
+    "check": "workspace-plain",
+    "command": "cargo +1.99.0 test --release --workspace --no-fail-fast",
+    "exit_code": 101,
+    "environment": "no ESP32SIM_* variables",
+    "tests": { "passed": 933, "failed": 2, "ignored": 45 },
+    "failures": "the same two decoder_matches_corpus tests"
+  },
+  {
+    "check": "virtual",
+    "command": "ESP32SIM_VQ_NATIVE=1 cargo +1.99.0 test --release -p esp32s3 --test machine --test virtual_stops",
+    "exit_code": 0,
+    "tests": { "passed": 41, "failed": 0 }
+  },
+  {
+    "check": "wifi-unit",
+    "command": "cargo +1.99.0 test --release -p esp-soc --lib -- wifi",
+    "exit_code": 0,
+    "tests": { "passed": 16, "failed": 0 },
+    "notes": "the five new tests: nearby_networks_answer_a_wildcard_probe_after_the_access_point, a_directed_probe_gets_only_the_named_nearby_network, frames_from_a_nearby_network_carry_its_channel_and_signal, authentication_to_a_nearby_network_goes_unanswered, nearby_specs_parse_with_defaults_and_the_access_points_own_ssid_is_left_out"
+  },
+  {
+    "check": "wasm",
+    "command": "RUSTUP_TOOLCHAIN=1.99.0 tools/wasm-build.sh && node tools/check-wasm-sections.mjs web/wasm/esp32sim.wasm && ESP32SIM_ROM_DIR=roms node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+    "exit_code": 0,
+    "notes": "esp32sim.wasm 3395569 bytes, dwarfAbsent, nameRetained; all eight manifests ok"
+  },
+  {
+    "check": "wasm-abi",
+    "command": "node wasm/tests/timing-api.mjs web/wasm/esp32sim.wasm; node wasm/tests/ble-api.mjs web/wasm/esp32sim.wasm web/wasm/fw/public roms/esp32c3_rev3_rom.elf; node wasm/tests/ble-connection.mjs web/wasm/esp32sim.wasm web/wasm/fw/public roms/esp32c3_rev3_rom.elf",
+    "exit_code": 0
+  },
+  {
+    "check": "node-tools",
+    "command": "node tools/worker-pacing-test.mjs; node tools/worker-channel-test.mjs; node --test tools/touch-input-test.mjs; node --test tools/wasm-build-policy.test.mjs; node --test tools/browser-benchmark/*.test.mjs; python -m unittest discover -s tools/browser-benchmark -p 'test_*.py'",
+    "exit_code": 0,
+    "notes": "Node 24.16.0, Python 3.14; the worker tests need LF sources (their import stripping matches ';\\n')"
+  },
+  {
+    "check": "privacy",
+    "command": "node tools/check-evidence-privacy.mjs",
+    "exit_code": 0
+  },
+  {
+    "check": "firmware",
+    "command": "see inputs.json: the scan sketch with three networks around and without, and the join-Home sketch with Home around (--debug wifi-frames)",
+    "exit_code": 0,
+    "notes": "scan: 4 network(s) — Jumperly rssi=-40 ch=6 open, Home rssi=-60 ch=1 secured, Cafe rssi=-75 ch=11 open, Office rssi=-82 ch=6 secured; control: scan: 1 network(s). Join: not connected: status=6 after 20 s; frame log: 24 probe requests for Home, 30 probe responses from Home's BSSID 02:4e:11:e0:7f:d8 delivered, 25 authentication frames to that BSSID, no authentication response."
+  },
+  {
+    "check": "not-run",
+    "command": "tools/wasm-jit-test.sh; the profiling-features build; the Linux x5 receipt contracts; native-aarch64 job",
+    "notes": "Linux/macOS-only steps of ci.yml, left to CI; this change touches none of their inputs"
+  },
+  {
+    "check": "clippy-native",
+    "on_main": "51a91540",
+    "command": "cargo +1.99.1 clippy --workspace --all-targets -- -D warnings",
+    "exit_code": 0
+  },
+  {
+    "check": "clippy-wasm",
+    "on_main": "51a91540",
+    "command": "cargo +1.99.1 clippy --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-tests -- -D warnings",
+    "exit_code": 0
+  },
+  {
+    "check": "workspace-ci",
+    "on_main": "51a91540",
+    "command": "cargo +1.99.1 test --release --workspace --no-fail-fast -- --include-ignored --skip external_",
+    "exit_code": 101,
+    "environment": "ESP32SIM_ROM_DIR=roms (tools/fetch-rom-elfs.sh); Rust 1.99.1 (58cf8f9c3 2026-10-13); Windows 11, core.autocrlf=false checkout",
+    "tests": {
+      "binaries": 109,
+      "passed": 1020,
+      "failed": 2,
+      "ignored": 0
+    },
+    "failures": "the two decoder_matches_corpus tests (Windows drive-letter path split), unrelated; no golden regenerated"
+  },
+  {
+    "check": "virtual",
+    "on_main": "51a91540",
+    "command": "ESP32SIM_VQ_NATIVE=1 cargo +1.99.1 test --release -p esp32s3 --test machine --test virtual_stops",
+    "exit_code": 0,
+    "tests": {
+      "passed": 43,
+      "failed": 0
+    }
+  },
+  {
+    "check": "wasm-build-and-demos",
+    "on_main": "51a91540",
+    "command": "tools/wasm-build.sh && node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel",
+    "exit_code": 0
+  },
+  {
+    "check": "privacy",
+    "on_main": "51a91540",
+    "command": "node tools/check-evidence-privacy.mjs",
+    "exit_code": 0
+  },
+  {
+    "check": "firmware-scan",
+    "on_main": "51a91540",
+    "command": "the inputs.json scan run and its control",
+    "exit_code": 0,
+    "uart0": "scan: 4 network(s): Jumperly rssi=-40 ch=6 open, Home rssi=-60 ch=1 secured, Cafe rssi=-75 ch=11 open, Office rssi=-82 ch=6 secured; control: scan: 1 network(s)"
+  },
+  {
+    "check": "firmware-join",
+    "on_main": "51a91540",
+    "command": "the inputs.json join run plus --debug wifi-frames",
+    "exit_code": 0,
+    "uart0": "not connected: status=6",
+    "frames": "30 probe requests for Home, 30 probe responses from 02:4e:11:e0:7f:d8 delivered, 30 authentication frames to it, 0 authentication responses"
+  },
+  {
+    "check": "review-follow-up",
+    "on_main": "20117b08",
+    "command": "cargo +1.99.1 test --release --workspace --no-fail-fast -- --include-ignored --skip external_",
+    "exit_code": 101,
+    "tests": {
+      "binaries": 111,
+      "passed": 1044,
+      "failed": 2,
+      "ignored": 0
+    },
+    "failures": "the two decoder_matches_corpus tests (Windows drive-letter path split), unrelated",
+    "new_tests": [
+      "nearby_networks_need_a_bssid_each",
+      "a_nearby_network_answers_only_probes_addressed_to_it",
+      "wifi_rx_ctrl_carries_a_nearby_networks_channel_and_rssi (S3, C3)",
+      "classic_rx_ctrl_carries_a_nearby_networks_channel_and_rssi"
+    ],
+    "mutations": "without the BSSID-equals-access-point case, the duplicate-BSSID check or the probe address check, the matching test fails",
+    "firmware": "scan 4 networks, control 1, join status=6 with 30 probe requests, 30 probe responses, 30 authentication frames, 0 authentication responses"
+  }
+]

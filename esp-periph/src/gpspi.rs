@@ -31,12 +31,16 @@ pub struct GpSpiTransfer {
 /// enables and lengths, writes CMD.UPDATE then CMD.USR, and waits for the transfer. The chip bus
 /// supplies any DMA data, asks its board for the MISO response, then finishes the transfer.
 pub struct GpSpi { pub regs: RegRam, pub w: [u32; 16], pub int_raw: u32, pub int_ena: u32, pub transfers: u64, pub log: bool,
+                   /// the controller's number in log lines: 2 (SPI2 / FSPI, the default) or 3 (the S3's SPI3 / HSPI)
+                   pub host: u8,
                    /// bit length of a MOSI phase that DMA must supply, until the bus completes it
                    pub dma_tx_pending: Option<u32>, pending: Option<GpSpiTransfer> }
 impl Default for GpSpi { fn default() -> Self { Self::new() } }
 
 impl GpSpi {
-    pub fn new() -> Self { GpSpi { regs: RegRam::new(), w: [0; 16], int_raw: 0, int_ena: 0, transfers: 0, log: false, dma_tx_pending: None, pending: None } }
+    pub fn new() -> Self { GpSpi { regs: RegRam::new(), w: [0; 16], int_raw: 0, int_ena: 0, transfers: 0, log: false, host: 2, dma_tx_pending: None, pending: None } }
+    /// The same block as GP-SPI `host` (2 or 3), for its log lines.
+    pub fn with_host(host: u8) -> Self { GpSpi { host, ..Self::new() } }
     pub fn irq(&self) -> bool { self.int_raw & self.int_ena != 0 }
     pub fn read(&self, off: u32) -> u32 {
         match off {
@@ -52,6 +56,17 @@ impl GpSpi {
         match off {
             0x00 => { self.regs.write(0, v & !((1 << 23) | (1 << 24))); if v & (1 << 24) != 0 && self.pending.is_none() { self.transfer(); } }
             0x34 => self.int_ena = v, 0x38 => self.int_raw &= !v,
+            // SPI_DMA_INT_SET_REG (0x44, bit 12 SPI_TRANS_DONE_INT_SET: "the software set bit for
+            // SPI_TRANS_DONE_INT"; components/soc/esp32s3/register/soc/spi_reg.h, IDF v5.5.2) raises
+            // raw status. The IDF driver depends on it: spi_hal_init forces TRANS_DONE through
+            // spi_ll_set_int_stat (components/hal/esp32s3/include/hal/spi_ll.h,
+            // `hw->dma_int_set.trans_done_int_set = 1`) with the interrupt allocated disabled, and
+            // spi_device_queue_trans only enqueues and lets the bus lock enable the interrupt; the ISR
+            // then starts the transaction (spi_new_trans -> spi_hal_user_start,
+            // components/esp_driver_spi/src/gpspi/spi_master.c, IDF v5.5.2). Without the set bit the
+            // ISR never runs and the first queued transfer never starts; polling transfers
+            // (spi_device_polling_transmit, Arduino's SPI) set USR themselves and never noticed.
+            0x44 => self.int_raw |= v,
             0x98..=0xd4 => self.w[((off - 0x98) / 4) as usize] = v,
             _ => self.regs.write(off, v),
         }
@@ -75,7 +90,7 @@ impl GpSpi {
             data_len = n;
             if self.regs.read(0x30) & (1 << 28) != 0 {                    // DMA_TX_ENA: the bus fetches the data through GDMA
                 self.dma_tx_pending = Some(data_bits);
-                if self.log { eprintln!("[spi2] transfer {} header bytes, {} data bits by DMA", tx.len(), data_bits); }
+                if self.log { eprintln!("[spi{}] transfer {} header bytes, {} data bits by DMA", self.host, tx.len(), data_bits); }
             } else {
                 let base = if user & (1 << 25) != 0 { 8 } else { 0 };
                 for i in 0..n.min((16 - base) * 4) { tx.push((self.w[base + i / 4] >> (8 * (i % 4))) as u8); }
@@ -147,7 +162,7 @@ impl GpSpi {
         if let Some(transfer) = self.pending.as_mut() {
             transfer.tx.extend_from_slice(&data[..data.len().min(transfer.data_len)]);
         }
-        if self.log { eprintln!("[spi2] dma data {} bytes: {:02x?}", data.len(), &data[..data.len().min(16)]); }
+        if self.log { eprintln!("[spi{}] dma data {} bytes: {:02x?}", self.host, data.len(), &data[..data.len().min(16)]); }
     }
 
     /// Complete a transfer with the board's MISO response.
@@ -155,7 +170,7 @@ impl GpSpi {
         if transfer.rx_len != 0 {
             fill_spi_w!(self.w, transfer.rx_word_base, transfer.rx_len, rx);
         }
-        if self.log { eprintln!("[spi2] transfer tx={} rx={}: {:02x?}", transfer.tx.len(), transfer.rx_len, &transfer.tx[..transfer.tx.len().min(16)]); }
+        if self.log { eprintln!("[spi{}] transfer tx={} rx={}: {:02x?}", self.host, transfer.tx.len(), transfer.rx_len, &transfer.tx[..transfer.tx.len().min(16)]); }
         self.transfers += 1;
         self.int_raw |= 1 << 12;                                          // TRANS_DONE
     }
@@ -263,6 +278,23 @@ mod tests {
 
         let transfer = spi.take_transfer().expect("CPU transaction may start after abort");
         assert_eq!(transfer.tx, [0x5a]);
+    }
+    /// SPI_DMA_INT_SET_REG (0x44): the ISR kick ESP-IDF's spi_master relies on. The driver sets
+    /// TRANS_DONE here at init while its interrupt is disabled, so enabling the interrupt later
+    /// enters the ISR that starts the first queued transaction.
+    #[test]
+    fn dma_int_set_raises_raw_status_and_the_interrupt() {
+        let mut spi = GpSpi::new();
+        spi.write(0x34, 1 << 12);
+        assert_eq!(spi.read(0x3c), 0);
+        assert!(!spi.irq());
+        spi.write(0x44, 1 << 12);
+        assert_eq!(spi.read(0x3c) & (1 << 12), 1 << 12, "INT_RAW shows the set bit");
+        assert_eq!(spi.read(0x40) & (1 << 12), 1 << 12, "INT_ST shows it while enabled");
+        assert!(spi.irq());
+        spi.write(0x38, 1 << 12);
+        assert_eq!(spi.read(0x3c), 0, "INT_CLR clears it again");
+        assert!(!spi.irq());
     }
 }
 

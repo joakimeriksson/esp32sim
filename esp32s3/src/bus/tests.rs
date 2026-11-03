@@ -655,6 +655,24 @@ fn narrow_mmio_writes_are_rejected_without_device_or_time_side_effects() {
 }
 
 #[test]
+fn radio_analog_registers_take_byte_and_half_word_access() {
+    // NRXPD_CTRL (NRX +0xd4) is 8 bits wide in Espressif's SVD (esp32s3 PAC 0.36,
+    // nrx/nrxpd_ctrl.rs: `type Ux = u8`), and esp-hal 1.2.2's sleep setup clears its
+    // force-power-up bits with l8ui/s8i. FE, FE2 and BB are the radio's other analog blocks.
+    const NRXPD_CTRL: u32 = 0x6001_ccd4;
+    const BB: u32 = 0x6001_d000;
+    let mut bus = SocBus::new(1024, 1024, [0; 6]);
+    bus.write32(NRXPD_CTRL, 0x2a).unwrap();
+    assert_eq!(bus.read8(NRXPD_CTRL), Ok(0x2a));
+    bus.write8(NRXPD_CTRL, 0x2a & 0xd5).unwrap();
+    assert_eq!(bus.read32(NRXPD_CTRL), Ok(0));
+    bus.write16(BB + 0x56, 0xbeef).unwrap();
+    assert_eq!(bus.read32(BB + 0x54), Ok(0xbeef_0000));
+    assert_eq!(bus.read16(BB + 0x56), Ok(0xbeef));
+    assert_eq!(bus.write8(0x6003_8000, 0), Err(Fault::Prohibited), "other blocks keep the rule");
+}
+
+#[test]
 fn unsupported_mmio_reads_do_not_pop_fifos_or_advance_time() {
     const USB: u32 = 0x6003_8000;
     let mut bus = SocBus::new(1024, 1024, [0; 6]);
@@ -741,7 +759,7 @@ fn quiet_backstop_keeps_the_original_cadence_for_active_devices() {
         ("gdma-out", |p| p.gdma.out[0].running = true),
         ("wifi-tx", |p| p.wifi.tx_pending.push((0, 0))),
         ("wifi-ap", |p| p.wifi.link.attach(Some(crate::wifi::VirtualAp::new(crate::wifi::ApConfig {
-            ssid: "test".into(), bssid: [0; 6], channel: 1, psk: None,
+            ssid: "test".into(), bssid: [0; 6], channel: 1, psk: None, epoch_s: None,
         }, false)), None)),
         ("network", |p| p.wifi.link.attach(None, Some(crate::net::VirtualNet::new(false)))),
         ("aes", |p| p.aes.dma_pending = true),
@@ -848,7 +866,7 @@ fn periodic_tick_notifies_wifi_tx_and_air_rx() {
 
     let mut bus = SocBus::new(1024, 1024, [0; 6]);
     bus.periph.wifi.link.attach(Some(crate::wifi::VirtualAp::new(crate::wifi::ApConfig {
-        ssid: "test".into(), bssid: [2, 0, 0, 0, 0, 1], channel: 1, psk: None,
+        ssid: "test".into(), bssid: [2, 0, 0, 0, 0, 1], channel: 1, psk: None, epoch_s: None,
     }, false)), None);
     bus.periph.wifi.link.ap_mut().unwrap().queue.push(crate::wifi::AirFrame { at_us: 0, frame: vec![0; 24] });
     bus.periph.wifi.rx_next = FIRST_DESC & 0xfffff;
@@ -859,6 +877,79 @@ fn periodic_tick_notifies_wifi_tx_and_air_rx() {
     assert_eq!(Bus::tick(&mut bus, (crate::periph::CPU_HZ / 1000) as u32), 1);
     assert_eq!(bus.periph.wifi.link.rx_frames(), 1);
     assert!(bus.periph.wifi.irq());
+}
+
+/// A WiFi bus with one open virtual access point and `frames` of 24 bytes queued on the air, the
+/// first byte of each a marker so the test can tell them apart in the receive buffer.
+fn wifi_bus_with_air_frames(frames: &[u8]) -> SocBus {
+    let mut bus = SocBus::new(1024, 1024, [0; 6]);
+    bus.periph.wifi.link.attach(Some(crate::wifi::VirtualAp::new(crate::wifi::ApConfig {
+        ssid: "test".into(), bssid: [2, 0, 0, 0, 0, 1], channel: 1, psk: None, epoch_s: None,
+    }, false)), None);
+    for &marker in frames {
+        bus.periph.wifi.link.ap_mut().unwrap().queue.push(crate::wifi::AirFrame { at_us: 0, frame: vec![marker; 24] });
+    }
+    bus
+}
+
+/// One RX descriptor: `512` bytes of buffer at `buf`, owned by the DMA, pointing at `next`.
+fn arm_rx_desc(bus: &mut SocBus, at: u32, buf: u32, next: u32) {
+    bus.write32(at, 512 | (1 << 31)).unwrap();
+    bus.write32(at + 4, buf).unwrap();
+    bus.write32(at + 8, next).unwrap();
+}
+
+/// One scheduling round of one emulated millisecond: the air delivers at most one frame in a round.
+fn wifi_air_round(bus: &mut SocBus) { assert_eq!(Bus::tick(bus, (crate::periph::CPU_HZ / 1000) as u32), 1); }
+
+#[test]
+fn air_rx_restarts_at_the_base_when_the_list_runs_dry() {
+    // Arduino-ESP32 arms the receive DMA one short list at a time: four descriptors, the last one's
+    // `next` null. The frame after that list therefore finds nothing to land in, and the driver's
+    // `BASE_RX_DSCR` write — the head of the list it just recycled — is what starts the DMA again.
+    let mut bus = wifi_bus_with_air_frames(&[0x11, 0x22, 0x33]);
+    let (first, dead, second) = (FIRST_DESC, FIRST_DESC + 0x40, FIRST_DESC + 0x80);
+    let dead_base = dead & 0xf_ffff;
+    arm_rx_desc(&mut bus, first, first + 0x200, dead);          // the armed list: one descriptor, then a null word
+    bus.write32(dead, 0).unwrap();
+    bus.write32(0x6003_3088, first & 0xf_ffff).unwrap();        // BASE_RX_DSCR
+    wifi_air_round(&mut bus);
+    assert_eq!((bus.periph.wifi.link.tx_frames(), bus.periph.wifi.link.rx_frames()), (0, 1));
+    assert_eq!(bus.read8_unpriced(first + 0x200 + 48).unwrap_or(0), 0x11, "frame after the 48-byte rx_ctrl header");
+    assert_eq!(bus.periph.wifi.rx_next, dead_base);
+
+    // Software recycled the frame and left the next descriptor alone: the DMA stops there.
+    arm_rx_desc(&mut bus, first, first + 0x200, dead);
+    wifi_air_round(&mut bus);
+    assert_eq!(bus.periph.wifi.link.rx_dropped(), 1, "a frame that finds the DMA stopped is lost");
+
+    // The driver hands over the next list, base first and the base write on its own.
+    arm_rx_desc(&mut bus, second, second + 0x200, 0);
+    bus.write32(0x6003_3088, second & 0xf_ffff).unwrap();
+    wifi_air_round(&mut bus);
+    assert_eq!(bus.periph.wifi.link.rx_frames(), 2, "the base write restarts the stopped DMA");
+    assert_eq!(bus.periph.wifi.rx_next, 0, "the new list ends after one descriptor");
+    assert_eq!(bus.read8_unpriced(second + 0x200 + 48).unwrap_or(0), 0x33);
+}
+
+#[test]
+fn air_rx_base_write_does_not_rewind_a_running_list() {
+    // Software rewrites BASE_RX_DSCR every time it recycles descriptors. While the DMA runs, that must
+    // leave its pointer alone: rewinding re-delivers into descriptors the stack has already moved past.
+    let mut bus = wifi_bus_with_air_frames(&[0x11, 0x22]);
+    let (first, second) = (FIRST_DESC, FIRST_DESC + 0x40);
+    arm_rx_desc(&mut bus, first, first + 0x200, second);
+    arm_rx_desc(&mut bus, second, second + 0x200, 0);
+    bus.write32(0x6003_3088, first & 0xf_ffff).unwrap();
+    wifi_air_round(&mut bus);
+    assert_eq!((bus.periph.wifi.link.rx_frames(), bus.periph.wifi.rx_next), (1, (second & 0xf_ffff)));
+
+    arm_rx_desc(&mut bus, first, first + 0x200, second);        // recycle descriptor 0
+    bus.write32(0x6003_3088, first & 0xf_ffff).unwrap();        // and rewrite the base, as software does
+    wifi_air_round(&mut bus);
+    assert_eq!(bus.periph.wifi.link.rx_frames(), 2);
+    assert_eq!(bus.read8_unpriced(second + 0x200 + 48).unwrap_or(0), 0x22, "landed in the next descriptor, not back at the base");
+    assert_eq!(bus.read32(first).unwrap() >> 30 & 1, 0, "descriptor 0 was not filled a second time");
 }
 
 fn read_flush(bus: &mut SocBus, cycles: u32) {
@@ -874,7 +965,7 @@ fn read_flush_reports_timer_and_rmt_threshold_sources() {
         let mut bus = SocBus::new(1024, 1024, [0; 6]);
         if timer < 3 {
             let st = &mut bus.periph.systimer;
-            st.conf = (1 << 30) | (1 << (24 + timer));
+            st.conf = (1 << 30) | (1 << (24 - timer));
             st.armed[timer] = true;
             st.target[timer] = 1;
             st.int_ena = 1 << timer;
@@ -1590,4 +1681,183 @@ fn rmt_dma_ring_waits_for_a_cpu_owned_node_and_resumes_after_restart() {
     assert_eq!(bus.periph.rmt.dma_fifo_len(), 2);
     assert_eq!(bus.periph.gdma.out[0].eof_desc, n1);
     assert!(!bus.periph.gdma.out[0].running);
+}
+
+// ------------------------------------------------------------------ SPI3
+
+const SPI3: u32 = 0x6002_5000;
+
+/// SPI3 is its own GP-SPI block at DR_REG_SPI3_BASE (IDF v5.5.5
+/// components/soc/esp32s3/register/soc/reg_base.h:39) on ETS_SPI3_INTR_SOURCE 22
+/// (components/soc/esp32s3/include/soc/interrupts.h:41). A CPU-FIFO transfer, as the Arduino SPI
+/// driver makes it for `SPIClass(HSPI)` (arduino-esp32 3.3.12 cores/esp32/esp32-hal-spi.h:36,
+/// esp32-hal-spi.c:593: HSPI is SPI3_HOST on the S3), reaches the board as host 3, raises
+/// TRANS_DONE on SPI3's source and leaves SPI2 alone.
+#[test]
+fn spi3_cpu_transfer_reaches_the_board_as_host_3_on_its_own_source() {
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let mut bus = SocBus::new(1024, 1024, [0; 6]);
+    bus.board = Box::new(ProbeBoard { events: events.clone() });
+    bus.write32(SPI3 + 0x34, 1 << 12).unwrap();                         // TRANS_DONE enabled
+    bus.write32(SPI3 + 0x10, (1 << 27) | (1 << 28) | 1).unwrap();       // MOSI + MISO, full duplex
+    bus.write32(SPI3 + 0x1c, 15).unwrap();
+    bus.write32(SPI3 + 0x98, 0x3412).unwrap();
+    bus.write32(SPI3, 1 << 24).unwrap();
+    assert_eq!(&*events.lock().unwrap(), &["spi:3:[12, 34]:2"]);
+    assert_eq!(bus.read32(SPI3).unwrap() & (1 << 24), 0, "USR done");
+    assert_eq!(bus.read32(SPI3 + 0x98).unwrap() & 0xffff, 0x5150, "MISO in W0");
+    assert_eq!((bus.periph.spi3.transfers, bus.periph.spi2.transfers), (1, 0));
+    let status = bus.periph.source_status();
+    let on = |src: usize| status[src / 32] & (1 << (src % 32)) != 0;
+    assert!(on(crate::periph::SRC_SPI3) && !on(crate::periph::SRC_SPI2));
+    bus.write32(SPI3 + 0x38, 1 << 12).unwrap();
+    assert!(!bus.periph.spi3.irq());
+}
+
+/// SPI3's DMA data phase comes from the GDMA OUT channel bound to trigger 1
+/// (SOC_GDMA_TRIG_PERIPH_SPI3, IDF v5.5.5 components/soc/esp32s3/include/soc/gdma_channel.h:12);
+/// a channel bound to SPI2 (trigger 0) does not feed it.
+#[test]
+fn spi3_dma_reads_the_gdma_channel_of_trigger_1() {
+    const DATA: u32 = 0x3fc9_0200;
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let mut bus = SocBus::new(1024, 1024, [0; 6]);
+    bus.board = Box::new(ProbeBoard { events: events.clone() });
+    bus.write32(DATA, 0x4433_2211).unwrap();
+    bus.write32(FIRST_DESC, 4 | (4 << 12) | (1 << 30) | (1 << 31)).unwrap();
+    bus.write32(FIRST_DESC + 4, DATA).unwrap();
+    bus.write32(FIRST_DESC + 8, 0).unwrap();
+    bus.periph.gdma.out[0].peri_sel = 0;                                // SPI2's channel, idle
+    bus.periph.gdma.out[1].peri_sel = 1;
+    bus.periph.gdma.out[1].desc = FIRST_DESC;
+    bus.periph.gdma.out[1].running = true;
+    bus.write32(SPI3 + 0x30, 1 << 28).unwrap();
+    bus.write32(SPI3 + 0x10, 1 << 27).unwrap();
+    bus.write32(SPI3 + 0x1c, 31).unwrap();
+    bus.write32(SPI3, 1 << 24).unwrap();
+    assert_eq!(&*events.lock().unwrap(), &["spi:3:[11, 22, 33, 44]:0"]);
+    assert_eq!(bus.periph.spi3.transfers, 1);
+    assert!(bus.periph.spi3.dma_tx_pending.is_none());
+    assert_ne!(bus.periph.gdma.out[1].int_raw & (1 << 1), 0, "OUT_EOF on SPI3's channel");
+    assert_eq!(bus.spi3_dma_fault, None);
+}
+
+/// A pin-aware board sees SPI3's routes through the matrix (IDF v5.5.5
+/// components/soc/esp32s3/include/soc/gpio_sig_map.h:136-147, :226): SPI3_CLK 66, SPI3_D 68,
+/// SPI3_Q 67 in, SPI3_CS0 71; LEDC_LS_SIG_OUT0 (73, right after SPI3_CS1 72) is no select, and
+/// SPI2 is routed nowhere.
+#[test]
+fn spi3_routes_come_from_its_matrix_signals() {
+    let mut bus = SocBus::new(1024, 1024, [0; 6]);
+    for (pin, signal) in [(6u32, 66u32), (5, 68), (7, 71), (15, 73)] {
+        bus.write32(0x6000_4554 + 4 * pin, signal).unwrap();            // FUNC_OUT_SEL_CFG
+        bus.write32(0x6000_9004 + 4 * pin, (1 << 12) | (1 << 9)).unwrap();   // IO_MUX: GPIO function, input enable
+    }
+    bus.write32(0x6000_4154 + 4 * 67, 0x80 | 4).unwrap();               // FUNC_IN_SEL: SPI3_Q from GPIO4
+    bus.write32(0x6000_9004 + 4 * 4, (1 << 12) | (1 << 9)).unwrap();
+    bus.write32(SPI3 + 0x10, (1 << 27) | (1 << 28)).unwrap();
+    bus.write32(SPI3 + 0x20, 0x3e).unwrap();                            // CS0 only
+    let pins = bus.periph.spi3_pins();
+    assert_eq!((pins.sclk, pins.mosi, pins.miso, pins.cs), (1 << 6, 1 << 5, Some(4), 1 << 7));
+    assert_eq!(bus.periph.spi2_pins().sclk, 0, "SPI2 is routed nowhere");
+}
+
+/// A descriptor fault on SPI3's DMA is recorded in `spi3_dma_fault` and cleared by the next USR
+/// write, as SPI2's is (`assert_dma_fault_and_recovery`): a CPU-FIFO retry reaches the board as host 3.
+#[test]
+fn spi3_dma_fault_is_cleared_by_the_next_transaction() {
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let mut bus = SocBus::new(1024, 1024, [0; 6]);
+    bus.board = Box::new(ProbeBoard { events: events.clone() });
+    bus.write32(FIRST_DESC, 4 | (4 << 12) | (1 << 30)).unwrap();        // owner bit clear: not the DMA's
+    bus.write32(FIRST_DESC + 4, 0x3fc9_0200).unwrap();
+    bus.write32(FIRST_DESC + 8, 0).unwrap();
+    bus.periph.gdma.out[1].peri_sel = 1;
+    bus.periph.gdma.out[1].desc = FIRST_DESC;
+    bus.periph.gdma.out[1].running = true;
+    bus.write32(SPI3 + 0x30, 1 << 28).unwrap();                         // DMA TX
+    bus.write32(SPI3 + 0x10, 1 << 27).unwrap();
+    bus.write32(SPI3 + 0x1c, 31).unwrap();
+    bus.write32(SPI3, 1 << 24).unwrap();
+    assert_eq!(bus.spi3_dma_fault, Some(DmaDescriptorFault::NotOwned { descriptor: FIRST_DESC }));
+    assert_eq!(bus.periph.spi3.transfers, 0);
+    assert!(events.lock().unwrap().is_empty());
+    bus.write32(SPI3 + 0x30, 0).unwrap();                               // CPU mode
+    bus.write32(SPI3 + 0x1c, 7).unwrap();
+    bus.write32(SPI3 + 0x98, 0xa5).unwrap();
+    bus.write32(SPI3, 1 << 24).unwrap();
+    assert_eq!(bus.spi3_dma_fault, None);
+    assert_eq!(bus.periph.spi3.transfers, 1);
+    assert_eq!(&*events.lock().unwrap(), &["spi:3:[a5]:0"]);
+}
+
+/// A frame from a network around reaches the RX descriptor with that network's channel and RSSI
+/// (`VirtualAp::rx_meta`): `wifi_pkt_rx_ctrl_t`'s `rssi` in word 0's low byte, `channel` and
+/// `secondary_channel` in word 2 bits 16-23 (IDF v5.5.5
+/// components/esp_wifi/include/local/esp_wifi_types_native.h:36, :59-60); a frame from the access
+/// point keeps its channel and -40 dBm.
+#[test]
+fn wifi_rx_ctrl_carries_a_nearby_networks_channel_and_rssi() {
+    use esp_soc::wifi::{ApConfig, BeaconAp, VirtualAp};
+    const DESC: u32 = 0x3fc9_0100;
+    const BUF: u32 = 0x3fc9_0200;
+    let mut bus = SocBus::new(1024, 1024, [0; 6]);
+    bus.periph.wifi.link.attach(Some(VirtualAp::new(ApConfig::parse("ssid=demo,chan=6").unwrap(), false)), None);
+    let home = [0x02, 1, 2, 3, 4, 5];
+    let left_out = bus.periph.wifi.link.set_beacons(vec![BeaconAp { ssid: "Home".into(), bssid: home, channel: 1, rssi: -60, secure: true }]);
+    assert_eq!(left_out, Some(vec![]));
+    let ap = bus.periph.wifi.link.ap().unwrap().cfg.bssid;
+    for (from, chan, rssi) in [(home, 1u32, -60i8), (ap, 6, -40)] {
+        bus.write32(DESC, (1 << 31) | 0xfff).unwrap();                     // owner DMA, size 4095
+        bus.write32(DESC + 4, BUF).unwrap();
+        bus.write32(DESC + 8, 0).unwrap();
+        bus.periph.wifi.rx_next = DESC & 0xf_ffff;
+        let mut frame = vec![0u8; 24];
+        frame[0] = 0x80;                                                     // beacon
+        frame[4..10].fill(0xff);
+        frame[10..16].copy_from_slice(&from);
+        bus.wifi_rx_deliver(&frame, 1234);
+        assert_eq!(bus.read32(BUF).unwrap() & 0xff, u32::from(rssi as u8), "RSSI of {from:02x?}");
+        assert_eq!(bus.read32(BUF + 8).unwrap(), (chan << 16) | (chan << 20), "channel of {from:02x?}");
+    }
+}
+
+/// EX254: a register write first delivers the deferred device time, then leaves the tick
+/// budget its own post-write state derives (the flush inside the write no longer refreshes
+/// it; the write's closing refresh does). The board deadline is absolute, so the budget also
+/// shows that the flushed time was counted exactly once.
+#[test]
+fn mmio_write_delivers_pending_time_and_leaves_the_post_write_budget() {
+    const USB_INT_ENA: u32 = 0x6003_8010;
+    for (pending, deadline) in [(37u32, 5_000u64), (300, 400), (100, 40_000)] {
+        let mut bus = SocBus::new(1024, 1024, [0; 6]);
+        bus.board = Box::new(FixedDeadlineBoard { deadline });
+        bus.refresh_tick_budget();
+        let expect = |bus: &SocBus, cap: u32| (deadline - bus.cycles).clamp(1, u64::from(cap)) as u32;
+        assert_eq!(bus.tick_budget, expect(&bus, QUIET_TICK_DEFER));
+        for (on, cap, step) in [(2, MAX_TICK_DEFER, pending), (0, QUIET_TICK_DEFER, 1)] {
+            let before = bus.cycles;
+            assert_eq!(Bus::tick(&mut bus, step), 0, "{pending}/{deadline}: stays deferred");
+            assert_eq!((bus.tick_pending, bus.periph.clock_cycles()), (step, before));
+            bus.write32(USB_INT_ENA, on).unwrap();                          // SOF on: active cadence
+            assert_eq!(bus.tick_pending, 0, "{pending}/{deadline}: the write flushed");
+            assert_eq!(bus.periph.clock_cycles(), before + u64::from(step), "devices saw the time once");
+            assert_eq!(bus.tick_budget, expect(&bus, cap), "{pending}/{deadline} int_ena={on}");
+            assert_eq!(bus.next_deadline(), u64::from(expect(&bus, cap)));
+            let got = bus.tick_budget;
+            bus.refresh_tick_budget();
+            assert_eq!(bus.tick_budget, got, "the write left a fresh derivation");
+        }
+    }
+    // The pending time reaches the devices before the written value: the SOF due at the
+    // flushed cycle is raised first, so the INT_CLR write clears it.
+    for (reg, value, raw) in [(0x6003_8014u32, 2u32, 0u32), (0x6003_8010, 2, 2)] {
+        let mut bus = SocBus::new(1024, 1024, [0; 6]);
+        bus.tick_budget = MAX_TICK_DEFER;
+        bus.periph.usb.tick(crate::periph::CPU_HZ / 4000 - 1);
+        assert_eq!(Bus::tick(&mut bus, 1), 0);
+        assert_eq!(bus.periph.usb.int_raw & 2, 0, "SOF still deferred");
+        bus.write32(reg, value).unwrap();
+        assert_eq!(bus.periph.usb.int_raw & 2, raw, "write {reg:#x}={value}");
+    }
 }

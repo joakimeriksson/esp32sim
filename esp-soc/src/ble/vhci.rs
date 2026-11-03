@@ -42,6 +42,10 @@ pub trait VhciBus: crate::SocBus {
     fn valid_callback(&mut self, pc: u32) -> bool;
     fn flash_offset(&mut self, pc: u32) -> Option<usize>;
     fn ble_debug(&self) -> bool;
+    fn valid_packet_range(&self, address: u32, len: usize) -> bool {
+        let ram = Self::abi().ram;
+        address >= ram.start && address.checked_add(len as u32).is_some_and(|end| end <= ram.end)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -145,6 +149,15 @@ impl Ble {
         let result = self.session.command(command);
         self.log(cycles, hz);
         result
+    }
+
+    /// The devices around the station (`--ble-nearby`), replacing the ones there were.
+    pub fn set_nearby(&mut self, list: Vec<crate::ble::peer::Nearby>, cycles: u64, hz: u64) -> Result<(), String> {
+        if self.hooks.is_empty() { return Err("BLE requires --ble and the application ELF".into()); }
+        self.session.advance_to(cycles);
+        self.session.set_nearby(list);
+        self.log(cycles, hz);
+        Ok(())
     }
 
     fn log(&mut self, cycles: u64, hz: u64) {
@@ -262,8 +275,7 @@ pub fn intercept<C: Core, B: VhciBus>(cpu: &mut C, bus: &mut B, redirect: impl F
             if bus.ble().status != 2
                 || len == 0
                 || len > (BUFFER_SIZE - 16) as usize
-                || arg < abi.ram.start
-                || arg.checked_add(len as u32).is_none_or(|end| end > abi.ram.end)
+                || !bus.valid_packet_range(arg, len)
             {
                 eprintln!("[ble] rejected invalid VHCI packet pointer, length or controller state");
             } else {

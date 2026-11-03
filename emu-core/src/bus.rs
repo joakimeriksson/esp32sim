@@ -139,6 +139,15 @@ pub trait Bus {
     /// The pc of the instruction about to execute, for buses that attribute accesses to code.
     #[inline(always)]
     fn note_pc(&mut self, pc: u32) { let _ = pc; }
+    /// A load-reserved by the running core at `addr`, for a bus shared by several harts: their
+    /// stores to the reservation set must break it (RISC-V unprivileged ISA, "Zalrsc"). Wrappers
+    /// must forward it.
+    #[inline(always)]
+    fn reserve(&mut self, addr: u32) { let _ = addr; }
+    /// Whether the running core's reservation at `addr` still holds for its store-conditional;
+    /// the reservation is used up either way. A bus with one hart leaves this to the core.
+    #[inline(always)]
+    fn reservation_held(&mut self, addr: u32) -> bool { let _ = addr; true }
     /// True when the last instruction may have changed an interrupt line, so a block must end
     /// and let the machine re-derive the CPU's interrupt inputs before the next instruction.
     #[inline(always)]
@@ -170,8 +179,9 @@ pub trait Bus {
     fn begin_timing_batch(&mut self, _core: usize, _now: u64) {}
     /// Add an opt-in instruction penalty to the same provisional batch drain.
     fn add_timing_penalty(&mut self, _cycles: u32) {}
-    /// Called after every executed instruction with the cycle estimate; lets the
-    /// SoC advance timers and DMA. Return pending external level-interrupt lines.
+    /// Called by the machine after each scheduling round with the cycles it ran; lets the SoC
+    /// advance timers and DMA (the S3 batches this device time). Non-zero means interrupt lines
+    /// may have moved and must be re-derived.
     fn tick(&mut self, cycles: u32) -> u32 { let _ = cycles; 0 }
 }
 

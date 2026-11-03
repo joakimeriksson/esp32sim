@@ -8,6 +8,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Node 24 LTS, not the runner image's Node 22: on 22, V8 holds the modules the WASM JIT
+      # releases, and tools/wasm-jit-test.mjs grows to 4.7 GB in 210 s (on an M-series Mac; on the
+      # runner 9 minutes, and out of memory once the module grows). On 24 the same run takes 0.2 GB
+      # and 14 s.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
@@ -28,7 +35,7 @@ jobs:
         with:
           path: roms
           key: rom-elfs-${{ hashFiles('tools/fetch-rom-elfs.sh') }}
-      - name: Fetch the ESP32, ESP32-S3, ESP32-C3 and ESP32-C6 mask ROM ELFs
+      - name: Fetch the ESP32, ESP32-S3, ESP32-C3, ESP32-C6 and ESP32-P4 mask ROM ELFs
         run: tools/fetch-rom-elfs.sh roms && ls -la roms/*.elf
       # The T-Display demo boots the official MicroPython image (MIT, micropython.org, 1.8 MB), pinned
       # by SHA-256 in the script, cached the same way.
@@ -38,6 +45,10 @@ jobs:
           key: micropython-${{ hashFiles('tools/fetch-micropython.sh') }}
       - name: Fetch the MicroPython ESP32_GENERIC image
         run: tools/fetch-micropython.sh
+      # The ESP32-P4 example images the goldens boot and the page does not, fetched from
+      # mikroverk/esp32sim-firmware and checked against the SHA-256 the script pins.
+      - name: Fetch the ESP32-P4 example images
+        run: tools/fetch-p4-firmware.sh
       - name: Build
         run: cargo build --release --workspace
       - name: Clippy
@@ -53,7 +64,7 @@ jobs:
       - name: Production WASM sections (no DWARF, profile names retained)
         run: node tools/check-wasm-sections.mjs web/wasm/esp32sim.wasm
       - name: Test the wasm module (the real build, under Node, through the page's manifests)
-        run: ESP32SIM_ROM_DIR=$PWD/roms node tools/wasm-test.mjs hello c3-hello c6-hello c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel tdisplay-prices
+        run: ESP32SIM_ROM_DIR=$PWD/roms node tools/wasm-test.mjs hello c3-hello c6-hello p4-hello p4-c6-hosted p4-lcd35-synth c6-energy-scan c6-contiki c6-contiki-net c6-rpl-net panel tdisplay-prices tdisplay-schematik
       - name: Timing and BLE observation ABI (real wasm exports)
         run: |
           node wasm/tests/timing-api.mjs web/wasm/esp32sim.wasm
@@ -64,6 +75,7 @@ jobs:
           node tools/worker-pacing-test.mjs
           node tools/worker-channel-test.mjs
           node --test tools/touch-input-test.mjs
+          node --test tools/stopwatch-ui-test.mjs
       - name: Browser benchmark verdict, configuration and receipt tests
         run: |
           node --test tools/wasm-build-policy.test.mjs
@@ -75,11 +87,25 @@ jobs:
         run: |
           . ./tools/wasm-rustflags.sh
           cargo build --release --target wasm32-unknown-unknown -p esp32sim-wasm --features jit-profile,cpu-profile
+  # The native JIT is compiled only for AArch64, so the test job above (x86) compares the
+  # interpreter with itself in the JIT-vs-interpreter goldens. Here they run with the JIT in.
   native-aarch64:
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Native AArch64 core and JIT memory tests
-        run: cargo test --release -p xtensa-lx7
+      - uses: actions/cache@v4
+        with:
+          path: roms
+          key: rom-elfs-${{ hashFiles('tools/fetch-rom-elfs.sh') }}
+      - name: Fetch the mask ROM ELFs
+        run: tools/fetch-rom-elfs.sh roms
+      - name: Fetch the ESP32-P4 example images
+        run: tools/fetch-p4-firmware.sh
+      - name: Clippy (the AArch64-only JIT code)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Native AArch64 core, JIT memory and encoder tests
+        run: cargo test --release -p xtensa-lx7 -p emu-core
+      - name: Golden outputs with the native JIT
+        run: ESP32SIM_ROM_DIR=$PWD/roms cargo test --release -p esp32sim --test goldens -- --include-ignored --skip external_

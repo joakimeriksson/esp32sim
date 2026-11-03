@@ -3,11 +3,12 @@ use esp_soc::{Soc, SocBus};
 
 const FLASH_SIZE: usize = 0x20000;
 
-fn buses() -> [Box<dyn SocBus>; 3] {
+fn buses() -> [Box<dyn SocBus>; 4] {
     [
         Box::new(esp32c3::bus::SocBus::new(FLASH_SIZE, [0; 6])),
         Box::new(esp32c6::bus::SocBus::new(FLASH_SIZE, [0; 6])),
         Box::new(esp32s3::bus::SocBus::new(FLASH_SIZE, 0, [0; 6])),
+        Box::new(esp32p4::bus::SocBus::new(FLASH_SIZE, [0; 6], (1, 0))),
     ]
 }
 
@@ -48,7 +49,7 @@ fn check_last_flash_page(bus: &mut dyn SocBus, window_end: u32, page_size: usize
 
 #[test]
 fn mapped_segments_must_fit_the_whole_virtual_window() {
-    let ends = [esp32c3::bus::IBUS_HIGH, esp32c6::bus::FLASH_HIGH, esp32s3::bus::IBUS_HIGH];
+    let ends = [esp32c3::bus::IBUS_HIGH, esp32c6::bus::FLASH_HIGH, esp32s3::bus::IBUS_HIGH, esp32p4::bus::FLASH_HIGH];
     for (mut bus, end) in buses().into_iter().zip(ends) {
         check_last_flash_page(&mut *bus, end, 0x10000);
     }
@@ -117,11 +118,12 @@ fn c6_plic_and_intpri_share_host_input_interrupt_state() {
 /// bytes it accepted, its full size, and nothing past the end.
 #[test]
 fn flash_reads_back_what_was_written_on_every_chip() {
-    let buses: [Box<dyn SocBus>; 4] = [
+    let buses: [Box<dyn SocBus>; 5] = [
         Box::new(esp32::bus::SocBus::new(FLASH_SIZE, [0; 6])),
         Box::new(esp32c3::bus::SocBus::new(FLASH_SIZE, [0; 6])),
         Box::new(esp32c6::bus::SocBus::new(FLASH_SIZE, [0; 6])),
         Box::new(esp32s3::bus::SocBus::new(FLASH_SIZE, 0, [0; 6])),
+        Box::new(esp32p4::bus::SocBus::new(FLASH_SIZE, [0; 6], (1, 0))),
     ];
     for mut bus in buses {
         assert_eq!(bus.flash_len(), FLASH_SIZE);
@@ -135,4 +137,23 @@ fn flash_reads_back_what_was_written_on_every_chip() {
         assert_eq!(bus.read_flash(0x101, 2), Some(&[0x22, 0x33][..]), "at any offset");
         assert_eq!(bus.read_flash(0x100, 4), Some(&[0x11, 0x22, 0x33, 0xff][..]), "an unwritten cell reads 0xff");
     }
+}
+
+/// The P4's sources reach each core's CLIC through its interrupt matrix, and the CLIC's candidate
+/// is presented to the core as line, level and the hardware-vectoring attribute.
+#[test]
+fn p4_host_input_reaches_the_core_through_the_clic() {
+    let mut bus = esp32p4::bus::SocBus::new(1, [0; 6], (1, 0));
+    let source = esp32p4::periph::src::USB_SERIAL_JTAG as u32;
+    bus.periph.write32(0x500d_6000 + source * 4, 16 + 3);
+    bus.periph.write32(0x2080_1000 + (16 + 3) * 4, 1 << 8 | 1 << 16 | 1 << 29);
+    bus.periph.usb.int_ena = 1 << 2;
+    bus.irq_dirty = false;
+    bus.serial_input(b"a");
+    assert!(bus.irq_dirty);
+    bus.refresh_irq();
+    let mut pending = [None, None];
+    esp32p4::P4::irqs(&bus, &mut pending);
+    assert_eq!(pending, [Some(3 | 0x3f << 8 | 1 << 16), None]);
+    assert_eq!(bus.irq_sources_of(0, 3), [source as usize]);
 }

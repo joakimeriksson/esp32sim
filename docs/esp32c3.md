@@ -110,7 +110,7 @@ Console-only, real time, from the same mask ROM and binaries. See [wasm.md](wasm
 | CPU | RV32IMC, machine mode, `mstatus`/`mtvec`/`mepc`/`mcause`/`mtval`, vectored traps, WFI |
 | Interrupts | the C3 interrupt matrix: 62 sources → 31 lines, per-line priority and threshold, level and edge, plus the four `FROM_CPU` software interrupts |
 | Memory | 400 KB SRAM (SRAM1 dual-mapped IRAM/DRAM), mask ROM, RTC slow RAM, 8 MB flash cache windows through a 128-entry MMU |
-| Peripherals | UART0/1, USB-Serial/JTAG, systimer, TIMG0/1, GPIO, RTC_CNTL with RTC watchdog reset stages, efuse, SPI0/1 flash controller, GDMA, SHA/AES/RSA, cache controller, hardware RNG |
+| Peripherals | UART0/1, USB-Serial/JTAG, systimer, TIMG0/1, GPIO, RTC_CNTL with RTC watchdog reset stages, efuse, SPI0/1 flash controller, GDMA, GP-SPI2 master (MOSI only, data from GDMA, as esp-hal's `SpiDma::write_buffer` drives it), SHA/AES/RSA, cache controller, hardware RNG |
 
 Peripheral models are **shared with the S3 through the `esp-periph` crate** wherever the IP is
 identical (which is most of it — same UART, same systimer, same timer groups, same USB-Serial/JTAG,
@@ -155,12 +155,14 @@ counts and the interrupt count pinned.
 - **`--boot app`** (skipping the ROM and bootloader). The C3 has one 128-entry MMU table shared by
   the data and instruction buses, and software keeps their page ranges disjoint; a direct app boot
   needs the bootloader's split, which is not modelled. The flag fails with that message.
-- **Bluetooth** is not modelled.
+- **Bluetooth radio.** `--ble` is the virtual VHCI controller (it needs the application ELF) and
+  `--ble full` an experimental register-level controller with one virtual central
+  ([cli.md](cli.md)); neither models the radio.
 - **No board yet.** The C3 target is a bare module (`NoBoard`): console only. `BoardModel` lives
   in `esp-soc` now, so a C3 board is an `impl BoardModel` plus its devices; nothing else changes.
 - (superseded) `BoardModel` is an S3 concept
   today; a C3 board would need it lifted out.
-- **Peripherals on demand**: I2C, SPI2 master, RMT, ADC, TWAI. Each shows up as an unknown
+- **Peripherals on demand**: I2C, RMT, ADC, TWAI. Each shows up as an unknown
   register with `--log-periph` the moment a firmware wants it.
 - **`Saved PC`** on a non-power-on reset: the ROM reads a PC the previous reset stashed in RTC
   memory, which the emulator does not write.
