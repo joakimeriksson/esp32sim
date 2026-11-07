@@ -547,11 +547,42 @@ impl Device for ClassicGpio {
 
 // The classic UART adds UART_MEM_RX_STATUS (uart_reg.h, UART_MEM_RX_STATUS_REG at 0x60):
 // bits 13-23 hold the receive FIFO write pointer, modelled as the queued count mod 128.
-pub struct ClassicUart(pub Uart);
+/// `.1` is the autobaud edge count: edges the detector has measured since it was enabled. Latched like the
+/// silicon's counters: it keeps its value after the ROM's receive interrupt has drained the FIFO, and clears when the
+/// detector is disabled. (A tuple struct, so existing `uart.0` callers keep working.)
+pub struct ClassicUart(pub Uart, u32);
 impl ClassicUart {
     const MEM_RX_STATUS: u32 = 0x60;
+    // The UART's baud-rate auto-detector, which the mask ROM's download boot depends on. `UartConnCheck` calls
+    // `uart_baudrate_detect`, which sets UART_AUTOBAUD_EN (+0x18 bit 0), spins until UART_RXD_CNT (+0x30) exceeds 127,
+    // then reads UART_LOWPULSE (+0x28) and UART_HIGHPULSE (+0x2c) and returns a divisor of
+    // ((high + low) << 3) + 144 in 1/16ths, which it hands to uart_div_modify. On silicon the counters measure the
+    // host's sync pattern (esptool sends 0x55 bytes). Bytes injected by the host have no bit timing, so the counters
+    // would stay 0 and the ROM would wait forever; instead, while the detector is on and bytes are pending, report
+    // about 9 edges per byte, latched until the detector is disabled, and pulse widths for the UART's current baud
+    // (115200 before the ROM has set one).
+    const AUTOBAUD: u32 = 0x18;
+    const LOWPULSE: u32 = 0x28;
+    const HIGHPULSE: u32 = 0x2c;
+    const RXD_CNT: u32 = 0x30;
+    fn autobaud_sampling(&mut self) -> bool {
+        self.0.read(Self::AUTOBAUD) & 1 != 0 && self.1 > 0
+    }
+    /// One bit time in APB cycles, less the 9 cycles the ROM's `+ 144` (9 * 16) adds back, so that
+    /// `((width + width) << 3) + 144` is exactly 16 * (APB / baud).
+    fn pulse_width(&self) -> u32 {
+        let baud = self.0.classic_baud().filter(|b| *b > 0).unwrap_or(115_200) as u64;
+        (80_000_000 / baud).saturating_sub(9) as u32
+    }
     fn new(layout: UartLayout) -> Self {
-        Self(Uart::new(layout))
+        Self(Uart::new(layout), 0)
+    }
+    /// Host-injected bytes. While the autobaud detector is enabled they are also what it "measures".
+    pub fn host_input(&mut self, data: &[u8]) {
+        if self.0.read(Self::AUTOBAUD) & 1 != 0 {
+            self.1 = self.1.saturating_add(9 * data.len() as u32).min(1023);
+        }
+        self.0.host_input(data);
     }
 }
 impl std::ops::Deref for ClassicUart {
@@ -567,13 +598,15 @@ impl std::ops::DerefMut for ClassicUart {
 }
 impl Device for ClassicUart {
     fn read(&mut self, off: u32) -> u32 {
-        if off == Self::MEM_RX_STATUS {
-            ((self.0.rx_pending() % 128) as u32) << 13
-        } else {
-            self.0.read(off)
+        match off {
+            Self::MEM_RX_STATUS => ((self.0.rx_pending() % 128) as u32) << 13,
+            Self::RXD_CNT if self.autobaud_sampling() => self.1,
+            Self::LOWPULSE | Self::HIGHPULSE if self.autobaud_sampling() => self.pulse_width(),
+            _ => self.0.read(off),
         }
     }
     fn write(&mut self, off: u32, v: u32) -> WriteEffect {
+        if off == Self::AUTOBAUD && v & 1 == 0 { self.1 = 0; } // detector off: measurements are discarded
         self.0.write(off, v);
         WriteEffect::NONE
     }
@@ -718,6 +751,33 @@ impl Device for ClassicEfuse {
     }
 }
 
+/// The SDIO slave link controller (SLC, 0x3ff58000), only as far as the mask ROM's download boot needs it.
+/// `ets_download_boot` runs `slc_init_attach` before it listens on the UART, and that routine writes
+/// SLC_SLC0_TXLINK_STOP (bit 28) to SLC_0TX_LINK_REG (+0x40) and then spins until SLC_SLC0_TXLINK_PARK (bit 31,
+/// read-only) reads 1, i.e. until the link has stopped and parked. IDF v5.5.4 soc/esp32/include/soc/slc_reg.h:
+/// the four link registers are +0x3c SLC_0RX_LINK, +0x40 SLC_0TX_LINK, +0x44 SLC_1RX_LINK, +0x48 SLC_1TX_LINK, each
+/// with RESTART (30), START (29) and STOP (28) as strobes, an address in [19:0] and PARK at bit 31.
+/// No link is ever started here (there is no SDIO host), so every link is always parked. All other SLC
+/// registers are plain read/write storage: nothing in the download path reads their effects.
+pub struct ClassicSlc(pub RegRam);
+impl ClassicSlc {
+    const LINKS: [u32; 4] = [0x3c, 0x40, 0x44, 0x48];
+    const STROBES: u32 = 0b111 << 28;
+    const PARK: u32 = 1 << 31;
+    fn new() -> Self { Self(RegRam::new()) }
+}
+impl Device for ClassicSlc {
+    fn read(&mut self, off: u32) -> u32 {
+        let v = self.0.read(off);
+        if Self::LINKS.contains(&off) { (v & !Self::STROBES) | Self::PARK } else { v }
+    }
+    fn write(&mut self, off: u32, v: u32) -> WriteEffect {
+        // The strobes act once and read back as 0; PARK is read-only. Only the address field is kept.
+        self.0.write(off, if Self::LINKS.contains(&off) { v & 0x000f_ffff } else { v });
+        WriteEffect::NONE
+    }
+}
+
 pub struct Peripherals {
     pub dport: Dport,
     pub uart: [ClassicUart; 3],
@@ -730,6 +790,7 @@ pub struct Peripherals {
     pub rtc: ClassicRtc,
     pub efuse: ClassicEfuse,
     pub syscon: RegRam,
+    pub slc: ClassicSlc,
     pub sha: ClassicSha,
     pub timg: [ClassicTimer; 2],
     pub i2c: [esp_periph::i2c::I2c<16>; 2],
@@ -772,6 +833,7 @@ device_set! { Peripherals; clock: (clock) CPU_HZ, [(ClockDomain::RtcSlow, 1600)]
     0x53 "I2C0" (i2c[0]) => [SRC_I2C0];
     0x56 "RMT" (rmt) => [SRC_RMT];
     0x59 "LEDC" (ledc) => [SRC_LEDC];
+    0x58 "SLC" (slc) => [];
     0x5a "EFUSE" (efuse) => [];
     0x5f "TIMG0" (timg[0]) => [SRC_TG0_T0, SRC_TG0_T1, SRC_TG0_WDT, SRC_TG0_LACT, SRC_TG0_T0_EDGE, SRC_TG0_T0_EDGE + 1, SRC_TG0_T0_EDGE + 2, SRC_TG0_T0_EDGE + 3];
     0x60 "TIMG1" (timg[1]) => [SRC_TG1_T0, SRC_TG1_T1, SRC_TG1_WDT, SRC_TG1_LACT, SRC_TG1_T0_EDGE, SRC_TG1_T0_EDGE + 1, SRC_TG1_T0_EDGE + 2, SRC_TG1_T0_EDGE + 3];
@@ -820,6 +882,7 @@ impl Peripherals {
             rtc: ClassicRtc::new(),
             efuse: ClassicEfuse::new(mac),
             syscon: { let mut r = RegRam::new(); r.write(0x7c, SYSCON_DATE_ECO3); r },
+            slc: ClassicSlc::new(),
             sha: ClassicSha::new(),
             timg: [ClassicTimer::new(0), ClassicTimer::new(1)],
             i2c: [esp_periph::i2c::I2c::new_classic(), esp_periph::i2c::I2c::new_classic()],
@@ -1100,6 +1163,39 @@ mod tests {
         assert_eq!(p.read32(0x3ff6_607c), 0x9604_2000);
         p.write32(0x3ff6_6000, 0x1234);
         assert_eq!(p.read32(0x3ff6_6000), 0x1234, "the rest of SYSCON stays register RAM");
+    }
+
+    #[test]
+    fn slc_links_are_always_parked_so_the_rom_download_boot_proceeds() {
+        // The ROM's slc_init_attach writes TXLINK_STOP (bit 28) to SLC_0TX_LINK_REG and spins until PARK (bit 31) reads 1.
+        // IDF v5.5.4 soc/esp32/include/soc/slc_reg.h: +0x3c 0RX_LINK, +0x40 0TX_LINK, +0x44 1RX_LINK, +0x48 1TX_LINK.
+        let mut p = Peripherals::new([0; 6]);
+        for reg in [0x3ff5_803c_u32, 0x3ff5_8040, 0x3ff5_8044, 0x3ff5_8048] {
+            assert_ne!(p.read32(reg) & (1 << 31), 0, "{reg:#x} parked before anything is written");
+            p.write32(reg, 1 << 28 | 0x1234);
+            let v = p.read32(reg);
+            assert_ne!(v & (1 << 31), 0, "{reg:#x} still parked after STOP");
+            assert_eq!(v & (0b111 << 28), 0, "{reg:#x}: STOP/START/RESTART are strobes and read back 0");
+            assert_eq!(v & 0xf_ffff, 0x1234, "{reg:#x}: the descriptor address is stored");
+        }
+        p.write32(0x3ff5_8000, 0xdead_beef);
+        assert_eq!(p.read32(0x3ff5_8000), 0xdead_beef, "the rest of the SLC stays register RAM");
+    }
+
+    #[test]
+    fn uart_autobaud_reports_a_sync_pattern_the_roms_formula_turns_into_115200() {
+        // ROM uart_baudrate_detect: waits for UART_RXD_CNT (+0x30) > 127, then divisor*16 = ((high + low) << 3) + 144.
+        let mut p = Peripherals::new([0; 6]);
+        let uart0 = 0x3ff4_0000_u32;
+        assert_eq!(p.read32(uart0 + 0x30), 0, "no edges counted before anything arrives");
+        p.write32(uart0 + 0x18, 0x401); // UART_AUTOBAUD_EN | glitch filter, as the ROM writes it
+        assert_eq!(p.read32(uart0 + 0x30), 0, "enabled but nothing received yet");
+        p.uart[0].host_input(&[0x55; 20]); // esptool's sync pattern
+        assert!(p.read32(uart0 + 0x30) > 127, "enough edges for the ROM to stop waiting");
+        let (low, high) = (p.read32(uart0 + 0x28), p.read32(uart0 + 0x2c));
+        assert_eq!(((low + high) << 3) + 144, 16 * (80_000_000 / 115_200), "the ROM recovers the 115200 divisor");
+        p.write32(uart0 + 0x18, 0); // the ROM disables the detector when it is done
+        assert_eq!(p.read32(uart0 + 0x30), 0);
     }
 
     #[test]
