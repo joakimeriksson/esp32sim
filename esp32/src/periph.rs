@@ -598,6 +598,8 @@ impl ClassicUart {
         self.pump(usize::MAX); // what fits is available at once; the rest is released by `advance`
     }
     const FIFO_SIZE: usize = 128;
+    /// Host bytes waiting for room in the FIFO: the only case in which `advance` has work.
+    pub fn has_queued(&self) -> bool { !self.2.is_empty() }
     /// Move up to `max` queued host bytes into the receive FIFO, as far as it has room. Returns how many moved.
     fn pump(&mut self, max: usize) -> usize {
         let n = Self::FIFO_SIZE.saturating_sub(self.0.rx_pending()).min(self.2.len()).min(max);
@@ -1100,7 +1102,7 @@ impl Peripherals {
             timer.tick(ticks);
             irq_changed |= before != timer.irq_sources();
         }
-        for uart in &mut self.uart {
+        for uart in self.uart.iter_mut().filter(|u| u.has_queued()) {
             let before = uart.irq_sources();
             if uart.advance(cycles) { irq_changed |= before != uart.irq_sources(); }
         }

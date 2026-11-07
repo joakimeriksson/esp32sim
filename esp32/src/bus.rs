@@ -251,7 +251,8 @@ impl SocBus {
         let a = Self::ahb_to_apb(addr & !3).unwrap_or(addr & !3);
         // A read of a UART FIFO can drop RXFIFO_FULL (it follows the FIFO level), which changes the source's level:
         // tell the CPU interrupt presentation, or the old level would stay latched on the CPU line.
-        let uart_fifo = [0x3ff4_0000, 0x3ff5_0000, 0x3ff6_e000].iter().position(|&base| a == base);
+        // Every FIFO is at offset 0 of its block, so one mask test keeps this off other reads.
+        let uart_fifo = if a & 0xfff == 0 { [0x3ff4_0000, 0x3ff5_0000, 0x3ff6_e000].iter().position(|&base| a == base) } else { None };
         let uart_level = uart_fifo.map(|i| self.periph.uart[i].irq());
         let w = if a == WDEV_RND {
             self.rng.now = self.cycles as u32;

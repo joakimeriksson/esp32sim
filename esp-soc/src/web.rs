@@ -245,7 +245,7 @@ pub fn json_str(msg: &str, key: &str) -> Option<String> {
 /// Hex text to bytes (no separators, either case). None for an odd length or a non-hex character.
 pub fn hex_decode(s: &str) -> Option<Vec<u8>> {
     let s = s.as_bytes();
-    if s.len() % 2 != 0 { return None; }
+    if !s.len().is_multiple_of(2) { return None; }
     let nibble = |c: u8| (c as char).to_digit(16).map(|d| d as u8);
     s.chunks(2).map(|p| Some(nibble(p[0])? << 4 | nibble(p[1])?)).collect()
 }
