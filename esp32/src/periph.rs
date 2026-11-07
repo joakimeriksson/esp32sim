@@ -614,12 +614,12 @@ impl ClassicUart {
     /// interrupt always drains the FIFO faster than it fills. Delivering it in one burst instead makes that interrupt
     /// handler pull the whole packet into the ROM's 256-byte receive ring before the main loop can consume any of it.
     /// Returns whether the receive interrupt level may have changed.
-    pub fn advance(&mut self, cycles: u64) -> bool {
+    pub fn advance(&mut self, cycles: u64, cpu_hz: u64) -> bool {
         // Credit only accrues while a byte could actually move; a full FIFO holds the line (the host waits), so
         // nothing is banked and no burst follows when the firmware drains it.
         if self.2.is_empty() || self.0.rx_pending() >= Self::FIFO_SIZE { self.3 = 0; return false; }
         let baud = self.0.classic_baud().filter(|b| *b > 0).unwrap_or(115_200) as u64;
-        let per_byte = (CPU_HZ * 10 / baud).max(1);
+        let per_byte = (cpu_hz * 10 / baud).max(1);
         self.3 += cycles;
         let due = (self.3 / per_byte) as usize;
         if due == 0 { return false; }
@@ -959,9 +959,13 @@ impl Peripherals {
     }
     pub fn uart_pin_input(&mut self, input: &esp_soc::uart::UartInput) {
         let routes = std::array::from_fn::<_, 3, _>(|port| self.uart_route(port));
-        // The shared helper takes plain UARTs; hand it each wrapped port with its own route.
+        // Same routing as esp_soc::uart::uart_pin_input, but delivered through ClassicUart::host_input so pin-driven
+        // bytes get the same autobaud counting and baud-rate pacing as host-injected ones.
+        if input.data.is_empty() { return; }
         for (uart, route) in self.uart.iter_mut().zip(&routes) {
-            esp_soc::uart::uart_pin_input(std::slice::from_mut(&mut uart.0), input, std::slice::from_ref(route));
+            if route.rx_pin != Some(input.pin) { continue; }
+            if route.matches_baud(input.baud) { uart.host_input(&input.data); }
+            else { uart.0.int_raw |= esp_periph::uart::INT_FRM_ERR; }
         }
     }
     pub fn block_name(block: u32) -> &'static str {
@@ -1102,9 +1106,14 @@ impl Peripherals {
             timer.tick(ticks);
             irq_changed |= before != timer.irq_sources();
         }
-        for uart in self.uart.iter_mut().filter(|u| u.has_queued()) {
-            let before = uart.irq_sources();
-            if uart.advance(cycles) { irq_changed |= before != uart.irq_sources(); }
+        // Pace queued host bytes. Only when some UART has any (off the hot path); cpu_scale_half() is half reference
+        // ticks per CPU clock (12/6/3/2 = 40/80/160/240 MHz), so this is the current CPU clock.
+        if self.uart.iter().any(|u| u.has_queued()) {
+            let cpu_hz = 480_000_000 / self.cpu_scale_half().max(1);
+            for uart in self.uart.iter_mut().filter(|u| u.has_queued()) {
+                let before = uart.irq_sources();
+                if uart.advance(cycles, cpu_hz) { irq_changed |= before != uart.irq_sources(); }
+            }
         }
         let ledc_before = self.ledc.irq_sources();
         let rmt_before = self.rmt.irq_sources();
@@ -1281,7 +1290,7 @@ mod tests {
         p.uart[0].host_input(&data);
         assert_eq!(p.uart[0].rx_pending(), 128, "what fits is there at once");
         let mut got = Vec::new();
-        let per_byte = CPU_HZ * 10 / 115_200;
+        let per_byte = 480_000_000 / p.cpu_scale_half() * 10 / 115_200; // at the clock tick() paces with
         p.tick(per_byte * 10); // ten byte times pass with the FIFO still full: nothing more can enter
         assert_eq!(p.uart[0].rx_pending(), 128);
         for _ in 0..128 { got.push(p.read32(uart0) as u8); }
@@ -1309,6 +1318,24 @@ mod tests {
         assert_ne!(p.uart[0].irq_sources(), 0, "and it interrupts when enabled");
         p.write32(uart0 + 0x10, 0x4000);
         assert_eq!(p.uart[0].irq_sources(), 0, "a clear also takes the interrupt down");
+    }
+
+    #[test]
+    fn rx_drain_with_tx_done_enabled_still_lowers_the_line_and_subword_tx_writes_keep_rx_bytes() {
+        use xtensa_lx7::bus::Bus as _;
+        let mut b = crate::bus::SocBus::new(0, [0; 6]);
+        let uart0 = 0x3ff4_0000u32;
+        b.write32(uart0 + 0x24, 1).unwrap();
+        b.write32(uart0 + 0x0c, 1 | 0x4000).unwrap(); // RXFIFO_FULL and TX_DONE enabled
+        b.write32(uart0 + 0x10, 0x4000).unwrap();     // TX_DONE cleared: only RX can hold the line
+        esp_soc::SocBus::uart_input(&mut b, 0, b"ab");
+        b.write8(uart0, b'Z').unwrap();               // a byte store to the TX FIFO must not pop 'a'
+        b.write32(uart0 + 0x10, 0x4000).unwrap();     // and clear the TX_DONE that store raised
+        assert_eq!(b.read8(uart0), Ok(b'a'));
+        b.irq_dirty = false;
+        assert_eq!(b.read8(uart0), Ok(b'b'));
+        assert_eq!(b.periph.uart[0].irq_sources(), 0);
+        assert!(b.irq_dirty, "the falling line reaches the CPU even with TX_DONE enabled");
     }
 
     #[test]

@@ -253,7 +253,7 @@ impl SocBus {
         // tell the CPU interrupt presentation, or the old level would stay latched on the CPU line.
         // Every FIFO is at offset 0 of its block, so one mask test keeps this off other reads.
         let uart_fifo = if a & 0xfff == 0 { [0x3ff4_0000, 0x3ff5_0000, 0x3ff6_e000].iter().position(|&base| a == base) } else { None };
-        let uart_level = uart_fifo.map(|i| self.periph.uart[i].irq());
+        let uart_level = uart_fifo.map(|i| self.periph.uart[i].irq_sources());
         let w = if a == WDEV_RND {
             self.rng.now = self.cycles as u32;
             self.rng.read(0)
@@ -261,7 +261,7 @@ impl SocBus {
             self.periph.read32(a)
         };
         if let (Some(i), Some(before)) = (uart_fifo, uart_level) {
-            if self.periph.uart[i].irq() != before { self.irq_dirty = true; }
+            if self.periph.uart[i].irq_sources() != before { self.irq_dirty = true; }
         }
         match size {
             1 => (w >> ((addr & 3) * 8)) & 0xff,
@@ -279,7 +279,10 @@ impl SocBus {
         if a == WDEV_RND {
             return;
         }
-        let v = if size == 4 { value } else { merge(self.periph.read32(a), value, addr, size) };
+        // A byte/halfword store merges into the register's current value, but reading a UART FIFO pops a received byte:
+        // TX FIFO writes merge into 0 instead.
+        let fifo = matches!(a, 0x3ff4_0000 | 0x3ff5_0000 | 0x3ff6_e000);
+        let v = if size == 4 { value } else { merge(if fifo { 0 } else { self.periph.read32(a) }, value, addr, size) };
         let old_enable = self.periph.gpio.gpio.enable;
         // Configuration-only bookkeeping; no new work in ordinary ticks.
         // Only physical DVP routing bits matter (IDF v4.4.7 gpio_reg.h,
@@ -731,7 +734,6 @@ mod tests {
                 assert_ne!(b.periph.uart[port].irq_sources(), 0, "and it re-raises on the next arrival");
                 b.write32(base + 0x10, 1).unwrap();
                 assert_ne!(b.periph.uart[port].irq_sources(), 0, "INT_CLR with a byte still waiting re-raises the level");
-                assert!(b.irq_dirty || b.periph.uart[port].irq_sources() != 0);
                 assert_eq!(b.read8(addr), Ok(b'z'));
                 assert_eq!(b.periph.uart[port].irq_sources(), 0, "and the read that drains it lowers it");
             }
