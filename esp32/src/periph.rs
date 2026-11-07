@@ -549,8 +549,10 @@ impl Device for ClassicGpio {
 // bits 13-23 hold the receive FIFO write pointer, modelled as the queued count mod 128.
 /// `.1` is the autobaud edge count: edges the detector has measured since it was enabled. Latched like the
 /// silicon's counters: it keeps its value after the ROM's receive interrupt has drained the FIFO, and clears when the
-/// detector is disabled. (A tuple struct, so existing `uart.0` callers keep working.)
-pub struct ClassicUart(pub Uart, u32);
+/// detector is disabled. `.2` holds host bytes that did not fit the 128-byte FIFO, and `.3` is the CPU-cycle credit
+/// with which they are released at the baud rate. `.4` is set while software has cleared TX_DONE and nothing has
+/// been transmitted since. (A tuple struct, so existing `uart.0` callers keep working.)
+pub struct ClassicUart(pub Uart, u32, std::collections::VecDeque<u8>, u64, bool);
 impl ClassicUart {
     const MEM_RX_STATUS: u32 = 0x60;
     // The UART's baud-rate auto-detector, which the mask ROM's download boot depends on. `UartConnCheck` calls
@@ -565,6 +567,16 @@ impl ClassicUart {
     const LOWPULSE: u32 = 0x28;
     const HIGHPULSE: u32 = 0x2c;
     const RXD_CNT: u32 = 0x30;
+    const FIFO: u32 = 0x0;
+    const INT_RAW: u32 = 0x04;
+    const INT_ST: u32 = 0x08;
+    const INT_CLR: u32 = 0x10;
+    // TX_DONE (bit 14) can be cleared on silicon and rises again when the transmitter has sent what it was given. The
+    // shared Uart model keeps it permanently raised (it transmits instantly), which deadlocks the ROM: its
+    // uart_tx_wait_idle clears TX_DONE and then spins `while (INT_RAW & TX_DONE)`, right before the download protocol
+    // jumps into a loaded stub. Here a clear holds TX_DONE down until the next byte is written to the FIFO.
+    const TX_DONE: u32 = 1 << 14;
+    fn tx_done_mask(&self) -> u32 { if self.4 { !Self::TX_DONE } else { !0 } }
     fn autobaud_sampling(&mut self) -> bool {
         self.0.read(Self::AUTOBAUD) & 1 != 0 && self.1 > 0
     }
@@ -575,14 +587,43 @@ impl ClassicUart {
         (80_000_000 / baud).saturating_sub(9) as u32
     }
     fn new(layout: UartLayout) -> Self {
-        Self(Uart::new(layout), 0)
+        Self(Uart::new(layout), 0, Default::default(), 0, false)
     }
     /// Host-injected bytes. While the autobaud detector is enabled they are also what it "measures".
     pub fn host_input(&mut self, data: &[u8]) {
         if self.0.read(Self::AUTOBAUD) & 1 != 0 {
             self.1 = self.1.saturating_add(9 * data.len() as u32).min(1023);
         }
-        self.0.host_input(data);
+        self.2.extend(data);
+        self.pump(usize::MAX); // what fits is available at once; the rest is released by `advance`
+    }
+    const FIFO_SIZE: usize = 128;
+    /// Move up to `max` queued host bytes into the receive FIFO, as far as it has room. Returns how many moved.
+    fn pump(&mut self, max: usize) -> usize {
+        let n = Self::FIFO_SIZE.saturating_sub(self.0.rx_pending()).min(self.2.len()).min(max);
+        if n > 0 {
+            let chunk: Vec<u8> = self.2.drain(..n).collect();
+            self.0.host_input(&chunk);
+        }
+        n
+    }
+    /// Release queued host bytes at the baud rate (10 bits per byte), in emulated time. A packet that does not fit the
+    /// 128-byte FIFO (esptool sends several KB at once) arrives on hardware paced by the line, so the firmware's receive
+    /// interrupt always drains the FIFO faster than it fills. Delivering it in one burst instead makes that interrupt
+    /// handler pull the whole packet into the ROM's 256-byte receive ring before the main loop can consume any of it.
+    /// Returns whether the receive interrupt level may have changed.
+    pub fn advance(&mut self, cycles: u64) -> bool {
+        // Credit only accrues while a byte could actually move; a full FIFO holds the line (the host waits), so
+        // nothing is banked and no burst follows when the firmware drains it.
+        if self.2.is_empty() || self.0.rx_pending() >= Self::FIFO_SIZE { self.3 = 0; return false; }
+        let baud = self.0.classic_baud().filter(|b| *b > 0).unwrap_or(115_200) as u64;
+        let per_byte = (CPU_HZ * 10 / baud).max(1);
+        self.3 += cycles;
+        let due = (self.3 / per_byte) as usize;
+        if due == 0 { return false; }
+        let moved = self.pump(due);
+        self.3 = if moved < due { 0 } else { self.3 - moved as u64 * per_byte };
+        moved > 0
     }
 }
 impl std::ops::Deref for ClassicUart {
@@ -602,16 +643,24 @@ impl Device for ClassicUart {
             Self::MEM_RX_STATUS => ((self.0.rx_pending() % 128) as u32) << 13,
             Self::RXD_CNT if self.autobaud_sampling() => self.1,
             Self::LOWPULSE | Self::HIGHPULSE if self.autobaud_sampling() => self.pulse_width(),
+            Self::INT_RAW | Self::INT_ST => self.0.read(off) & self.tx_done_mask(),
+            Self::FIFO => {
+                let byte = self.0.read(off);
+                self.0.lower_rx_full_when_drained();
+                byte
+            }
             _ => self.0.read(off),
         }
     }
     fn write(&mut self, off: u32, v: u32) -> WriteEffect {
         if off == Self::AUTOBAUD && v & 1 == 0 { self.1 = 0; } // detector off: measurements are discarded
+        if off == Self::INT_CLR && v & Self::TX_DONE != 0 { self.4 = true; }
+        if off == Self::FIFO { self.4 = false; } // a transmitted byte completes at once, raising TX_DONE again
         self.0.write(off, v);
         WriteEffect::NONE
     }
     fn irq_sources(&self) -> u64 {
-        self.0.irq() as u64
+        (self.0.int_raw & self.tx_done_mask() & self.0.int_ena != 0) as u64
     }
 }
 
@@ -1051,6 +1100,10 @@ impl Peripherals {
             timer.tick(ticks);
             irq_changed |= before != timer.irq_sources();
         }
+        for uart in &mut self.uart {
+            let before = uart.irq_sources();
+            if uart.advance(cycles) { irq_changed |= before != uart.irq_sources(); }
+        }
         let ledc_before = self.ledc.irq_sources();
         let rmt_before = self.rmt.irq_sources();
         if self.ledc.clock() == Some(ClockDomain::Apb) { self.ledc.tick(ticks); }
@@ -1196,6 +1249,64 @@ mod tests {
         assert_eq!(((low + high) << 3) + 144, 16 * (80_000_000 / 115_200), "the ROM recovers the 115200 divisor");
         p.write32(uart0 + 0x18, 0); // the ROM disables the detector when it is done
         assert_eq!(p.read32(uart0 + 0x30), 0);
+    }
+
+    #[test]
+    fn uart_rx_full_interrupt_falls_when_the_fifo_is_read_below_the_threshold() {
+        // The mask ROM's UART interrupt handler services the pair's other UART by reading its FIFO only; the
+        // interrupt must deassert by itself or the ROM's dispatcher re-enters the handler forever.
+        let mut p = Peripherals::new([0; 6]);
+        let uart0 = 0x3ff4_0000_u32;
+        p.write32(uart0 + 0x24, 1); // RXFIFO_FULL_THRHD = 1
+        p.write32(uart0 + 0x0c, 1); // enable RXFIFO_FULL
+        p.uart[0].host_input(&[1, 2, 3]);
+        assert_ne!(p.read32(uart0 + 0x08) & 1, 0, "asserted while bytes are waiting");
+        assert_eq!(p.read32(uart0), 1);
+        assert_ne!(p.read32(uart0 + 0x08) & 1, 0, "still asserted: two bytes remain");
+        assert_eq!(p.read32(uart0), 2);
+        assert_eq!(p.read32(uart0), 3);
+        assert_eq!(p.read32(uart0 + 0x08) & 1, 0, "FIFO drained below the threshold: the interrupt falls on its own");
+        p.uart[0].host_input(&[9]);
+        assert_ne!(p.read32(uart0 + 0x08) & 1, 0, "and re-raises on the next arrival");
+    }
+
+    #[test]
+    fn uart_host_overflow_is_released_at_the_baud_rate_and_nothing_is_lost() {
+        // 300 bytes at 115200 baud: the first 128 fit the FIFO at once, the rest trickle in (10 bits per byte).
+        let mut p = Peripherals::new([0; 6]);
+        let uart0 = 0x3ff4_0000_u32;
+        let data: Vec<u8> = (0..300).map(|i| i as u8).collect();
+        p.uart[0].host_input(&data);
+        assert_eq!(p.uart[0].rx_pending(), 128, "what fits is there at once");
+        let mut got = Vec::new();
+        let per_byte = CPU_HZ * 10 / 115_200;
+        p.tick(per_byte * 10); // ten byte times pass with the FIFO still full: nothing more can enter
+        assert_eq!(p.uart[0].rx_pending(), 128);
+        for _ in 0..128 { got.push(p.read32(uart0) as u8); }
+        assert_eq!(p.uart[0].rx_pending(), 0, "the host's bytes are not burst in behind the reads");
+        p.tick(per_byte * 3);
+        assert_eq!(p.uart[0].rx_pending(), 3, "three byte times release three bytes");
+        for _ in 0..40 {
+            p.tick(per_byte * 10);
+            while p.uart[0].rx_pending() > 0 { got.push(p.read32(uart0) as u8); }
+        }
+        assert_eq!(got, data, "every byte arrives, in order");
+    }
+
+    #[test]
+    fn uart_tx_done_can_be_cleared_and_rises_with_the_next_byte() {
+        // ROM uart_tx_wait_idle: INT_CLR |= TX_DONE (0x4000), flush, then spin while INT_RAW & TX_DONE.
+        let mut p = Peripherals::new([0; 6]);
+        let uart0 = 0x3ff4_0000_u32;
+        assert_ne!(p.read32(uart0 + 0x04) & 0x4000, 0, "idle transmitter: TX_DONE raised");
+        p.write32(uart0 + 0x10, 0x4000);
+        assert_eq!(p.read32(uart0 + 0x04) & 0x4000, 0, "cleared, and nothing sent since: the ROM's wait ends");
+        p.write32(uart0, b'A' as u32);
+        assert_ne!(p.read32(uart0 + 0x04) & 0x4000, 0, "the next byte raises it again");
+        p.write32(uart0 + 0x0c, 0x4000);
+        assert_ne!(p.uart[0].irq_sources(), 0, "and it interrupts when enabled");
+        p.write32(uart0 + 0x10, 0x4000);
+        assert_eq!(p.uart[0].irq_sources(), 0, "a clear also takes the interrupt down");
     }
 
     #[test]
