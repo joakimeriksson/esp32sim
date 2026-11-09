@@ -11,8 +11,9 @@ use esp_soc::nat::{HostEvent, Nat, QueueTransport};
 /// without it, back to no NAT. Bit 1: the page resolves the guest's A / AAAA queries (`RESOLVE`
 /// records); without it DNS datagrams go to the page as UDP to 10.0.2.3:53. Bit 2: SNTP is
 /// answered here, from the network clock, instead of going to the page. A chip reset aborts the
-/// open flows (`TCP_CLOSE` records with abort); a second call starts a new queue, forgetting the
-/// old flows without records. Returns 0, or 1 without a network (the reason goes to `host_log`).
+/// open flows (`TCP_CLOSE` records with abort), and so does a second call, which starts a new
+/// queue: the next take hands over the old queue's records, those closes last, before the new
+/// one's. Returns 0, or 1 without a network (the reason goes to `host_log`).
 /// # Safety
 /// `e` must be a live emulator with exclusive access for this call.
 #[no_mangle]
@@ -23,8 +24,25 @@ pub unsafe extern "C" fn esp32sim_nat_relay(e: *mut Emu, flags: u32) -> u32 {
         (Some(Nat::with_transport(false, Box::new(transport))), Some(handle))
     };
     if let Err(reason) = e.m.attach_nat(nat, flags & 1 != 0 && flags & 4 != 0) { log(&format!("[emu] nat relay: {reason}")); return 1 }
+    keep_left(e);
     e.nat = handle;
     0
+}
+
+/// Keep the replaced relay's untaken records, the closes of its flows among them, for the next take.
+fn keep_left(e: &mut Emu) {
+    let Some(old) = e.nat.take() else { return };
+    let mut left = Vec::new();
+    old.take_ops(&mut left);
+    e.nat_left.extend_from_slice(&left);
+}
+
+/// End the relay before its network goes (`esp32sim_wifi` puts up a new one): its flows are
+/// aborted and the next take hands over their closes.
+pub(crate) fn end_relay(e: &mut Emu) {
+    if e.nat.is_none() { return; }
+    let _ = e.m.attach_nat(None, false);
+    keep_left(e);
 }
 
 /// Take the records the guest's sockets queued since the last take, returning their byte length
@@ -42,6 +60,11 @@ pub unsafe extern "C" fn esp32sim_nat_take(e: *mut Emu) -> usize {
     match &e.nat {
         Some(h) => { h.take_ops(&mut e.nat_out); }
         None => e.nat_out.clear(),
+    }
+    if !e.nat_left.is_empty() {
+        let mut out = std::mem::take(&mut e.nat_left);
+        out.extend_from_slice(&e.nat_out);
+        e.nat_out = out;
     }
     e.nat_out.len()
 }
@@ -71,4 +94,63 @@ pub unsafe extern "C" fn esp32sim_nat_event(e: *mut Emu, kind: u32, id: u32, arg
     let data = unsafe { bytes(ptr, len) };
     let (Some(h), Some(ev)) = (&e.nat, HostEvent::from_abi(kind, id, arg, data)) else { return 0 };
     h.event(ev)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{esp32sim_delete, esp32sim_new, esp32sim_wifi};
+    use esp_soc::nat::queue::op;
+
+    /// (op, flags) of each record the next take hands over.
+    fn take(e: *mut Emu) -> Vec<(u8, u8)> {
+        // SAFETY: the test owns the live emulator; the bytes are read before the next call.
+        let bytes = unsafe { let n = esp32sim_nat_take(e); std::slice::from_raw_parts(esp32sim_nat_ptr(e), n).to_vec() };
+        let mut out = Vec::new();
+        let mut at = 0;
+        while at < bytes.len() {
+            let len = u32::from_le_bytes(bytes[at + 8..at + 12].try_into().unwrap()) as usize;
+            out.push((bytes[at], bytes[at + 1]));
+            at += (12 + len).next_multiple_of(4);
+        }
+        out
+    }
+
+    /// A relay with one flow the guest opened: its TCP_CONNECT waits, untaken.
+    fn relay_with_a_flow(e: *mut Emu) {
+        // SAFETY: the test owns the live emulator.
+        let emu = unsafe { &mut *e };
+        let (transport, handle) = QueueTransport::new();
+        let mut nat = Nat::with_transport(false, Box::new(transport));
+        let mut syn = vec![0u8; 20];
+        syn[..2].copy_from_slice(&1234u16.to_be_bytes());
+        syn[2..4].copy_from_slice(&80u16.to_be_bytes());
+        syn[12] = 0x50; syn[13] = 0x02;
+        assert!(nat.tcp_in(&[2; 6], &[10, 0, 2, 15], &[93, 184, 215, 14], &syn, 0).is_empty());
+        emu.m.attach_nat(Some(nat), false).unwrap();
+        emu.nat = Some(handle);
+    }
+
+    /// Switching the relay, or a new access point, closes the old flows: the next take hands over
+    /// the old queue's records, the aborts last, then the new queue's.
+    #[test]
+    fn a_replaced_relay_hands_over_its_records_and_the_closes() {
+        let board = "none";
+        // SAFETY: the board name is readable; the emulator is deleted below.
+        let e = unsafe { esp32sim_new(board.as_ptr(), board.len(), 4, 0) };
+        let spec = "ssid=esp32sim";
+        // SAFETY: the test owns the live emulator; `spec` is readable for the call.
+        assert_eq!(unsafe { esp32sim_wifi(e, spec.as_ptr(), spec.len()) }, 0);
+        relay_with_a_flow(e);
+        // SAFETY: as above.
+        assert_eq!(unsafe { esp32sim_nat_relay(e, 1) }, 0);
+        assert_eq!(take(e), [(op::TCP_CONNECT, 0), (op::TCP_CLOSE, 1)]);
+        assert!(take(e).is_empty(), "handed over once");
+        relay_with_a_flow(e);
+        // SAFETY: as above.
+        assert_eq!(unsafe { esp32sim_wifi(e, spec.as_ptr(), spec.len()) }, 0);
+        assert_eq!(take(e), [(op::TCP_CONNECT, 0), (op::TCP_CLOSE, 1)]);
+        // SAFETY: the emulator is live and not used again.
+        unsafe { esp32sim_delete(e) };
+    }
 }

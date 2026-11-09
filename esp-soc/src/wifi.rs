@@ -544,10 +544,12 @@ impl StationLink {
         self.attach(Some(VirtualAp::new(cfg, debug.has("wifi-frames"))), Some(net));
     }
     /// Give the network behind the access point `nat` (None: none, connections past the gateway
-    /// refused), with SNTP answered here even with a NAT when `local_ntp`. Its flows go with it;
-    /// the access point and the guest's lease stay. An error without a network.
+    /// refused), with SNTP answered here even with a NAT when `local_ntp`. The old NAT's flows are
+    /// aborted first, so its transport hears of each (`Nat::abort_all`); the access point and the
+    /// guest's lease stay. An error without a network.
     pub fn set_nat(&mut self, nat: Option<crate::nat::Nat>, local_ntp: bool) -> Result<(), String> {
         let net = self.net.as_mut().ok_or("no virtual network: attach the access point first")?;
+        if let Some(old) = net.nat.as_mut() { old.abort_all(); }
         net.nat = nat;
         net.local_ntp = local_ntp;
         Ok(())

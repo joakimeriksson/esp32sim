@@ -292,8 +292,9 @@ the bytes taken; offer the rest again after the next run), 4 TCP_EOF, 5 TCP_RESE
 (`arg` bytes written), 7 UDP_DATA, 8 RESOLVED (`id` = query, `arg` = TTL, n × IPv4[4]),
 9 UNRESOLVED (`arg` = rcode 2 or 3). Bounds per emulator: 16 TCP flows (a 17th SYN waits for its
 retransmission), 64 KiB waiting for the guest per flow, 256 KiB of untaken data, 16 datagrams per
-UDP flow. A chip reset aborts the open flows (TCP_CLOSE with abort); a new `esp32sim_wifi` drops
-the relay. [EX265](evidence/nat-relay/README.md) runs an Arduino station through it with Node's
+UDP flow. A chip reset aborts the open flows (TCP_CLOSE with abort), and so does switching the
+relay off or on again, or a new `esp32sim_wifi`, which also drops the relay: the next take hands
+over the old queue's records, those closes last, before any new ones. [EX265](evidence/nat-relay/README.md) runs an Arduino station through it with Node's
 sockets in place of a page.
 
 Camera frames use `esp32sim_in_bin` type 3: `[3, width u16le, height u16le, RGBA...]`.

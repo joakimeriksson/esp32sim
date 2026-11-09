@@ -21,11 +21,14 @@ from whatever network it has.
   `dns_query`); any other query to 10.0.2.3 is answered here, empty.
 - `StationLink::set_nat` and `SocBus::attach_nat` (S3, C3, C6, classic): give the network
   `attach_wifi` put up a NAT, or none, keeping the access point and the lease; with `local_ntp`
-  SNTP stays local.
+  SNTP stays local. The old NAT's flows are aborted first (`Nat::abort_all`), so its transport
+  hears of each.
 - Exports (`wasm/src/nat.rs`): `esp32sim_nat_relay(e, flags)` (on; the page resolves names; SNTP
   here), `esp32sim_nat_take` / `esp32sim_nat_ptr` (the records), `esp32sim_nat_event`. The P4
-  with its C6 attaches it to the C6, as `attach_wifi` does. A new `esp32sim_wifi` drops the relay
-  with its network.
+  with its C6 attaches it to the C6, as `attach_wifi` does. Switching the relay off or on again,
+  or a new `esp32sim_wifi` (which drops the relay with its network), aborts the open flows; the
+  next take hands over the old queue's untaken records, those `TCP_CLOSE`s last, before the new
+  queue's.
 
 Without `esp32sim_nat_relay` nothing changes: the page's network stays the subnet without a NAT.
 The CLI does not use any of it. Nothing runs per tick.
@@ -63,7 +66,11 @@ emulated seconds took 7 s of wall time), hence one time line fewer. The logs are
   record; a failed connect's reason and a silent close; lookups answered once and unknown ones
   ignored; 16 datagrams per UDP flow; other DNS queries answered here, empty; the event decoding;
   and a `Nat` over the queue connecting, relaying and aborting.
-- `esp-soc/src/wifi/tests.rs`, `set_nat_needs_the_network_and_keeps_the_access_point`.
+- `esp-soc/src/wifi/tests.rs`: `set_nat_needs_the_network_and_keeps_the_access_point`, and
+  `set_nat_aborts_the_old_nats_flows` (an open flow's `TCP_CLOSE` with abort in the old queue).
+- `wasm/src/nat.rs`, `a_replaced_relay_hands_over_its_records_and_the_closes`: after
+  `esp32sim_nat_relay` again, and after a new `esp32sim_wifi`, the next take is the old flow's
+  `TCP_CONNECT` and its `TCP_CLOSE` (abort), once.
 - `wasm/tests/abi.rs`, `nat_relay_needs_the_access_point_and_answers_unknown_flows_with_zero`:
   refused before `esp32sim_wifi`; nothing to take; events for flows and lookups that do not exist
   ignored, data for a forgotten flow taken and dropped; off again.
