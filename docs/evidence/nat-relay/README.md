@@ -1,6 +1,6 @@
 # EX265: the station's NAT carried by the page (#303)
 
-Base: upstream/main `62752502`. The final source is the commit containing this receipt.
+Base: upstream/main `3d049f5c`. The final source is the commit containing this receipt.
 Inputs, hashes and the exact commands are in [inputs.json](inputs.json); the checks that ran
 and their results in [checks.json](checks.json).
 
