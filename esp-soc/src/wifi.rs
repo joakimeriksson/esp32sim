@@ -543,6 +543,15 @@ impl StationLink {
         net.epoch_us = cfg.epoch_s.map(|s| s.saturating_mul(1_000_000));
         self.attach(Some(VirtualAp::new(cfg, debug.has("wifi-frames"))), Some(net));
     }
+    /// Give the network behind the access point `nat` (None: none, connections past the gateway
+    /// refused), with SNTP answered here even with a NAT when `local_ntp`. Its flows go with it;
+    /// the access point and the guest's lease stay. An error without a network.
+    pub fn set_nat(&mut self, nat: Option<crate::nat::Nat>, local_ntp: bool) -> Result<(), String> {
+        let net = self.net.as_mut().ok_or("no virtual network: attach the access point first")?;
+        net.nat = nat;
+        net.local_ntp = local_ntp;
+        Ok(())
+    }
     /// What a guest reboot keeps: the host's access point, network and relay mode. The queues, the
     /// pacing and the counts start again. The NAT's flows belonged to the old
     /// guest's sockets, so they are aborted.
