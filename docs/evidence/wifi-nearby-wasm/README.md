@@ -1,6 +1,6 @@
 # EX267: the networks around the station from the page (#303)
 
-Base: upstream/main `3d049f5c`. The final source is the commit containing this receipt.
+Base: upstream/main `088308a5`. The final source is the commit containing this receipt.
 Inputs, hashes and the exact commands are in [inputs.json](inputs.json); the checks that ran
 and their results in [checks.json](checks.json).
 
@@ -81,6 +81,8 @@ the CLI option calls.
 
 ## Limits
 
+- The ABI only: the bundled page (`web/wasm/worker.js`, its manifest) does not call the export
+  yet; a `wifi_nearby` worker op beside `wifi` is a follow-up.
 - What EX237 says of the networks around holds: beacon-only, answering probe requests, not
   joinable.
 - Firmware ran on the S3 only, as in EX237; the C3, C6, classic and the P4's C6 share
