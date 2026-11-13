@@ -132,6 +132,10 @@ pub trait SocBus: Bus {
     /// survive a guest reboot. A second call replaces them and restarts the link's queues, pacing
     /// and counts; the relay mode stays.
     fn attach_wifi(&mut self, _cfg: crate::wifi::ApConfig, _nat: Option<crate::nat::Nat>) -> Result<(), String> { Err("this chip has no WiFi".into()) }
+    /// The networks around the access point `attach_wifi` put up (the CLI's `--wifi-nearby`),
+    /// replacing the ones there were (`StationLink::set_beacons`); the ones left out come back with
+    /// the reason. An error without the access point.
+    fn wifi_nearby(&mut self, _list: Vec<crate::wifi::BeaconAp>) -> Result<Vec<(crate::wifi::BeaconAp, &'static str)>, String> { Err("this chip has no WiFi".into()) }
     /// Select host Ethernet transport instead of the built-in virtual network. Off by default.
     /// Changing modes clears queued Ethernet frames; the selection survives chip reset.
     fn set_ethernet_relay(&mut self, _enabled: bool) -> Result<(), String> { Err("this chip has no Ethernet transport".into()) }
