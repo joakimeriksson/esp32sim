@@ -1,6 +1,6 @@
 # EX265: the station's NAT carried by the page (#303)
 
-Base: upstream/main `3d049f5c`. The final source is the commit containing this receipt.
+Base: upstream/main `088308a5`. The final source is the commit containing this receipt.
 Inputs, hashes and the exact commands are in [inputs.json](inputs.json); the checks that ran
 and their results in [checks.json](checks.json).
 
@@ -28,7 +28,10 @@ from whatever network it has.
   with its C6 attaches it to the C6, as `attach_wifi` does. Switching the relay off or on again,
   or a new `esp32sim_wifi` (which drops the relay with its network), aborts the open flows; the
   next take hands over the old queue's untaken records, those `TCP_CLOSE`s last, before the new
-  queue's.
+  queue's. The records waiting from replaced queues are bounded: from the first record of a
+  replaced queue that would bring them past 256 KiB (`OUT_MAX`), only that queue's closes
+  (`TCP_CLOSE`, `UDP_CLOSE`) are kept, as the page may hold those flows open; it takes between
+  switches to get the rest.
 
 Without `esp32sim_nat_relay` nothing changes: the page's network stays the subnet without a NAT.
 The CLI does not use any of it. Nothing runs per tick.
@@ -71,6 +74,9 @@ emulated seconds took 7 s of wall time), hence one time line fewer. The logs are
 - `wasm/src/nat.rs`, `a_replaced_relay_hands_over_its_records_and_the_closes`: after
   `esp32sim_nat_relay` again, and after a new `esp32sim_wifi`, the next take is the old flow's
   `TCP_CONNECT` and its `TCP_CLOSE` (abort), once.
+  `left_over_records_are_bounded_and_the_closes_are_kept`: records that fill the bound exactly
+  are kept and the close past it too; where a queue's open does not fit, the datagram after it
+  (which would) is dropped with it and its close is kept, as is a TCP flow's close.
 - `wasm/tests/abi.rs`, `nat_relay_needs_the_access_point_and_answers_unknown_flows_with_zero`:
   refused before `esp32sim_wifi`; nothing to take; events for flows and lookups that do not exist
   ignored, data for a forgotten flow taken and dropped; off again.

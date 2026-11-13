@@ -4,6 +4,7 @@
 //! TCP stay here; the page sees connects, data, shutdowns and closes per flow
 //! (`esp_soc::nat::queue`).
 use super::{bytes, log, Emu};
+use esp_soc::nat::queue::{op, OUT_MAX, RECORD_HEADER};
 use esp_soc::nat::{HostEvent, Nat, QueueTransport};
 
 /// Carry the network behind the access point (`esp32sim_wifi`, call it first and again after
@@ -13,7 +14,8 @@ use esp_soc::nat::{HostEvent, Nat, QueueTransport};
 /// answered here, from the network clock, instead of going to the page. A chip reset aborts the
 /// open flows (`TCP_CLOSE` records with abort), and so does a second call, which starts a new
 /// queue: the next take hands over the old queue's records, those closes last, before the new
-/// one's. Returns 0, or 1 without a network (the reason goes to `host_log`).
+/// one's. Take between calls: past 256 KiB of such records waiting, only the closes are kept.
+/// Returns 0, or 1 without a network (the reason goes to `host_log`).
 /// # Safety
 /// `e` must be a live emulator with exclusive access for this call.
 #[no_mangle]
@@ -30,11 +32,21 @@ pub unsafe extern "C" fn esp32sim_nat_relay(e: *mut Emu, flags: u32) -> u32 {
 }
 
 /// Keep the replaced relay's untaken records, the closes of its flows among them, for the next take.
+/// A page that switches again and again without taking does not grow them without bound: from the
+/// first record that would take the waiting ones past `OUT_MAX` bytes, only that queue's closes
+/// are kept, since the page may hold those flows open.
 fn keep_left(e: &mut Emu) {
     let Some(old) = e.nat.take() else { return };
     let mut left = Vec::new();
     old.take_ops(&mut left);
-    e.nat_left.extend_from_slice(&left);
+    let (mut at, mut fits) = (0, true);
+    while at + RECORD_HEADER <= left.len() {
+        let len = u32::from_le_bytes([left[at + 8], left[at + 9], left[at + 10], left[at + 11]]) as usize;
+        let end = at + (RECORD_HEADER + len).next_multiple_of(4);
+        fits = fits && e.nat_left.len() + (end - at) <= OUT_MAX;
+        if fits || matches!(left[at], op::TCP_CLOSE | op::UDP_CLOSE) { e.nat_left.extend_from_slice(&left[at..end]); }
+        at = end;
+    }
 }
 
 /// End the relay before its network goes (`esp32sim_wifi` puts up a new one): its flows are
@@ -100,7 +112,7 @@ pub unsafe extern "C" fn esp32sim_nat_event(e: *mut Emu, kind: u32, id: u32, arg
 mod tests {
     use super::*;
     use crate::{esp32sim_delete, esp32sim_new, esp32sim_wifi};
-    use esp_soc::nat::queue::op;
+    use esp_soc::nat::NatTransport;
 
     /// (op, flags) of each record the next take hands over.
     fn take(e: *mut Emu) -> Vec<(u8, u8)> {
@@ -150,6 +162,55 @@ mod tests {
         // SAFETY: as above.
         assert_eq!(unsafe { esp32sim_wifi(e, spec.as_ptr(), spec.len()) }, 0);
         assert_eq!(take(e), [(op::TCP_CONNECT, 0), (op::TCP_CLOSE, 1)]);
+        // SAFETY: the emulator is live and not used again.
+        unsafe { esp32sim_delete(e) };
+    }
+
+    /// A relay whose queue holds a UDP flow's open, an empty datagram and its close, untaken.
+    fn relay_with_a_closed_udp_flow(e: *mut Emu) {
+        let (mut transport, handle) = QueueTransport::new();
+        let id = transport.udp_open(std::net::SocketAddrV4::new([93, 184, 215, 14].into(), 123)).unwrap();
+        assert_eq!(transport.udp_send(id, &[]).unwrap(), 0);
+        transport.udp_close(id);
+        // SAFETY: the test owns the live emulator.
+        unsafe { &mut *e }.nat = Some(handle);
+    }
+
+    /// Left-over records of `room` bytes less than the bound: one record that fills them.
+    fn leave_room(e: *mut Emu, room: usize) {
+        let mut waiting = vec![0u8; OUT_MAX - room];
+        waiting[0] = op::UDP_DATA;
+        waiting[8..12].copy_from_slice(&((OUT_MAX - room - RECORD_HEADER) as u32).to_le_bytes());
+        // SAFETY: the test owns the live emulator.
+        unsafe { &mut *e }.nat_left = waiting;
+    }
+
+    /// A page that keeps switching without taking: the left-over records stop at `OUT_MAX` bytes,
+    /// and from the first record of a queue that does not fit only its closes are kept.
+    #[test]
+    fn left_over_records_are_bounded_and_the_closes_are_kept() {
+        let board = "none";
+        // SAFETY: the board name is readable; the emulator is deleted below.
+        let e = unsafe { esp32sim_new(board.as_ptr(), board.len(), 4, 0) };
+        let spec = "ssid=esp32sim";
+        // SAFETY: the test owns the live emulator; `spec` is readable for the call.
+        assert_eq!(unsafe { esp32sim_wifi(e, spec.as_ptr(), spec.len()) }, 0);
+        // the open (16 bytes) and the empty datagram (12) fill the room exactly; the close is past it
+        leave_room(e, 28);
+        relay_with_a_closed_udp_flow(e);
+        // SAFETY: as above.
+        assert_eq!(unsafe { esp32sim_nat_relay(e, 0) }, 0);
+        assert_eq!(take(e), [(op::UDP_DATA, 0), (op::UDP_OPEN, 0), (op::UDP_DATA, 0), (op::UDP_CLOSE, 0)]);
+        // the open does not fit; the datagram after it would, and is dropped with it
+        leave_room(e, 12);
+        relay_with_a_closed_udp_flow(e);
+        // SAFETY: as above.
+        assert_eq!(unsafe { esp32sim_nat_relay(e, 1) }, 0);
+        relay_with_a_flow(e);
+        // SAFETY: as above.
+        assert_eq!(unsafe { esp32sim_nat_relay(e, 0) }, 0);
+        assert_eq!(take(e), [(op::UDP_DATA, 0), (op::UDP_CLOSE, 0), (op::TCP_CLOSE, 1)]);
+        assert!(take(e).is_empty());
         // SAFETY: the emulator is live and not used again.
         unsafe { esp32sim_delete(e) };
     }

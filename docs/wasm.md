@@ -294,7 +294,10 @@ the bytes taken; offer the rest again after the next run), 4 TCP_EOF, 5 TCP_RESE
 retransmission), 64 KiB waiting for the guest per flow, 256 KiB of untaken data, 16 datagrams per
 UDP flow. A chip reset aborts the open flows (TCP_CLOSE with abort), and so does switching the
 relay off or on again, or a new `esp32sim_wifi`, which also drops the relay: the next take hands
-over the old queue's records, those closes last, before any new ones. [EX265](evidence/nat-relay/README.md) runs an Arduino station through it with Node's
+over the old queue's records, those closes last, before any new ones. Take between switches: from
+the first of a replaced queue's records that would bring the waiting ones past 256 KiB, only its
+closes (TCP_CLOSE, UDP_CLOSE) are kept, so a close can name a flow whose earlier records the page
+never got. [EX265](evidence/nat-relay/README.md) runs an Arduino station through it with Node's
 sockets in place of a page.
 
 Camera frames use `esp32sim_in_bin` type 3: `[3, width u16le, height u16le, RGBA...]`.
