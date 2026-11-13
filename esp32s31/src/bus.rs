@@ -1516,6 +1516,68 @@ mod tests {
     }
 
     #[test]
+    fn sha_dma_back_to_back_hashes_write_only_what_idf_expects() {
+        // A firmware user's report (IDF 6.1, mosaico): two psa_hash_compute(SHA-256) jobs over
+        // malloc'd 1670- and 1760-byte buffers, then a TLSF assert in the next malloc. Replays
+        // the driver's sequence for both jobs (psa_crypto_driver_esp_sha256.c esp_sha256_update /
+        // _finish, sha.c esp_sha_dma_process, esp_crypto_shared_gdma.c): the static DRAM
+        // descriptor zeroed and rebuilt each time (length = size = whole blocks, owner, suc_eof,
+        // next 0), the TX channel reset and connected to SHA (5), the RX channel on AES (4)
+        // started with a NULL link, OUT_CONF0 0x420 as IDF 6.1 leaves it (no AUTO_WRBACK; read
+        // from the channel in an IDF 6.1 build on this model), OUT link start, BLOCK_NUM,
+        // DMA_START, BUSY poll, digest read; the tail block by block mode after H_MEM written
+        // back. All of SRAM and LP RAM is compared before and after each job: the engine and
+        // the GDMA may not write a byte. With AUTO_WRBACK set, only the descriptor's owner bit
+        // may clear. Digests from Python hashlib.
+        use emu_core::Bus;
+        use super::{AXI_DMA, SRAM_BASE};
+        let sha = crate::sha::BASE;
+        let (outb, inb) = (AXI_DMA + 0x138, AXI_DMA);   // OUT / IN channel 0 blocks
+        let desc = SRAM_BASE + 0x1_5228;                  // s_dma_descr_input in the reporter's image
+        let mut b = super::S31Bus::new();
+        b.write32(crate::sha::CLOCK, 0x45).unwrap();
+        let job = |b: &mut super::S31Bus, buf: u32, n: usize, seed: u32, conf0: u32| -> Vec<u8> {
+            let msg: Vec<u8> = (0..n as u32).map(|i| (i * 7 + seed) as u8).collect();
+            for (i, x) in msg.iter().enumerate() { b.write8(buf + i as u32, *x).unwrap(); }
+            let len = (n & !63) as u32;
+            // esp_sha_dma_process: memset, then the input descriptor.
+            for k in 0..3 { b.write32(desc + 4 * k, 0).unwrap(); }
+            b.write32(desc, 1 << 31 | 1 << 30 | len << 12 | len).unwrap(); b.write32(desc + 4, buf).unwrap();
+            let (sram, lp) = (b.sram.clone(), b.lp.clone());
+            b.write32(sha, 2).unwrap();                                        // esp_sha_set_mode
+            // gdma_disconnect / gdma_connect (resets TX) / RX reset / both links started.
+            b.write32(outb + 0x44, 0x3f).unwrap(); b.write32(outb + 0x10, 1).unwrap(); b.write32(outb + 0x10, conf0).unwrap();
+            b.write32(outb + 0x44, 5).unwrap();
+            b.write32(inb + 0x44, 4).unwrap(); b.write32(inb + 0x10, 1).unwrap(); b.write32(inb + 0x10, 0).unwrap();
+            b.write32(outb + 0x24, desc).unwrap(); b.write32(outb + 0x20, 1 << 1).unwrap();
+            b.write32(inb + 0x24, 0).unwrap(); b.write32(inb + 0x20, 1 << 2).unwrap();
+            b.write32(sha + 0xc, len / 64).unwrap(); b.write32(sha + 0x1c, 1).unwrap();
+            assert_eq!(b.read32(sha + 0x18), Ok(0), "sha_hal_wait_idle");
+            let state: Vec<u32> = (0..8).map(|i| b.read32(sha + 0x40 + 4 * i).unwrap()).collect();
+            // esp_sha256_finish: the buffered tail plus padding is one block in both jobs.
+            let tail = sha_pad(&msg, 64)[len as usize..].to_vec();
+            assert_eq!(tail.len(), 64);
+            b.write32(sha, 2).unwrap();
+            for (i, w) in state.iter().enumerate() { b.write32(sha + 0x40 + 4 * i as u32, *w).unwrap(); }
+            for (i, w) in tail.chunks(4).enumerate() { b.write32(sha + 0x80 + 4 * i as u32, u32::from_le_bytes(w.try_into().unwrap())).unwrap(); }
+            b.write32(sha + 0x14, 1).unwrap();
+            let mut expect_sram = sram;
+            if conf0 & 4 != 0 {
+                let o = (desc - SRAM_BASE) as usize;
+                expect_sram[o + 3] &= 0x7f;                                     // owner -> CPU
+            }
+            let changed: Vec<usize> = (0..expect_sram.len()).filter(|&i| expect_sram[i] != b.sram[i]).collect();
+            assert!(changed.is_empty(), "SRAM bytes changed at offsets {:x?}", &changed[..changed.len().min(16)]);
+            assert!(lp == b.lp, "LP RAM changed");
+            sha_digest(b, 32)
+        };
+        for conf0 in [0x420, 0x424] {
+            assert_eq!(job(&mut b, SRAM_BASE + 0x3_029c, 1670, 3, conf0), sha_hex("7877c0db11578baaf55047853b08b5e903a575446f1d65db77896369b1bad513"));
+            assert_eq!(job(&mut b, SRAM_BASE + 0x3_0b20, 1760, 5, conf0), sha_hex("0e20995d937f92b231756c707a3491cadc307afb188cc63cfb76f0f583d21975"));
+        }
+    }
+
+    #[test]
     fn crypto_roots_preserve_real_sha_data_and_obey_source_gates() {
         use emu_core::Bus;
         let mut b = super::S31Bus::new(); let ctrl = crate::sha::CLOCK; let sha = crate::sha::BASE;
