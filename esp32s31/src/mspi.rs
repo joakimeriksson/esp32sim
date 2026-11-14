@@ -235,6 +235,22 @@ impl Mspi {
             }
             self.finish_program_erase(); return Ok(());
         }
+        let erase_size = match self.spi1.regs.read(0x20) & 0xff { 0x20 => 0x1000, 0x52 => 0x8000, 0xd8 => 0x10000, _ => 0 };
+        if (value == 1 << 18 || value == (1 << 18 | 1 << 17)) && erase_size != 0 {
+            // IDF v6.1 esp_flash (esp_ota_begin's partition erase) sends sector 0x20 and
+            // block 0xd8 erases as USER+FLASH_PE: command8/address24, no data phase
+            // (observed on the S31). As the SE path: WEL required, 4/32/64 KiB aligned,
+            // low address bits ignored, WEL clears on completion.
+            let user = self.spi1.regs.read(0x18); let address = self.spi1.regs.read(4);
+            if !self.is_winbond_flash() || user & 0xff00_0000 != 0xc000_0000 || self.spi1.regs.read(0x20) >> 28 != 7 || self.spi1.regs.read(0x1c) >> 26 != 23 || address > 0xff_ffff { return Err(Fault::Prohibited); }
+            self.validate_waiti()?;
+            if self.spi1.status & 2 != 0 {
+                let start = (address & !(erase_size - 1)) as usize;
+                flash.get_mut(start..start + erase_size as usize).ok_or(Fault::Unmapped)?.fill(0xff);
+                self.spi1.status &= !2; self.flash_generation = self.flash_generation.wrapping_add(1);
+            }
+            self.finish_program_erase(); return Ok(());
+        }
         // No multiple commands, other writes/erase, auto-suspend or unknown commands
         // are sent into the older shared model's permissive fallbacks.
         let allowed = (1 << 31) | (1 << 30) | (1 << 29) | (1 << 28) | (1 << 27) | (1 << 18);
@@ -344,6 +360,29 @@ mod tests {
         assert_eq!(m.write(1, 0, 1 << 24, &mut flash), Err(Fault::Unmapped)); assert_eq!(flash, before);
         m.write(1, 0, 1 << 27, &mut flash).unwrap(); assert_eq!(m.read(1, 0x2c).unwrap() & 2, 2);
         assert_eq!(m.write(1, 0, 1 << 24 | 1 << 25, &mut flash), Err(Fault::Prohibited)); assert_eq!(flash, before);
+    }
+    #[test]
+    fn user_pe_sector_and_block_erase_need_wel_and_clear_the_aligned_range() {
+        // IDF v6.1 esp_flash erases a sector (0x20) or block (0xd8) as USER+FLASH_PE,
+        // command8/address24 and no data phase; an OTA into a used slot depends on it.
+        let mut m = Mspi::default(); let mut flash = vec![0xa5; 0x30000]; m.attach_flash([0xef, 0x40, 0x18], 0).unwrap();
+        m.write(1, 0x18, 0xc0000000, &mut flash).unwrap(); m.write(1, 0x1c, 0x5c000007, &mut flash).unwrap();
+        m.write(1, 0x20, 0x700000d8, &mut flash).unwrap(); m.write(1, 4, 0x10000, &mut flash).unwrap();
+        m.write(1, 0, 1 << 18 | 1 << 17, &mut flash).unwrap(); assert!(flash.iter().all(|&b| b == 0xa5)); // no WEL
+        m.write(1, 0, 1 << 30, &mut flash).unwrap(); m.write(1, 0, 1 << 18 | 1 << 17, &mut flash).unwrap();
+        assert!(flash[0x10000..0x20000].iter().all(|&b| b == 0xff)); assert!(flash[..0x10000].iter().all(|&b| b == 0xa5)); assert!(flash[0x20000..].iter().all(|&b| b == 0xa5));
+        assert_eq!(m.spi1.status & 2, 0);
+        m.write(1, 0x20, 0x70000020, &mut flash).unwrap(); m.write(1, 4, 0x21234, &mut flash).unwrap();
+        m.write(1, 0, 1 << 30, &mut flash).unwrap(); m.write(1, 0, 1 << 18 | 1 << 17, &mut flash).unwrap();
+        assert!(flash[0x21000..0x22000].iter().all(|&b| b == 0xff)); assert!(flash[0x20000..0x21000].iter().all(|&b| b == 0xa5)); assert!(flash[0x22000..].iter().all(|&b| b == 0xa5));
+        m.write(1, 0x20, 0x70000052, &mut flash).unwrap(); m.write(1, 4, 0x2f000, &mut flash).unwrap();
+        m.write(1, 0, 1 << 30, &mut flash).unwrap(); m.write(1, 0, 1 << 18, &mut flash).unwrap();
+        assert!(flash[0x28000..].iter().all(|&b| b == 0xff)); assert!(flash[0x22000..0x28000].iter().all(|&b| b == 0xa5));
+        m.write(1, 0, 1 << 30, &mut flash).unwrap(); let before = flash.clone();
+        for (off, bad, good) in [(0x18, 0xc8000000, 0xc0000000), (0x1c, 0x7c000007, 0x5c000007), (4, 0x100_0000, 0x1000)] {
+            m.write(1, off, bad, &mut flash).unwrap(); assert_eq!(m.write(1, 0, 1 << 18 | 1 << 17, &mut flash), Err(Fault::Prohibited)); assert_eq!(flash, before); m.write(1, off, good, &mut flash).unwrap();
+        }
+        m.write(1, 4, 0x30000, &mut flash).unwrap(); assert_eq!(m.write(1, 0, 1 << 18 | 1 << 17, &mut flash), Err(Fault::Unmapped)); assert_eq!(flash, before);
     }
     #[test]
     fn sfdp_reads_only_supplied_interval_with_exact_command_framing() {
@@ -472,8 +511,8 @@ mod tests {
         // Quad read now passes the validated subset's QE check.
         m.write(1, 0x1c, 23 << 26, &mut flash).unwrap(); m.write(1, 0x28, 7, &mut flash).unwrap(); m.write(1, 4, 0, &mut flash).unwrap();
         user(&mut m, &mut flash, 0xd000_0000, 0x6b, 0, 0).unwrap(); assert_eq!(m.read(1, 0x58), Ok(0xa5));
-        // An unknown-to-the-subset erase opcode still needs WEL; the known SE path is GigaDevice-capable.
-        assert_eq!(user(&mut m, &mut flash, 0xc000_0000, 0xd8, 0, 0), Err(Fault::Prohibited)); assert!(flash.iter().all(|&b| b == 0xa5));
+        // A USER block erase without WEL is ignored by the die, as SE is; both are GigaDevice-capable.
+        user(&mut m, &mut flash, 0xc000_0000, 0xd8, 0, 0).unwrap(); assert!(flash.iter().all(|&b| b == 0xa5));
         m.write(1, 4, 0x1000, &mut flash).unwrap(); m.write(1, 0, 1 << 30, &mut flash).unwrap(); m.write(1, 0, 1 << 24, &mut flash).unwrap();
         assert!(flash[0x1000..].iter().all(|&b| b == 0xff)); assert!(flash[..0x1000].iter().all(|&b| b == 0xa5));
         // An unknown vendor gets no fallback.
