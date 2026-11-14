@@ -35,11 +35,16 @@ impl ShaEngine {
     pub fn dma_pending(&self) -> bool { self.engine.dma_pending }
     /// Bytes the pending DMA request hashes: SHA_DMA_BLOCK_NUM (16 bits on the S31) blocks.
     pub fn dma_bytes(&self) -> usize { self.dma_blocks as usize * self.engine.block_bytes() }
-    /// Finish the pending DMA request with the gathered input (`None`: the OUT chain failed and
-    /// nothing is hashed). DMA_START restarts from the initial state, DMA_CONTINUE from H_MEM.
+    /// Finish the pending DMA request with the gathered input. DMA_START restarts from the initial
+    /// state, DMA_CONTINUE from H_MEM. `None`: the OUT chain failed (short, or a descriptor/buffer
+    /// fault). The model never reports a fabricated transfer: nothing is hashed, BUSY stays 1 and
+    /// the done interrupt stays low, so IDF hangs visibly in sha_hal_wait_idle instead of reading a
+    /// stale digest. Only a reset (or a new DMA_START / DMA_CONTINUE) leaves that state.
     pub fn dma_complete(&mut self, input: Option<&[u8]>) {
-        if let Some(input) = input { self.engine.hash_dma_input(input); }
-        self.engine.dma_pending = false; self.engine.busy = false; self.int_raw = true;
+        self.engine.dma_pending = false;
+        let Some(input) = input else { return };
+        self.engine.hash_dma_input(input);
+        self.engine.busy = false; self.int_raw = true;
     }
     pub fn read(&self, off: u32) -> Result<u32, Fault> {
         if off & 3 != 0 { return Err(Fault::Misaligned); }
@@ -98,5 +103,22 @@ mod tests {
         for mode in 5..16 { assert_eq!(s.write(0, mode), Err(Fault::Prohibited)); }
         assert_eq!(s.read(0), Ok(2));
         assert_eq!(s.blocks(), 0); assert_eq!(s.read(0x100), Err(Fault::Unmapped));
+    }
+    #[test]
+    fn dma_start_sets_busy_and_irq_ena_gates_the_done_interrupt() {
+        let mut s = ShaEngine::default();
+        s.write(0xc, 1).unwrap(); s.write(0x1c, 1).unwrap();
+        assert_eq!(s.read(0x18), Ok(1)); assert!(s.dma_pending()); assert_eq!(s.dma_bytes(), 64);
+        s.write(0x18, 0).unwrap(); assert_eq!(s.read(0x18), Ok(1), "BUSY is read-only");
+        s.dma_complete(Some(&[0; 64]));
+        assert_eq!(s.read(0x18), Ok(0)); assert_eq!(s.blocks(), 1);
+        assert!(!s.irq(), "raw done, IRQ_ENA clear");
+        s.write(0x28, 0xffff_ffff).unwrap(); assert_eq!(s.read(0x28), Ok(1)); assert!(s.irq());
+        s.write(0x24, 0).unwrap(); assert!(s.irq(), "CLEAR_IRQ needs bit 0");
+        s.write(0x24, 1).unwrap(); assert!(!s.irq());
+        s.write(0x28, 0).unwrap();
+        // A failed chain: BUSY stays, no interrupt, nothing hashed.
+        s.write(0x28, 1).unwrap(); s.write(0x20, 1).unwrap(); s.dma_complete(None);
+        assert_eq!(s.read(0x18), Ok(1)); assert!(!s.dma_pending()); assert!(!s.irq()); assert_eq!(s.blocks(), 1);
     }
 }
